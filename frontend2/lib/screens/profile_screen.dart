@@ -492,17 +492,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           const Divider(height: 24, color: Color(0xFFE2E2E2)),
 
                           // Email (read-only)
-                          // Apple Sign In Compliance: Only show email field if email exists (Microsoft linked or provided)
-                          // For Apple-only users without Microsoft link, email field is hidden to comply with App Store Guideline 4.0
-                          // This ensures users understand that Sign in with Apple doesn't require email/password setup
-                          if (email.isNotEmpty) ...[
-                            _buildField(
-                              icon: Icons.email_outlined,
-                              label: "Email",
-                              value: email,
-                            ),
-                            const SizedBox(height: 16),
-                          ],
+                          _buildField(
+                            icon: Icons.email_outlined,
+                            label: "Email",
+                            value: email.isNotEmpty ? email : 'Unknown',
+                          ),
+                          const SizedBox(height: 16),
                         ],
                       ),
                     ),
@@ -598,112 +593,111 @@ class _ProfileScreenState extends State<ProfileScreen> {
       future: _checkMicrosoftLink(),
       builder: (context, snapshot) {
         if (snapshot.data == false) {
-          return FutureBuilder<String>(
-            future: _getAuthProviderMessage(),
-            builder: (context, authSnapshot) {
-              final authMessage =
-                  authSnapshot.data ?? 'Your authentication is complete.';
-              return Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF4C4EDB).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: const Color(0xFF4C4EDB).withValues(alpha: 0.3),
-                    width: 1,
+          return Container(
+            margin: const EdgeInsets.all(16),
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFF4C4EDB).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: const Color(0xFF4C4EDB).withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              children: [
+                const Icon(
+                  Icons.link,
+                  color: Color(0xFF4C4EDB),
+                  size: 32,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Link Student Account',
+                  style: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontSize: 16,
+                    fontFamily: 'OpenSans_regular',
                   ),
                 ),
-                child: Column(
-                  children: [
-                    const Text(
-                      'Link Student Account (Optional)',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        fontSize: 16,
-                        fontFamily: 'OpenSans_regular',
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Optionally link your Student Account to access student-specific features like QR scanning, feedback, and mess change. $authMessage',
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black87,
-                        fontFamily: 'OpenSans_regular',
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () async {
-                          try {
-                            await auth.linkMicrosoftAccount();
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Center(
-                                    child: Text(
-                                      'Student Account linked successfully',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  backgroundColor: Colors.black,
-                                  behavior: SnackBarBehavior.floating,
-                                  margin: EdgeInsets.all(50),
-                                  duration: Duration(milliseconds: 2000),
-                                ),
-                              );
-                              // Refresh profile data
-                              _initializeData();
-                              // Trigger home screen refresh to update displayed name
-                              homeScreenRefreshNotifier.value = true;
-                            }
-                          } catch (e) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(
-                                  content: Center(
-                                    child: Text(
-                                      'Failed to link Student Account',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(color: Colors.white),
-                                    ),
-                                  ),
-                                  backgroundColor: Colors.black,
-                                  behavior: SnackBarBehavior.floating,
-                                  margin: EdgeInsets.all(50),
-                                  duration: Duration(milliseconds: 2000),
-                                ),
-                              );
-                            }
-                          }
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF4C4EDB),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text(
-                          'Link Account',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            fontFamily: 'OpenSans_regular',
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                const SizedBox(height: 8),
+                const Text(
+                  'Link your Student Account to verify your student identity and unlock all features including QR scanning, feedback, and mess change.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.black87,
+                    fontFamily: 'OpenSans_regular',
+                  ),
                 ),
-              );
-            },
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      try {
+                        await auth.linkMicrosoftAccount();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Center(
+                                child: Text(
+                                  'Student Account linked successfully',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                              backgroundColor: Colors.black,
+                              behavior: SnackBarBehavior.floating,
+                              margin: EdgeInsets.all(50),
+                              duration: Duration(milliseconds: 2000),
+                            ),
+                          );
+                          // Refresh profile data
+                          _initializeData();
+                          // Trigger home screen refresh to update displayed name
+                          homeScreenRefreshNotifier.value = true;
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Center(
+                                child: Text(
+                                  'Failed to link Student Account',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(color: Colors.white),
+                                ),
+                              ),
+                              backgroundColor: Colors.black,
+                              behavior: SnackBarBehavior.floating,
+                              margin: EdgeInsets.all(50),
+                              duration: Duration(milliseconds: 2000),
+                            ),
+                          );
+                        }
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFF4C4EDB),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text(
+                      'Link Account',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        fontFamily: 'OpenSans_regular',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
           );
         }
         return const SizedBox.shrink();
@@ -714,18 +708,5 @@ class _ProfileScreenState extends State<ProfileScreen> {
   Future<bool> _checkMicrosoftLink() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getBool('hasMicrosoftLinked') ?? false;
-  }
-
-  Future<String> _getAuthProviderMessage() async {
-    final prefs = await SharedPreferences.getInstance();
-    final guestIdentifier = prefs.getString('guestIdentifier');
-    final hasMicrosoftLinked = prefs.getBool('hasMicrosoftLinked') ?? false;
-
-    // Check if user is a guest user
-    if (guestIdentifier != null && !hasMicrosoftLinked) {
-      return 'Your guest authentication is complete.';
-    }
-    // Otherwise, assume Apple user (since Microsoft users wouldn't see this message)
-    return 'Your Sign in with Apple authentication is complete.';
   }
 }

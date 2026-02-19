@@ -2,8 +2,8 @@ const express = require("express");
 const router = express.Router();
 const {
   getVersionInfo,
-  updateVersionInfo,
-  getAllVersionInfo,
+  // updateVersionInfo,
+  // getAllVersionInfo,
 } = require("./appVersionController");
 
 /**
@@ -30,7 +30,7 @@ const {
  */
 router.get("/:platform", getVersionInfo);
 
-router.put("/:platform", updateVersionInfo);
-router.get("/", getAllVersionInfo);
+// router.put("/:platform", updateVersionInfo);
+// router.get("/", getAllVersionInfo);
 
 module.exports = router;

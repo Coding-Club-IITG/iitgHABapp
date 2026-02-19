@@ -1,7 +1,7 @@
 // server/v2/index.js
 //import authRoutes from "./modules/auth/auth.routes.js";
 
-require("dotenv").config({ path: "../.env" });
+require("dotenv").config({ path: '../.env' });
 console.log("MONGODB_URI from env:", process.env.MONGODB_URI);
 const authRoutes = require("./modules/auth/auth.routes.js");
 const express = require("express");
@@ -13,6 +13,7 @@ const hostelRoute = require("./modules/hostel/hostelRoute.js");
 const notificationRoute = require("./modules/notification/notificationRoute.js");
 const messRoute = require("./modules/mess/messRoute.js");
 const logsRoute = require("./modules/mess/ScanLogsRoute.js");
+const appVersionRoute = require("./modules/app_version/appVersionRoute.js");
 const cors = require("cors");
 const bodyParser = require("body-parser");
 const {
@@ -32,7 +33,8 @@ function buildAuthorizeUrl() {
         process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in"
       }/api/_debug/graph/callback`,
     scope:
-      (onedrive.graphUserScopes || []).join(" ") || "offline_access User.Read",
+      (onedrive.graphUserScopes || []).join(" ") ||
+      "offline_access User.Read",
     prompt: "consent",
   });
   const tenant = onedrive.authTenant || onedrive.tenantId || "common";
@@ -105,7 +107,7 @@ app.use(
   swaggerUi.setup(swaggerSpec, {
     explorer: true,
     customSiteTitle: "IITG HAB API Documentation",
-  }),
+  })
 );
 
 app.get("/api/swagger.json", (req, res) => {
@@ -127,7 +129,7 @@ app.use(
       "http://localhost:5175",
     ],
     credentials: true,
-  }),
+  })
 );
 
 app.use(cookieParser());
@@ -208,6 +210,9 @@ app.use("/api/profile", profileRouter);
 //scanlogs route
 app.use("/api/logs", logsRoute);
 
+//app version route
+app.use("/api/app-version", appVersionRoute);
+
 // Debug route: accept delegated tokens and save to disk for server use
 // WARNING: Protect this route in production (e.g., require admin auth, restrict IPs)
 app.post("/api/_debug/graph/delegated-token", async (req, res) => {
@@ -258,11 +263,12 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
       onedrive.redirectUri ||
         `${
           process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in"
-        }/api/_debug/graph/callback`,
+        }/api/_debug/graph/callback`
     );
     params.append(
       "scope",
-      (onedrive.graphUserScopes || []).join(" ") || "offline_access User.Read",
+      (onedrive.graphUserScopes || []).join(" ") ||
+        "offline_access User.Read"
     );
 
     const axios = require("axios");
@@ -278,7 +284,7 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
     res
       .status(200)
       .send(
-        `Delegated tokens saved at ${tokenFilePath}. You can close this window.`,
+        `Delegated tokens saved at ${tokenFilePath}. You can close this window.`
       );
   } catch (e) {
     res.status(500).send(`Failed to exchange code: ${e.message}`);

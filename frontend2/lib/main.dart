@@ -21,13 +21,13 @@ import 'package:provider/provider.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
+  
   // Check device type and app version on startup
   await VersionChecker.init();
-
+  
   // Check if update is required
   final bool updateRequired = await VersionChecker.checkForUpdate();
-
+  
   final bool asLoggedIn = await isLoggedIn();
   await Firebase.initializeApp();
 
@@ -82,8 +82,7 @@ class MyApp extends StatefulWidget {
   final bool isLoggedIn;
   final bool updateRequired;
 
-  const MyApp(
-      {super.key, required this.isLoggedIn, required this.updateRequired});
+  const MyApp({super.key, required this.isLoggedIn, required this.updateRequired});
 
   @override
   State<MyApp> createState() => _MyAppState();
@@ -105,9 +104,10 @@ class _MyAppState extends State<MyApp> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // Show update dialog if required
       if (widget.updateRequired) {
+        VersionChecker.showUpdateDialog(navigatorKey.currentContext!);
         return; // Don't proceed with other initialization if update is required
       }
-
+      
       // This ensures it runs after the first frame
       await context.read<MessInfoProvider>().fetchMessID();
     });
@@ -164,11 +164,9 @@ class _MyAppState extends State<MyApp> {
       debugShowCheckedModeBanner: false,
       navigatorKey: navigatorKey,
 
-      home: widget.updateRequired
-          ? const UpdateRequiredScreen()
-          : (widget.isLoggedIn
-              ? const MainNavigationScreen()
-              : const LoginScreen()),
+      home: widget.isLoggedIn
+          ? const MainNavigationScreen()
+          : const LoginScreen(),
 
       //home:  ProfileScreen(),
       builder: EasyLoading.init(),
@@ -183,96 +181,5 @@ class _MyAppState extends State<MyApp> {
   void dispose() {
     // Dispose of the connectivity stream if necessary
     super.dispose();
-  }
-}
-
-class UpdateRequiredScreen extends StatelessWidget {
-  const UpdateRequiredScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFF0B1220),
-              Color(0xFF0F172A),
-            ],
-          ),
-        ),
-        child: Center(
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x1A000000),
-                  blurRadius: 16,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Update Required',
-                  style: TextStyle(
-                    color: Color(0xFF2563EB),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.2,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  VersionChecker.updateMessage,
-                  style: const TextStyle(
-                    color: Color(0xFF1A1A2E),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: ElevatedButton(
-                    onPressed: () => VersionChecker.openStore(),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF4C4EDB),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
-                      ),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      elevation: 0,
-                    ),
-                    child: const Text(
-                      'Update',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

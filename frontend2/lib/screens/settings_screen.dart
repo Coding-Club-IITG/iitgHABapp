@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:frontend2/apis/authentication/login.dart';
 import 'package:frontend2/apis/users/user.dart';
 import 'package:frontend2/screens/login_screen.dart';
@@ -75,7 +74,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   void _showDeleteAccountDialog(BuildContext context) {
     final TextEditingController confirmController = TextEditingController();
     bool isDeleting = false;
-    String? deleteErrorMessage;
 
     showDialog(
       context: context,
@@ -170,22 +168,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       onChanged: (value) {
-                        setState(() {
-                          deleteErrorMessage = null;
-                        });
+                        setState(() {});
                       },
                     ),
-                    if (deleteErrorMessage != null) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        deleteErrorMessage!,
-                        style: TextStyle(
-                          fontSize: 12.5,
-                          color: Colors.red[600],
-                          height: 1.4,
-                        ),
-                      ),
-                    ],
                   ],
                 ),
               ),
@@ -218,7 +203,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                             if (!dialogContext.mounted) return;
                             Navigator.of(dialogContext).pop();
                             // Clear local data and logout
-                            final prefs = await SharedPreferences.getInstance();
+                            final prefs =
+                                await SharedPreferences.getInstance();
                             await prefs.clear();
                             if (!context.mounted) return;
                             Navigator.of(context).pushAndRemoveUntil(
@@ -228,23 +214,23 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               (route) => false,
                             );
                             if (!context.mounted) return;
-                            EasyLoading.showSuccess(
-                                'Account deleted successfully');
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Account deleted successfully'),
+                                backgroundColor: Colors.green,
+                              ),
+                            );
                           } catch (e) {
                             setState(() {
                               isDeleting = false;
-                              final rawMessage = e
-                                  .toString()
-                                  .replaceFirst('Exception: ', '')
-                                  .trim();
-
-                              deleteErrorMessage =
-                                  'Request failed. Please ensure the following:\n'
-                                  '- You do not have any active mess change requests.\n'
-                                  '- You are not an SMC member.';
                             });
                             if (!dialogContext.mounted) return;
-                            debugPrint('Delete account error: $e');
+                            ScaffoldMessenger.of(dialogContext).showSnackBar(
+                              SnackBar(
+                                content: Text('Error: ${e.toString()}'),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
                           }
                         },
                   style: ButtonStyle(
