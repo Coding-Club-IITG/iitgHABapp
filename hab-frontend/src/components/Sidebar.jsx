@@ -11,6 +11,7 @@ import {
   SettingOutlined,
   BookOutlined,
   NotificationOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 
 const Sidebar = ({ collapsed = false, onToggle }) => {
@@ -34,6 +35,8 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       path: "/notifications",
       icon: <NotificationOutlined />,
     },
+    { key: "8", name: "Mess Closures",    path: "/mess-closures",   
+         icon: <CalendarOutlined /> },
   ];
 
   return (

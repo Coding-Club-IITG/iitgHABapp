@@ -9,6 +9,7 @@ import HostelForm from "./pages/HostelForm";
 import HostelPage from "./pages/HostelPage";
 import MessChangePage from "./pages/MessChangePage.jsx";
 import Notifications from "./pages/Notifications.jsx";
+import MessClosurePage from "./pages/MessClosurePage.jsx"; 
 import CreateMess from "./components/CreateMess";
 import MessDetails from "./components/MessDetails";
 import MessMenu from "./components/MessMenu";
@@ -84,6 +85,9 @@ function App() {
                             path="/notifications"
                             element={<Notifications />}
                           />
+                          <Route path="/mess-closures"
+                           element={<MessClosurePage />} 
+                           />
                         </Routes>
                       </div>
                     </div>

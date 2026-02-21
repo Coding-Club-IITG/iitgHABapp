@@ -10,8 +10,10 @@ import {
   Building2,
   LogOut,
   Bell,
+  CalendarX,
 } from "lucide-react";
 import NotificationSender from "../components/NotificationSender";
+import MessClosureView from "../components/MessClosureView"; 
 import Card from "../components/ui/Card";
 import Tabs from "../components/ui/Tabs";
 import Button from "../components/ui/Button";
@@ -159,6 +161,7 @@ const Dashboard = () => {
     { label: "Bill Management", value: "bill", icon: FileText },
     { label: "SMC Management", value: "smc", icon: UserCheck },
     { label: "Notifications", value: "notifications", icon: Bell },
+    { label: "Mess Closures",    value: "messClosure",   icon: CalendarX },
   ];
 
   return (
@@ -466,6 +469,9 @@ const Dashboard = () => {
             )}
 
             {activeTab === "notifications" && <NotificationSender />}
+
+            {activeTab === "messClosure" && <MessClosureView />}
+
 
             {activeTab === "smc" && (
               <Card>
