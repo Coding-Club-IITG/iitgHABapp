@@ -21,6 +21,8 @@ const {
   // finalizeMessClosure,
   // getMessClosureDate
 } = require("./hostelController.js");
+
+const messClosureController = require("./messClosureController.js");
 const { uploadData } = require("./hostelAlloc.js");
 const multer = require("multer");
 const fs = require("fs");
@@ -205,6 +207,17 @@ hostelRouter.get("/smc-members", authenticateAdminJWT, getSMCMembers);
 hostelRouter.post("/mark-smc", authenticateAdminJWT, markAsSMC);
 hostelRouter.post("/unmark-smc", authenticateAdminJWT, unmarkAsSMC);
 
-// hostelRouter.post("/finalize-closure", authenticateAdminJWT, finalizeMessClosure);
-// hostelRouter.get("/closure-date", authenticateAdminJWT, getMessClosureDate);
+// Mess Closure Routes
+// HAB Admin (HAB JWT)
+hostelRouter.post("/mess-closure/schedule", authenticateAdminJWT, messClosureController.scheduleMessClosure);
+hostelRouter.get("/mess-closure/all", authenticateAdminJWT, messClosureController.getAllMessClosures);
+
+// Hostel Admin (Hostel JWT)
+hostelRouter.get("/mess-closure/upcoming", authenticateAdminJWT, messClosureController.getUpcomingHostelMessClosure);
+hostelRouter.get("/mess-closure/days-count", authenticateAdminJWT, messClosureController.getMessClosureDaysCount);
+hostelRouter.get("/mess-closure", authenticateAdminJWT, messClosureController.getHostelMessClosures);
+
+// HAB Admin (parameterized routes)
+hostelRouter.put("/mess-closure/:id", authenticateAdminJWT, messClosureController.updateMessClosure);
+hostelRouter.delete("/mess-closure/:id", authenticateAdminJWT, messClosureController.deleteMessClosure);
 module.exports = hostelRouter;
