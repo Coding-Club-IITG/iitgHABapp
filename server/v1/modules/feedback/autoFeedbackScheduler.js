@@ -161,6 +161,8 @@ const initializeFeedbackAutoScheduler = () => {
     if (settings?.isEnabled) {
       await scheduleFeedbackReminders();
     }
+  }).catch((err) => {
+    console.error("Error initializing feedback scheduler:", err);
   });
 };
 

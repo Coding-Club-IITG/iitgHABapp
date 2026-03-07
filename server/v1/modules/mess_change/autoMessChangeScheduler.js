@@ -166,6 +166,8 @@ const initializeMessChangeAutoScheduler = () => {
     if (settings?.isEnabled) {
       await scheduleMessChangeReminders();
     }
+  }).catch((err) => {
+    console.error("Error initializing mess change scheduler:", err);
   });
 };
 

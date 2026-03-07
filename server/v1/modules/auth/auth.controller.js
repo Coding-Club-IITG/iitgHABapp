@@ -90,6 +90,7 @@ const mobileRedirectHandler = async (req, res, next) => {
     // currentSubscribedMess is optional - if not found, User model will default to hostel
 
     let existingUser = await findUserWithEmail(userFromToken.data.mail);
+    let isFirstLogin = false;
 
     if (!existingUser) {
       const userData = {

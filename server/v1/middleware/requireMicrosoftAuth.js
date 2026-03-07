@@ -7,7 +7,7 @@ const AppError = require("../utils/appError.js");
 const requireMicrosoftAuth = async (req, res, next) => {
   const user = req.user; // From authenticateJWT middleware
 
-  if (!user.hasMicrosoftLinked || !user.rollNumber) {
+  if (!user || !user.hasMicrosoftLinked || !user.rollNumber) {
     return next(
       new AppError(
         403,

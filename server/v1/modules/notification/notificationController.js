@@ -21,9 +21,15 @@ const registerToken = async (req, res) => {
       try {
         const curr_sub_mess = req.user.curr_subscribed_mess;
         if (curr_sub_mess) {
-          const curr_sub_mess_name = (
-            await Hostel.findById(curr_sub_mess._id || curr_sub_mess)
-          )["hostel_name"].replaceAll(" ", "_");
+          const messHostel = await Hostel.findById(
+            curr_sub_mess._id || curr_sub_mess,
+          );
+          if (!messHostel) throw new Error("Subscribed mess hostel not found");
+
+          const curr_sub_mess_name = messHostel["hostel_name"].replaceAll(
+            " ",
+            "_",
+          );
 
           // Get user's current hostel name for Boarders_Their_Hostel topic
           const userHostel = await Hostel.findById(req.user.hostel);
@@ -77,25 +83,29 @@ async function sendNotificationMessage(
   data = {},
   isAlert = false,
 ) {
-  // If it's an alert, don't include notification object (only data)
-  // Otherwise, include notification object
-  const message = isAlert
-    ? {
-        data: {
-          ...data,
-          title: title,
-          body: body,
-          alert: "true",
-        },
-        topic: topic,
-      }
-    : {
-        notification: { title, body },
-        data: data,
-        topic: topic,
-      };
-  console.log(message);
-  await admin.messaging().send(message);
+  try {
+    // If it's an alert, don't include notification object (only data)
+    // Otherwise, include notification object
+    const message = isAlert
+      ? {
+          data: {
+            ...data,
+            title: title,
+            body: body,
+            alert: "true",
+          },
+          topic: topic,
+        }
+      : {
+          notification: { title, body },
+          data: data,
+          topic: topic,
+        };
+    console.log(message);
+    await admin.messaging().send(message);
+  } catch (error) {
+    console.error("Error sending notification:", error);
+  }
 }
 
 // Send a notification directly to a specific user's FCM token

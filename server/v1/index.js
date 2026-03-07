@@ -46,7 +46,6 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 
 const messChangeRouter = require("./modules/mess_change/messchangeRoute.js");
-require("dotenv").config();
 
 const app = express();
 app.use(bodyParser.json({ limit: "1mb" }));

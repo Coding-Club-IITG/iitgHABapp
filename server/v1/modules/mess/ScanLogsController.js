@@ -9,6 +9,9 @@ const statsByDate = async (req, res) => {
 
     const matchStage = { date: date };
     if (messid) {
+      if (!mongoose.Types.ObjectId.isValid(messid)) {
+        return res.status(400).json({ message: "Invalid Mess ID format" });
+      }
       matchStage.messId = new mongoose.Types.ObjectId(messid);
     }
 

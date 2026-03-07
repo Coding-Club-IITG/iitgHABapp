@@ -168,7 +168,7 @@ const createMenuItem = async (req, res) => {
       type,
     });
     const newItem = await newMenuItem.save();
-    const menu = await Menu.findOne({ messId: messId, day: day, type: meal });
+    let menu = await Menu.findOne({ messId: messId, day: day, type: meal });
     if (!menu) {
       const newMenu = new Menu({
         messId,
@@ -643,7 +643,7 @@ const ScanMess = async (req, res) => {
     const todayMenus = await Menu.find({
       messId,
       day: currentDay,
-      type: { $in: ["Breakfast", "Lunch", "Dinner"] }
+      type: { $in: ["Breakfast", "Lunch", "Dinner"] },
     }).lean();
 
     const breakfast = todayMenus.find((m) => m.type === "Breakfast");
@@ -713,7 +713,7 @@ const ScanMess = async (req, res) => {
       return res.status(400).json({
         message: "No meals available at this time",
         success: false,
-        time: formatTime(new Date()),
+        time: currentTime,
         date: formatDate(new Date()),
       });
     }
@@ -791,7 +791,6 @@ const assignMessToHostel = async (req, res) => {
     const newMess = await Mess.findByIdAndUpdate(
       messId,
       { hostelId: hostelId },
-      { hostel_name: req.body.hostelName },
       { new: true },
     );
     if (!newMess) {
@@ -802,7 +801,6 @@ const assignMessToHostel = async (req, res) => {
       const oldMess = await Mess.findByIdAndUpdate(
         oldMessId,
         { hostelId: null },
-        { hostel_name: null },
         { new: true },
       );
       if (!oldMess) {
