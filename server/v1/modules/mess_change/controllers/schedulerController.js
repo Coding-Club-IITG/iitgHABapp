@@ -29,7 +29,7 @@ const enableMessChangeAutomatic = async () => {
       "Mess Change is Enabled",
       "All_Hostels",
       { redirectType: "mess_change", isAlert: "true" }
-    );
+    ).catch((err) => console.error("Mess change enabled notification failed:", err));
 
     console.log("✅ Mess change enabled automatically");
     return { success: true, settings };

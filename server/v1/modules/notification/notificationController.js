@@ -61,7 +61,7 @@ const registerToken = async (req, res) => {
     await FCMToken.findOneAndUpdate(
       { user: req.user._id },
       { token: fcmToken },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
+      { upsert: true, new: true, setDefaultsOnInsert: true },
     );
 
     res.json({ message: "FCM token registered" });
@@ -75,7 +75,7 @@ async function sendNotificationMessage(
   body,
   topic,
   data = {},
-  isAlert = false
+  isAlert = false,
 ) {
   // If it's an alert, don't include notification object (only data)
   // Otherwise, include notification object
@@ -117,7 +117,7 @@ const sendNotificationToUser = async (userId, title, body) => {
 const sendNotification = async (req, res) => {
   try {
     const { title, body, topic, isAlert } = req.body;
-    sendNotificationMessage(title, body, topic, {}, isAlert || false);
+    await sendNotificationMessage(title, body, topic, {}, isAlert || false);
     res.status(200).json({ message: "Notification sent" });
   } catch (err) {
     console.error(err);
@@ -144,8 +144,8 @@ const sendWelcomeNotification = async (req, res) => {
     // Send welcome notification
     await sendNotificationToUser(
       req.user._id,
-      "Welcome to HAB App",
-      "Thanks for signing in! You will receive updates here."
+      "Welcome to HABit IITG",
+      "Thanks for signing in to your go to app for all your hostel and mess related updates.",
     );
 
     res.status(200).json({ message: "Welcome notification sent" });

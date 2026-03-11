@@ -143,10 +143,12 @@ const userSchema = new mongoose.Schema({
   hostel: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Hostel",
+    index: true,
   },
   curr_subscribed_mess: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Hostel",
+    index: true,
     default: function () {
       return this.hostel;
     },
@@ -193,6 +195,7 @@ const userSchema = new mongoose.Schema({
   isSMC: {
     type: Boolean,
     default: false,
+    index: true,
   },
   isSetupDone: {
     type: Boolean,

@@ -1,3 +1,4 @@
+const bcrypt = require("bcrypt");
 const { User } = require("../user/userModel.js");
 const { Hostel } = require("./hostelModel.js");
 const { Mess } = require("../mess/messModel.js");
@@ -7,17 +8,35 @@ const { getCurrentDate } = require("../../utils/date.js");
 
 const createHostel = async (req, res) => {
   try {
-    const { hostel_name, microsoft_email, curr_cap } = req.body;
+    const {
+      hostel_name,
+      microsoft_email,
+      secretary_email,
+      curr_cap,
+      password,
+    } = req.body;
 
     if (!microsoft_email) {
       return res.status(400).json({ message: "Microsoft email is required" });
     }
 
-    const hostel = await Hostel.create({
+    const hostelData = {
       hostel_name,
       microsoft_email,
+      secretary_email,
       curr_cap,
-    });
+    };
+
+    // If an initial hostel password is provided, hash and store it securely.
+    if (password && typeof password === "string" && password.trim().length) {
+      const saltRounds = 10;
+      hostelData.managerPasswordHash = await bcrypt.hash(
+        password.trim(),
+        saltRounds,
+      );
+    }
+
+    const hostel = await Hostel.create(hostelData);
 
     return res
       .status(201)
@@ -30,6 +49,41 @@ const createHostel = async (req, res) => {
         .json({ message: "Hostel name or email already exists" });
     }
     return res.status(500).json({ message: "Error occurred" });
+  }
+};
+
+/**
+ * HAB: Set or update the password for a hostel (encrypted with bcrypt).
+ * Body: { hostelId, password }
+ */
+const setHostelPassword = async (req, res) => {
+  try {
+    const { hostelId, password } = req.body;
+
+    if (!hostelId || !password || !String(password).trim().length) {
+      return res.status(400).json({
+        message: "hostelId and a non-empty password are required",
+      });
+    }
+
+    const hostel = await Hostel.findById(hostelId);
+    if (!hostel) {
+      return res.status(404).json({ message: "Hostel not found" });
+    }
+
+    const saltRounds = 10;
+    hostel.managerPasswordHash = await bcrypt.hash(
+      String(password).trim(),
+      saltRounds,
+    );
+    await hostel.save();
+
+    return res
+      .status(200)
+      .json({ message: "Hostel password set successfully" });
+  } catch (err) {
+    console.log(err);
+    return res.status(500).json({ message: "Error setting hostel password" });
   }
 };
 
@@ -75,7 +129,7 @@ const getHostelbyId = async (req, res) => {
 
     // Fetch users associated with this hostel (include phoneNumber & roomNumber)
     const users = await User.find({ hostel: hostelId }).select(
-      "name rollNumber email roomNumber phoneNumber degree curr_subscribed_mess"
+      "name rollNumber email roomNumber phoneNumber degree curr_subscribed_mess",
     );
     // Fetch all hostels with their mess information to map curr_subscribed_mess
     const hostelsWithMess = await Hostel.find().populate("messId", "name");
@@ -93,7 +147,7 @@ const getHostelbyId = async (req, res) => {
         curr_subscribed_mess_name: (() => {
           if (!user.curr_subscribed_mess) return "N/A";
           const subscribedHostel = hostelsWithMess.find(
-            (h) => h._id.toString() === user.curr_subscribed_mess.toString()
+            (h) => h._id.toString() === user.curr_subscribed_mess.toString(),
           );
           return subscribedHostel?.hostel_name || "N/A";
         })(),
@@ -119,7 +173,7 @@ const getAllHostelNameAndCaterer = async (req, res) => {
   try {
     const hostelData = await Hostel.find(
       {},
-      { hostel_name: 1, messId: 1 }
+      { hostel_name: 1, messId: 1 },
     ).populate({
       path: "messId",
       select: "name -_id",
@@ -133,7 +187,7 @@ const getAllHostelNameAndCaterer = async (req, res) => {
           ...hostel.toObject(),
           user_count: userCount,
         };
-      })
+      }),
     );
 
     res.status(200).json(hostelDataWithUserCount);
@@ -198,7 +252,7 @@ const getMessSubscribers = async (req, res) => {
     // Find all users subscribed to this hostel's mess
     const subscribers = await User.find({ curr_subscribed_mess: hostelId })
       .select(
-        "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess"
+        "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
       )
       .populate("hostel", "hostel_name")
       .populate("curr_subscribed_mess", "hostel_name");
@@ -249,7 +303,7 @@ const getMessSubscribersByHostelId = async (req, res) => {
 
     const subscribers = await User.find({ curr_subscribed_mess: hostelId })
       .select(
-        "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess"
+        "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
       )
       .populate("hostel", "hostel_name")
       .populate("curr_subscribed_mess", "hostel_name");
@@ -412,12 +466,12 @@ const finalizeMessClosure = async (req, res) => {
     const closure = await MessClosure.findOneAndUpdate(
       { hostelId, month, year },
       { hostelId, closureDate: new Date(date), month, year },
-      { upsert: true, new: true }
+      { upsert: true, new: true },
     );
 
     return res.status(200).json({
       message: "Mess closure date finalized successfully",
-      closure
+      closure,
     });
   } catch (err) {
     console.error(err);
@@ -436,15 +490,16 @@ const getMessClosureDate = async (req, res) => {
     const closure = await MessClosure.findOne({
       hostelId,
       month: currentMonth,
-      year: currentYear
+      year: currentYear,
     });
 
-    return res.status(200).json({ closureDate: closure ? closure.closureDate : null });
+    return res
+      .status(200)
+      .json({ closureDate: closure ? closure.closureDate : null });
   } catch (err) {
     return res.status(500).json({ message: "Error fetching closure date" });
   }
 };
-
 
 module.exports = {
   createHostel,
@@ -461,5 +516,6 @@ module.exports = {
   unmarkAsSMC,
   getSMCMembers,
   finalizeMessClosure,
-  getMessClosureDate
+  getMessClosureDate,
+  setHostelPassword,
 };

@@ -84,6 +84,17 @@ const hostelSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  secretary_email: {
+    type: String,
+    unique: true,
+    sparse: true,
+    trim: true,
+  },
+  // Encrypted (hashed) password for hostel-level logins (e.g. HABit HQ).
+  managerPasswordHash: {
+    type: String,
+    select: false,
+  },
 });
 
 hostelSchema.methods.generateJWT = function () {

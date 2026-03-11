@@ -3,6 +3,7 @@ const multer = require("multer");
 const {
   setProfilePicture,
   getProfilePicture,
+  getProfilePictureForManager,
   markSetupComplete,
 } = require("./profileController.js");
 const {
@@ -10,7 +11,11 @@ const {
   enablePhotoChange,
   disablePhotoChange,
 } = require("./profileSettingsController.js");
-const { authenticateJWT } = require("../../middleware/authenticateJWT.js");
+const {
+  authenticateJWT,
+  authenticateHabJWT,
+  authenticateMessManagerJWT,
+} = require("../../middleware/authenticateJWT.js");
 
 const router = express.Router();
 
@@ -22,8 +27,16 @@ const upload = multer({
 
 // Settings routes
 router.get("/settings", getSettings);
-router.post("/settings/enable-photo-change", enablePhotoChange);
-router.post("/settings/disable-photo-change", disablePhotoChange);
+router.post(
+  "/settings/enable-photo-change",
+  authenticateHabJWT,
+  enablePhotoChange,
+);
+router.post(
+  "/settings/disable-photo-change",
+  authenticateHabJWT,
+  disablePhotoChange,
+);
 
 /**
  * @swagger
@@ -50,10 +63,14 @@ const uploadMiddleware = (req, res, next) => {
   upload.single("file")(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
-        if (err.code === 'LIMIT_FILE_SIZE') {
-          return res.status(400).json({ message: 'File too large. Maximum size is 4MB.' });
+        if (err.code === "LIMIT_FILE_SIZE") {
+          return res
+            .status(400)
+            .json({ message: "File too large. Maximum size is 4MB." });
         }
-        return res.status(400).json({ message: `Multer error: ${err.message}` });
+        return res
+          .status(400)
+          .json({ message: `Multer error: ${err.message}` });
       }
       return res.status(400).json({ message: `Upload error: ${err.message}` });
     }
@@ -65,7 +82,7 @@ router.post(
   "/picture/set",
   uploadMiddleware,
   authenticateJWT,
-  setProfilePicture
+  setProfilePicture,
 );
 
 /**
@@ -79,6 +96,13 @@ router.post(
  *         description: Returns URL or image bytes
  */
 router.get("/picture/get", authenticateJWT, getProfilePicture);
+
+// Mess-manager (HABit HQ): get profile picture for a user by ID
+router.get(
+  "/picture/manager/:userId",
+  authenticateMessManagerJWT,
+  getProfilePictureForManager,
+);
 
 /** Mark setup complete */
 router.post("/setup/complete", authenticateJWT, markSetupComplete);

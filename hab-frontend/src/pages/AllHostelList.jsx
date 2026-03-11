@@ -22,10 +22,13 @@ export default function AllHostelList() {
     const fetchData = async () => {
       try {
         setLoading(true);
+        const token =
+          localStorage.getItem("admin_token") || localStorage.getItem("token");
         const response = await fetch(`${apiBase}/hostel/gethnc`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
           },
           body: JSON.stringify({}),
         });

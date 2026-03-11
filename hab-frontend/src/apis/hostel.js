@@ -26,7 +26,9 @@ export const getAllHostelNamesAndCaterers = async () => {
 // Get hostel by ID with users
 export const getHostelById = async (hostelId) => {
   try {
-    const response = await axios.get(`${BACKEND_URL}/hostel/all/${hostelId}`);
+    const response = await axios.get(
+      `${BACKEND_URL}/hostel/all/hab/${hostelId}`,
+    );
     return response.data;
   } catch (error) {
     console.error(`Error fetching hostel ${hostelId}:`, error);
@@ -37,7 +39,7 @@ export const getHostelById = async (hostelId) => {
 export const getMessSubscribersByHostelId = async (hostelId) => {
   try {
     const response = await axios.get(
-      `${BACKEND_URL}/hostel/mess-subscribers/${hostelId}`
+      `${BACKEND_URL}/hostel/mess-subscribers/${hostelId}`,
     );
     return response.data;
   } catch (error) {
@@ -62,7 +64,7 @@ export const updateHostel = async (hostelId, hostelData) => {
   try {
     const response = await axios.put(
       `${BACKEND_URL}/hostel/update/${hostelId}`,
-      hostelData
+      hostelData,
     );
     return response.data;
   } catch (error) {

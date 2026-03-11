@@ -3,33 +3,35 @@ import { BACKEND_URL } from "./server";
 
 export const getStudents = async () => {
   try {
-    const response = await axios.get(`${BACKEND_URL}/users/all`);
+    const token =
+      localStorage.getItem("token") || localStorage.getItem("admin_token");
+    const alternateToken =
+      token === localStorage.getItem("token")
+        ? localStorage.getItem("admin_token")
+        : localStorage.getItem("token");
+
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+
+    let response;
+    try {
+      response = await axios.get(`${BACKEND_URL}/users/all/hab`, { headers });
+    } catch (error) {
+      if (
+        error?.response?.status === 403 &&
+        alternateToken &&
+        alternateToken !== token
+      ) {
+        response = await axios.get(`${BACKEND_URL}/users/all/hab`, {
+          headers: { Authorization: `Bearer ${alternateToken}` },
+        });
+      } else {
+        throw error;
+      }
+    }
+
     return response.data;
   } catch (error) {
     console.error("Error fetching students:", error);
     throw error;
   }
 };
-
-export const createUser = async (userData) => {
-  const response = await fetch(`${BACKEND_URL}/users`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(userData),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Error creating user: ${response.status}`);
-  }
-
-  return response.json();
-};
-
-// Bulk clear endpoint removed from UI per request; function deleted to prevent accidental usage.
-// export const clearAllStudents = async () => {
-//   // attach token if present
-//   const token = localStorage.getItem('token');
-//   const headers = token ? { Authorization: `Bearer ${token}` } : {};
-//   const response = await axios.delete(`${BACKEND_URL}/users/all`, { headers });
-//   return response.data;
-// };

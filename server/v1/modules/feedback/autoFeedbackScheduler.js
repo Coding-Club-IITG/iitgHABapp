@@ -69,7 +69,7 @@ const scheduleFeedbackReminders = async () => {
           "Feedback Submission form will close in 12 hours",
           "All_Hostels",
           { redirectType: "mess_screen", isAlert: "true" }
-        );
+        ).catch((err) => console.error("📢 12h feedback reminder send failed:", err));
         console.log("📢 Sent 12h feedback reminder");
       });
       console.log(
@@ -89,7 +89,7 @@ const scheduleFeedbackReminders = async () => {
           "Feedback Submission form will close in 2 hours",
           "All_Hostels",
           { redirectType: "mess_screen", isAlert: "true" }
-        );
+        ).catch((err) => console.error("📢 2h feedback reminder send failed:", err));
         console.log("📢 Sent 2h feedback reminder");
       });
       console.log(

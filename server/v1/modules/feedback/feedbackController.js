@@ -1,10 +1,14 @@
 const { User } = require("../user/userModel");
 const { Hostel } = require("../hostel/hostelModel");
+const { Mess } = require("../mess/messModel");
+const UserAllocHostel = require("../hostel/hostelAllocModel");
 const Feedback = require("./feedbackModel");
 const { FeedbackSettings } = require("./feedbackSettingsModel");
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
+const NodeCache = require("node-cache");
+const feedbackCache = new NodeCache({ stdTTL: 60 });
 
 const ratingMap = {
   "Very Poor": 1,
@@ -12,6 +16,99 @@ const ratingMap = {
   Average: 3,
   Good: 4,
   "Very Good": 5,
+};
+
+const computeOverallOpi = ({
+  breakfastAvg = 0,
+  lunchAvg = 0,
+  dinnerAvg = 0,
+  uniformAvg = 0,
+  cleanlinessAvg = 0,
+  wasteAvg = 0,
+  qualityAvg = 0,
+}) => {
+  return (
+    (10 * breakfastAvg +
+      10 * lunchAvg +
+      10 * dinnerAvg +
+      2 * uniformAvg +
+      4 * cleanlinessAvg +
+      1 * wasteAvg +
+      3 * qualityAvg) /
+    40
+  );
+};
+
+const computeMealOpi = ({
+  mealSum = 0,
+  responseCount = 0,
+  subscriberCount = 0,
+}) => {
+  const responses = Number(responseCount) || 0;
+  const subscribers = Math.max(Number(subscriberCount) || 0, responses);
+  if (subscribers <= 0) return 0;
+  return (Number(mealSum) + 4 * (subscribers - responses)) / subscribers;
+};
+
+const getSubscriberCountByCatererIds = async (catererIds) => {
+  if (!Array.isArray(catererIds) || catererIds.length === 0) {
+    return new Map();
+  }
+
+  const uniqueCatererIds = [...new Set(catererIds.map((id) => String(id)))];
+
+  const messes = await Mess.find(
+    { _id: { $in: uniqueCatererIds } },
+    { _id: 1, hostelId: 1 },
+  ).lean();
+
+  const hostelByCaterer = new Map();
+  const hostelIds = [];
+  for (const mess of messes) {
+    if (!mess?.hostelId) continue;
+    const catererId = String(mess._id);
+    const hostelId = mess.hostelId;
+    hostelByCaterer.set(catererId, hostelId);
+    hostelIds.push(hostelId);
+  }
+
+  if (hostelIds.length === 0) {
+    return new Map(uniqueCatererIds.map((id) => [id, 0]));
+  }
+
+  const subscriberRows = await UserAllocHostel.aggregate([
+    {
+      $project: {
+        subscribedHostel: {
+          $ifNull: ["$current_subscribed_mess", "$hostel"],
+        },
+      },
+    },
+    {
+      $match: {
+        subscribedHostel: { $in: hostelIds },
+      },
+    },
+    {
+      $group: {
+        _id: "$subscribedHostel",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const subscriberByHostel = new Map(
+    subscriberRows.map((row) => [String(row._id), row.count]),
+  );
+
+  const subscriberByCaterer = new Map();
+  for (const catererId of uniqueCatererIds) {
+    const hostelId = hostelByCaterer.get(catererId);
+    const count = hostelId ? subscriberByHostel.get(String(hostelId)) || 0 : 0;
+    subscriberByCaterer.set(catererId, count);
+  }
+
+  return subscriberByCaterer;
 };
 
 // ==========================================
@@ -101,19 +198,48 @@ const getFeedbacksByCaterer = async (req, res) => {
         }
       }
 
+      const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
+        Array.from(groups.keys()),
+      );
+
       const rows = [];
       for (const [key, g] of groups) {
-        const nonSmcAvg = g.totalUsers
-          ? (g.breakfastSum + g.lunchSum + g.dinnerSum) / (3 * g.totalUsers)
+        const subscriberCount = subscriberCountByCaterer.get(String(key)) || 0;
+        const avgBreakfast = computeMealOpi({
+          mealSum: g.breakfastSum,
+          responseCount: g.totalUsers,
+          subscriberCount,
+        });
+        const avgLunch = computeMealOpi({
+          mealSum: g.lunchSum,
+          responseCount: g.totalUsers,
+          subscriberCount,
+        });
+        const avgDinner = computeMealOpi({
+          mealSum: g.dinnerSum,
+          responseCount: g.totalUsers,
+          subscriberCount,
+        });
+        const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : 0;
+        const avgWasteDisposal = g.smc.count
+          ? g.smc.wasteDisposalSum / g.smc.count
           : 0;
-        const smcAvg = g.smc.count
-          ? (g.smc.hygieneSum +
-              g.smc.wasteDisposalSum +
-              g.smc.qualitySum +
-              g.smc.uniformSum) /
-            (4 * g.smc.count)
+        const avgQualityOfIngredients = g.smc.count
+          ? g.smc.qualitySum / g.smc.count
           : 0;
-        const overall = nonSmcAvg * 0.6 + smcAvg * 0.4;
+        const avgUniformAndPunctuality = g.smc.count
+          ? g.smc.uniformSum / g.smc.count
+          : 0;
+
+        const overall = computeOverallOpi({
+          breakfastAvg: avgBreakfast,
+          lunchAvg: avgLunch,
+          dinnerAvg: avgDinner,
+          uniformAvg: avgUniformAndPunctuality,
+          cleanlinessAvg: avgHygiene,
+          wasteAvg: avgWasteDisposal,
+          qualityAvg: avgQualityOfIngredients,
+        });
         rows.push({ catererId: key, overall });
       }
       rows.sort((a, b) => b.overall - a.overall);
@@ -325,8 +451,8 @@ const enableFeedback = async (req, res) => {
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
       "All_Hostels",
-      { redirectType: "mess_screen", isAlert: "true" }
-    );
+      { redirectType: "mess_screen", isAlert: "true" },
+    ).catch((err) => console.error("Feedback enabled notification failed:", err));
     return res.status(200).json({ message: "Feedback enabled", data: s });
   } catch (e) {
     return res
@@ -342,6 +468,10 @@ const disableFeedback = async (req, res) => {
     s.isEnabled = false;
     s.disabledAt = new Date();
     await s.save();
+    // Call updateAllMessRatingsAndRankings with the just-closed window number
+    if (typeof s.currentWindowNumber === "number") {
+      await updateAllMessRatingsAndRankings(s.currentWindowNumber);
+    }
     return res.status(200).json({ message: "Feedback disabled", data: s });
   } catch (e) {
     return res
@@ -380,8 +510,8 @@ const enableFeedbackAutomatic = async () => {
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
       "All_Hostels",
-      { redirectType: "mess_screen", isAlert: "true" }
-    );
+      { redirectType: "mess_screen", isAlert: "true" },
+    ).catch((err) => console.error("Feedback enabled notification failed:", err));
     console.log("✅ Feedback enabled automatically");
     return { success: true, settings: s };
   } catch (e) {
@@ -399,6 +529,10 @@ const disableFeedbackAutomatic = async () => {
     s.isEnabled = false;
     s.disabledAt = new Date();
     await s.save();
+    // Call updateAllMessRatingsAndRankings with the just-closed window number
+    if (typeof s.currentWindowNumber === "number") {
+      await updateAllMessRatingsAndRankings(s.currentWindowNumber);
+    }
 
     console.log("✅ Feedback disabled automatically");
     return { success: true, settings: s };
@@ -413,10 +547,13 @@ const disableFeedbackAutomatic = async () => {
 // ==========================================
 const getFeedbackSettings = async (req, res) => {
   try {
+    const cachedSettings = feedbackCache.get("feedback_settings");
+    if (cachedSettings) return res.status(200).json(cachedSettings);
+
     let s = await FeedbackSettings.findOne();
     if (s?.isEnabled && s.enabledAt) {
       const expiresAt = new Date(
-        new Date(s.enabledAt).getTime() + 2 * 24 * 60 * 60 * 1000
+        new Date(s.enabledAt).getTime() + 2 * 24 * 60 * 60 * 1000,
       );
       if (new Date() > expiresAt) {
         s.isEnabled = false;
@@ -424,14 +561,16 @@ const getFeedbackSettings = async (req, res) => {
         await s.save();
       }
     }
-    return res.status(200).json(
-      s || {
-        isEnabled: false,
-        enabledAt: null,
-        disabledAt: null,
-        currentWindowNumber: 1,
-      }
-    );
+
+    const responseData = s || {
+      isEnabled: false,
+      enabledAt: null,
+      disabledAt: null,
+      currentWindowNumber: 1,
+    };
+
+    feedbackCache.set("feedback_settings", responseData);
+    return res.status(200).json(responseData);
   } catch (e) {
     return res.status(500).json({
       message: "Failed to fetch settings",
@@ -445,10 +584,13 @@ const getFeedbackSettings = async (req, res) => {
 // ==========================================
 const getFeedbackSettingsPublic = async (req, res) => {
   try {
+    const cachedSettings = feedbackCache.get("feedback_settings");
+    if (cachedSettings) return res.status(200).json(cachedSettings);
+
     let s = await FeedbackSettings.findOne();
     if (s?.isEnabled && s.enabledAt) {
       const expiresAt = new Date(
-        new Date(s.enabledAt).getTime() + 2 * 24 * 60 * 60 * 1000
+        new Date(s.enabledAt).getTime() + 2 * 24 * 60 * 60 * 1000,
       );
       if (new Date() > expiresAt) {
         s.isEnabled = false;
@@ -456,14 +598,16 @@ const getFeedbackSettingsPublic = async (req, res) => {
         await s.save();
       }
     }
-    return res.status(200).json(
-      s || {
-        isEnabled: false,
-        enabledAt: null,
-        disabledAt: null,
-        currentWindowNumber: 1,
-      }
-    );
+
+    const responseData = s || {
+      isEnabled: false,
+      enabledAt: null,
+      disabledAt: null,
+      currentWindowNumber: 1,
+    };
+
+    feedbackCache.set("feedback_settings", responseData);
+    return res.status(200).json(responseData);
   } catch (e) {
     return res.status(500).json({
       message: "Failed to fetch settings",
@@ -523,42 +667,62 @@ const getFeedbackLeaderboard = async (req, res) => {
       }
     }
 
+    const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
+      Array.from(groups.keys()),
+    );
+
     const rows = [];
     for (const [, g] of groups) {
-      const nonSmcAvg =
-        g.totalUsers > 0
-          ? (g.breakfastSum + g.lunchSum + g.dinnerSum) / (3 * g.totalUsers)
-          : 0;
+      const subscriberCount =
+        subscriberCountByCaterer.get(String(g.catererId)) || 0;
+      const avgBreakfast = computeMealOpi({
+        mealSum: g.breakfastSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgLunch = computeMealOpi({
+        mealSum: g.lunchSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgDinner = computeMealOpi({
+        mealSum: g.dinnerSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
+      const avgWasteDisposal = g.smc.count
+        ? g.smc.wasteDisposalSum / g.smc.count
+        : null;
+      const avgQualityOfIngredients = g.smc.count
+        ? g.smc.qualitySum / g.smc.count
+        : null;
+      const avgUniformAndPunctuality = g.smc.count
+        ? g.smc.uniformSum / g.smc.count
+        : null;
 
-      const smcAvg =
-        g.smc.count > 0
-          ? (g.smc.hygieneSum +
-              g.smc.wasteDisposalSum +
-              g.smc.qualitySum +
-              g.smc.uniformSum) /
-            (4 * g.smc.count)
-          : 0;
-
-      const overall = nonSmcAvg * 0.6 + smcAvg * 0.4;
+      const overall = computeOverallOpi({
+        breakfastAvg: avgBreakfast,
+        lunchAvg: avgLunch,
+        dinnerAvg: avgDinner,
+        uniformAvg: avgUniformAndPunctuality ?? 0,
+        cleanlinessAvg: avgHygiene ?? 0,
+        wasteAvg: avgWasteDisposal ?? 0,
+        qualityAvg: avgQualityOfIngredients ?? 0,
+      });
 
       rows.push({
         catererId: g.catererId,
         catererName: g.catererName,
         totalUsers: g.totalUsers,
         smcUsers: g.smcUsers,
-        avgBreakfast: g.totalUsers ? g.breakfastSum / g.totalUsers : 0,
-        avgLunch: g.totalUsers ? g.lunchSum / g.totalUsers : 0,
-        avgDinner: g.totalUsers ? g.dinnerSum / g.totalUsers : 0,
-        avgHygiene: g.smc.count ? g.smc.hygieneSum / g.smc.count : null,
-        avgWasteDisposal: g.smc.count
-          ? g.smc.wasteDisposalSum / g.smc.count
-          : null,
-        avgQualityOfIngredients: g.smc.count
-          ? g.smc.qualitySum / g.smc.count
-          : null,
-        avgUniformAndPunctuality: g.smc.count
-          ? g.smc.uniformSum / g.smc.count
-          : null,
+        avgBreakfast,
+        avgLunch,
+        avgDinner,
+        avgHygiene,
+        avgWasteDisposal,
+        avgQualityOfIngredients,
+        avgUniformAndPunctuality,
         overall,
       });
     }
@@ -583,7 +747,7 @@ const getAvailableWindows = async (req, res) => {
   try {
     const feedbacks = await Feedback.find(
       {},
-      { feedbackWindowNumber: 1 }
+      { feedbackWindowNumber: 1 },
     ).lean();
 
     const windowsSet = new Set();
@@ -661,42 +825,62 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
       }
     }
 
+    const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
+      Array.from(groups.keys()),
+    );
+
     const rows = [];
     for (const [, g] of groups) {
-      const nonSmcAvg =
-        g.totalUsers > 0
-          ? (g.breakfastSum + g.lunchSum + g.dinnerSum) / (3 * g.totalUsers)
-          : 0;
+      const subscriberCount =
+        subscriberCountByCaterer.get(String(g.catererId)) || 0;
+      const avgBreakfast = computeMealOpi({
+        mealSum: g.breakfastSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgLunch = computeMealOpi({
+        mealSum: g.lunchSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgDinner = computeMealOpi({
+        mealSum: g.dinnerSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
+      const avgWasteDisposal = g.smc.count
+        ? g.smc.wasteDisposalSum / g.smc.count
+        : null;
+      const avgQualityOfIngredients = g.smc.count
+        ? g.smc.qualitySum / g.smc.count
+        : null;
+      const avgUniformAndPunctuality = g.smc.count
+        ? g.smc.uniformSum / g.smc.count
+        : null;
 
-      const smcAvg =
-        g.smc.count > 0
-          ? (g.smc.hygieneSum +
-              g.smc.wasteDisposalSum +
-              g.smc.qualitySum +
-              g.smc.uniformSum) /
-            (4 * g.smc.count)
-          : 0;
-
-      const overall = nonSmcAvg * 0.6 + smcAvg * 0.4;
+      const overall = computeOverallOpi({
+        breakfastAvg: avgBreakfast,
+        lunchAvg: avgLunch,
+        dinnerAvg: avgDinner,
+        uniformAvg: avgUniformAndPunctuality ?? 0,
+        cleanlinessAvg: avgHygiene ?? 0,
+        wasteAvg: avgWasteDisposal ?? 0,
+        qualityAvg: avgQualityOfIngredients ?? 0,
+      });
 
       rows.push({
         catererId: g.catererId,
         catererName: g.catererName,
         totalUsers: g.totalUsers,
         smcUsers: g.smcUsers,
-        avgBreakfast: g.totalUsers ? g.breakfastSum / g.totalUsers : 0,
-        avgLunch: g.totalUsers ? g.lunchSum / g.totalUsers : 0,
-        avgDinner: g.totalUsers ? g.dinnerSum / g.totalUsers : 0,
-        avgHygiene: g.smc.count ? g.smc.hygieneSum / g.smc.count : null,
-        avgWasteDisposal: g.smc.count
-          ? g.smc.wasteDisposalSum / g.smc.count
-          : null,
-        avgQualityOfIngredients: g.smc.count
-          ? g.smc.qualitySum / g.smc.count
-          : null,
-        avgUniformAndPunctuality: g.smc.count
-          ? g.smc.uniformSum / g.smc.count
-          : null,
+        avgBreakfast,
+        avgLunch,
+        avgDinner,
+        avgHygiene,
+        avgWasteDisposal,
+        avgQualityOfIngredients,
+        avgUniformAndPunctuality,
         overall,
       });
     }
@@ -760,7 +944,7 @@ const getFeedbackWindowTimeLeft = async (req, res) => {
     const totalHours = Math.floor(diffMs / (60 * 60000));
     const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
     const hours = Math.floor(
-      (diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000)
+      (diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000),
     );
     const minutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
 
@@ -797,6 +981,159 @@ const getFeedbackWindowTimeLeft = async (req, res) => {
   }
 };
 
+const updateAllMessRatingsAndRankings = async (windowNumber) => {
+  if (typeof windowNumber !== "number") return;
+
+  // Get all messes
+  const messes = await Mess.find({});
+  if (!messes.length) return;
+
+  // Get all hostels — map messId → hostel._id (fixed: was inverting the relationship)
+  const hostels = await Hostel.find({});
+  const hostelByMess = new Map();
+  for (const hostel of hostels) {
+    if (hostel.messId) hostelByMess.set(String(hostel.messId), hostel._id);
+  }
+
+  // Get feedbacks only for the specified window
+  const feedbacks = await Feedback.find({ feedbackWindowNumber: windowNumber })
+    .populate("user", "isSMC")
+    .lean();
+
+  // Get subscriber counts per hostel (fixed: now actually filters to relevant hostelIds)
+  const relevantHostelIds = Array.from(hostelByMess.values());
+  const subscriberRows = await UserAllocHostel.aggregate([
+    {
+      $match: {
+        $or: [
+          { current_subscribed_mess: { $in: relevantHostelIds } },
+          { hostel: { $in: relevantHostelIds } },
+        ],
+      },
+    },
+    {
+      $project: {
+        subscribedHostel: { $ifNull: ["$current_subscribed_mess", "$hostel"] },
+      },
+    },
+    {
+      $group: {
+        _id: "$subscribedHostel",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+  const subscriberByHostel = new Map(
+    subscriberRows.map((row) => [String(row._id), row.count]),
+  );
+
+  const ratingMap = {
+    "Very Poor": 1,
+    Poor: 2,
+    Average: 3,
+    Good: 4,
+    "Very Good": 5,
+  };
+
+  // Group feedbacks by mess
+  const groups = new Map();
+
+  // Pre-initialise all messes so zero-feedback ones still get updated (fixed: stale ratings)
+  for (const mess of messes) {
+    groups.set(String(mess._id), {
+      totalUsers: 0,
+      breakfastSum: 0,
+      lunchSum: 0,
+      dinnerSum: 0,
+      smc: {
+        hygieneSum: 0,
+        wasteDisposalSum: 0,
+        qualitySum: 0,
+        uniformSum: 0,
+        count: 0,
+      },
+    });
+  }
+
+  for (const fb of feedbacks) {
+    const messId = fb.caterer ? String(fb.caterer) : null;
+    if (!messId || !groups.has(messId)) continue;
+
+    const g = groups.get(messId);
+    g.totalUsers += 1;
+    g.breakfastSum += ratingMap[fb.breakfast] || 0;
+    g.lunchSum += ratingMap[fb.lunch] || 0;
+    g.dinnerSum += ratingMap[fb.dinner] || 0;
+
+    if (fb.user?.isSMC && fb.smcFields) {
+      g.smc.hygieneSum += ratingMap[fb.smcFields.hygiene] || 0;
+      g.smc.wasteDisposalSum += ratingMap[fb.smcFields.wasteDisposal] || 0;
+      g.smc.qualitySum += ratingMap[fb.smcFields.qualityOfIngredients] || 0;
+      g.smc.uniformSum += ratingMap[fb.smcFields.uniformAndPunctuality] || 0;
+      g.smc.count += 1;
+    }
+  }
+
+  // Compute OPI and ranking for all messes using the same logic as getFeedbackLeaderboardByWindow
+  const rows = [];
+  for (const [messId, g] of groups) {
+    const hostelId = hostelByMess.get(messId);
+    const subscriberCount = hostelId
+      ? subscriberByHostel.get(String(hostelId)) || 0
+      : 0;
+
+    const avgBreakfast = computeMealOpi({
+      mealSum: g.breakfastSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgLunch = computeMealOpi({
+      mealSum: g.lunchSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgDinner = computeMealOpi({
+      mealSum: g.dinnerSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
+    const avgWasteDisposal = g.smc.count
+      ? g.smc.wasteDisposalSum / g.smc.count
+      : null;
+    const avgQualityOfIngredients = g.smc.count
+      ? g.smc.qualitySum / g.smc.count
+      : null;
+    const avgUniformAndPunctuality = g.smc.count
+      ? g.smc.uniformSum / g.smc.count
+      : null;
+
+    let overall = computeOverallOpi({
+      breakfastAvg: avgBreakfast,
+      lunchAvg: avgLunch,
+      dinnerAvg: avgDinner,
+      uniformAvg: avgUniformAndPunctuality ?? 0,
+      cleanlinessAvg: avgHygiene ?? 0,
+      wasteAvg: avgWasteDisposal ?? 0,
+      qualityAvg: avgQualityOfIngredients ?? 0,
+    });
+    // Round to two decimal places before storing
+    overall = Math.round(overall * 100) / 100;
+
+    rows.push({ messId, overall });
+  }
+
+  rows.sort((a, b) => b.overall - a.overall);
+  rows.forEach((r, i) => (r.rank = i + 1));
+
+  // Fixed: bulk update instead of sequential awaits
+  await Promise.all(
+    rows.map((r) =>
+      Mess.findByIdAndUpdate(r.messId, { rating: r.overall, ranking: r.rank }),
+    ),
+  );
+};
+
 module.exports = {
   submitFeedback,
   removeFeedback,
@@ -813,4 +1150,5 @@ module.exports = {
   checkFeedbackSubmitted,
   getFeedbackWindowTimeLeft,
   getFeedbacksByCaterer,
+  updateAllMessRatingsAndRankings,
 };

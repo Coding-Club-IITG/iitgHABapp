@@ -2,6 +2,8 @@
 //import authRoutes from "./modules/auth/auth.routes.js";
 
 require("dotenv").config({ path: "../.env" });
+const { installProcessHandlers } = require("../processHandlers.js");
+installProcessHandlers();
 console.log("MONGODB_URI from env:", process.env.MONGODB_URI);
 const authRoutes = require("./modules/auth/auth.routes.js");
 const express = require("express");
@@ -14,11 +16,14 @@ const notificationRoute = require("./modules/notification/notificationRoute.js")
 const messRoute = require("./modules/mess/messRoute.js");
 const logsRoute = require("./modules/mess/ScanLogsRoute.js");
 const bugReportRoute = require("./modules/bug_report/bugReportRoute.js");
+const roomCleaningRoute = require("./modules/room_cleaning/roomCleaningRoute.js");
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const compression = require("compression");
 const {
   setDelegatedTokens,
   tokenFilePath,
+  initDelegatedGraphRedis,
 } = require("./utils/delegatedGraphAuth.js");
 
 // New: build delegated auth URLs for starting consent
@@ -44,28 +49,18 @@ function buildAuthorizeUrl() {
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 
-const {
-  wednesdayScheduler,
-  sundayScheduler,
-} = require("./modules/hostel/hostelScheduler.js");
-const {
-  initializeFeedbackAutoScheduler,
-} = require("./modules/feedback/autoFeedbackScheduler.js");
-
-const {
-  initializeMessChangeAutoScheduler,
-} = require("./modules/mess_change/autoMessChangeScheduler.js");
-const {
-  initializeGuestCleanupScheduler,
-} = require("./modules/auth/autoGuestCleanupScheduler.js");
-const {
-  initializeAnonymizedUser,
-} = require("./modules/user/anonymizedUserInit.js");
 const messChangeRouter = require("./modules/mess_change/messchangeRoute.js");
+const galaRoute = require("./modules/gala/galaRoute.js");
 require("dotenv").config();
 
 const app = express();
 app.use(bodyParser.json({ limit: "1mb" }));
+app.use(
+  compression({
+    level: 6,
+    threshold: 100,
+  }),
+);
 
 const MONGOdb_uri = process.env.MONGODB_URI;
 const PORT = process.env.PORT || 3001;
@@ -147,16 +142,44 @@ mongoose
   .then(() => {
     console.log("MongoDB connected");
 
-    wednesdayScheduler();
+    // Only run schedulers on the primary PM2 instance
+    if (
+      process.env.NODE_APP_INSTANCE === "0" ||
+      typeof process.env.NODE_APP_INSTANCE === "undefined"
+    ) {
+      console.log("Primary instance detected. Starting schedulers...");
 
-    sundayScheduler();
+      const {
+        wednesdayScheduler,
+        sundayScheduler,
+      } = require("./modules/hostel/hostelScheduler.js");
+      wednesdayScheduler();
+      sundayScheduler();
 
-    // Initialize automatic schedulers for feedback, mess change, and guest cleanup
-    initializeFeedbackAutoScheduler();
-    initializeMessChangeAutoScheduler();
-    initializeGuestCleanupScheduler();
+      // Initialize automatic schedulers for feedback, mess change, and guest cleanup
+      const {
+        initializeFeedbackAutoScheduler,
+      } = require("./modules/feedback/autoFeedbackScheduler.js");
+      const {
+        initializeMessChangeAutoScheduler,
+      } = require("./modules/mess_change/autoMessChangeScheduler.js");
+      const {
+        initializeGuestCleanupScheduler,
+      } = require("./modules/auth/autoGuestCleanupScheduler.js");
+
+      initializeFeedbackAutoScheduler();
+      initializeMessChangeAutoScheduler();
+      initializeGuestCleanupScheduler();
+    } else {
+      console.log(
+        `Worker instance ${process.env.NODE_APP_INSTANCE} started. Schedulers disabled here.`,
+      );
+    }
 
     // Initialize anonymized user for soft-deleted account references
+    const {
+      initializeAnonymizedUser,
+    } = require("./modules/user/anonymizedUserInit.js");
     initializeAnonymizedUser();
   })
   .catch((err) => console.log(err));
@@ -209,6 +232,9 @@ app.use("/api/notification", notificationRoute);
 // Mess route
 app.use("/api/mess", messRoute);
 
+// Gala Dinner route
+app.use("/api/gala", galaRoute);
+
 //mess change route
 app.use("/api/mess-change", messChangeRouter);
 
@@ -221,6 +247,9 @@ app.use("/api/logs", logsRoute);
 
 // Bug report route
 app.use("/api/bug-report", bugReportRoute);
+
+// Room cleaning availability route
+app.use("/api/room-cleaning", roomCleaningRoute);
 
 // Debug route: accept delegated tokens and save to disk for server use
 // WARNING: Protect this route in production (e.g., require admin auth, restrict IPs)
@@ -296,8 +325,28 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+// Global error handler (must be after all routes). Catches errors passed to next(err).
+app.use((err, req, res, next) => {
+  console.error("[Express error]", err);
+  res.status(500).json({ message: "Internal server error" });
+});
+
+const { initMessManagerWs } = require("./modules/mess/messManagerWs.js");
+const { initGalaManagerWs } = require("./modules/gala/galaManagerWs.js");
+
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+// Initialize WebSocket servers for manager live scan logs
+initMessManagerWs(server);
+initGalaManagerWs(server);
+
+// Subscribe to Redis scan events so all cluster instances can broadcast to their local WS clients
+const { initScanBroadcast } = require("./utils/scanBroadcast.js");
+initScanBroadcast();
+
+// Connect to Redis and backfill delegated Graph token from disk so first request can use Redis
+initDelegatedGraphRedis();
 
 module.exports = app;

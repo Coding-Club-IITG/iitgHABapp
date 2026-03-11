@@ -10,6 +10,7 @@ const {
   // meHandler,
   appleLoginHandler,
   linkMicrosoftAccount,
+  managerLoginHandler,
 } = require("./auth.controller.js");
 const { authenticateJWT } = require("../../middleware/authenticateJWT.js");
 
@@ -92,6 +93,9 @@ router.get("/logout", logoutHandler);
 
 // Guest login
 router.post("/guest", guestLoginHandler);
+
+// HABit HQ: hostel manager password login (returns hostel JWT)
+router.post("/manager/login", managerLoginHandler);
 
 // Apple Sign In
 router.post("/apple", appleLoginHandler);

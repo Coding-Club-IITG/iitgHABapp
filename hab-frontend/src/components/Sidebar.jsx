@@ -12,6 +12,7 @@ import {
   BookOutlined,
   NotificationOutlined,
   CalendarOutlined,
+  GiftOutlined,
 } from "@ant-design/icons";
 
 const Sidebar = ({ collapsed = false, onToggle }) => {
@@ -28,7 +29,12 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       path: "/mess/changeapplication",
       icon: <BarChartOutlined />,
     },
-    // Feedback Control removed from sidebar per request
+    {
+      key: "6",
+      name: "Gala Dinner",
+      path: "/gala-dinner",
+      icon: <GiftOutlined />,
+    },
     {
       key: "7",
       name: "Send Notifications",

@@ -127,8 +127,12 @@ class VersionChecker {
       // Pad with zeros if lengths differ
       final maxLength =
           v1Parts.length > v2Parts.length ? v1Parts.length : v2Parts.length;
-      while (v1Parts.length < maxLength) v1Parts.add(0);
-      while (v2Parts.length < maxLength) v2Parts.add(0);
+      while (v1Parts.length < maxLength) {
+        v1Parts.add(0);
+      }
+      while (v2Parts.length < maxLength) {
+        v2Parts.add(0);
+      }
 
       // Compare each part
       for (int i = 0; i < maxLength; i++) {
@@ -138,8 +142,9 @@ class VersionChecker {
 
       return 0; // Equal
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('Error comparing versions $version1 vs $version2: $e');
+      }
       return 0; // Default to equal if error
     }
   }

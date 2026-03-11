@@ -249,10 +249,9 @@ async function setProfilePicture(req, res) {
   }
 }
 
-// GET /api/profile/picture/get
-async function getProfilePicture(req, res) {
+// Internal helper: send profile picture bytes/URL for a given user document
+async function sendProfilePictureForUser(user, res) {
   try {
-    const user = req.user;
     if (!user.profilePictureItemId && !user.profilePictureUrl) {
       return res.status(404).json({ message: "No profile picture set" });
     }
@@ -328,6 +327,56 @@ async function getProfilePicture(req, res) {
   }
 }
 
+// GET /api/profile/picture/get (current authenticated user)
+async function getProfilePicture(req, res) {
+  const user = req.user;
+  return sendProfilePictureForUser(user, res);
+}
+
+// Mess-manager (HABit HQ): get profile picture for a mess user by userId
+async function getProfilePictureForManager(req, res) {
+  try {
+    const managerHostel = req.managerHostel;
+    const { userId } = req.params;
+
+    if (!managerHostel || !managerHostel._id) {
+      return res
+        .status(400)
+        .json({ message: "Manager hostel not found" });
+    }
+    if (!userId) {
+      return res.status(400).json({ message: "Missing userId" });
+    }
+
+    const hostelId = managerHostel._id.toString();
+
+    const user = await User.findById(userId)
+      .select("profilePictureItemId profilePictureUrl curr_subscribed_mess")
+      .populate("curr_subscribed_mess", "hostel_name");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (
+      !user.curr_subscribed_mess ||
+      user.curr_subscribed_mess._id.toString() !== hostelId
+    ) {
+      return res
+        .status(403)
+        .json({ message: "User does not belong to this mess" });
+    }
+
+    return sendProfilePictureForUser(user, res);
+  } catch (err) {
+    return res.status(500).json({
+      message: "Failed to fetch profile picture",
+      error: err.message,
+      status: err.response?.status,
+    });
+  }
+}
+
 // Mark setup complete for current user
 async function markSetupComplete(req, res) {
   try {
@@ -346,4 +395,9 @@ async function markSetupComplete(req, res) {
   }
 }
 
-module.exports = { setProfilePicture, getProfilePicture, markSetupComplete };
+module.exports = {
+  setProfilePicture,
+  getProfilePicture,
+  getProfilePictureForManager,
+  markSetupComplete,
+};

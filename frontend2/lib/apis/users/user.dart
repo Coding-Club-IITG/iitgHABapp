@@ -143,8 +143,17 @@ Future<Map<String, String>?> fetchUserDetails() async {
 /// Fetch the user's profile picture (base64) from the backend and persist it in SharedPreferences
 /// Backend endpoint should return JSON like { "base64": "..." } or { "base64": "" } on failure/no-image
 Future<void> fetchUserProfilePicture() async {
-  final header = await getAccessToken();
   final prefs = await SharedPreferences.getInstance();
+
+  // If we already have a cached profile picture, use it and skip the network call.
+  // This keeps app startup and navigation snappy; the cache is updated explicitly
+  // after successful uploads or when this function is forced to run before cache exists.
+  final cached = prefs.getString('profilePicture') ?? '';
+  if (cached.isNotEmpty) {
+    return;
+  }
+
+  final header = await getAccessToken();
 
   if (header == 'error') {
     // Not authenticated — clear any cached picture

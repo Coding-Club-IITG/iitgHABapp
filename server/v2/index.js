@@ -2,6 +2,8 @@
 //import authRoutes from "./modules/auth/auth.routes.js";
 
 require("dotenv").config({ path: "../.env" });
+const { installProcessHandlers } = require("../processHandlers.js");
+installProcessHandlers();
 console.log("MONGODB_URI from env:", process.env.MONGODB_URI);
 const authRoutes = require("./modules/auth/auth.routes.js");
 const express = require("express");
@@ -283,6 +285,12 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
   } catch (e) {
     res.status(500).send(`Failed to exchange code: ${e.message}`);
   }
+});
+
+// Global error handler (must be after all routes). Catches errors passed to next(err).
+app.use((err, req, res, next) => {
+  console.error("[Express error]", err);
+  res.status(500).json({ message: "Internal server error" });
 });
 
 app.listen(PORT, () => {

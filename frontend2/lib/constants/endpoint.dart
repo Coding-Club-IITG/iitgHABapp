@@ -61,3 +61,11 @@ class AppVersionEndpoints {
   static const String getAndroidVersion = "$baseUrl/app-version/android";
   static const String getIosVersion = "$baseUrl/app-version/ios";
 }
+
+class GalaEndpoints {
+  static const String upcoming = "$baseUrl/gala/upcoming";
+  static String upcomingWithMenus(String hostelId) =>
+      "$baseUrl/gala/upcoming-with-menus/$hostelId";
+  static const String scanStatus = "$baseUrl/gala/scan-status";
+  static const String scan = "$baseUrl/gala/scan";
+}

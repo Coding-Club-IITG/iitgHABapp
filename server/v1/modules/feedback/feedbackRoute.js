@@ -1,23 +1,20 @@
-// routes/feedbackRoutes.js
-
 const express = require("express");
 const feedbackRouter = express.Router();
 const {
   submitFeedback,
-  // removeFeedback,
-  // getAllFeedback,
   enableFeedback,
   disableFeedback,
   getFeedbackSettings,
-  // getFeedbackSettingsPublic,
-  // getFeedbackLeaderboard,
   getFeedbackLeaderboardByWindow,
   getAvailableWindows,
   checkFeedbackSubmitted,
   getFeedbackWindowTimeLeft,
   getFeedbacksByCaterer,
 } = require("./feedbackController");
-const { authenticateJWT } = require("../../middleware/authenticateJWT");
+const {
+  authenticateJWT,
+  authenticateHabJWT,
+} = require("../../middleware/authenticateJWT");
 const {
   requireMicrosoftAuth,
 } = require("../../middleware/requireMicrosoftAuth");
@@ -27,28 +24,28 @@ feedbackRouter.post(
   "/submit",
   authenticateJWT,
   requireMicrosoftAuth,
-  submitFeedback
+  submitFeedback,
 );
-// feedbackRouter.post("/remove", authenticateJWT, requireMicrosoftAuth, removeFeedback);
-// feedbackRouter.get("/all", authenticateJWT, requireMicrosoftAuth, getAllFeedback);
 feedbackRouter.get(
   "/submitted",
   authenticateJWT,
   requireMicrosoftAuth,
-  checkFeedbackSubmitted
+  checkFeedbackSubmitted,
 );
-// feedbackRouter.get("/settings-public", getFeedbackSettingsPublic);
+
+// Settings route (common, unprotected)
+feedbackRouter.get("/settings", getFeedbackSettings);
 
 // HAB routes
-feedbackRouter.get("/settings", getFeedbackSettings);
-feedbackRouter.post("/enable", enableFeedback);
-feedbackRouter.post("/disable", disableFeedback);
-// feedbackRouter.get("/leaderboard", authenticateJWT, getFeedbackLeaderboard);
-feedbackRouter.get("/leaderboard-by-window", getFeedbackLeaderboardByWindow);
-feedbackRouter.get("/windows", getAvailableWindows);
+feedbackRouter.post("/enable", authenticateHabJWT, enableFeedback);
+feedbackRouter.post("/disable", authenticateHabJWT, disableFeedback);
+feedbackRouter.get(
+  "/leaderboard-by-window",
+  authenticateHabJWT,
+  getFeedbackLeaderboardByWindow,
+);
+feedbackRouter.get("/windows", authenticateHabJWT, getAvailableWindows);
 feedbackRouter.get("/window-time-left", getFeedbackWindowTimeLeft);
-feedbackRouter.get("/by-caterer", getFeedbacksByCaterer);
-
-// feedbackRouter.get("/all-admin", getAllFeedback);
+feedbackRouter.get("/by-caterer", authenticateHabJWT, getFeedbacksByCaterer);
 
 module.exports = feedbackRouter;

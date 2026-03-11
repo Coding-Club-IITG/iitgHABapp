@@ -96,6 +96,39 @@ export default function MessDetails() {
   const [fbRank, setFbRank] = useState(null);
   const [selectedWindow, setSelectedWindow] = useState("");
 
+  const handleDownloadQrCode = async () => {
+    if (!mess?.qr_img) return;
+
+    const image = new Image();
+    image.src = mess.qr_img;
+
+    await new Promise((resolve, reject) => {
+      image.onload = resolve;
+      image.onerror = reject;
+    });
+
+    const exportSize = 1024;
+    const canvas = document.createElement("canvas");
+    canvas.width = exportSize;
+    canvas.height = exportSize;
+
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, exportSize, exportSize);
+    context.imageSmoothingEnabled = false;
+    context.drawImage(image, 0, 0, exportSize, exportSize);
+
+    const pngDataUrl = canvas.toDataURL("image/png");
+    const link = document.createElement("a");
+    link.href = pngDataUrl;
+    link.download = `QR_${mess?.name || "mess"}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  };
+
   useEffect(() => {
     let ignore = false;
     async function fetchWindows() {
@@ -174,10 +207,10 @@ export default function MessDetails() {
   const fallbackFeedbacks = passedFeedbacks
     ? passedFeedbacks
     : Array.isArray(mess?.complaints)
-    ? mess.complaints
-    : typeof mess?.complaints === "number"
-    ? []
-    : [];
+      ? mess.complaints
+      : typeof mess?.complaints === "number"
+        ? []
+        : [];
   const feedbackList = fbItems.length > 0 ? fbItems : fallbackFeedbacks;
 
   if (loading) {
@@ -316,13 +349,13 @@ export default function MessDetails() {
                   students and staff for easy access.
                 </p>
               </div>
-              <a
-                href={mess?.qr_img}
-                download={`QR_${mess?.name}`}
+              <button
+                type="button"
+                onClick={handleDownloadQrCode}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded text-sm font-medium transition-colors"
               >
                 <Download size={16} /> Download QR Code
-              </a>
+              </button>
             </div>
           </div>
         </div>
@@ -384,7 +417,7 @@ export default function MessDetails() {
                 const norm = raw.map((it) =>
                   typeof it === "object"
                     ? it
-                    : { name: String(it), type: "Others", likes: [] }
+                    : { name: String(it), type: "Others", likes: [] },
                 );
                 const byType = (t) =>
                   norm.filter((i) => (i?.type || "Others") === t);

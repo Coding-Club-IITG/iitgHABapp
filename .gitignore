@@ -1,4 +1,5 @@
 node_modules
+.idea
 
 # Ignore specific frontend .env files (local secrets)
 hab-frontend/.env

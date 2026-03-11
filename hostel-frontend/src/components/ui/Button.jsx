@@ -16,14 +16,18 @@ export default function Button({
   };
   const variants = {
     default: "bg-blue-600 text-white hover:bg-blue-700",
+    secondary: "bg-gray-100 text-gray-900 hover:bg-gray-200",
     ghost: "bg-transparent text-gray-700 hover:bg-gray-50",
     danger: "bg-red-600 text-white hover:bg-red-700",
+    destructive: "bg-red-600 text-white hover:bg-red-700",
     outline: "bg-white border border-gray-200 text-gray-700 hover:bg-gray-50",
   };
 
+  const variantClass = variants[variant] ?? variants.default;
+
   return (
     <button
-      className={`${base} ${sizes[size]} ${variants[variant]} ${className}`}
+      className={`${base} ${sizes[size]} ${variantClass} ${className}`}
       {...props}
     >
       {children}

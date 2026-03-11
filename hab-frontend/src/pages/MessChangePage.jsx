@@ -1,8 +1,15 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Users, Zap, Play, Info, XCircle, Square } from "lucide-react";
 import { BACKEND_URL } from "../apis/server";
 
 const MessChangePage = () => {
+  const token =
+    localStorage.getItem("admin_token") || localStorage.getItem("token");
+  const authHeaders = useMemo(
+    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    [token],
+  );
+
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -27,7 +34,11 @@ const MessChangePage = () => {
   const fetchRequests = async (hostelMapParam) => {
     try {
       setLoading(true);
-      const response = await fetch(`${BACKEND_URL}/mess-change/all`);
+      const response = await fetch(`${BACKEND_URL}/mess-change/all`, {
+        headers: {
+          ...authHeaders,
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -36,11 +47,23 @@ const MessChangePage = () => {
       const data = await response.json();
       const hostelMap = hostelMapParam || buildHostelMap(hostels);
       const withNames = (data.data || []).map((req) => {
-        const currentHostelId = req.curr_subscribed_mess || req.hostel;
-        const idStr = currentHostelId ? String(currentHostelId) : "";
+        const userHostelId = req.hostel;
+        const userHostelIdStr = userHostelId ? String(userHostelId) : "";
+        const pref1IdStr = req.next_mess1 ? String(req.next_mess1) : "";
+        const pref2IdStr = req.next_mess2 ? String(req.next_mess2) : "";
+        const pref3IdStr = req.next_mess3 ? String(req.next_mess3) : "";
+
+        const preference1Name =
+          hostelMap[pref1IdStr] || req.applied_hostel_string || "-";
+        const preference2Name = hostelMap[pref2IdStr] || "-";
+        const preference3Name = hostelMap[pref3IdStr] || "-";
+
         return {
           ...req,
-          currentHostelName: hostelMap[idStr] || "Unknown",
+          userHostelName: hostelMap[userHostelIdStr] || "Unknown",
+          preference1Name,
+          preference2Name,
+          preference3Name,
         };
       });
       setRequests(withNames);
@@ -55,7 +78,11 @@ const MessChangePage = () => {
   const fetchMessChangeSettings = async () => {
     try {
       setSettingsLoading(true);
-      const response = await fetch(`${BACKEND_URL}/mess-change/settings`);
+      const response = await fetch(`${BACKEND_URL}/mess-change/settings`, {
+        headers: {
+          ...authHeaders,
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -92,11 +119,14 @@ const MessChangePage = () => {
     }
   };
 
-
   const fetchScheduleInfo = async () => {
     try {
       setScheduleLoading(true);
-      const response = await fetch(`${BACKEND_URL}/mess-change/schedule`);
+      const response = await fetch(`${BACKEND_URL}/mess-change/schedule`, {
+        headers: {
+          ...authHeaders,
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -117,6 +147,7 @@ const MessChangePage = () => {
       const response = await fetch(`${BACKEND_URL}/mess-change/enable`, {
         method: "POST",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
         },
       });
@@ -140,6 +171,7 @@ const MessChangePage = () => {
       const response = await fetch(`${BACKEND_URL}/mess-change/disable`, {
         method: "POST",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
         },
       });
@@ -165,6 +197,7 @@ const MessChangePage = () => {
       const response = await fetch(`${BACKEND_URL}/mess-change/process-all`, {
         method: "POST",
         headers: {
+          ...authHeaders,
           "Content-Type": "application/json",
         },
       });
@@ -175,7 +208,7 @@ const MessChangePage = () => {
 
       const data = await response.json();
       alert(
-        `Processing Complete!\nAccepted: ${data.acceptedUsers.length}\nRejected: ${data.rejectedUsers.length}\n\n${data.message}`
+        `Processing Complete!\nAccepted: ${data.acceptedUsers.length}\nRejected: ${data.rejectedUsers.length}\n\n${data.message}`,
       );
 
       // Refresh the requests and settings
@@ -197,7 +230,10 @@ const MessChangePage = () => {
       setRejecting(true);
       const response = await fetch(`${BACKEND_URL}/mess-change/reject-all`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          ...authHeaders,
+          "Content-Type": "application/json",
+        },
       });
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -225,7 +261,7 @@ const MessChangePage = () => {
       await fetchScheduleInfo();
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [authHeaders]);
 
   return (
     <div className="p-6">
@@ -278,7 +314,7 @@ const MessChangePage = () => {
               <p className="text-sm text-gray-600">
                 {messChangeSettings.lastProcessedAt
                   ? new Date(messChangeSettings.lastProcessedAt).toLocaleString(
-                      "en-IN"
+                      "en-IN",
                     )
                   : "Never"}
               </p>
@@ -407,25 +443,31 @@ const MessChangePage = () => {
           ) : (
             !loading && (
               <div className="overflow-x-auto">
-                <table className="w-full bg-white border border-gray-200 rounded-lg shadow-sm">
+                <table className="w-full table-fixed bg-white border border-gray-200 rounded-lg shadow-sm text-xs">
                   <thead>
                     <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-12 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
                         Sl. No
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-28 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
                         Name
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
                         Roll Number
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Current Hostel
+                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                        Hostel
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Requested Hostel
+                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                        Preference 1
                       </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                        Preference 2
+                      </th>
+                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
+                        Preference 3
+                      </th>
+                      <th className="w-32 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
                         Applied At
                       </th>
                     </tr>
@@ -436,25 +478,31 @@ const MessChangePage = () => {
                         key={request._id}
                         className="hover:bg-gray-50 transition-colors duration-200"
                       >
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-3 py-2 text-gray-900 align-top">
                           {index + 1}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                        <td className="px-3 py-2 text-gray-900 align-top break-words">
                           {request.name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        <td className="px-3 py-2 text-gray-900 align-top break-words">
                           {request.rollNumber}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {request.currentHostelName}
+                        <td className="px-3 py-2 text-gray-900 align-top break-words">
+                          {request.userHostelName}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                          {request.applied_hostel_string}
+                        <td className="px-3 py-2 text-gray-900 align-top break-words">
+                          {request.preference1Name}
                         </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        <td className="px-3 py-2 text-gray-900 align-top break-words">
+                          {request.preference2Name}
+                        </td>
+                        <td className="px-3 py-2 text-gray-900 align-top break-words">
+                          {request.preference3Name}
+                        </td>
+                        <td className="px-3 py-2 text-gray-500 align-top break-words">
                           {request.applied_hostel_timestamp
                             ? new Date(
-                                request.applied_hostel_timestamp
+                                request.applied_hostel_timestamp,
                               ).toLocaleString("en-IN", {
                                 year: "numeric",
                                 month: "2-digit",

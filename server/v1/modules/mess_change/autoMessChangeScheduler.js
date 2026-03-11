@@ -72,7 +72,7 @@ const scheduleMessChangeReminders = async () => {
           "Mess change application form will close in 12 hours",
           "All_Hostels",
           { redirectType: "mess_change", isAlert: "true" }
-        );
+        ).catch((err) => console.error("📢 12h mess change reminder send failed:", err));
         console.log("📢 Sent 12h mess change reminder");
       });
       console.log(
@@ -92,7 +92,7 @@ const scheduleMessChangeReminders = async () => {
           "Mess change application form will close in 2 hours",
           "All_Hostels",
           { redirectType: "mess_change", isAlert: "true" }
-        );
+        ).catch((err) => console.error("📢 2h mess change reminder send failed:", err));
         console.log("📢 Sent 2h mess change reminder");
       });
       console.log(

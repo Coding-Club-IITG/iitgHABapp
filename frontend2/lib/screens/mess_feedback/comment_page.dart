@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../apis/protected.dart';
 import '../../constants/themes.dart';
 import '../../providers/feedback_provider.dart';
+import '../../utilities/notifications.dart';
 
 class CommentPage extends StatefulWidget {
   const CommentPage({super.key});
@@ -86,8 +87,12 @@ class _CommentPageState extends State<CommentPage> {
           const SnackBar(content: Text('Feedback submitted successfully')),
         );
         provider.clear();
+        feedbackRefreshNotifier.value = !feedbackRefreshNotifier.value;
         if (!mounted) return;
-        navigator.popUntil((route) => route.isFirst);
+        navigator.pop();
+        if (navigator.canPop()) {
+          navigator.pop();
+        }
       } else {
         messenger.showSnackBar(
           SnackBar(content: Text('Error: ${response.body}')),
@@ -104,7 +109,6 @@ class _CommentPageState extends State<CommentPage> {
 
   @override
   Widget build(BuildContext context) {
-
     return Scaffold(
       appBar: AppBar(
         leading: const BackButton(),

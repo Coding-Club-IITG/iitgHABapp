@@ -11,8 +11,22 @@ const UserAllocHostel = require("../hostel/hostelAllocModel.js");
 const AppError = require("../../utils/appError.js");
 
 const getUserData = async (req, res, next) => {
-  //console.log(req);
-  return res.json(req.user);
+  if (req.user) {
+    return res.json(req.user);
+  }
+
+  if (req.hostel) {
+    return res.json({
+      _id: req.hostel._id,
+      name: req.hostel.hostel_name,
+      email: req.hostel.secretary_email || req.hostel.microsoft_email,
+      hostel: req.hostel._id,
+      isSMC: true,
+      isSecretary: true,
+    });
+  }
+
+  return res.status(401).json({ message: "Unauthorized" });
 };
 
 const getUserByRoll = async (req, res) => {
@@ -71,7 +85,7 @@ const updateUser = async (req, res) => {
     const updatedUser = await User.findOneAndUpdate(
       { email: outlook },
       req.body,
-      { new: true }
+      { new: true },
     );
     if (!updatedUser) {
       return res.status(404).json({ message: "User not found" });
@@ -91,13 +105,13 @@ const saveUserProfile = async (req, res) => {
 
     const { roomNumber, phoneNumber } = req.body;
     let changed = false;
-    
+
     // Handle roomNumber: accept string (including empty string) or null/undefined
     if (roomNumber !== undefined) {
       user.roomNumber = roomNumber || null; // Convert empty string to null
       changed = true;
     }
-    
+
     // Handle phoneNumber: accept string (including empty string) or null/undefined
     if (phoneNumber !== undefined) {
       user.phoneNumber = phoneNumber || null; // Convert empty string to null
@@ -161,38 +175,84 @@ const getUserComplaints = async (req, res) => {
 
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find().lean();
+    const hostels = await Hostel.find().lean();
 
-    // Map over users and populate both hostel and mess names
-    const updatedUsers = await Promise.all(
-      users.map(async (user) => {
-        const hostelId = user.hostel;
-        const messId = user.curr_subscribed_mess;
-        let hostelName = null;
-        let messName = null;
+    const hostelMap = hostels.reduce((acc, curr) => {
+      acc[curr._id.toString()] = curr.hostel_name;
+      return acc;
+    }, {});
 
-        if (hostelId) {
-          const hostel = await Hostel.findById(hostelId);
-          hostelName = hostel ? hostel.hostel_name : null;
-        }
+    const updatedUsers = users.map((user) => {
+      const hostelId = user.hostel ? user.hostel.toString() : null;
+      const messId = user.curr_subscribed_mess ? user.curr_subscribed_mess.toString() : null;
 
-        if (messId) {
-          const mess = await Hostel.findById(messId);
-          messName = mess ? mess.hostel_name : null;
-        }
-
-        const userObj = user.toObject();
-        userObj.hostel_name = hostelName;
-        userObj.curr_subscribed_mess_name = messName;
-
-        return userObj;
-      })
-    );
+      return {
+        ...user,
+        hostel_name: hostelId ? hostelMap[hostelId] || null : null,
+        curr_subscribed_mess_name: messId ? hostelMap[messId] || null : null,
+      };
+    });
 
     res.status(200).json(updatedUsers);
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error fetching users" });
+  }
+};
+
+const getUserCount = async (req, res) => {
+  try {
+    const count = await User.countDocuments();
+    return res.status(200).json({ count });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Error fetching user count" });
+  }
+};
+
+// Mess-manager (HABit HQ): get basic user profile by ID, restricted to users
+// whose curr_subscribed_mess matches the manager's hostel (hostel _id).
+const getUserForManager = async (req, res, next) => {
+  try {
+    const managerHostel = req.managerHostel;
+    const { userId } = req.params;
+
+    if (!managerHostel || !managerHostel._id) {
+      return res
+        .status(400)
+        .json({ message: "Manager hostel not found" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid userId" });
+    }
+
+    const hostelId = managerHostel._id.toString();
+
+    const user = await User.findById(userId)
+      .select(
+        "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
+      )
+      .populate("hostel", "hostel_name")
+      .populate("curr_subscribed_mess", "hostel_name");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    return res.status(200).json({
+      _id: user._id,
+      name: user.name,
+      rollNumber: user.rollNumber,
+      email: user.email,
+      roomNumber: user.roomNumber || "",
+      phoneNumber: user.phoneNumber || "",
+      hostelName: user.hostel?.hostel_name || "",
+      messName: user.curr_subscribed_mess?.hostel_name || "",
+    });
+  } catch (err) {
+    console.error("getUserForManager error:", err);
+    return next(new AppError(500, "Failed to fetch user profile"));
   }
 };
 
@@ -247,110 +307,120 @@ const deleteUserAccount = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const user = await User.findById(userId);
-    
+
     if (!user) {
       return next(new AppError(404, "User not found"));
     }
-    
+
     // Check for pending mess change applications
-    const hasPendingMessChange = user.applied_for_mess_changed && 
-                                 !user.got_mess_changed;
-    
+    const hasPendingMessChange =
+      user.applied_for_mess_changed && !user.got_mess_changed;
+
     if (hasPendingMessChange) {
-      return next(new AppError(400, "Cannot delete account with pending mess change application. Please wait for processing or contact admin to cancel."));
+      return next(
+        new AppError(
+          400,
+          "Cannot delete account with pending mess change application. Please wait for processing or contact admin to cancel.",
+        ),
+      );
     }
-    
+
     // Check if user is SMC member
     if (user.isSMC === true) {
-      return next(new AppError(403, "SMC members cannot delete their accounts. Please contact admin."));
+      return next(
+        new AppError(
+          403,
+          "SMC members cannot delete their accounts. Please contact admin.",
+        ),
+      );
     }
-    
+
     // Anonymized user ID for references
-    const ANONYMIZED_USER_ID = new mongoose.Types.ObjectId('000000000000000000000000');
-    
+    const ANONYMIZED_USER_ID = new mongoose.Types.ObjectId(
+      "000000000000000000000000",
+    );
+
     // Start transaction for atomic operations
     const session = await mongoose.startSession();
     session.startTransaction();
-    
+
     try {
       // 1. FCM Tokens - DELETE (no historical value)
       await FCMToken.deleteMany({ user: userId }, { session });
-      
+
       // 2. Notifications - Remove user from recipients and readBy
       await Notification.updateMany(
         { recipients: userId },
         { $pull: { recipients: userId } },
-        { session }
+        { session },
       );
       await Notification.updateMany(
         { readBy: userId },
         { $pull: { readBy: userId } },
-        { session }
+        { session },
       );
-      
+
       // 3. Menu Item Likes - Remove user from likes arrays
       await MenuItem.updateMany(
         { likes: userId },
         { $pull: { likes: userId } },
-        { session }
+        { session },
       );
-      
+
       // 4. Feedback - Anonymize user reference only (keep feedback content unchanged)
       await Feedback.updateMany(
         { user: userId },
         { $set: { user: ANONYMIZED_USER_ID } },
-        { session }
+        { session },
       );
-      
+
       // 5. Scan Logs - Anonymize (keep historical scan data)
       await ScanLogs.updateMany(
         { userId: userId },
         { $set: { userId: ANONYMIZED_USER_ID } },
-        { session }
+        { session },
       );
-      
+
       // 6. Update UserAllocHostel with user's final hostel and mess before deletion
       if (user.rollNumber && user.hostel && user.curr_subscribed_mess) {
         await UserAllocHostel.updateOne(
           { rollno: user.rollNumber },
-          { 
-            $set: { 
+          {
+            $set: {
               hostel: user.hostel,
-              current_subscribed_mess: user.curr_subscribed_mess
-            } 
+              current_subscribed_mess: user.curr_subscribed_mess,
+            },
           },
-          { session }
+          { session },
         );
       }
-      
+
       // 7. Anonymize MessChange records (update userName)
       if (user.rollNumber) {
         await MessChange.updateMany(
           { rollNumber: user.rollNumber },
           { $set: { userName: "Deleted User" } },
-          { session }
+          { session },
         );
       }
-      
+
       // 8. Hard delete user account
       await User.findByIdAndDelete(userId, { session });
-      
+
       // Commit transaction
       await session.commitTransaction();
-      
-      return res.status(200).json({ 
+
+      return res.status(200).json({
         success: true,
         message: "Account deleted successfully",
-        note: "Your account has been deleted. Historical data has been anonymized for institutional records."
+        note: "Your account has been deleted. Historical data has been anonymized for institutional records.",
       });
-      
     } catch (error) {
       await session.abortTransaction();
       throw error;
     } finally {
       session.endSession();
     }
-    
   } catch (err) {
     console.error("Error deleting user account:", err);
     return next(new AppError(500, "Account deletion failed"));
@@ -368,6 +438,8 @@ module.exports = {
   getUserComplaints,
   getUserByRoll,
   getAllUsers,
+  getUserCount,
   getUsersByHostelForMess,
   deleteUserAccount,
+  getUserForManager,
 };
