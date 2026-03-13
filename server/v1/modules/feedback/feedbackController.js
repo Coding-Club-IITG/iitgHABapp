@@ -4,10 +4,34 @@ const { Mess } = require("../mess/messModel");
 const UserAllocHostel = require("../hostel/hostelAllocModel");
 const Feedback = require("./feedbackModel");
 const { FeedbackSettings } = require("./feedbackSettingsModel");
+const { FeedbackWindowStats } = require("./feedbackWindowStatsModel");
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
-const redisClient = require("../../utils/redisClient.js");
+
+const LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+const leaderboardCache = new Map();
+
+const getCachedValue = (key) => {
+  const entry = leaderboardCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= Date.now()) {
+    leaderboardCache.delete(key);
+    return null;
+  }
+  return entry.value;
+};
+
+const setCachedValue = (key, value, ttlMs = LEADERBOARD_CACHE_TTL_MS) => {
+  leaderboardCache.set(key, {
+    value,
+    expiresAt: Date.now() + ttlMs,
+  });
+};
+
+const invalidateLeaderboardCache = () => {
+  leaderboardCache.clear();
+};
 
 const ratingMap = {
   "Very Poor": 1,
@@ -77,15 +101,18 @@ const getSubscriberCountByCatererIds = async (catererIds) => {
 
   const subscriberRows = await UserAllocHostel.aggregate([
     {
+      $match: {
+        $or: [
+          { current_subscribed_mess: { $in: hostelIds } },
+          { hostel: { $in: hostelIds } },
+        ],
+      },
+    },
+    {
       $project: {
         subscribedHostel: {
           $ifNull: ["$current_subscribed_mess", "$hostel"],
         },
-      },
-    },
-    {
-      $match: {
-        subscribedHostel: { $in: hostelIds },
       },
     },
     {
@@ -108,6 +135,123 @@ const getSubscriberCountByCatererIds = async (catererIds) => {
   }
 
   return subscriberByCaterer;
+};
+
+const buildLeaderboardRowsFromFeedbacks = async (feedbacks) => {
+  const toScore = (label) => ratingMap[label] ?? null;
+  const groups = new Map();
+
+  for (const fb of feedbacks) {
+    if (!fb?.caterer?._id) continue;
+    const key = String(fb.caterer._id);
+    if (!groups.has(key)) {
+      groups.set(key, {
+        catererId: key,
+        catererName: fb.caterer.name,
+        totalUsers: 0,
+        smcUsers: 0,
+        breakfastSum: 0,
+        lunchSum: 0,
+        dinnerSum: 0,
+        smc: {
+          hygieneSum: 0,
+          wasteDisposalSum: 0,
+          qualitySum: 0,
+          uniformSum: 0,
+          count: 0,
+        },
+      });
+    }
+
+    const g = groups.get(key);
+    g.totalUsers += 1;
+    if (fb.user?.isSMC) g.smcUsers += 1;
+
+    g.breakfastSum += toScore(fb.breakfast) || 0;
+    g.lunchSum += toScore(fb.lunch) || 0;
+    g.dinnerSum += toScore(fb.dinner) || 0;
+
+    if (fb.user?.isSMC && fb.smcFields) {
+      g.smc.hygieneSum += toScore(fb.smcFields.hygiene) || 0;
+      g.smc.wasteDisposalSum += toScore(fb.smcFields.wasteDisposal) || 0;
+      g.smc.qualitySum += toScore(fb.smcFields.qualityOfIngredients) || 0;
+      g.smc.uniformSum += toScore(fb.smcFields.uniformAndPunctuality) || 0;
+      g.smc.count += 1;
+    }
+  }
+
+  const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
+    Array.from(groups.keys()),
+  );
+
+  const rows = [];
+  for (const [, g] of groups) {
+    const subscriberCount =
+      subscriberCountByCaterer.get(String(g.catererId)) || 0;
+    const avgBreakfast = computeMealOpi({
+      mealSum: g.breakfastSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgLunch = computeMealOpi({
+      mealSum: g.lunchSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgDinner = computeMealOpi({
+      mealSum: g.dinnerSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
+    const avgWasteDisposal = g.smc.count
+      ? g.smc.wasteDisposalSum / g.smc.count
+      : null;
+    const avgQualityOfIngredients = g.smc.count
+      ? g.smc.qualitySum / g.smc.count
+      : null;
+    const avgUniformAndPunctuality = g.smc.count
+      ? g.smc.uniformSum / g.smc.count
+      : null;
+
+    const overall = computeOverallOpi({
+      breakfastAvg: avgBreakfast,
+      lunchAvg: avgLunch,
+      dinnerAvg: avgDinner,
+      uniformAvg: avgUniformAndPunctuality ?? 0,
+      cleanlinessAvg: avgHygiene ?? 0,
+      wasteAvg: avgWasteDisposal ?? 0,
+      qualityAvg: avgQualityOfIngredients ?? 0,
+    });
+
+    rows.push({
+      catererId: g.catererId,
+      catererName: g.catererName,
+      totalUsers: g.totalUsers,
+      smcUsers: g.smcUsers,
+      avgBreakfast,
+      avgLunch,
+      avgDinner,
+      avgHygiene,
+      avgWasteDisposal,
+      avgQualityOfIngredients,
+      avgUniformAndPunctuality,
+      overall,
+    });
+  }
+
+  rows.sort((a, b) => b.overall - a.overall);
+  rows.forEach((r, i) => (r.rank = i + 1));
+  return rows;
+};
+
+const getWindowLeaderboardSnapshot = async (windowNumber) => {
+  if (typeof windowNumber !== "number") return null;
+  const doc = await FeedbackWindowStats.findOne(
+    { windowNumber },
+    { _id: 0, rows: 1, computedAt: 1 },
+  ).lean();
+  return doc || null;
 };
 
 // ==========================================
@@ -152,97 +296,37 @@ const getFeedbacksByCaterer = async (req, res) => {
     let opi = null;
     let rank = null;
     try {
-      const fbQuery = {
-        caterer: { $ne: null },
-      };
-      if (windowNumber)
-        fbQuery.feedbackWindowNumber = parseInt(windowNumber, 10);
-      const all = await Feedback.find(fbQuery)
-        .populate("user", "isSMC")
-        .populate("caterer", "name")
-        .lean();
+      const parsedWindowNumber = windowNumber
+        ? parseInt(windowNumber, 10)
+        : null;
 
-      const groups = new Map();
-      const toScore = (label) => ratingMap[label] ?? null;
-      for (const fb of all) {
-        const key = String(fb.caterer._id);
-        if (!groups.has(key)) {
-          groups.set(key, {
-            totalUsers: 0,
-            smcUsers: 0,
-            breakfastSum: 0,
-            lunchSum: 0,
-            dinnerSum: 0,
-            smc: {
-              hygieneSum: 0,
-              wasteDisposalSum: 0,
-              qualitySum: 0,
-              uniformSum: 0,
-              count: 0,
-            },
-          });
-        }
-        const g = groups.get(key);
-        g.totalUsers += 1;
-        if (fb.user?.isSMC) g.smcUsers += 1;
-        g.breakfastSum += toScore(fb.breakfast) || 0;
-        g.lunchSum += toScore(fb.lunch) || 0;
-        g.dinnerSum += toScore(fb.dinner) || 0;
-        if (fb.user?.isSMC && fb.smcFields) {
-          g.smc.hygieneSum += toScore(fb.smcFields.hygiene) || 0;
-          g.smc.wasteDisposalSum += toScore(fb.smcFields.wasteDisposal) || 0;
-          g.smc.qualitySum += toScore(fb.smcFields.qualityOfIngredients) || 0;
-          g.smc.uniformSum += toScore(fb.smcFields.uniformAndPunctuality) || 0;
-          g.smc.count += 1;
+      let rows = null;
+      if (parsedWindowNumber) {
+        const snapshot = await getWindowLeaderboardSnapshot(parsedWindowNumber);
+        if (snapshot?.rows?.length) rows = snapshot.rows;
+      }
+
+      if (!rows) {
+        const cacheKey = `leaderboard:${parsedWindowNumber || "all"}`;
+        const cachedRows = getCachedValue(cacheKey);
+        if (cachedRows) {
+          rows = cachedRows;
+        } else {
+          const fbQuery = {
+            caterer: { $ne: null },
+          };
+          if (parsedWindowNumber) {
+            fbQuery.feedbackWindowNumber = parsedWindowNumber;
+          }
+          const all = await Feedback.find(fbQuery)
+            .populate("user", "isSMC")
+            .populate("caterer", "name")
+            .lean();
+          rows = await buildLeaderboardRowsFromFeedbacks(all);
+          setCachedValue(cacheKey, rows);
         }
       }
 
-      const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
-        Array.from(groups.keys()),
-      );
-
-      const rows = [];
-      for (const [key, g] of groups) {
-        const subscriberCount = subscriberCountByCaterer.get(String(key)) || 0;
-        const avgBreakfast = computeMealOpi({
-          mealSum: g.breakfastSum,
-          responseCount: g.totalUsers,
-          subscriberCount,
-        });
-        const avgLunch = computeMealOpi({
-          mealSum: g.lunchSum,
-          responseCount: g.totalUsers,
-          subscriberCount,
-        });
-        const avgDinner = computeMealOpi({
-          mealSum: g.dinnerSum,
-          responseCount: g.totalUsers,
-          subscriberCount,
-        });
-        const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : 0;
-        const avgWasteDisposal = g.smc.count
-          ? g.smc.wasteDisposalSum / g.smc.count
-          : 0;
-        const avgQualityOfIngredients = g.smc.count
-          ? g.smc.qualitySum / g.smc.count
-          : 0;
-        const avgUniformAndPunctuality = g.smc.count
-          ? g.smc.uniformSum / g.smc.count
-          : 0;
-
-        const overall = computeOverallOpi({
-          breakfastAvg: avgBreakfast,
-          lunchAvg: avgLunch,
-          dinnerAvg: avgDinner,
-          uniformAvg: avgUniformAndPunctuality,
-          cleanlinessAvg: avgHygiene,
-          wasteAvg: avgWasteDisposal,
-          qualityAvg: avgQualityOfIngredients,
-        });
-        rows.push({ catererId: key, overall });
-      }
-      rows.sort((a, b) => b.overall - a.overall);
-      rows.forEach((r, i) => (r.rank = i + 1));
       const row = rows.find((r) => r.catererId === String(catererId));
       if (row) {
         opi = row.overall;
@@ -298,9 +382,12 @@ const submitFeedback = async (req, res) => {
       }
     }
 
-    // Find user
-    const user = await User.findOne({ name, rollNumber });
+    // Find user by unique roll number, then validate name if provided
+    const user = await User.findOne({ rollNumber });
     if (!user) return res.status(404).send("User not found");
+    if (name && user.name !== name) {
+      return res.status(400).send("Name and roll number do not match");
+    }
 
     // Check if feedback for this user and current window already exists
     if (user.isFeedbackSubmitted) {
@@ -340,11 +427,18 @@ const submitFeedback = async (req, res) => {
     await feedback.save();
 
     // Mark feedback as submitted for this window
-    user.isFeedbackSubmitted = true;
-    await user.save();
+    await User.updateOne(
+      { _id: user._id, isFeedbackSubmitted: { $ne: true } },
+      { $set: { isFeedbackSubmitted: true } },
+    );
+
+    invalidateLeaderboardCache();
 
     res.status(200).send("Feedback submitted successfully");
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(400).send("Feedback already submitted for this window");
+    }
     console.error(err);
     res.status(500).send("Error saving feedback");
   }
@@ -360,8 +454,11 @@ const removeFeedback = async (req, res) => {
       return res.status(400).send("Name and Roll Number required");
     }
 
-    const user = await User.findOne({ name, rollNumber });
+    const user = await User.findOne({ rollNumber });
     if (!user) return res.status(404).send("User not found");
+    if (name && user.name !== name) {
+      return res.status(400).send("Name and roll number do not match");
+    }
 
     if (!user.isFeedbackSubmitted) {
       return res.status(400).send("No feedback submitted by this user");
@@ -377,6 +474,7 @@ const removeFeedback = async (req, res) => {
     });
     user.isFeedbackSubmitted = false;
     await user.save();
+    invalidateLeaderboardCache();
 
     res.status(200).send("Feedback removed successfully");
   } catch (err) {
@@ -446,13 +544,13 @@ const enableFeedback = async (req, res) => {
     s.currentWindowClosingTime = closingDate;
 
     await s.save();
+    invalidateLeaderboardCache();
     sendNotificationMessage(
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
       "All_Hostels",
       { redirectType: "mess_screen", isAlert: "true" },
-    ).catch((err) => console.error("Feedback enabled notification failed:", err));
-    await redisClient.del("feedback_settings");
+    );
     return res.status(200).json({ message: "Feedback enabled", data: s });
   } catch (e) {
     return res
@@ -472,7 +570,7 @@ const disableFeedback = async (req, res) => {
     if (typeof s.currentWindowNumber === "number") {
       await updateAllMessRatingsAndRankings(s.currentWindowNumber);
     }
-    await redisClient.del("feedback_settings");
+    invalidateLeaderboardCache();
     return res.status(200).json({ message: "Feedback disabled", data: s });
   } catch (e) {
     return res
@@ -507,14 +605,14 @@ const enableFeedbackAutomatic = async () => {
     s.currentWindowClosingTime = closingDate;
 
     await s.save();
+    invalidateLeaderboardCache();
     sendNotificationMessage(
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
       "All_Hostels",
       { redirectType: "mess_screen", isAlert: "true" },
-    ).catch((err) => console.error("Feedback enabled notification failed:", err));
+    );
     console.log("✅ Feedback enabled automatically");
-    await redisClient.del("feedback_settings");
     return { success: true, settings: s };
   } catch (e) {
     console.error("❌ Error enabling feedback automatically:", e);
@@ -535,9 +633,9 @@ const disableFeedbackAutomatic = async () => {
     if (typeof s.currentWindowNumber === "number") {
       await updateAllMessRatingsAndRankings(s.currentWindowNumber);
     }
+    invalidateLeaderboardCache();
 
     console.log("✅ Feedback disabled automatically");
-    await redisClient.del("feedback_settings");
     return { success: true, settings: s };
   } catch (e) {
     console.error("❌ Error disabling feedback automatically:", e);
@@ -550,9 +648,6 @@ const disableFeedbackAutomatic = async () => {
 // ==========================================
 const getFeedbackSettings = async (req, res) => {
   try {
-    const cachedSettings = await redisClient.get("feedback_settings");
-    if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
-
     let s = await FeedbackSettings.findOne();
     if (s?.isEnabled && s.enabledAt) {
       const expiresAt = new Date(
@@ -564,16 +659,14 @@ const getFeedbackSettings = async (req, res) => {
         await s.save();
       }
     }
-
-    const responseData = s || {
-      isEnabled: false,
-      enabledAt: null,
-      disabledAt: null,
-      currentWindowNumber: 1,
-    };
-
-    await redisClient.set("feedback_settings", JSON.stringify(responseData), "EX", 60);
-    return res.status(200).json(responseData);
+    return res.status(200).json(
+      s || {
+        isEnabled: false,
+        enabledAt: null,
+        disabledAt: null,
+        currentWindowNumber: 1,
+      },
+    );
   } catch (e) {
     return res.status(500).json({
       message: "Failed to fetch settings",
@@ -587,9 +680,6 @@ const getFeedbackSettings = async (req, res) => {
 // ==========================================
 const getFeedbackSettingsPublic = async (req, res) => {
   try {
-    const cachedSettings = await redisClient.get("feedback_settings");
-    if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
-
     let s = await FeedbackSettings.findOne();
     if (s?.isEnabled && s.enabledAt) {
       const expiresAt = new Date(
@@ -601,16 +691,14 @@ const getFeedbackSettingsPublic = async (req, res) => {
         await s.save();
       }
     }
-
-    const responseData = s || {
-      isEnabled: false,
-      enabledAt: null,
-      disabledAt: null,
-      currentWindowNumber: 1,
-    };
-
-    await redisClient.set("feedback_settings", JSON.stringify(responseData), "EX", 60);
-    return res.status(200).json(responseData);
+    return res.status(200).json(
+      s || {
+        isEnabled: false,
+        enabledAt: null,
+        disabledAt: null,
+        currentWindowNumber: 1,
+      },
+    );
   } catch (e) {
     return res.status(500).json({
       message: "Failed to fetch settings",
@@ -624,114 +712,17 @@ const getFeedbackSettingsPublic = async (req, res) => {
 // ==========================================
 const getFeedbackLeaderboard = async (req, res) => {
   try {
+    const cacheKey = "leaderboard:all";
+    const cachedRows = getCachedValue(cacheKey);
+    if (cachedRows) return res.status(200).json(cachedRows);
+
     const feedbacks = await Feedback.find({ caterer: { $ne: null } })
       .populate("user", "isSMC")
       .populate("caterer", "name")
       .lean();
 
-    const toScore = (label) => ratingMap[label] ?? null;
-    const groups = new Map();
-
-    for (const fb of feedbacks) {
-      const key = String(fb.caterer._id);
-      if (!groups.has(key)) {
-        groups.set(key, {
-          catererId: key,
-          catererName: fb.caterer.name,
-          totalUsers: 0,
-          smcUsers: 0,
-          breakfastSum: 0,
-          lunchSum: 0,
-          dinnerSum: 0,
-          smc: {
-            hygieneSum: 0,
-            wasteDisposalSum: 0,
-            qualitySum: 0,
-            uniformSum: 0,
-            count: 0,
-          },
-        });
-      }
-
-      const g = groups.get(key);
-      g.totalUsers += 1;
-      if (fb.user?.isSMC) g.smcUsers += 1;
-
-      g.breakfastSum += toScore(fb.breakfast) || 0;
-      g.lunchSum += toScore(fb.lunch) || 0;
-      g.dinnerSum += toScore(fb.dinner) || 0;
-
-      if (fb.user?.isSMC && fb.smcFields) {
-        g.smc.hygieneSum += toScore(fb.smcFields.hygiene) || 0;
-        g.smc.wasteDisposalSum += toScore(fb.smcFields.wasteDisposal) || 0;
-        g.smc.qualitySum += toScore(fb.smcFields.qualityOfIngredients) || 0;
-        g.smc.uniformSum += toScore(fb.smcFields.uniformAndPunctuality) || 0;
-        g.smc.count += 1;
-      }
-    }
-
-    const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
-      Array.from(groups.keys()),
-    );
-
-    const rows = [];
-    for (const [, g] of groups) {
-      const subscriberCount =
-        subscriberCountByCaterer.get(String(g.catererId)) || 0;
-      const avgBreakfast = computeMealOpi({
-        mealSum: g.breakfastSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgLunch = computeMealOpi({
-        mealSum: g.lunchSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgDinner = computeMealOpi({
-        mealSum: g.dinnerSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
-      const avgWasteDisposal = g.smc.count
-        ? g.smc.wasteDisposalSum / g.smc.count
-        : null;
-      const avgQualityOfIngredients = g.smc.count
-        ? g.smc.qualitySum / g.smc.count
-        : null;
-      const avgUniformAndPunctuality = g.smc.count
-        ? g.smc.uniformSum / g.smc.count
-        : null;
-
-      const overall = computeOverallOpi({
-        breakfastAvg: avgBreakfast,
-        lunchAvg: avgLunch,
-        dinnerAvg: avgDinner,
-        uniformAvg: avgUniformAndPunctuality ?? 0,
-        cleanlinessAvg: avgHygiene ?? 0,
-        wasteAvg: avgWasteDisposal ?? 0,
-        qualityAvg: avgQualityOfIngredients ?? 0,
-      });
-
-      rows.push({
-        catererId: g.catererId,
-        catererName: g.catererName,
-        totalUsers: g.totalUsers,
-        smcUsers: g.smcUsers,
-        avgBreakfast,
-        avgLunch,
-        avgDinner,
-        avgHygiene,
-        avgWasteDisposal,
-        avgQualityOfIngredients,
-        avgUniformAndPunctuality,
-        overall,
-      });
-    }
-
-    rows.sort((a, b) => b.overall - a.overall);
-    rows.forEach((r, i) => (r.rank = i + 1));
+    const rows = await buildLeaderboardRowsFromFeedbacks(feedbacks);
+    setCachedValue(cacheKey, rows);
 
     return res.status(200).json(rows);
   } catch (e) {
@@ -748,19 +739,10 @@ const getFeedbackLeaderboard = async (req, res) => {
 // ==========================================
 const getAvailableWindows = async (req, res) => {
   try {
-    const feedbacks = await Feedback.find(
-      {},
-      { feedbackWindowNumber: 1 },
-    ).lean();
-
-    const windowsSet = new Set();
-    feedbacks.forEach((fb) => {
-      if (fb.feedbackWindowNumber) {
-        windowsSet.add(fb.feedbackWindowNumber);
-      }
+    const windows = await Feedback.distinct("feedbackWindowNumber", {
+      feedbackWindowNumber: { $ne: null },
     });
-
-    const windows = Array.from(windowsSet).sort((a, b) => b - a); // Sort descending (newest first)
+    windows.sort((a, b) => b - a);
     return res.status(200).json(windows);
   } catch (e) {
     console.error("getAvailableWindows error:", e);
@@ -779,117 +761,27 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
       return res.status(400).json({ message: "Window number required" });
     }
 
+    const parsedWindowNumber = parseInt(windowNumber, 10);
+
+    const snapshot = await getWindowLeaderboardSnapshot(parsedWindowNumber);
+    if (snapshot?.rows?.length) {
+      return res.status(200).json(snapshot.rows);
+    }
+
+    const cacheKey = `leaderboard:${parsedWindowNumber}`;
+    const cachedRows = getCachedValue(cacheKey);
+    if (cachedRows) return res.status(200).json(cachedRows);
+
     const feedbacks = await Feedback.find({
       caterer: { $ne: null },
-      feedbackWindowNumber: parseInt(windowNumber),
+      feedbackWindowNumber: parsedWindowNumber,
     })
       .populate("user", "isSMC")
       .populate("caterer", "name")
       .lean();
 
-    const toScore = (label) => ratingMap[label] ?? null;
-    const groups = new Map();
-
-    for (const fb of feedbacks) {
-      const key = String(fb.caterer._id);
-      if (!groups.has(key)) {
-        groups.set(key, {
-          catererId: key,
-          catererName: fb.caterer.name,
-          totalUsers: 0,
-          smcUsers: 0,
-          breakfastSum: 0,
-          lunchSum: 0,
-          dinnerSum: 0,
-          smc: {
-            hygieneSum: 0,
-            wasteDisposalSum: 0,
-            qualitySum: 0,
-            uniformSum: 0,
-            count: 0,
-          },
-        });
-      }
-
-      const g = groups.get(key);
-      g.totalUsers += 1;
-      if (fb.user?.isSMC) g.smcUsers += 1;
-
-      g.breakfastSum += toScore(fb.breakfast) || 0;
-      g.lunchSum += toScore(fb.lunch) || 0;
-      g.dinnerSum += toScore(fb.dinner) || 0;
-
-      if (fb.user?.isSMC && fb.smcFields) {
-        g.smc.hygieneSum += toScore(fb.smcFields.hygiene) || 0;
-        g.smc.wasteDisposalSum += toScore(fb.smcFields.wasteDisposal) || 0;
-        g.smc.qualitySum += toScore(fb.smcFields.qualityOfIngredients) || 0;
-        g.smc.uniformSum += toScore(fb.smcFields.uniformAndPunctuality) || 0;
-        g.smc.count += 1;
-      }
-    }
-
-    const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
-      Array.from(groups.keys()),
-    );
-
-    const rows = [];
-    for (const [, g] of groups) {
-      const subscriberCount =
-        subscriberCountByCaterer.get(String(g.catererId)) || 0;
-      const avgBreakfast = computeMealOpi({
-        mealSum: g.breakfastSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgLunch = computeMealOpi({
-        mealSum: g.lunchSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgDinner = computeMealOpi({
-        mealSum: g.dinnerSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
-      const avgWasteDisposal = g.smc.count
-        ? g.smc.wasteDisposalSum / g.smc.count
-        : null;
-      const avgQualityOfIngredients = g.smc.count
-        ? g.smc.qualitySum / g.smc.count
-        : null;
-      const avgUniformAndPunctuality = g.smc.count
-        ? g.smc.uniformSum / g.smc.count
-        : null;
-
-      const overall = computeOverallOpi({
-        breakfastAvg: avgBreakfast,
-        lunchAvg: avgLunch,
-        dinnerAvg: avgDinner,
-        uniformAvg: avgUniformAndPunctuality ?? 0,
-        cleanlinessAvg: avgHygiene ?? 0,
-        wasteAvg: avgWasteDisposal ?? 0,
-        qualityAvg: avgQualityOfIngredients ?? 0,
-      });
-
-      rows.push({
-        catererId: g.catererId,
-        catererName: g.catererName,
-        totalUsers: g.totalUsers,
-        smcUsers: g.smcUsers,
-        avgBreakfast,
-        avgLunch,
-        avgDinner,
-        avgHygiene,
-        avgWasteDisposal,
-        avgQualityOfIngredients,
-        avgUniformAndPunctuality,
-        overall,
-      });
-    }
-
-    rows.sort((a, b) => b.overall - a.overall);
-    rows.forEach((r, i) => (r.rank = i + 1));
+    const rows = await buildLeaderboardRowsFromFeedbacks(feedbacks);
+    setCachedValue(cacheKey, rows);
 
     return res.status(200).json(rows);
   } catch (e) {
@@ -912,12 +804,16 @@ const checkFeedbackSubmitted = async (req, res) => {
         .status(401)
         .json({ submitted: false, message: "User not authenticated" });
 
-    // Check if user has submitted feedback for current window
-    if (user.isFeedbackSubmitted) {
-      return res.status(200).json({ submitted: true });
-    } else {
-      return res.status(200).json({ submitted: false });
-    }
+    const settings = await FeedbackSettings.findOne({}, { currentWindowNumber: 1 })
+      .lean();
+    const currentWindowNumber = settings?.currentWindowNumber || 1;
+
+    const existingFeedback = await Feedback.findOne(
+      { user: user._id, feedbackWindowNumber: currentWindowNumber },
+      { _id: 1 },
+    ).lean();
+
+    return res.status(200).json({ submitted: Boolean(existingFeedback) });
   } catch (err) {
     console.error(err);
     res
@@ -990,6 +886,7 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
   // Get all messes
   const messes = await Mess.find({});
   if (!messes.length) return;
+  const messNameById = new Map(messes.map((mess) => [String(mess._id), mess.name]));
 
   // Get all hostels — map messId → hostel._id (fixed: was inverting the relationship)
   const hostels = await Hostel.find({});
@@ -1123,7 +1020,21 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
     // Round to two decimal places before storing
     overall = Math.round(overall * 100) / 100;
 
-    rows.push({ messId, overall });
+    rows.push({
+      messId,
+      catererId: messId,
+      catererName: messNameById.get(messId) || "",
+      totalUsers: g.totalUsers,
+      smcUsers: g.smc.count,
+      avgBreakfast,
+      avgLunch,
+      avgDinner,
+      avgHygiene,
+      avgWasteDisposal,
+      avgQualityOfIngredients,
+      avgUniformAndPunctuality,
+      overall,
+    });
   }
 
   rows.sort((a, b) => b.overall - a.overall);
@@ -1134,6 +1045,31 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
     rows.map((r) =>
       Mess.findByIdAndUpdate(r.messId, { rating: r.overall, ranking: r.rank }),
     ),
+  );
+
+  await FeedbackWindowStats.findOneAndUpdate(
+    { windowNumber },
+    {
+      $set: {
+        rows: rows.map((r) => ({
+          catererId: r.catererId,
+          catererName: r.catererName,
+          totalUsers: r.totalUsers,
+          smcUsers: r.smcUsers,
+          avgBreakfast: r.avgBreakfast,
+          avgLunch: r.avgLunch,
+          avgDinner: r.avgDinner,
+          avgHygiene: r.avgHygiene,
+          avgWasteDisposal: r.avgWasteDisposal,
+          avgQualityOfIngredients: r.avgQualityOfIngredients,
+          avgUniformAndPunctuality: r.avgUniformAndPunctuality,
+          overall: r.overall,
+          rank: r.rank,
+        })),
+        computedAt: new Date(),
+      },
+    },
+    { upsert: true },
   );
 };
 
