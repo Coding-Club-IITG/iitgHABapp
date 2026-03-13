@@ -39,6 +39,7 @@ const redisClient = {
     }
     return null;
   },
+
   set: async (key, value, mode, duration) => {
     if (isConnected && client) {
       try {
@@ -52,6 +53,7 @@ const redisClient = {
       }
     }
   },
+
   del: async (key) => {
     if (isConnected && client) {
       try {
@@ -61,6 +63,7 @@ const redisClient = {
       }
     }
   },
+
   getInstance: () => client,
   getIsConnected: () => isConnected,
 };

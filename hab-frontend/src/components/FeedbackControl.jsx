@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import {
   Card,
   Button,
@@ -14,35 +14,44 @@ import { BACKEND_URL } from "../apis/server";
 const { Text } = Typography;
 
 export default function FeedbackControl() {
-  const [loading, setLoading] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
   const [settings, setSettings] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const requestSeqRef = useRef(0);
 
   const token =
     localStorage.getItem("admin_token") || localStorage.getItem("token");
 
   const fetchSettings = useCallback(async () => {
+    const requestId = ++requestSeqRef.current;
     try {
-      setLoading(true);
+      setSettingsLoading(true);
       setError("");
       const res = await fetch(`${BACKEND_URL}/feedback/settings`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(`Failed to fetch settings (${res.status})`);
       const data = await res.json();
+      if (requestId !== requestSeqRef.current) return;
       setSettings(data);
     } catch (err) {
+      if (requestId !== requestSeqRef.current) return;
       setError(err.message);
       setSettings(null);
     } finally {
-      setLoading(false);
+      if (requestId === requestSeqRef.current) {
+        setSettingsLoading(false);
+      }
     }
   }, [token]);
 
   async function updateState(endpoint, successMsg) {
+    if (actionLoading) return;
+
     try {
-      setLoading(true);
+      setActionLoading(true);
       setError("");
       setSuccess("");
 
@@ -58,11 +67,11 @@ export default function FeedbackControl() {
         throw new Error(`${endpoint.toUpperCase()} failed (${res.status})`);
 
       setSuccess(successMsg);
-      fetchSettings();
+      await fetchSettings();
     } catch (err) {
       setError(err.message);
     } finally {
-      setLoading(false);
+      setActionLoading(false);
     }
   }
 
@@ -110,7 +119,7 @@ export default function FeedbackControl() {
             borderRadius: 6,
           }}
         >
-          {loading ? (
+          {settingsLoading ? (
             <Spin tip="Loading settings..." />
           ) : settings ? (
             <>
@@ -184,7 +193,8 @@ export default function FeedbackControl() {
             onClick={() =>
               updateState("enable", "Feedback window enabled successfully.")
             }
-            disabled={loading || settings?.isEnabled}
+            loading={actionLoading}
+            disabled={settingsLoading || actionLoading || settings?.isEnabled}
           >
             Enable
           </Button>
@@ -194,7 +204,8 @@ export default function FeedbackControl() {
             onClick={() =>
               updateState("disable", "Feedback window disabled successfully.")
             }
-            disabled={loading || !settings?.isEnabled}
+            loading={actionLoading}
+            disabled={settingsLoading || actionLoading || !settings?.isEnabled}
           >
             Disable
           </Button>

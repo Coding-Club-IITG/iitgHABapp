@@ -31,7 +31,12 @@ export default function FeedbackList({ feedbacks = [] }) {
         <tbody>
           {feedbacks.map((fb, idx) => (
             <tr
-              key={idx}
+              key={
+                typeof fb === "string"
+                  ? `${idx}-${fb}`
+                  : fb?._id ||
+                    `${fb?.createdAt || "na"}-${fb?.user?._id || fb?.userName || idx}`
+              }
               className="border-b border-gray-200 hover:bg-gray-50 transition-colors"
             >
               <td className="px-4 py-3 text-sm text-gray-800">

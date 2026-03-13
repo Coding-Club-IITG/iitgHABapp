@@ -58,18 +58,31 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
     );
   }
 
-  var loading = true;
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSMCStatus();
+  }
+
+  Future<void> _loadSMCStatus() async {
+    final instance = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final provider = Provider.of<FeedbackProvider>(context, listen: false);
+    provider.loadSMCStatus(instance.getBool('isSMC') ?? false);
+    setState(() {
+      loading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<FeedbackProvider>(context);
     if (loading) {
-      (SharedPreferences.getInstance()).then((instance) {
-        provider.isSMC = instance.getBool('isSMC') ?? false;
-        setState(() {
-          loading = false;
-        });
-      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
 
     return Scaffold(
@@ -157,8 +170,11 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
                 Center(
                   child: GestureDetector(
                     onTap: provider.isComplete()
-                        ? () => Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => const CommentPage()))
+                      ? () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const CommentPage()),
+                        )
                         : null,
                     child: Container(
                       width: 358,

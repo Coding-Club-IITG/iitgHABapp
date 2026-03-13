@@ -22,12 +22,12 @@ class _FeedbackCardState extends State<FeedbackCard> {
   bool _windowOpen = false;
   bool _loading = true;
   String _windowTimeLeft = '';
+  int _refreshVersion = 0;
 
   @override
   void initState() {
     super.initState();
-    _checkFeedbackStatus();
-    _fetchWindowTimeLeft();
+    _refreshCardData();
 
     // Listen to feedback refresh notifier
     feedbackRefreshNotifier.addListener(_onRefreshNotified);
@@ -35,8 +35,7 @@ class _FeedbackCardState extends State<FeedbackCard> {
 
   void _onRefreshNotified() {
     if (kDebugMode) debugPrint("🔄 FeedbackCard refresh triggered");
-    _checkFeedbackStatus();
-    _fetchWindowTimeLeft();
+    _refreshCardData();
   }
 
   @override
@@ -45,79 +44,72 @@ class _FeedbackCardState extends State<FeedbackCard> {
     super.dispose();
   }
 
-  Future<void> _checkFeedbackStatus() async {
+  Future<void> _refreshCardData() async {
+    final int requestVersion = ++_refreshVersion;
+
+    if (mounted) {
+      setState(() {
+        _loading = true;
+      });
+    }
+
     try {
       final dio = DioClient().dio;
+      final prefs = await SharedPreferences.getInstance();
+      final token = prefs.getString('access_token');
 
-      // Check if feedback window is open
-      final settingsRes = await dio.get(MessFeedback.feedbackSettings);
+      final responses = await Future.wait([
+        dio.get(MessFeedback.feedbackSettings),
+        dio.get(MessFeedback.windowTimeLeft),
+      ]);
+
+      if (!mounted || requestVersion != _refreshVersion) return;
+
+      final settingsRes = responses[0];
+      final windowTimeRes = responses[1];
       final windowOpen = settingsRes.data['isEnabled'] == true;
+      final formattedTime =
+          (windowTimeRes.data != null && windowTimeRes.data['formatted'] != null)
+              ? windowTimeRes.data['formatted'].toString()
+              : '';
 
-      if (windowOpen) {
-        // Get auth token
-        final prefs = await SharedPreferences.getInstance();
-        final token = prefs.getString('access_token');
+      bool submitted = false;
+
+      if (windowOpen && token != null) {
         if (kDebugMode) debugPrint("FEEDBACK: Open");
-        if (token != null) {
-          // Check if user has already submitted feedback
-          if (kDebugMode) debugPrint("FEEDBACK: Checking submission status");
-          final submittedRes = await dio.get(
-            MessFeedback.feedbackSubmitted,
-            options: Options(
-              headers: {"Authorization": "Bearer $token"},
-            ),
-          );
-          if (kDebugMode) {
-            debugPrint(
-                "FEEDBACK: Submission status: ${submittedRes.data['submitted']}");
-          }
-          setState(() {
-            _submitted = submittedRes.data['submitted'] == true;
-            _windowOpen = true;
-            _loading = false;
-          });
-          if (kDebugMode) debugPrint("FEEDBACK: Submission status checked");
-        } else {
-          setState(() {
-            _submitted = false;
-            _windowOpen = true;
-            _loading = false;
-          });
-          if (kDebugMode) debugPrint("FEEDBACK: No token found");
+        if (kDebugMode) debugPrint("FEEDBACK: Checking submission status");
+        final submittedRes = await dio.get(
+          MessFeedback.feedbackSubmitted,
+          options: Options(
+            headers: {"Authorization": "Bearer $token"},
+          ),
+        );
+
+        if (!mounted || requestVersion != _refreshVersion) return;
+
+        submitted = submittedRes.data['submitted'] == true;
+        if (kDebugMode) {
+          debugPrint("FEEDBACK: Submission status: $submitted");
         }
-      } else {
+      }
+
+      if (mounted && requestVersion == _refreshVersion) {
         setState(() {
-          _submitted = false;
-          _windowOpen = false;
+          _submitted = submitted;
+          _windowOpen = windowOpen;
+          _windowTimeLeft = formattedTime;
           _loading = false;
         });
       }
     } catch (e) {
-      setState(() {
-        _submitted = false;
-        _windowOpen = false;
-        _loading = false;
-      });
-    }
-  }
-
-  Future<void> _fetchWindowTimeLeft() async {
-    try {
-      final dio = DioClient().dio;
-      final res = await dio.get(MessFeedback.windowTimeLeft);
-      if (res.data != null && res.data['formatted'] != null) {
+      if (mounted && requestVersion == _refreshVersion) {
         setState(() {
-          _windowTimeLeft = res.data['formatted'];
-        });
-      } else {
-        setState(() {
+          _submitted = false;
+          _windowOpen = false;
           _windowTimeLeft = '';
+          _loading = false;
         });
       }
-    } catch (e) {
-      setState(() {
-        _windowTimeLeft = '';
-      });
     }
   }
 
@@ -188,15 +180,13 @@ class _FeedbackCardState extends State<FeedbackCard> {
                               return;
                             }
 
-                            setState(() {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const MessFeedbackPage(),
-                                ),
-                              );
-                            });
+                            if (!context.mounted) return;
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const MessFeedbackPage(),
+                              ),
+                            );
                           },
                     child: Text(
                       _submitted ? 'Already Submitted' : 'Give feedback',

@@ -8,9 +8,11 @@ const { FeedbackWindowStats } = require("./feedbackWindowStatsModel");
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
+const redisClient = require("../../utils/redisClient.js");
 
 const LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
 const leaderboardCache = new Map();
+const LEADERBOARD_ALL_KEY = "leaderboard:all";
 
 const getCachedValue = (key) => {
   const entry = leaderboardCache.get(key);
@@ -29,8 +31,48 @@ const setCachedValue = (key, value, ttlMs = LEADERBOARD_CACHE_TTL_MS) => {
   });
 };
 
-const invalidateLeaderboardCache = () => {
+const getCachedLeaderboardRows = async (key) => {
+  const inMemory = getCachedValue(key);
+  if (inMemory) return inMemory;
+
+  const redisValue = await redisClient.get(key);
+  if (!redisValue) return null;
+
+  try {
+    const parsed = JSON.parse(redisValue);
+    setCachedValue(key, parsed);
+    return parsed;
+  } catch (_) {
+    return null;
+  }
+};
+
+const setCachedLeaderboardRows = async (
+  key,
+  rows,
+  ttlMs = LEADERBOARD_CACHE_TTL_MS,
+) => {
+  setCachedValue(key, rows, ttlMs);
+  await redisClient.set(
+    key,
+    JSON.stringify(rows),
+    "EX",
+    Math.ceil(ttlMs / 1000),
+  );
+};
+
+const invalidateLeaderboardCache = async (windowNumber = null) => {
   leaderboardCache.clear();
+  await redisClient.del(LEADERBOARD_ALL_KEY);
+  if (typeof windowNumber === "number") {
+    await redisClient.del(`leaderboard:${windowNumber}`);
+  }
+};
+
+const parseOptionalInt = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
 };
 
 const ratingMap = {
@@ -270,9 +312,14 @@ const getFeedbacksByCaterer = async (req, res) => {
     const p = Math.max(1, parseInt(page, 10) || 1);
     const size = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
 
+    const parsedWindowNumber = parseOptionalInt(windowNumber);
+    if (windowNumber && parsedWindowNumber === null) {
+      return res.status(400).json({ message: "windowNumber must be a number" });
+    }
+
     const query = { caterer: catererId };
-    if (windowNumber) {
-      query.feedbackWindowNumber = parseInt(windowNumber, 10);
+    if (parsedWindowNumber !== null) {
+      query.feedbackWindowNumber = parsedWindowNumber;
     }
 
     const [total, items] = await Promise.all([
@@ -296,10 +343,6 @@ const getFeedbacksByCaterer = async (req, res) => {
     let opi = null;
     let rank = null;
     try {
-      const parsedWindowNumber = windowNumber
-        ? parseInt(windowNumber, 10)
-        : null;
-
       let rows = null;
       if (parsedWindowNumber) {
         const snapshot = await getWindowLeaderboardSnapshot(parsedWindowNumber);
@@ -307,8 +350,10 @@ const getFeedbacksByCaterer = async (req, res) => {
       }
 
       if (!rows) {
-        const cacheKey = `leaderboard:${parsedWindowNumber || "all"}`;
-        const cachedRows = getCachedValue(cacheKey);
+        const cacheKey = parsedWindowNumber
+          ? `leaderboard:${parsedWindowNumber}`
+          : LEADERBOARD_ALL_KEY;
+        const cachedRows = await getCachedLeaderboardRows(cacheKey);
         if (cachedRows) {
           rows = cachedRows;
         } else {
@@ -323,7 +368,7 @@ const getFeedbacksByCaterer = async (req, res) => {
             .populate("caterer", "name")
             .lean();
           rows = await buildLeaderboardRowsFromFeedbacks(all);
-          setCachedValue(cacheKey, rows);
+          await setCachedLeaderboardRows(cacheKey, rows);
         }
       }
 
@@ -390,7 +435,14 @@ const submitFeedback = async (req, res) => {
     }
 
     // Check if feedback for this user and current window already exists
-    if (user.isFeedbackSubmitted) {
+    const alreadySubmitted = await Feedback.findOne(
+      {
+        user: user._id,
+        feedbackWindowNumber: settings.currentWindowNumber,
+      },
+      { _id: 1 },
+    ).lean();
+    if (alreadySubmitted) {
       return res.status(400).send("Feedback already submitted for this window");
     }
 
@@ -432,7 +484,7 @@ const submitFeedback = async (req, res) => {
       { $set: { isFeedbackSubmitted: true } },
     );
 
-    invalidateLeaderboardCache();
+    await invalidateLeaderboardCache(settings.currentWindowNumber);
 
     res.status(200).send("Feedback submitted successfully");
   } catch (err) {
@@ -460,21 +512,20 @@ const removeFeedback = async (req, res) => {
       return res.status(400).send("Name and roll number do not match");
     }
 
-    if (!user.isFeedbackSubmitted) {
-      return res.status(400).send("No feedback submitted by this user");
-    }
-
     // Get current window number
     const settings = await FeedbackSettings.findOne();
     const currentWindowNumber = settings?.currentWindowNumber || 1;
 
-    await Feedback.deleteOne({
+    const deleteResult = await Feedback.deleteOne({
       user: user._id,
       feedbackWindowNumber: currentWindowNumber,
     });
+    if (!deleteResult.deletedCount) {
+      return res.status(400).send("No feedback submitted by this user");
+    }
     user.isFeedbackSubmitted = false;
     await user.save();
-    invalidateLeaderboardCache();
+    await invalidateLeaderboardCache(currentWindowNumber);
 
     res.status(200).send("Feedback removed successfully");
   } catch (err) {
@@ -544,13 +595,14 @@ const enableFeedback = async (req, res) => {
     s.currentWindowClosingTime = closingDate;
 
     await s.save();
-    invalidateLeaderboardCache();
+    await invalidateLeaderboardCache(s.currentWindowNumber);
+    await redisClient.del("feedback_settings");
     sendNotificationMessage(
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
       "All_Hostels",
       { redirectType: "mess_screen", isAlert: "true" },
-    );
+    ).catch((err) => console.error("Feedback enabled notification failed:", err));
     return res.status(200).json({ message: "Feedback enabled", data: s });
   } catch (e) {
     return res
@@ -570,7 +622,8 @@ const disableFeedback = async (req, res) => {
     if (typeof s.currentWindowNumber === "number") {
       await updateAllMessRatingsAndRankings(s.currentWindowNumber);
     }
-    invalidateLeaderboardCache();
+    await invalidateLeaderboardCache(s.currentWindowNumber);
+    await redisClient.del("feedback_settings");
     return res.status(200).json({ message: "Feedback disabled", data: s });
   } catch (e) {
     return res
@@ -605,13 +658,14 @@ const enableFeedbackAutomatic = async () => {
     s.currentWindowClosingTime = closingDate;
 
     await s.save();
-    invalidateLeaderboardCache();
+    await invalidateLeaderboardCache(s.currentWindowNumber);
+    await redisClient.del("feedback_settings");
     sendNotificationMessage(
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
       "All_Hostels",
       { redirectType: "mess_screen", isAlert: "true" },
-    );
+    ).catch((err) => console.error("Feedback enabled notification failed:", err));
     console.log("✅ Feedback enabled automatically");
     return { success: true, settings: s };
   } catch (e) {
@@ -633,7 +687,8 @@ const disableFeedbackAutomatic = async () => {
     if (typeof s.currentWindowNumber === "number") {
       await updateAllMessRatingsAndRankings(s.currentWindowNumber);
     }
-    invalidateLeaderboardCache();
+    await invalidateLeaderboardCache(s.currentWindowNumber);
+    await redisClient.del("feedback_settings");
 
     console.log("✅ Feedback disabled automatically");
     return { success: true, settings: s };
@@ -648,6 +703,9 @@ const disableFeedbackAutomatic = async () => {
 // ==========================================
 const getFeedbackSettings = async (req, res) => {
   try {
+    const cachedSettings = await redisClient.get("feedback_settings");
+    if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
+
     let s = await FeedbackSettings.findOne();
     if (s?.isEnabled && s.enabledAt) {
       const expiresAt = new Date(
@@ -659,14 +717,21 @@ const getFeedbackSettings = async (req, res) => {
         await s.save();
       }
     }
-    return res.status(200).json(
-      s || {
-        isEnabled: false,
-        enabledAt: null,
-        disabledAt: null,
-        currentWindowNumber: 1,
-      },
+
+    const responseData = s || {
+      isEnabled: false,
+      enabledAt: null,
+      disabledAt: null,
+      currentWindowNumber: 1,
+    };
+
+    await redisClient.set(
+      "feedback_settings",
+      JSON.stringify(responseData),
+      "EX",
+      60,
     );
+    return res.status(200).json(responseData);
   } catch (e) {
     return res.status(500).json({
       message: "Failed to fetch settings",
@@ -680,6 +745,9 @@ const getFeedbackSettings = async (req, res) => {
 // ==========================================
 const getFeedbackSettingsPublic = async (req, res) => {
   try {
+    const cachedSettings = await redisClient.get("feedback_settings");
+    if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
+
     let s = await FeedbackSettings.findOne();
     if (s?.isEnabled && s.enabledAt) {
       const expiresAt = new Date(
@@ -691,14 +759,21 @@ const getFeedbackSettingsPublic = async (req, res) => {
         await s.save();
       }
     }
-    return res.status(200).json(
-      s || {
-        isEnabled: false,
-        enabledAt: null,
-        disabledAt: null,
-        currentWindowNumber: 1,
-      },
+
+    const responseData = s || {
+      isEnabled: false,
+      enabledAt: null,
+      disabledAt: null,
+      currentWindowNumber: 1,
+    };
+
+    await redisClient.set(
+      "feedback_settings",
+      JSON.stringify(responseData),
+      "EX",
+      60,
     );
+    return res.status(200).json(responseData);
   } catch (e) {
     return res.status(500).json({
       message: "Failed to fetch settings",
@@ -712,8 +787,8 @@ const getFeedbackSettingsPublic = async (req, res) => {
 // ==========================================
 const getFeedbackLeaderboard = async (req, res) => {
   try {
-    const cacheKey = "leaderboard:all";
-    const cachedRows = getCachedValue(cacheKey);
+    const cacheKey = LEADERBOARD_ALL_KEY;
+    const cachedRows = await getCachedLeaderboardRows(cacheKey);
     if (cachedRows) return res.status(200).json(cachedRows);
 
     const feedbacks = await Feedback.find({ caterer: { $ne: null } })
@@ -722,7 +797,7 @@ const getFeedbackLeaderboard = async (req, res) => {
       .lean();
 
     const rows = await buildLeaderboardRowsFromFeedbacks(feedbacks);
-    setCachedValue(cacheKey, rows);
+    await setCachedLeaderboardRows(cacheKey, rows);
 
     return res.status(200).json(rows);
   } catch (e) {
@@ -761,7 +836,10 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
       return res.status(400).json({ message: "Window number required" });
     }
 
-    const parsedWindowNumber = parseInt(windowNumber, 10);
+    const parsedWindowNumber = parseOptionalInt(windowNumber);
+    if (parsedWindowNumber === null) {
+      return res.status(400).json({ message: "Window number must be a number" });
+    }
 
     const snapshot = await getWindowLeaderboardSnapshot(parsedWindowNumber);
     if (snapshot?.rows?.length) {
@@ -769,7 +847,7 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
     }
 
     const cacheKey = `leaderboard:${parsedWindowNumber}`;
-    const cachedRows = getCachedValue(cacheKey);
+    const cachedRows = await getCachedLeaderboardRows(cacheKey);
     if (cachedRows) return res.status(200).json(cachedRows);
 
     const feedbacks = await Feedback.find({
@@ -781,7 +859,7 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
       .lean();
 
     const rows = await buildLeaderboardRowsFromFeedbacks(feedbacks);
-    setCachedValue(cacheKey, rows);
+    await setCachedLeaderboardRows(cacheKey, rows);
 
     return res.status(200).json(rows);
   } catch (e) {

@@ -18,12 +18,25 @@ class CommentPage extends StatefulWidget {
 
 class _CommentPageState extends State<CommentPage> {
   final TextEditingController commentController = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
+  void dispose() {
+    commentController.dispose();
+    super.dispose();
+  }
 
   Future<void> submitFeedback() async {
+    if (_isSubmitting) return;
+
     // Capture messenger, navigator and provider early so we don't call BuildContext methods across async gaps.
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final provider = Provider.of<FeedbackProvider>(context, listen: false);
+
+    setState(() {
+      _isSubmitting = true;
+    });
 
     try {
       // Gather async data first so we don't use BuildContext across async gaps.
@@ -36,7 +49,7 @@ class _CommentPageState extends State<CommentPage> {
       if (!mounted) return;
 
       // Set provider fields after we've obtained async data.
-      provider.isSMC = isSMC;
+      provider.loadSMCStatus(isSMC);
 
       // Set comment in provider
       provider.setComment(commentController.text);
@@ -104,6 +117,12 @@ class _CommentPageState extends State<CommentPage> {
           SnackBar(content: Text('Unexpected error: $e')),
         );
       }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSubmitting = false;
+        });
+      }
     }
   }
 
@@ -170,21 +189,31 @@ class _CommentPageState extends State<CommentPage> {
                 padding:
                     const EdgeInsets.symmetric(vertical: 16.0, horizontal: 10),
                 child: ElevatedButton(
-                  onPressed: () => submitFeedback(),
+                  onPressed: _isSubmitting ? null : () => submitFeedback(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromRGBO(76, 78, 219, 1),
                     shape: const StadiumBorder(),
                     minimumSize: const Size(358, 54),
                   ),
-                  child: const Text(
-                    'Submit',
-                    style: TextStyle(
-                      fontFamily: 'OpenSans-Regular',
-                      fontSize: 16,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  child: _isSubmitting
+                      ? const SizedBox(
+                          height: 18,
+                          width: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : const Text(
+                          'Submit',
+                          style: TextStyle(
+                            fontFamily: 'OpenSans-Regular',
+                            fontSize: 16,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                 ),
               ),
             ],
