@@ -195,7 +195,7 @@ const resetAllUsersToHostel = async () => {
  */
 const updateAcceptedUsers = async (acceptedUsers) => {
   for (const a of acceptedUsers) {
-    const user = await User.findById(a.id);
+    const user = await User.findById(a.id); //Cannot change to .lean()
     if (!user) continue;
 
     if (user.rollNumber) {
@@ -247,7 +247,7 @@ const updateAcceptedUsers = async (acceptedUsers) => {
  */
 const updateRejectedUsers = async (rejectedUsers) => {
   for (const r of rejectedUsers) {
-    const user = await User.findById(r.id);
+    const user = await User.findById(r.id); //Cannot change to .lean()
     if (!user) continue;
 
     if (user.rollNumber) {
@@ -280,7 +280,7 @@ const updateRejectedUsers = async (rejectedUsers) => {
  * Update last processed timestamp
  */
 const updateLastProcessedTimestamp = async () => {
-  let settings = await MessChangeSettings.findOne();
+  let settings = await MessChangeSettings.findOne(); //Cannot change to .lean()
   if (!settings) settings = new MessChangeSettings();
 
   settings.isEnabled = false;
@@ -335,7 +335,7 @@ const processAllMessChangeRequests = async (req, res) => {
 
 const rejectAllMessChangeRequests = async (req, res) => {
   try {
-    const users = await User.find({ applied_for_mess_changed: true });
+    const users = await User.find({ applied_for_mess_changed: true }); //Cannot change to .lean()
     if (!users.length) {
       return res
         .status(400)

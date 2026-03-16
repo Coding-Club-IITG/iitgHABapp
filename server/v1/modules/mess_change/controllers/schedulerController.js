@@ -9,7 +9,7 @@ const { processAllMessChangeRequests } = require("./processingController.js");
  */
 const enableMessChangeAutomatic = async () => {
   try {
-    let settings = await MessChangeSettings.findOne();
+    let settings = await MessChangeSettings.findOne(); //Cannot change to .lean()
 
     if (!settings) {
       settings = new MessChangeSettings({
@@ -65,7 +65,7 @@ const disableMessChangeAutomatic = async () => {
 
     // Ensure settings are updated (processAllMessChangeRequests should have
     // already called updateLastProcessedTimestamp, but we double-check here).
-    let settings = await MessChangeSettings.findOne();
+    let settings = await MessChangeSettings.findOne(); //Cannot change to .lean()
     if (settings && settings.isEnabled) {
       settings.isEnabled = false;
       settings.disabledAt = new Date();

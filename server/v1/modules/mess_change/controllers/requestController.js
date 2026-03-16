@@ -8,12 +8,12 @@ const { MessChangeSettings } = require("../messChangeSettingsModel.js");
 const messChangeRequest = async (req, res) => {
   try {
     const userId = req.user.id;
-    const user = await User.findById(userId);
+    const user = await User.findById(userId);  //Cannot change to .lean()
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
 
-    const settings = await MessChangeSettings.findOne();
+    const settings = await MessChangeSettings.findOne().lean();
     if (!settings || !settings.isEnabled) {
       return res.status(403).json({
         message: "Mess change is currently disabled. Please contact HAB admin.",
@@ -35,7 +35,7 @@ const messChangeRequest = async (req, res) => {
 
     const resolveHostel = async (name) => {
       if (!name || typeof name !== "string" || !name.trim()) return null;
-      return Hostel.findOne({ hostel_name: name.trim() });
+      return Hostel.findOne({ hostel_name: name.trim() }).lean();
     };
 
     const [h1, h2, h3] = await Promise.all([
@@ -94,11 +94,11 @@ const messChangeRequest = async (req, res) => {
 const messChangeStatus = async (req, res) => {
   try {
     const userId = req.user.id;
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).lean();
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
-    const settings = await MessChangeSettings.findOne();
+    const settings = await MessChangeSettings.findOne().lean();
     const isMessChangeEnabled = settings ? settings.isEnabled : false;
 
     // Resolve preference names

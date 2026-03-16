@@ -13,7 +13,7 @@ const getAllMessChangeRequestsForAllHostels = async (req, res) => {
       applied_for_mess_changed: true,
     }).select(
       "name rollNumber curr_subscribed_mess hostel next_mess1 next_mess2 next_mess3 applied_hostel_string applied_hostel_timestamp",
-    );
+    ).lean();
 
     // Return empty array instead of 404 when no requests found
     return res.status(200).json({
@@ -58,7 +58,7 @@ const messChangeStatusForAdmin = async (req, res) => {
  */
 const enableMessChange = async (req, res) => {
   try {
-    let settings = await MessChangeSettings.findOne();
+    let settings = await MessChangeSettings.findOne(); //Cannot change to .lean()
 
     if (!settings) {
       settings = new MessChangeSettings({
@@ -95,7 +95,7 @@ const enableMessChange = async (req, res) => {
  */
 const disableMessChange = async (req, res) => {
   try {
-    let settings = await MessChangeSettings.findOne();
+    let settings = await MessChangeSettings.findOne(); //Cannot change to .lean()
 
     if (!settings) {
       return res
@@ -123,7 +123,7 @@ const disableMessChange = async (req, res) => {
  */
 const getMessChangeScheduleInfo = async (req, res) => {
   try {
-    const settings = await MessChangeSettings.findOne();
+    const settings = await MessChangeSettings.findOne().lean();
 
     // FOR TESTING: Fixed test dates
     const testEnableDate = new Date("2025-09-07T02:48:00+05:30");
