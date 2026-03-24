@@ -51,6 +51,26 @@ function buildAuthorizeUrl() {
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 
+const {
+  initializeFeedbackAutoScheduler,
+} = require("./modules/feedback/autoFeedbackScheduler.js");
+
+const {
+  initializeMessChangeAutoScheduler,
+} = require("./modules/mess_change/autoMessChangeScheduler.js");
+const {
+  initializeGuestCleanupScheduler,
+} = require("./modules/auth/autoGuestCleanupScheduler.js");
+const {
+  initializeMessRebateAutoScheduler,
+} = require("./modules/leave/autoMessRebateScheduler.js");
+const {
+  initializeAnonymizedUser,
+} = require("./modules/user/anonymizedUserInit.js");
+
+const {
+  initializeRoomCleaningAutoResolveScheduler,
+} = require("./modules/room_cleaning/autoRoomCleaningResolveScheduler.js");
 const messChangeRouter = require("./modules/mess_change/messchangeRoute.js");
 const galaRoute = require("./modules/gala/galaRoute.js");
 require("dotenv").config();
@@ -150,32 +170,11 @@ mongoose
       typeof process.env.NODE_APP_INSTANCE === "undefined"
     ) {
       console.log("Primary instance detected. Starting schedulers...");
-
-      const {
-        wednesdayScheduler,
-        sundayScheduler,
-      } = require("./modules/hostel/hostelScheduler.js");
-      wednesdayScheduler();
-      sundayScheduler();
-
-      // Initialize automatic schedulers for feedback, mess change, guest cleanup, and mess rebate
-      const {
-        initializeFeedbackAutoScheduler,
-      } = require("./modules/feedback/autoFeedbackScheduler.js");
-      const {
-        initializeMessChangeAutoScheduler,
-      } = require("./modules/mess_change/autoMessChangeScheduler.js");
-      const {
-        initializeGuestCleanupScheduler,
-      } = require("./modules/auth/autoGuestCleanupScheduler.js");
-      const {
-        initializeMessRebateAutoScheduler,
-      } = require("./modules/leave/autoMessRebateScheduler.js");
-
       initializeFeedbackAutoScheduler();
       initializeMessChangeAutoScheduler();
       initializeGuestCleanupScheduler();
       initializeMessRebateAutoScheduler();
+      initializeRoomCleaningAutoResolveScheduler();
     } else {
       console.log(
         `Worker instance ${process.env.NODE_APP_INSTANCE} started. Schedulers disabled here.`,
@@ -183,9 +182,6 @@ mongoose
     }
 
     // Initialize anonymized user for soft-deleted account references
-    const {
-      initializeAnonymizedUser,
-    } = require("./modules/user/anonymizedUserInit.js");
     initializeAnonymizedUser();
   })
   .catch((err) => console.log(err));
@@ -238,11 +234,10 @@ app.use("/api/notification", notificationRoute);
 // Mess route
 app.use("/api/mess", messRoute);
 
-//Mess rebate route
-app.use("/api/leave", leaveRoute);
-
 // Gala Dinner route
 app.use("/api/gala", galaRoute);
+// Mess rebate route
+app.use("/api/leave", leaveRoute);
 
 //mess change route
 app.use("/api/mess-change", messChangeRouter);
@@ -340,7 +335,12 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
 // Global error handler (must be after all routes). Catches errors passed to next(err).
 app.use((err, req, res, next) => {
   console.error("[Express error]", err);
-  res.status(500).json({ message: "Internal server error" });
+
+  const statusCode = err.status || 500;
+
+  res.status(statusCode).json({
+    message: err.message || "Internal server error",
+  });
 });
 
 const { initMessManagerWs } = require("./modules/mess/messManagerWs.js");

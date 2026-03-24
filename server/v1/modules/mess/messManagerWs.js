@@ -32,7 +32,7 @@ function initMessManagerWs(server) {
         return;
       }
 
-      const hostel = await Hostel.findByJWT(token);
+      const hostel = await Hostel.findByAccessToken(token);
       if (!hostel) {
         ws.close(1008, "Invalid token");
         return;
@@ -76,7 +76,13 @@ function initMessManagerWs(server) {
  * @param {Object} params.user - { _id, name, rollNumber }
  * @param {Date|string} params.time - JS Date or ISO/string
  */
-function broadcastMessScanToManagers({ hostelId, messId, mealType, user, time }) {
+function broadcastMessScanToManagers({
+  hostelId,
+  messId,
+  mealType,
+  user,
+  time,
+}) {
   if (!hostelId || !mealType || !user) return;
   const normalizedMeal = normalizeMeal(mealType);
   const isoTime =
@@ -109,4 +115,3 @@ module.exports = {
   initMessManagerWs,
   broadcastMessScanToManagers,
 };
-

@@ -18,8 +18,8 @@ import '../utilities/startupitem.dart';
 import '../widgets/alerts_card.dart';
 import '../widgets/microsoft_required_dialog.dart';
 import 'mess_preference.dart';
-import 'leave_application_screen.dart';
 import 'room_cleaning/room_cleaning.dart';
+import 'leave_application_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int)? onNavigateToTab;
@@ -102,7 +102,211 @@ class _HomeScreenState extends State<HomeScreen> {
     return days[now.weekday - 1];
   }
 
-  // ── Quick action data ────────────────────────────────────────────────────────
+  List<Widget> _buildQuickActionCards() {
+    final hasLaundry =
+        HostelsNotifier.isLaundryAvailableForHostel(userHostelId);
+    final cards = <Widget>[
+      _wrapQuickCard(
+        iconPath: 'assets/icon/qrscan.svg',
+        label: 'Scan QR',
+        iconData: null,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const QrScan()),
+          );
+        },
+      ),
+      _wrapQuickCard(
+        iconPath: 'assets/icon/cleaning.svg',
+        label: 'Room Cleaning',
+        iconData: Icons.cleaning_services_rounded,
+        onTap: () async {
+          final prefs = await SharedPreferences.getInstance();
+          final hasMicrosoftLinked =
+              prefs.getBool('hasMicrosoftLinked') ?? false;
+          if (!mounted) return;
+          if (!hasMicrosoftLinked) {
+            showDialog(
+              context: context,
+              builder: (context) => const MicrosoftRequiredDialog(
+                featureName: 'Room Cleaning',
+              ),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const RoomCleaningScreen(),
+            ),
+          );
+        },
+      ),
+      _wrapQuickCard(
+        iconPath: 'assets/icon/messicon.svg',
+        label: 'Mess Change',
+        iconData: null,
+        onTap: () async {
+          final prefs = await SharedPreferences.getInstance();
+          final hasMicrosoftLinked =
+              prefs.getBool('hasMicrosoftLinked') ?? false;
+          if (!mounted) return;
+          if (!hasMicrosoftLinked) {
+            showDialog(
+              context: context,
+              builder: (context) => const MicrosoftRequiredDialog(
+                featureName: 'Mess Change',
+              ),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MessChangePreferenceScreen(),
+            ),
+          );
+        },
+      ),
+      _wrapQuickCard(
+        iconPath: 'assets/icon/messicon.svg',
+        label: 'Mess Rebate',
+        iconData: null,
+        onTap: () async {
+          final prefs = await SharedPreferences.getInstance();
+          final hasMicrosoftLinked =
+              prefs.getBool('hasMicrosoftLinked') ?? false;
+          if (!mounted) return;
+          if (!hasMicrosoftLinked) {
+            showDialog(
+              context: context,
+              builder: (context) => const MicrosoftRequiredDialog(
+                featureName: 'Mess Rebate',
+              ),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const LeaveApplicationScreen(),
+            ),
+          );
+        },
+      ),
+    ];
+    if (hasLaundry) {
+      cards.add(
+        _wrapQuickCard(
+          iconPath: '',
+          label: 'Laundry Service',
+          iconData: Icons.local_laundry_service_rounded,
+          onTap: () async {
+            final prefs = await SharedPreferences.getInstance();
+            final hasMicrosoftLinked =
+                prefs.getBool('hasMicrosoftLinked') ?? false;
+            if (!mounted) return;
+            if (!hasMicrosoftLinked) {
+              showDialog(
+                context: context,
+                builder: (context) => const MicrosoftRequiredDialog(
+                  featureName: 'Laundry Service',
+                ),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const LaundryScreen(),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return cards;
+  }
+
+  Widget _wrapQuickCard({
+    required String iconPath,
+    required String label,
+    IconData? iconData,
+    required VoidCallback onTap,
+  }) {
+    return _quickCard(
+      iconPath: iconPath,
+      label: label,
+      iconData: iconData,
+      onTap: onTap,
+    );
+  }
+
+  // Quick action slider state
+  final PageController _quickNavPageController = PageController();
+  Timer? _quickNavTimer;
+
+  Widget buildQuickActions() {
+    final cards = _buildQuickActionCards();
+    final useSlider = cards.length >= 4;
+
+    if (!useSlider) {
+      _quickNavTimer?.cancel();
+      _quickNavTimer = null;
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18.0),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: cards,
+        ),
+      );
+    }
+
+    // Infinite loop: use a huge itemCount with modulo indexing.
+    // Start in the middle to allow scrolling in both directions.
+    const int virtualCount = 100000;
+    const int startPage = virtualCount ~/ 2;
+
+    // Show 3 cards at a time using viewportFraction
+    final PageController controller = PageController(
+      viewportFraction: 1 / 3,
+      initialPage: startPage,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _quickNavTimer?.cancel();
+      _quickNavTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (!mounted || !controller.hasClients) return;
+        final nextPage = (controller.page ?? startPage.toDouble()).round() + 1;
+        controller.animateToPage(
+          nextPage,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeInOut,
+        );
+      });
+    });
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 18.0),
+      child: SizedBox(
+        height: 106,
+        child: PageView.builder(
+          controller: controller,
+          itemCount: virtualCount,
+          itemBuilder: (context, index) {
+            final cardIndex = index % cards.length;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 5),
+              child: cards[
+                  cardIndex], // taps now work — no NeverScrollableScrollPhysics
+            );
+          },
+        ),
+      ),
+    );
+  }
 
   static const TextStyle _labelStyle = TextStyle(
     color: Colors.black,
@@ -135,22 +339,22 @@ class _HomeScreenState extends State<HomeScreen> {
     IconData? iconData,
     required VoidCallback onTap,
   }) {
-    return InkWell(
-      borderRadius: BorderRadius.circular(18),
+    return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
+        height: 100,
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: const Color(0xFFFFFFFF),
           borderRadius: BorderRadius.circular(18),
         ),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          mainAxisSize: MainAxisSize.max,
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 40,
+              height: 40,
               decoration: const BoxDecoration(
                 color: Color(0xFF3754DB),
                 shape: BoxShape.circle,
@@ -161,7 +365,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     : SvgPicture.asset(
                         iconPath,
                         colorFilter: const ColorFilter.mode(
-                            Colors.white, BlendMode.srcIn),
+                          Colors.white,
+                          BlendMode.srcIn,
+                        ),
                         width: 22,
                         height: 22,
                       ),
@@ -174,134 +380,6 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-
-  // ── Microsoft gate helper ───────────────────────────────────────────────────
-
-  Future<bool> _checkMicrosoft(String featureName) async {
-    final prefs = await SharedPreferences.getInstance();
-    final linked = prefs.getBool('hasMicrosoftLinked') ?? false;
-    if (!linked && mounted) {
-      showDialog(
-        context: context,
-        builder: (_) =>
-            MicrosoftRequiredDialog(featureName: featureName),
-      );
-    }
-    return linked;
-  }
-
-  // ── Grid of all cards ───────────────────────────────────────────────────────
-
-  Widget buildQuickActions() {
-    final hasLaundry =
-        HostelsNotifier.isLaundryAvailableForHostel(userHostelId);
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // 4 columns; gap between them
-        const crossCount = 4;
-        const gap = 10.0;
-        final cardWidth =
-            (constraints.maxWidth - gap * (crossCount - 1)) / crossCount;
-
-        final items = <Widget>[
-          // Scan QR
-          _quickCard(
-            label: 'Scan QR',
-            iconPath: 'assets/icon/qrscan.svg',
-            onTap: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const QrScan()),
-            ),
-          ),
-
-          // Room Cleaning
-          _quickCard(
-            label: 'Room Cleaning',
-            iconData: Icons.cleaning_services_rounded,
-            onTap: () async {
-              if (!await _checkMicrosoft('Room Cleaning')) return;
-              if (!mounted) return;
-              Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const RoomCleaningScreen()));
-            },
-          ),
-
-          // Mess Change
-          _quickCard(
-            label: 'Mess Change',
-            iconPath: 'assets/icon/messicon.svg',
-            onTap: () async {
-              if (!await _checkMicrosoft('Mess Change')) return;
-              if (!mounted) return;
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const MessChangePreferenceScreen()));
-            },
-          ),
-
-          // Mess Rebate
-          _quickCard(
-            label: 'Mess Rebate',
-            iconPath: 'assets/icon/messicon.svg',
-            onTap: () async {
-              if (!await _checkMicrosoft('Mess Rebate')) return;
-              if (!mounted) return;
-              Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                      builder: (_) => const LeaveApplicationScreen()));
-            },
-          ),
-
-          // Laundry (conditional)
-          if (hasLaundry)
-            _quickCard(
-              label: 'Laundry Service',
-              iconData: Icons.local_laundry_service_rounded,
-              onTap: () async {
-                if (!await _checkMicrosoft('Laundry Service')) return;
-                if (!mounted) return;
-                Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const LaundryScreen()));
-              },
-            ),
-        ];
-
-        // Build rows of crossCount
-        final rows = <Widget>[];
-        for (int i = 0; i < items.length; i += crossCount) {
-          final rowItems = items.sublist(
-              i, i + crossCount > items.length ? items.length : i + crossCount);
-
-          rows.add(
-            Row(
-              children: List.generate(rowItems.length * 2 - 1, (idx) {
-                if (idx.isOdd) return const SizedBox(width: gap);
-                final card = rowItems[idx ~/ 2];
-                return SizedBox(width: cardWidth, child: card);
-              }),
-            ),
-          );
-
-          if (i + crossCount < items.length) {
-            rows.add(const SizedBox(height: gap));
-          }
-        }
-
-        return Padding(
-          padding: const EdgeInsets.symmetric(vertical: 18.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: rows,
-          ),
-        );
-      },
-    );
-  }
-
-  // ── Mess today card ─────────────────────────────────────────────────────────
 
   Widget buildMessTodayCard() {
     return Column(

@@ -2,7 +2,8 @@ import 'dart:convert';
 
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:frontend2/apis/dio_client.dart';
 
 class LaundryStatus {
   final bool canUse;
@@ -87,27 +88,31 @@ class LaundryApi {
     final token = await _getToken();
     if (token == 'error') throw Exception('Not authenticated');
 
-    final response = await http.get(
-      Uri.parse(LaundryEndpoints.status),
-      headers: {
+    final dio = DioClient().dio;
+    final response = await dio.get(
+      LaundryEndpoints.status,
+      options: Options(headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
-      },
+      }),
     );
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      final data = json.decode(response.body) as Map<String, dynamic>;
+    if (response.statusCode != null &&
+        response.statusCode! >= 200 &&
+        response.statusCode! < 300) {
+      final data = response.data as Map<String, dynamic>;
       return LaundryStatus.fromJson(data);
     } else {
-      final body = response.body.isNotEmpty
-          ? json.decode(response.body) as Map<String, dynamic>
+      final body = response.data is Map<String, dynamic>
+          ? response.data as Map<String, dynamic>
           : <String, dynamic>{};
-      final msg = body['message']?.toString() ?? 'Failed to fetch laundry status';
+      final msg =
+          body['message']?.toString() ?? 'Failed to fetch laundry status';
       throw Exception(msg);
     }
   }
 
-  Future<LaundryScanResult> scan({String? hostelId, String? scannedPayload}) async {
+  Future<LaundryScanResult> scan(
+      {String? hostelId, String? scannedPayload}) async {
     final token = await _getToken();
     if (token == 'error') throw Exception('Not authenticated');
 
@@ -117,23 +122,25 @@ class LaundryApi {
       body['scannedPayload'] = scannedPayload;
     }
 
-    final response = await http.post(
-      Uri.parse(LaundryEndpoints.scan),
-      headers: {
+    final dio = DioClient().dio;
+    final response = await dio.post(
+      LaundryEndpoints.scan,
+      data: body,
+      options: Options(headers: {
         'Authorization': 'Bearer $token',
         'Content-Type': 'application/json',
-      },
-      body: json.encode(body),
+      }),
     );
-
-    final data = response.body.isNotEmpty
-        ? json.decode(response.body) as Map<String, dynamic>
+    final data = response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
         : <String, dynamic>{};
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
+    if (response.statusCode != null &&
+        response.statusCode! >= 200 &&
+        response.statusCode! < 300) {
       return LaundryScanResult.fromJson(data);
     } else {
-      final msg = data['message']?.toString() ?? 'Failed to avail laundry service';
+      final msg =
+          data['message']?.toString() ?? 'Failed to avail laundry service';
       throw Exception(msg);
     }
   }

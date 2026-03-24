@@ -1,10 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../models/mess_menu_model.dart';
 import '../../apis/mess/menu_like.dart';
 
 class InteractiveMessMenuCard extends StatefulWidget {
   final List<MenuModel> menus;
-  final DateTime now;
   final DateTime Function(String) parseTime;
   final String Function(Duration) formatDuration;
   final String currentMessId;
@@ -13,7 +14,6 @@ class InteractiveMessMenuCard extends StatefulWidget {
   const InteractiveMessMenuCard({
     super.key,
     required this.menus,
-    required this.now,
     required this.parseTime,
     required this.formatDuration,
     required this.currentMessId,
@@ -28,12 +28,24 @@ class InteractiveMessMenuCard extends StatefulWidget {
 class _InteractiveMessMenuCardState extends State<InteractiveMessMenuCard> {
   late List<MenuModel> _menus;
   bool _isLikeEnabled = false;
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
     _menus = widget.menus;
     _checkLikeEnabled();
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
   }
 
   @override
@@ -86,6 +98,7 @@ class _InteractiveMessMenuCardState extends State<InteractiveMessMenuCard> {
   @override
   Widget build(BuildContext context) {
     const green = Color(0xFF1DB954);
+    final now = DateTime.now();
 
     // Find which meal to show and what status
     MenuModel? currentMenu;
@@ -95,16 +108,16 @@ class _InteractiveMessMenuCardState extends State<InteractiveMessMenuCard> {
     for (final menu in _menus) {
       final start = widget.parseTime(menu.startTime);
       final end = widget.parseTime(menu.endTime);
-      if (widget.now.isBefore(start)) {
+      if (now.isBefore(start)) {
         // Not started yet
-        final diff = start.difference(widget.now);
+        final diff = start.difference(now);
         final h = diff.inHours;
         final m = diff.inMinutes.remainder(60);
         statusText = "In ${h > 0 ? '${h}h ' : ''}${m}m";
         currentMenu = menu;
         statusColor = green;
         break;
-      } else if (widget.now.isAfter(start) && widget.now.isBefore(end)) {
+      } else if (now.isAfter(start) && now.isBefore(end)) {
         // Ongoing
         statusText = "Ongoing";
         currentMenu = menu;

@@ -17,6 +17,49 @@ const ratingMap = {
   "Very Good": 5,
 };
 
+const getFeedbackUserKey = (fb) => {
+  if (!fb?.user) return `anonymous:${String(fb?._id || "")}`;
+  if (typeof fb.user === "object") {
+    return String(fb.user._id || fb.user.id || "");
+  }
+  return String(fb.user);
+};
+
+// Keep latest response for each user (input should be date-desc sorted)
+const dedupeByLatestUserFeedback = (feedbacks = []) => {
+  const seen = new Set();
+  const result = [];
+  for (const fb of feedbacks) {
+    const key = getFeedbackUserKey(fb);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(fb);
+  }
+  return result;
+};
+
+// Keep latest feedback for each logical user submission key.
+// For all-time leaderboard, include window in key so same user across months is retained.
+const dedupeFeedbacksForAggregation = (
+  feedbacks = [],
+  { includeWindowInKey = false } = {},
+) => {
+  const seen = new Set();
+  const result = [];
+  for (const fb of feedbacks) {
+    const userKey = getFeedbackUserKey(fb);
+    const catererKey = String(fb?.caterer?._id || fb?.caterer || "");
+    const windowKey = includeWindowInKey
+      ? String(fb?.feedbackWindowNumber || "")
+      : "";
+    const key = `${catererKey}:${windowKey}:${userKey}`;
+    if (!catererKey || !userKey || seen.has(key)) continue;
+    seen.add(key);
+    result.push(fb);
+  }
+  return result;
+};
+
 const computeOverallOpi = ({
   breakfastAvg = 0,
   lunchAvg = 0,
@@ -131,15 +174,13 @@ const getFeedbacksByCaterer = async (req, res) => {
       query.feedbackWindowNumber = parseInt(windowNumber, 10);
     }
 
-    const [total, items] = await Promise.all([
-      Feedback.countDocuments(query),
-      Feedback.find(query)
-        .populate("user", "name")
-        .sort({ date: -1 })
-        .skip((p - 1) * size)
-        .limit(size)
-        .lean(),
-    ]);
+    const rawItems = await Feedback.find(query)
+      .populate("user", "name")
+      .sort({ date: -1 })
+      .lean();
+    const dedupedItems = dedupeByLatestUserFeedback(rawItems);
+    const total = dedupedItems.length;
+    const items = dedupedItems.slice((p - 1) * size, p * size);
 
     const mapped = items.map((fb) => ({
       id: String(fb._id),
@@ -157,10 +198,14 @@ const getFeedbacksByCaterer = async (req, res) => {
       };
       if (windowNumber)
         fbQuery.feedbackWindowNumber = parseInt(windowNumber, 10);
-      const all = await Feedback.find(fbQuery)
+      const allRaw = await Feedback.find(fbQuery)
         .populate("user", "isSMC")
         .populate("caterer", "name")
+        .sort({ date: -1 })
         .lean();
+      const all = dedupeFeedbacksForAggregation(allRaw, {
+        includeWindowInKey: !windowNumber,
+      });
 
       const groups = new Map();
       const toScore = (label) => ratingMap[label] ?? null;
@@ -269,6 +314,69 @@ const getFeedbacksByCaterer = async (req, res) => {
 };
 
 // ==========================================
+// Detailed feedback rows for a specific window (HAB/Admin)
+// Query params: windowNumber (required)
+// Response: [{ userName, rollNumber, breakfast, lunch, dinner, smcFields, comment, catererName, date }]
+// ==========================================
+const getDetailedFeedbackByWindow = async (req, res) => {
+  try {
+    const { windowNumber } = req.query;
+    const parsedWindow = parseInt(windowNumber, 10);
+
+    if (!parsedWindow || Number.isNaN(parsedWindow)) {
+      return res.status(400).json({ message: "Valid windowNumber is required" });
+    }
+
+    const feedbacks = await Feedback.find({
+      caterer: { $ne: null },
+      feedbackWindowNumber: parsedWindow,
+    })
+      .populate("user", "name rollNumber isSMC")
+      .populate({
+        path: "caterer",
+        select: "name hostelId",
+        populate: { path: "hostelId", select: "hostel_name" },
+      })
+      .sort({ date: -1 })
+      .lean();
+
+    const dedupedFeedbacks = dedupeByLatestUserFeedback(feedbacks);
+    const rows = dedupedFeedbacks.map((fb) => {
+      const isSMC = !!fb.user?.isSMC;
+      return {
+        userName: fb.user?.name || "Anonymous User",
+        rollNumber: fb.user?.rollNumber || "-",
+        breakfast: fb.breakfast || "-",
+        lunch: fb.lunch || "-",
+        dinner: fb.dinner || "-",
+        smcFields: isSMC
+          ? {
+              cleanliness: fb.smcFields?.hygiene || "-",
+              wasteDisposal: fb.smcFields?.wasteDisposal || "-",
+              qualityOfIngredients: fb.smcFields?.qualityOfIngredients || "-",
+              uniformAndPunctuality:
+                fb.smcFields?.uniformAndPunctuality || "-",
+            }
+          : null,
+        comment: fb.comment || "",
+        catererName: fb.caterer?.name || "-",
+        hostelName: fb.caterer?.hostelId?.hostel_name || "-",
+        isSMC,
+        date: fb.date,
+      };
+    });
+
+    return res.status(200).json(rows);
+  } catch (e) {
+    console.error("getDetailedFeedbackByWindow error:", e);
+    return res.status(500).json({
+      message: "Failed to fetch detailed feedback by window",
+      error: String(e.message || e),
+    });
+  }
+};
+
+// ==========================================
 // Submit feedback
 // ==========================================
 const submitFeedback = async (req, res) => {
@@ -336,6 +444,18 @@ const submitFeedback = async (req, res) => {
       feedbackData.smcFields = smcFields;
     }
 
+    const existingFeedback = await Feedback.findOne({
+      user: user._id,
+      feedbackWindowNumber: settings.currentWindowNumber,
+    }).lean();
+    if (existingFeedback) {
+      if (!user.isFeedbackSubmitted) {
+        user.isFeedbackSubmitted = true;
+        await user.save();
+      }
+      return res.status(400).send("Feedback already submitted for this window");
+    }
+
     const feedback = new Feedback(feedbackData);
     await feedback.save();
 
@@ -345,6 +465,9 @@ const submitFeedback = async (req, res) => {
 
     res.status(200).send("Feedback submitted successfully");
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(400).send("Feedback already submitted for this window");
+    }
     console.error(err);
     res.status(500).send("Error saving feedback");
   }
@@ -624,10 +747,14 @@ const getFeedbackSettingsPublic = async (req, res) => {
 // ==========================================
 const getFeedbackLeaderboard = async (req, res) => {
   try {
-    const feedbacks = await Feedback.find({ caterer: { $ne: null } })
+    const feedbacksRaw = await Feedback.find({ caterer: { $ne: null } })
       .populate("user", "isSMC")
       .populate("caterer", "name")
+      .sort({ date: -1 })
       .lean();
+    const feedbacks = dedupeFeedbacksForAggregation(feedbacksRaw, {
+      includeWindowInKey: true,
+    });
 
     const toScore = (label) => ratingMap[label] ?? null;
     const groups = new Map();
@@ -779,13 +906,15 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
       return res.status(400).json({ message: "Window number required" });
     }
 
-    const feedbacks = await Feedback.find({
+    const feedbacksRaw = await Feedback.find({
       caterer: { $ne: null },
       feedbackWindowNumber: parseInt(windowNumber),
     })
       .populate("user", "isSMC")
       .populate("caterer", "name")
+      .sort({ date: -1 })
       .lean();
+    const feedbacks = dedupeFeedbacksForAggregation(feedbacksRaw);
 
     const toScore = (label) => ratingMap[label] ?? null;
     const groups = new Map();
@@ -1153,5 +1282,6 @@ module.exports = {
   checkFeedbackSubmitted,
   getFeedbackWindowTimeLeft,
   getFeedbacksByCaterer,
+  getDetailedFeedbackByWindow,
   updateAllMessRatingsAndRankings,
 };

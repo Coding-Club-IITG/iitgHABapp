@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
-import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:frontend2/apis/dio_client.dart';
@@ -23,16 +22,18 @@ Future<bool> saveUserProfileFields(
     body['roomNumber'] = roomNumber ?? '';
     body['phoneNumber'] = phoneNumber ?? '';
 
-    final resp = await http.post(
-      Uri.parse(UserEndpoints.saveUser),
-      headers: {
-        'Authorization': 'Bearer $header',
-        'Content-Type': 'application/json',
-        'x-api-version': 'v1', // Add API version header
-      },
-      body: json.encode(body),
+    final dio = DioClient().dio;
+    final resp = await dio.post(
+      UserEndpoints.saveUser,
+      data: body,
+      options: Options(
+        headers: {
+          'Authorization': 'Bearer $header',
+          'Content-Type': 'application/json',
+          'x-api-version': 'v1',
+        },
+      ),
     );
-
     if (resp.statusCode == 200) {
       return true;
     } else {
@@ -50,17 +51,19 @@ Future<Map<String, String>?> fetchUserDetails() async {
     throw ('token not found');
   }
   try {
-    final resp = await http.get(
-      Uri.parse(UserEndpoints.currentUser),
-      headers: {
-        "Authorization": "Bearer $header", //make sure to include Bearer
-        "Content-Type": "application/json",
-      },
+    final dio = DioClient().dio;
+    final resp = await dio.get(
+      UserEndpoints.currentUser,
+      options: Options(
+        headers: {
+          "Authorization": "Bearer $header",
+          "Content-Type": "application/json",
+        },
+      ),
     );
-
     if (resp.statusCode == 200) {
       final prefs = await SharedPreferences.getInstance();
-      final Map<String, dynamic> userData = json.decode(resp.body);
+      final Map<String, dynamic> userData = resp.data;
 
       // Extract user details
       final String name = userData['name'] ?? "User";
@@ -162,35 +165,33 @@ Future<void> fetchUserProfilePicture() async {
   }
 
   try {
-    final resp = await http.get(
-      Uri.parse(ProfilePicture.getUserProfilePicture),
-      headers: {
-        "Authorization": "Bearer $header",
-        "Content-Type": "application/json",
-      },
+    final dio = DioClient().dio;
+    final resp = await dio.get(
+      ProfilePicture.getUserProfilePicture,
+      options: Options(
+        headers: {
+          "Authorization": "Bearer $header",
+          "Content-Type": "application/json",
+        },
+        responseType: ResponseType.bytes,
+      ),
     );
-
     if (resp.statusCode == 200) {
-      final contentType = resp.headers['content-type'] ?? '';
+      final contentType = resp.headers['content-type']?.toString() ?? '';
       if (contentType.contains('application/json')) {
-        // Server returned JSON (e.g., { url: ... } or { base64: ... })
-        final Map<String, dynamic> data = json.decode(resp.body);
-        // If server provides raw base64 string in `base64`, use it.
+        final Map<String, dynamic> data = resp.data is Map<String, dynamic>
+            ? resp.data as Map<String, dynamic>
+            : json.decode(utf8.decode(resp.data));
         if (data.containsKey('base64')) {
           final String b64 = (data['base64'] ?? '') as String;
           await prefs.setString('profilePicture', b64);
         } else if (data.containsKey('url')) {
-          // Server returned a URL (this may be an org-scoped OneDrive link).
-          // Try to fetch the URL server-side would be ideal; here we clear pref
-          // so the app will show default. The backend should be updated to
-          // return bytes instead of URL when possible.
           await prefs.setString('profilePicture', '');
         } else {
           await prefs.setString('profilePicture', '');
         }
       } else {
-        // Server returned raw bytes (image). Convert to base64 and persist.
-        final bytes = resp.bodyBytes;
+        final bytes = resp.data is List<int> ? resp.data as List<int> : <int>[];
         if (bytes.isNotEmpty) {
           final String b64 = base64Encode(bytes);
           await prefs.setString('profilePicture', b64);
@@ -199,7 +200,6 @@ Future<void> fetchUserProfilePicture() async {
         }
       }
     } else {
-      // On failure, ensure pref is empty so UI will show default
       await prefs.setString('profilePicture', '');
     }
   } catch (e) {

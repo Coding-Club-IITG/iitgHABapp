@@ -1,7 +1,9 @@
 import 'dart:convert';
 
-import 'package:http/http.dart' as http;
+import 'package:frontend2/apis/dio_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/foundation.dart';
+import 'package:dio/dio.dart';
 
 import '../../constants/endpoint.dart';
 
@@ -108,6 +110,7 @@ class RoomCleaningBooking {
   final String status;
   final String? feedbackId;
   final String? reason;
+
   /// True when cancel is allowed (Booked/Waitlisted, future date, window open).
   final bool canCancel;
 
@@ -147,23 +150,16 @@ class RoomCleaningApi {
   }
 
   Future<RoomCleaningAvailability> fetchAvailability() async {
-    final token = await _getToken();
-
-    final response = await http.get(
-      Uri.parse('$baseUrl/room-cleaning/availability'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      final data = json.decode(response.body) as Map<String, dynamic>;
+    final dio = DioClient().dio;
+    final response = await dio.get('$baseUrl/room-cleaning/availability');
+    if (response.statusCode != null &&
+        response.statusCode! >= 200 &&
+        response.statusCode! < 300) {
+      final data = response.data as Map<String, dynamic>;
       return RoomCleaningAvailability.fromJson(data);
     } else {
       throw Exception(
-        'Failed to fetch room cleaning availability (${response.statusCode})',
-      );
+          'Failed to fetch room cleaning availability (${response.statusCode})');
     }
   }
 
@@ -173,52 +169,55 @@ class RoomCleaningApi {
     required String roomNumber,
     required String phoneNumber,
   }) async {
-    final token = await _getToken();
-
-    final response = await http.post(
-      Uri.parse('$baseUrl/room-cleaning/booking'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: json.encode({
-        'date': date.toIso8601String().split('T').first,
-        'slot': slot,
-        'roomNumber': roomNumber,
-        'phoneNumber': phoneNumber,
-      }),
-    );
-
-    final body = response.body.isNotEmpty
-        ? json.decode(response.body) as Map<String, dynamic>
-        : <String, dynamic>{};
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      return body;
-    } else {
-      final msg = body['message']?.toString() ??
-          'Failed to create room cleaning booking';
-      throw Exception(msg);
+    final dio = DioClient().dio;
+    final bookingPayload = {
+      'date': date.toIso8601String().split('T').first,
+      'slot': slot,
+      'roomNumber': roomNumber,
+      'phoneNumber': phoneNumber,
+    };
+    debugPrint('[RoomCleaningApi] Booking request: $bookingPayload');
+    try {
+      final response = await dio.post(
+        '$baseUrl/room-cleaning/booking',
+        data: bookingPayload,
+        options: Options(headers: {'Content-Type': 'application/json'}),
+      );
+      final body = response.data is Map<String, dynamic>
+          ? response.data as Map<String, dynamic>
+          : <String, dynamic>{};
+      debugPrint(
+          '[RoomCleaningApi] Booking response: ${response.statusCode} $body');
+      if (response.statusCode != null &&
+          response.statusCode! >= 200 &&
+          response.statusCode! < 300) {
+        return body;
+      } else {
+        final msg = body['message']?.toString() ??
+            'Failed to create room cleaning booking';
+        debugPrint('[RoomCleaningApi] Booking error: $msg');
+        throw Exception(msg);
+      }
+    } catch (e, stack) {
+      debugPrint('[RoomCleaningApi] Booking exception: $e');
+      debugPrint('[RoomCleaningApi] Stack: $stack');
+      rethrow;
     }
   }
 
   Future<Map<String, dynamic>> cancelBooking(String bookingId) async {
-    final token = await _getToken();
-
-    final response = await http.post(
-      Uri.parse('$baseUrl/room-cleaning/booking/cancel'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: json.encode({'bookingId': bookingId}),
+    final dio = DioClient().dio;
+    final response = await dio.post(
+      '$baseUrl/room-cleaning/booking/cancel',
+      data: {'bookingId': bookingId},
+      options: Options(headers: {'Content-Type': 'application/json'}),
     );
-
-    final body = response.body.isNotEmpty
-        ? json.decode(response.body) as Map<String, dynamic>
+    final body = response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
         : <String, dynamic>{};
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
+    if (response.statusCode != null &&
+        response.statusCode! >= 200 &&
+        response.statusCode! < 300) {
       return body;
     } else {
       final msg = body['message']?.toString() ??
@@ -228,18 +227,12 @@ class RoomCleaningApi {
   }
 
   Future<List<RoomCleaningBooking>> getMyBookings() async {
-    final token = await _getToken();
-
-    final response = await http.get(
-      Uri.parse('$baseUrl/room-cleaning/booking/my'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-    );
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
-      final data = json.decode(response.body) as Map<String, dynamic>;
+    final dio = DioClient().dio;
+    final response = await dio.get('$baseUrl/room-cleaning/booking/my');
+    if (response.statusCode != null &&
+        response.statusCode! >= 200 &&
+        response.statusCode! < 300) {
+      final data = response.data as Map<String, dynamic>;
       final list = (data['bookings'] as List<dynamic>? ?? []);
       return list
           .map((e) => RoomCleaningBooking.fromJson(
@@ -248,8 +241,7 @@ class RoomCleaningApi {
           .toList();
     } else {
       throw Exception(
-        'Failed to fetch room cleaning bookings (${response.statusCode})',
-      );
+          'Failed to fetch room cleaning bookings (${response.statusCode})');
     }
   }
 
@@ -260,35 +252,29 @@ class RoomCleaningApi {
     required int satisfaction,
     String? remarks,
   }) async {
-    final token = await _getToken();
-
-    final response = await http.post(
-      Uri.parse('$baseUrl/room-cleaning/booking/feedback'),
-      headers: {
-        'Authorization': 'Bearer $token',
-        'Content-Type': 'application/json',
-      },
-      body: json.encode({
+    final dio = DioClient().dio;
+    final response = await dio.post(
+      '$baseUrl/room-cleaning/booking/feedback',
+      data: {
         'bookingId': bookingId,
         'reachedInSlot': reachedInSlot,
         'staffPoliteness': staffPoliteness,
         'satisfaction': satisfaction,
         if (remarks != null && remarks.trim().isNotEmpty)
           'remarks': remarks.trim(),
-      }),
+      },
+      options: Options(headers: {'Content-Type': 'application/json'}),
     );
-
-    final body = response.body.isNotEmpty
-        ? json.decode(response.body) as Map<String, dynamic>
+    final body = response.data is Map<String, dynamic>
+        ? response.data as Map<String, dynamic>
         : <String, dynamic>{};
-
-    if (response.statusCode >= 200 && response.statusCode < 300) {
+    if (response.statusCode != null &&
+        response.statusCode! >= 200 &&
+        response.statusCode! < 300) {
       return body;
     } else {
-      final msg = body['message']?.toString() ??
-          'Failed to submit room cleaning feedback';
+      final msg = body['message']?.toString() ?? 'Failed to submit feedback';
       throw Exception(msg);
     }
   }
 }
-

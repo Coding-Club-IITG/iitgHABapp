@@ -23,15 +23,25 @@ Future<void> authenticate() async {
     final result = await FlutterWebAuth2.authenticate(
         url: AuthEndpoints.getAccess, callbackUrlScheme: "iitghab");
 
-    final accessToken = Uri.parse(result).queryParameters['token'];
+    final uri = Uri.parse(result);
 
-    final prefs = await SharedPreferences.getInstance();
+    final accessToken = uri.queryParameters['accessToken'];
+    final refreshToken = uri.queryParameters['refreshToken'];
 
-    if (accessToken == null) {
-      throw ('access token not found');
+    if (accessToken == null || refreshToken == null) {
+      throw ('Tokens not found');
     }
 
+    final prefs = await SharedPreferences.getInstance();
     prefs.setString('access_token', accessToken);
+    prefs.setString('refresh_token', refreshToken);
+
+    // print
+    if (kDebugMode) {
+      print('Access Token: $accessToken');
+      print('Refresh Token: $refreshToken');
+    }
+
     await fetchUserDetails();
     await fetchUserProfilePicture();
     await getUserMessInfo();
@@ -65,9 +75,12 @@ Future<void> guestAuthenticate() async {
       throw ('Guest login failed');
     }
 
-    final accessToken = resp.data['token'] as String;
     final prefs = await SharedPreferences.getInstance();
+    final accessToken = resp.data['accessToken'];
+    final refreshToken = resp.data['refreshToken'];
+
     prefs.setString('access_token', accessToken);
+    prefs.setString('refresh_token', refreshToken);
 
     // Reuse post-login initialization
     await fetchUserDetails();
@@ -77,6 +90,47 @@ Future<void> guestAuthenticate() async {
     ProfilePictureProvider.init();
   } catch (e) {
     rethrow;
+  }
+}
+
+Future<bool> refreshAccessToken() async {
+  try {
+    debugPrint('[refreshAccessToken] Called');
+    final prefs = await SharedPreferences.getInstance();
+    final refreshToken = prefs.getString('refresh_token');
+
+    debugPrint('[refreshAccessToken] Refresh token: '
+        '${refreshToken != null ? refreshToken.substring(0, 8) + '...' : 'null'}');
+
+    if (refreshToken == null) {
+      debugPrint('[refreshAccessToken] No refresh token found');
+      return false;
+    }
+
+    final dio = Dio();
+
+    final response = await dio.post(
+      '$baseUrl/auth/refresh',
+      data: {
+        "refreshToken": refreshToken,
+      },
+    );
+
+    debugPrint('[refreshAccessToken] Response: '
+        '${response.statusCode} ${response.data.toString()}');
+
+    final newAccess = response.data['accessToken'];
+    final newRefresh = response.data['refreshToken'];
+
+    prefs.setString('access_token', newAccess);
+    prefs.setString('refresh_token', newRefresh);
+
+    debugPrint('[refreshAccessToken] Tokens updated');
+    return true;
+  } catch (e, stack) {
+    debugPrint('[refreshAccessToken] Error: $e');
+    debugPrint('[refreshAccessToken] Stack: $stack');
+    return false;
   }
 }
 
@@ -238,11 +292,20 @@ Future<void> linkMicrosoftAccount() async {
 }
 
 Future<bool> isLoggedIn() async {
-  var access = await getAccessToken();
+  final access = await getAccessToken();
 
-  if (access != 'error') {
+  if (access == 'error') return false;
+
+  // Try using access token
+  try {
+    await fetchUserDetails(); // any protected API
     return true;
-  } else {
-    return false;
+  } catch (e) {
+    // Access expired → try refresh
+    final refreshed = await refreshAccessToken();
+
+    if (!refreshed) return false;
+
+    return true;
   }
 }

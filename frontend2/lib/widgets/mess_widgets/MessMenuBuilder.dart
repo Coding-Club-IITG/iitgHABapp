@@ -97,7 +97,6 @@ class MenuFutureBuilder extends StatelessWidget {
 
         return InteractiveMessMenuCard(
           menus: snapshot.data!,
-          now: DateTime.now(),
           parseTime: _parseTime,
           formatDuration: _formatDuration,
           currentMessId: messId,

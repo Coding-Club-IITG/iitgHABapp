@@ -12,14 +12,12 @@ class LoginScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      title: 'Hostel App',
-      theme: ThemeData(
+    return Theme(
+      data: Theme.of(context).copyWith(
         primaryColor: const Color(0xFF0D1D40),
         scaffoldBackgroundColor: const Color(0xFF0D1D40),
       ),
-      home: const OnboardingScreen(),
+      child: const OnboardingScreen(),
     );
   }
 }
@@ -134,11 +132,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                           _inprogress = false;
                                         });
                                         if (!mounted) return;
-                                        navigator.pushReplacement(
+                                        navigator.pushAndRemoveUntil(
                                           MaterialPageRoute(
                                             builder: (context) =>
                                                 const MainNavigationScreen(),
                                           ),
+                                          (route) => false,
                                         );
                                         messenger.showSnackBar(
                                           const SnackBar(
@@ -234,11 +233,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                         _inprogress = false;
                                       });
                                       if (!mounted) return;
-                                      navigator.pushReplacement(
+                                      navigator.pushAndRemoveUntil(
                                         MaterialPageRoute(
                                           builder: (context) =>
                                               const MainNavigationScreen(),
                                         ),
+                                        (route) => false,
                                       );
                                       messenger.showSnackBar(
                                         const SnackBar(
@@ -315,11 +315,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                         _inprogress = false;
                                       });
                                       if (!mounted) return;
-                                      navigator.pushReplacement(
+                                      navigator.pushAndRemoveUntil(
                                         MaterialPageRoute(
                                           builder: (context) =>
                                               const MainNavigationScreen(),
                                         ),
+                                        (route) => false,
                                       );
                                       messenger.showSnackBar(
                                         const SnackBar(

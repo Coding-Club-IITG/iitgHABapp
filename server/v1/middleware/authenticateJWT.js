@@ -34,8 +34,7 @@ function auth(Schema, param) {
 
     try {
       // Validate the token and find the element
-
-      const found = await Schema.findByJWT(token);
+      const found = await Schema.findByAccessToken(token);
       //console.log("Found user/hostel:", found);
       if (!found) return next(new AppError(403, "Not Authenticated"));
 
@@ -43,6 +42,10 @@ function auth(Schema, param) {
       req[param] = found;
       return next();
     } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return next(new AppError(401, "Access token expired"));
+      }
+
       console.error("Error verifying token:", err);
       return next(new AppError(500, "Server error during authentication"));
     }
@@ -68,13 +71,13 @@ const authenticateUserOrAdminJWT = async (req, res, next) => {
   if (isBlacklisted) return next(new AppError(401, "Token has been revoked"));
 
   try {
-    const user = await User.findByJWT(token);
+    const user = await User.findByAccessToken(token);
     if (user) {
       req.user = user;
       return next();
     }
 
-    const hostel = await Hostel.findByJWT(token);
+    const hostel = await Hostel.findByAccessToken(token);
     if (hostel) {
       req.hostel = hostel;
       return next();
@@ -133,7 +136,7 @@ const authenticateMessManagerJWT = async (req, res, next) => {
   if (isBlacklisted) return next(new AppError(401, "Token has been revoked"));
 
   try {
-    const hostel = await Hostel.findByJWT(token);
+    const hostel = await Hostel.findByAccessToken(token);
     if (!hostel) return next(new AppError(403, "Not Authenticated as manager"));
 
     req.managerHostel = hostel;

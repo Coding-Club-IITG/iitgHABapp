@@ -186,13 +186,21 @@ export default function Caterers() {
     } catch (e) {
       console.error(
         "Prefetch mess details failed, navigating without state",
-        e
+        e,
       );
       navigate(`/mess/${record._id}`);
     }
   };
 
-  function buildPrintableHTML(data) {
+  const escapeHTML = (value) =>
+    String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+
+  function buildPrintableHTML(data, windowNumber) {
     const head = `
   <html>
   <head>
@@ -220,10 +228,6 @@ export default function Caterers() {
         display: flex;
         align-items: center;
         gap: 14px;
-      }
-      .logo { 
-        height: 52px;
-        width: auto;
       }
       .title-group {
         display: flex;
@@ -305,7 +309,6 @@ export default function Caterers() {
   <body>
     <div class="doc-header">
       <div class="header-left">
-        <img src="/handlogo.png" class="logo" alt="IIT Guwahati Logo" onerror="this.style.display='none'" />
         <div class="title-group">
           <div class="doc-title">Mess Caterer Performance Report</div>
           <div class="doc-subtitle">Hostel Affairs Board | IIT Guwahati</div>
@@ -317,10 +320,13 @@ export default function Caterers() {
           {
             dateStyle: "medium",
             timeStyle: "short",
-          }
+          },
         )}</div>
         <div><span class="meta-label">Total Caterers:</span> ${
           data.length
+        }</div>
+        <div><span class="meta-label">Window:</span> ${
+          windowNumber ? `Window ${windowNumber}` : "Latest"
         }</div>
       </div>
     </div>
@@ -350,8 +356,8 @@ export default function Caterers() {
         (r) => `
     <tr>
       <td class="center rank-cell">${r.rank ?? "-"}</td>
-      <td class="caterer-cell">${r.caterer_name ?? "-"}</td>
-      <td>${r.hostel_name ?? "-"}</td>
+      <td class="caterer-cell">${escapeHTML(r.caterer_name ?? "-")}</td>
+      <td>${escapeHTML(r.hostel_name ?? "-")}</td>
       <td class="center">${r.totalUsers ?? 0}</td>
       <td class="center">${r.smcUsers ?? 0}</td>
       <td class="center">${
@@ -383,7 +389,7 @@ export default function Caterers() {
         r.overall == null ? "-" : Number(r.overall).toFixed(2)
       }</td>
     </tr>
-  `
+  `,
       )
       .join("");
 
@@ -401,81 +407,380 @@ export default function Caterers() {
     return head + rows + foot;
   }
 
-  function handleDownloadPDF(data) {
+  function normalizeHostelLabel(hostelName) {
+    const trimmed = String(hostelName || "").trim();
+    return trimmed || "Unknown Hostel";
+  }
+
+  function groupDetailedRowsByHostel(rows) {
+    const groups = new Map();
+    rows.forEach((row) => {
+      const hostelName = normalizeHostelLabel(row.hostelName);
+      if (!groups.has(hostelName)) {
+        groups.set(hostelName, []);
+      }
+      groups.get(hostelName).push(row);
+    });
+
+    return Array.from(groups.entries()).sort(([a], [b]) =>
+      a.localeCompare(b, undefined, { sensitivity: "base" }),
+    );
+  }
+
+  function sanitizePdfText(value) {
+    const text = String(value ?? "");
+    const normalized = text.normalize("NFKD");
+    return normalized
+      .replace(/[\u0300-\u036f]/g, "") // remove combining marks
+      .replace(/\u00A0/g, " ") // non-breaking spaces
+      .replace(/[\u200B-\u200D\uFEFF]/g, "") // zero-width characters
+      .replace(/[^\x20-\x7E\n]/g, " ") // keep printable ASCII + newline
+      .replace(/[ \t]+/g, " ")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function drawDetailedFeedbackTable(pdf, rows, windowNumber) {
+    const pageWidth = pdf.internal.pageSize.getWidth();
+    const pageHeight = pdf.internal.pageSize.getHeight();
+    const marginLeft = 30;
+    const marginRight = 30;
+    const marginTop = 25;
+    const marginBottom = 25;
+    const tableWidth = pageWidth - marginLeft - marginRight;
+    const cellPadding = 4;
+    // Use a consistent font size throughout the table
+    const fontSize = 8;
+    // Line height for wrapped text rows (pt per line at fontSize 8)
+    const lineHeight = 10;
+    // Header row is taller to give column labels breathing room
+    const headerHeight = 20;
+
+    const colDefs = [
+      { key: "sl", label: "Sl.No", width: 30, align: "center" },
+      { key: "userName", label: "User Name", width: 85 },
+      { key: "rollNumber", label: "Roll No.", width: 65 },
+      { key: "breakfast", label: "Breakfast", width: 50, align: "center" },
+      { key: "lunch", label: "Lunch", width: 50, align: "center" },
+      { key: "dinner", label: "Dinner", width: 50, align: "center" },
+      { key: "cleanliness", label: "Cleanliness", width: 60, align: "center" },
+      { key: "waste", label: "Waste", width: 60, align: "center" },
+      { key: "quality", label: "Quality", width: 60, align: "center" },
+      { key: "uniform", label: "Uniform", width: 70, align: "center" },
+      { key: "feedback", label: "Feedback", width: 202 },
+    ];
+
+    const totalWidth = colDefs.reduce((acc, c) => acc + c.width, 0);
+    const widthScale = tableWidth / totalWidth;
+    const cols = colDefs.map((c) => ({ ...c, width: c.width * widthScale }));
+
+    // ------------------------------------------------------------------ //
+    // drawHeader – draws the blue-tinted header row at position y         //
+    // Fix: use pdf.setFontSize + explicit baseline "top" so text never    //
+    // clips or overflows the header cell.                                 //
+    // ------------------------------------------------------------------ //
+    const drawHeader = (y) => {
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(fontSize);
+
+      let x = marginLeft;
+      cols.forEach((col) => {
+        // Fill: light blue gradient approximated as solid light blue
+        pdf.setFillColor(219, 234, 254); // #dbeafe
+        pdf.setDrawColor(147, 197, 253); // #93c5fd – slightly darker border
+        pdf.rect(x, y, col.width, headerHeight, "FD");
+
+        // Text: dark blue, vertically centered inside the header cell
+        pdf.setTextColor(30, 64, 175); // #1e40af
+        const label = sanitizePdfText(col.label) || "-";
+
+        // Measure wrapped lines so we can center them vertically
+        const maxLabelWidth = col.width - 2 * cellPadding;
+        const lines = pdf.splitTextToSize(label, Math.max(5, maxLabelWidth));
+
+        // Vertical center: top of text block = y + (headerHeight - block height) / 2
+        const blockHeight = lines.length * lineHeight;
+        const ty = y + (headerHeight - blockHeight) / 2 + lineHeight * 0.75;
+
+        const tx = col.align === "center" ? x + col.width / 2 : x + cellPadding;
+
+        pdf.text(lines, tx, ty, {
+          align: col.align === "center" ? "center" : "left",
+          baseline: "alphabetic",
+        });
+
+        x += col.width;
+      });
+
+      // Reset colors for body rows
+      pdf.setTextColor(31, 41, 55); // #1f2937
+      pdf.setDrawColor(209, 213, 219); // #d1d5db
+      pdf.setFont("helvetica", "normal");
+    };
+
+    // ------------------------------------------------------------------ //
+    // Page 2+ header banner                                               //
+    // ------------------------------------------------------------------ //
+    pdf.addPage();
+
+    // Section title
+    pdf.setFont("helvetica", "bold");
+    pdf.setFontSize(14);
+    pdf.setTextColor(30, 64, 175);
+    pdf.text("Detailed User Feedback", marginLeft, marginTop);
+
+    // Sub-title
+    pdf.setFontSize(10);
+    pdf.setTextColor(107, 114, 128);
+    pdf.text(
+      `Hostel Affairs Board | IIT Guwahati | ${
+        windowNumber ? `Window ${windowNumber}` : "Latest Window"
+      }`,
+      marginLeft,
+      marginTop + 14,
+    );
+
+    let y = marginTop + 28;
+
+    drawHeader(y);
+    y += headerHeight;
+
+    // ------------------------------------------------------------------ //
+    // Empty-state guard                                                   //
+    // ------------------------------------------------------------------ //
+    if (!rows.length) {
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(fontSize);
+      pdf.setTextColor(107, 114, 128);
+      pdf.text(
+        "No feedback entries found for this window.",
+        marginLeft,
+        y + 16,
+      );
+      return;
+    }
+
+    // ------------------------------------------------------------------ //
+    // Body rows                                                           //
+    // ------------------------------------------------------------------ //
+    pdf.setFont("helvetica", "normal");
+    pdf.setFontSize(fontSize);
+    pdf.setTextColor(31, 41, 55);
+    pdf.setDrawColor(209, 213, 219);
+
+    const groupedRows = groupDetailedRowsByHostel(rows);
+    let serial = 1;
+    // Track even/odd for alternating row shading
+    let rowIndex = 0;
+
+    const ensureSpace = (requiredHeight) => {
+      if (y + requiredHeight > pageHeight - marginBottom) {
+        pdf.addPage();
+        y = marginTop;
+        drawHeader(y);
+        y += headerHeight;
+        // Reset body styles after re-drawing header
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(fontSize);
+        pdf.setTextColor(31, 41, 55);
+        pdf.setDrawColor(209, 213, 219);
+      }
+    };
+
+    groupedRows.forEach(([hostelName, hostelRows]) => {
+      // ---- Hostel separator row ----------------------------------------
+      ensureSpace(16);
+      pdf.setFillColor(229, 231, 235); // #e5e7eb — light grey banner
+      pdf.setDrawColor(156, 163, 175); // #9ca3af
+      pdf.rect(marginLeft, y, tableWidth, 14, "FD");
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(9);
+      pdf.setTextColor(17, 24, 39); // #111827
+      pdf.text(`Hostel: ${hostelName}`, marginLeft + cellPadding, y + 9.5);
+      y += 14;
+
+      // ---- Data rows ---------------------------------------------------
+      hostelRows.forEach((row) => {
+        const smc = row.smcFields || {};
+        const rowData = {
+          sl: String(serial),
+          userName: sanitizePdfText(row.userName || "-") || "-",
+          rollNumber: sanitizePdfText(row.rollNumber || "-") || "-",
+          breakfast: sanitizePdfText(row.breakfast || "-") || "-",
+          lunch: sanitizePdfText(row.lunch || "-") || "-",
+          dinner: sanitizePdfText(row.dinner || "-") || "-",
+          cleanliness: sanitizePdfText(smc.cleanliness || "-") || "-",
+          waste: sanitizePdfText(smc.wasteDisposal || "-") || "-",
+          quality: sanitizePdfText(smc.qualityOfIngredients || "-") || "-",
+          uniform: sanitizePdfText(smc.uniformAndPunctuality || "-") || "-",
+          feedback: sanitizePdfText(row.comment || "-") || "-",
+        };
+
+        // Pre-wrap all cells so we know the row height before drawing
+        const wrapped = cols.map((col) =>
+          pdf.splitTextToSize(
+            rowData[col.key],
+            Math.max(5, col.width - 2 * cellPadding),
+          ),
+        );
+        const maxLines = wrapped.reduce(
+          (m, lines) => Math.max(m, lines.length),
+          1,
+        );
+        const rowHeight = Math.max(14, maxLines * lineHeight + 2 * cellPadding);
+
+        ensureSpace(rowHeight);
+
+        // Draw each cell individually so fill+stroke colours are set
+        // fresh per cell — prevents any prior setFillColor from bleeding in.
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(fontSize);
+        pdf.setTextColor(31, 41, 55); // #1f2937
+        pdf.setDrawColor(209, 213, 219); // #d1d5db
+
+        // Alternating row background colour
+        const rowFill =
+          rowIndex % 2 === 0
+            ? [255, 255, 255] // white
+            : [249, 250, 251]; // #f9fafb
+
+        let x = marginLeft;
+        cols.forEach((col, idx) => {
+          // Always reset fill before every rect so nothing bleeds
+          pdf.setFillColor(rowFill[0], rowFill[1], rowFill[2]);
+          pdf.rect(x, y, col.width, rowHeight, "FD");
+
+          const textLines = wrapped[idx];
+          const tx =
+            col.align === "center" ? x + col.width / 2 : x + cellPadding;
+          const ty = y + cellPadding + lineHeight * 0.75;
+
+          pdf.setTextColor(31, 41, 55); // re-assert text colour after rect
+          pdf.text(textLines, tx, ty, {
+            align: col.align === "center" ? "center" : "left",
+            baseline: "alphabetic",
+          });
+          x += col.width;
+        });
+
+        y += rowHeight;
+        serial += 1;
+        rowIndex += 1;
+      });
+    });
+  }
+
+  async function renderHTMLToCanvas(html, width = 1400) {
+    const container = document.createElement("div");
+    container.style.position = "fixed";
+    container.style.left = "-10000px";
+    container.style.top = "0";
+    container.style.width = `${width}px`;
+    container.style.background = "white";
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    try {
+      return await html2canvas(container, {
+        scale: 2,
+        useCORS: false,
+        allowTaint: false,
+        backgroundColor: "#ffffff",
+      });
+    } finally {
+      container.remove();
+    }
+  }
+
+  function addCanvasToPdfWithPagination(pdf, canvas) {
+    // JPEG avoids intermittent PNG signature parser errors in jsPDF for large canvases.
+    const imgData = canvas.toDataURL("image/jpeg", 1.0);
+    const pdfWidth = pdf.internal.pageSize.getWidth();
+    const pdfHeight = pdf.internal.pageSize.getHeight();
+
+    const marginLeft = 30;
+    const marginTop = 25;
+    const marginRight = 30;
+    const marginBottom = 25;
+    const usableWidth = pdfWidth - marginLeft - marginRight;
+    const usableHeight = pdfHeight - marginTop - marginBottom;
+
+    const scaledWidth = usableWidth;
+    const scaledHeight = (canvas.height * scaledWidth) / canvas.width;
+
+    let renderedHeight = 0;
+    let pageIndex = 0;
+
+    while (renderedHeight < scaledHeight) {
+      if (pageIndex > 0) {
+        pdf.addPage();
+      }
+      pdf.addImage(
+        imgData,
+        "JPEG",
+        marginLeft,
+        marginTop - renderedHeight,
+        scaledWidth,
+        scaledHeight,
+      );
+      renderedHeight += usableHeight;
+      pageIndex += 1;
+    }
+  }
+
+  async function fetchDetailedFeedback(windowNumber) {
+    const url = `${BACKEND_URL}/feedback/detailed-by-window?windowNumber=${windowNumber}`;
+    const res = await fetch(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const text = await res.text();
+    if (!res.ok) {
+      throw new Error(`Failed to fetch detailed feedback (${res.status})`);
+    }
+    const parsed = JSON.parse(text);
+    return Array.isArray(parsed) ? parsed : [];
+  }
+
+  async function handleDownloadPDF(data) {
     try {
       setGeneratingPDF(true);
-      const html = buildPrintableHTML(data);
+      const windowForReport = selectedWindow || windows[0] || "";
+      const [summaryCanvas, detailedRows] = await Promise.all([
+        renderHTMLToCanvas(buildPrintableHTML(data, windowForReport), 1400),
+        windowForReport ? fetchDetailedFeedback(windowForReport) : [],
+      ]);
+      const catererToHostel = new Map(
+        filteredData.map((item) => [
+          String(item.caterer_name || "")
+            .trim()
+            .toLowerCase(),
+          item.hostel_name || "-",
+        ]),
+      );
+      const detailedRowsWithHostel = detailedRows.map((row) => {
+        const existingHostel = String(row?.hostelName || "").trim();
+        if (existingHostel) {
+          return row;
+        }
+        const key = String(row?.catererName || "")
+          .trim()
+          .toLowerCase();
+        return { ...row, hostelName: catererToHostel.get(key) || "-" };
+      });
 
-      const container = document.createElement("div");
-      container.style.position = "fixed";
-      container.style.left = "-10000px";
-      container.style.top = "0";
-      container.style.width = "1400px";
-      container.style.background = "white";
-      container.innerHTML = html;
-      document.body.appendChild(container);
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "pt",
+        format: "a4",
+      });
 
-      html2canvas(container, { scale: 2, useCORS: true })
-        .then((canvas) => {
-          const imgData = canvas.toDataURL("image/png");
-
-          const pdf = new jsPDF({
-            orientation: "landscape",
-            unit: "pt",
-            format: "a4",
-          });
-
-          const pdfWidth = pdf.internal.pageSize.getWidth();
-          const pdfHeight = pdf.internal.pageSize.getHeight();
-
-          // ---- MARGINS ----
-          const marginLeft = 30;
-          const marginTop = 25;
-          const marginRight = 30;
-          const marginBottom = 25;
-
-          const usableWidth = pdfWidth - marginLeft - marginRight;
-          const scaledWidth = usableWidth;
-          const scaledHeight = (canvas.height * scaledWidth) / canvas.width;
-
-          // Add first page
-          pdf.addImage(
-            imgData,
-            "PNG",
-            marginLeft,
-            marginTop,
-            scaledWidth,
-            scaledHeight
-          );
-
-          // Additional pages
-          if (scaledHeight > pdfHeight - marginTop - marginBottom) {
-            let remainingHeight =
-              scaledHeight - (pdfHeight - marginTop - marginBottom);
-            let page = 1;
-            while (remainingHeight > 0) {
-              pdf.addPage();
-              pdf.addImage(
-                imgData,
-                "PNG",
-                marginLeft,
-                marginTop - page * pdfHeight,
-                scaledWidth,
-                scaledHeight
-              );
-              remainingHeight -= pdfHeight;
-              page++;
-            }
-          }
-
-          pdf.save("mess-ratings.pdf");
-        })
-        .finally(() => {
-          container.remove();
-          setGeneratingPDF(false);
-        });
+      addCanvasToPdfWithPagination(pdf, summaryCanvas);
+      drawDetailedFeedbackTable(pdf, detailedRowsWithHostel, windowForReport);
+      pdf.save(
+        `mess-ratings-window-${windowForReport || "latest"}-detailed.pdf`,
+      );
     } catch (e) {
       console.error(e);
+    } finally {
       setGeneratingPDF(false);
     }
   }
@@ -672,7 +977,7 @@ export default function Caterers() {
                           {record.avgUniformAndPunctuality == null
                             ? "-"
                             : Number(record.avgUniformAndPunctuality).toFixed(
-                                2
+                                2,
                               )}
                         </div>
                       </div>

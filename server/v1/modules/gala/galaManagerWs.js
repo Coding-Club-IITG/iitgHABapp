@@ -22,7 +22,7 @@ function initGalaManagerWs(server) {
         return;
       }
 
-      const hostel = await Hostel.findByJWT(token);
+      const hostel = await Hostel.findByAccessToken(token);
       if (!hostel) {
         ws.close(1008, "Invalid token");
         return;
@@ -95,4 +95,3 @@ module.exports = {
   initGalaManagerWs,
   broadcastGalaScanToManagers,
 };
-

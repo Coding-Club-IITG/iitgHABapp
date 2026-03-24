@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:frontend2/constants/endpoint.dart';
-import 'package:http/http.dart' as http;
+import 'package:dio/dio.dart';
+import 'package:frontend2/apis/dio_client.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../apis/protected.dart';
@@ -69,15 +70,14 @@ class _CommentPageState extends State<CommentPage> {
         };
       }
 
-      final url = Uri.parse(MessFeedback.feedbackSubmit);
-
-      final response = await http.post(
-        url,
-        headers: {
+      final dio = DioClient().dio;
+      final response = await dio.post(
+        MessFeedback.feedbackSubmit,
+        data: payload,
+        options: Options(headers: {
           'Authorization': 'Bearer $token',
           'Content-Type': 'application/json',
-        },
-        body: jsonEncode(payload),
+        }),
       );
 
       if (!mounted) return;
@@ -95,7 +95,7 @@ class _CommentPageState extends State<CommentPage> {
         }
       } else {
         messenger.showSnackBar(
-          SnackBar(content: Text('Error: ${response.body}')),
+          SnackBar(content: Text('Error: \\${response.data}')),
         );
       }
     } catch (e) {
