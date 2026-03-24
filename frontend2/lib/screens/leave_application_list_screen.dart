@@ -120,9 +120,9 @@ class _LeaveApplicationListScreenState extends State<LeaveApplicationListScreen>
                 final application = myApplications[index];
             
                 final startDate = DateFormat('dd MMM yyyy')
-                    .format(DateTime.parse(application['startDate']));
+                    .format(DateTime.parse(application['startDate']).add(const Duration(days: 1)));
                 final endDate = DateFormat('dd MMM yyyy')
-                    .format(DateTime.parse(application['endDate']));
+                    .format(DateTime.parse(application['endDate']).add(const Duration(days: 1)));
             
                 final status = application['status'] ?? '';
             

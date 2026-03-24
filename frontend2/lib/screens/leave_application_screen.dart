@@ -61,7 +61,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 
     try {
       FormData formData = FormData.fromMap({
-        "leaveType": reason == 1 ? 'Academic' : 'Medical',
+        "leaveType": reason == 1 ? 'Academic' : reason==2 ? 'Medical' : 'Casual',
         "startDate": DateFormat("yyyy-MM-dd").format(range.start),
         "endDate": DateFormat("yyyy-MM-dd").format(range.end),
         "bankAccountNumber": _accountNumberController.text,
