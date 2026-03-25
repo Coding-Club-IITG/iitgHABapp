@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../providers/room_cleaning_provider.dart';
 import '../../apis/room_cleaning/room_cleaning_api.dart';
+import '../../widgets/common/data_source_note.dart';
 
 /// Slot letter to time range for display (replaces "Slot A" etc. with timing).
 const Map<String, String> _slotTimeRange = {
@@ -73,10 +74,26 @@ class RoomCleaningScreen extends StatelessWidget {
                 ),
               ),
             ),
-            body: const TabBarView(
-              children: [
-                _BookSlotTab(),
-                _MyBookingsTab(),
+            body: Column(
+              children: const [
+                Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: SmcDataSourceNote(
+                      text: 'Available Slots as provided by your HMC',
+                    ),
+                  ),
+                ),
+                SizedBox(height: 8),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      _BookSlotTab(),
+                      _MyBookingsTab(),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -196,6 +213,15 @@ class _BookSlotTabState extends State<_BookSlotTab> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                if (provider.isBookingInProgress)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 12.0),
+                    child: LinearProgressIndicator(
+                      minHeight: 3,
+                      color: Color(0xFF3754DB),
+                      backgroundColor: Color(0xFFE5E7EB),
+                    ),
+                  ),
                 // CHANGED: replaced plain text row with a semantic warning banner
                 if (!availability.canBook)
                   Padding(
@@ -264,6 +290,7 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                           });
                         },
                         canBook: availability.canBook,
+                        isBookingInProgress: provider.isBookingInProgress,
                       ),
                   ],
                 ),
@@ -281,12 +308,14 @@ class _DayCard extends StatelessWidget {
   final bool isExpanded;
   final VoidCallback onToggle;
   final bool canBook;
+  final bool isBookingInProgress;
 
   const _DayCard({
     required this.day,
     required this.isExpanded,
     required this.onToggle,
     required this.canBook,
+    required this.isBookingInProgress,
   });
 
   @override
@@ -356,6 +385,7 @@ class _DayCard extends StatelessWidget {
                         day: day,
                         slot: slot,
                         canBook: canBook,
+                        isBookingInProgress: isBookingInProgress,
                       ),
                     )
                     .toList(),
@@ -371,17 +401,20 @@ class _SlotTile extends StatelessWidget {
   final RoomCleaningDayAvailability day;
   final RoomCleaningSlotAvailability slot;
   final bool canBook;
+  final bool isBookingInProgress;
 
   const _SlotTile({
     required this.day,
     required this.slot,
     required this.canBook,
+    required this.isBookingInProgress,
   });
 
   Future<void> _handleBook(BuildContext context) async {
-    if (!canBook) return;
+    if (!canBook || isBookingInProgress) return;
 
     final provider = Provider.of<RoomCleaningProvider>(context, listen: false);
+    final messenger = ScaffoldMessenger.maybeOf(context);
 
     // Load default room & phone from profile (SharedPreferences).
     final prefs = await SharedPreferences.getInstance();
@@ -647,16 +680,18 @@ class _SlotTile extends StatelessWidget {
       phoneNumber: phone,
     );
 
-    if (!context.mounted) return;
+    final bookingStatusMessage =
+        result.success ? 'Booking successful' : 'Booking failed';
 
-    _showRoomCleaningSnackBar(
-      context,
-      result.message,
-      isError: !result.success,
-    );
+    if (messenger != null) {
+      _showRoomCleaningSnackBarWithMessenger(
+        messenger,
+        bookingStatusMessage,
+        isError: !result.success,
+      );
+    }
 
     if (result.success) {
-      await provider.loadMyBookings();
       if (!context.mounted) return;
       DefaultTabController.of(context).animateTo(1);
     }
@@ -667,7 +702,7 @@ class _SlotTile extends StatelessWidget {
     final hasPrimary = slot.slotsLeft > 0;
     final hasExtra = slot.extraSlotsLeft > 0;
     final isFull = !hasPrimary && !hasExtra;
-    final isBookable = canBook && !isFull;
+    final isBookable = canBook && !isFull && !isBookingInProgress;
 
     // CHANGED: slot tile now has an icon, secondary availability text, and
     // dims fully-booked rows instead of just coloring the pill.
@@ -751,7 +786,9 @@ class _SlotTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        availText,
+                        isBookingInProgress
+                            ? 'Booking in progress...'
+                            : availText,
                         style: const TextStyle(
                           fontFamily: 'OpenSans_regular',
                           fontSize: 12,
@@ -1050,17 +1087,24 @@ class _MyBookingsTab extends StatelessWidget {
                               if (canCancel)
                                 OutlinedButton.icon(
                                   onPressed: () async {
+                                    final messenger =
+                                        ScaffoldMessenger.maybeOf(context);
                                     final result =
                                         await Provider.of<RoomCleaningProvider>(
                                                 context,
                                                 listen: false)
                                             .cancelBooking(booking.id);
-                                    if (!context.mounted) return;
-                                    _showRoomCleaningSnackBar(
-                                      context,
-                                      result.message,
-                                      isError: !result.success,
-                                    );
+                                    final cancellationStatusMessage =
+                                        result.success
+                                            ? 'Cancellation successful'
+                                            : 'Cancellation failed ';
+                                    if (messenger != null) {
+                                      _showRoomCleaningSnackBarWithMessenger(
+                                        messenger,
+                                        cancellationStatusMessage,
+                                        isError: !result.success,
+                                      );
+                                    }
                                   },
                                   icon: const Icon(
                                     Icons.close_rounded,
@@ -1408,14 +1452,27 @@ void _showRoomCleaningSnackBar(
   String message, {
   bool isError = false,
 }) {
-  final theme = Theme.of(context);
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (messenger == null) return;
+  _showRoomCleaningSnackBarWithMessenger(
+    messenger,
+    message,
+    isError: isError,
+  );
+}
+
+void _showRoomCleaningSnackBarWithMessenger(
+  ScaffoldMessengerState messenger,
+  String message, {
+  bool isError = false,
+}) {
   final backgroundColor =
       isError ? const Color(0xFFFFF1F2) : const Color(0xFFECFEF3);
   final borderColor =
       isError ? const Color(0xFFDC2626) : const Color(0xFF16A34A);
   final icon = isError ? Icons.error_outline : Icons.check_circle_outline;
 
-  ScaffoldMessenger.of(context).showSnackBar(
+  messenger.showSnackBar(
     SnackBar(
       behavior: SnackBarBehavior.floating,
       backgroundColor: Colors.transparent,
@@ -1440,10 +1497,10 @@ void _showRoomCleaningSnackBar(
             Expanded(
               child: Text(
                 message,
-                style: theme.textTheme.bodyMedium?.copyWith(
+                style: const TextStyle(
                   fontFamily: 'OpenSans_regular',
                   fontSize: 13,
-                  color: const Color(0xFF111827),
+                  color: Color(0xFF111827),
                 ),
               ),
             ),

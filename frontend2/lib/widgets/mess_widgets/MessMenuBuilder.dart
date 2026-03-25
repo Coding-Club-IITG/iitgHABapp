@@ -2,6 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:frontend2/widgets/mess_widgets/interactive_mess_menu.dart';
+import 'package:frontend2/widgets/common/data_source_note.dart';
 
 import '../../apis/mess/mess_menu.dart';
 import '../../models/mess_menu_model.dart';
@@ -11,12 +12,14 @@ class MenuFutureBuilder extends StatelessWidget {
   final String messId;
   final String day;
   final String? userMessId; // Add this parameter
+  final bool showSourceNote;
 
   const MenuFutureBuilder({
     super.key,
     required this.messId,
     required this.day,
     this.userMessId,
+    this.showSourceNote = true,
   });
 
   DateTime _parseTime(String timeStr) {
@@ -95,12 +98,21 @@ class MenuFutureBuilder extends StatelessWidget {
           );
         }
 
-        return InteractiveMessMenuCard(
-          menus: snapshot.data!,
-          parseTime: _parseTime,
-          formatDuration: _formatDuration,
-          currentMessId: messId,
-          userMessId: userMessId,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            InteractiveMessMenuCard(
+              menus: snapshot.data!,
+              parseTime: _parseTime,
+              formatDuration: _formatDuration,
+              currentMessId: messId,
+              userMessId: userMessId,
+            ),
+            if (showSourceNote) ...[
+              const SizedBox(height: 8),
+              const SmcDataSourceNote(text: 'Data as provided by your HMC'),
+            ],
+          ],
         );
       },
     );

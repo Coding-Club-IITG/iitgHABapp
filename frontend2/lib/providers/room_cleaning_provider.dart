@@ -22,6 +22,7 @@ class RoomCleaningProvider extends ChangeNotifier {
   List<RoomCleaningBooking> myBookings = [];
   bool isBookingsLoading = false;
   String? bookingsError;
+  bool isBookingInProgress = false;
 
   String _normalizeBookingMessage(Object value) {
     var raw = value.toString();
@@ -110,6 +111,16 @@ class RoomCleaningProvider extends ChangeNotifier {
     required String roomNumber,
     required String phoneNumber,
   }) async {
+    if (isBookingInProgress) {
+      return RoomCleaningActionResult(
+        success: false,
+        message: 'A booking request is already in progress. Please wait.',
+      );
+    }
+
+    isBookingInProgress = true;
+    notifyListeners();
+
     try {
       final response = await _api.bookSlot(
         date: date,
@@ -133,6 +144,9 @@ class RoomCleaningProvider extends ChangeNotifier {
         success: false,
         message: _normalizeBookingMessage(e),
       );
+    } finally {
+      isBookingInProgress = false;
+      notifyListeners();
     }
   }
 
@@ -187,4 +201,3 @@ class RoomCleaningProvider extends ChangeNotifier {
     }
   }
 }
-
