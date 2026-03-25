@@ -6,6 +6,7 @@ import 'package:frontend2/widgets/feedback/FeedBackCard.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utilities/startupitem.dart';
+import '../widgets/common/data_source_note.dart';
 import '../widgets/mess_widgets/horizontal_menu_builder.dart';
 import 'package:intl/intl.dart';
 
@@ -308,6 +309,13 @@ class _MenuSectionState extends State<_MenuSection> {
                         meal: 'Lunch', messId: messId!, day: selectedDay),
                     _MealWrapper(
                         meal: 'Dinner', messId: messId!, day: selectedDay),
+                    const SizedBox(height: 8),
+                    const Align(
+                      alignment: Alignment.centerLeft,
+                      child: SmcDataSourceNote(
+                        text: 'Data as provided by your HMC',
+                      ),
+                    ),
                     const SizedBox(height: 24),
                     const Row(
                       mainAxisAlignment: MainAxisAlignment.center,

@@ -362,12 +362,13 @@ class _HomeScreenState extends State<HomeScreen> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 2),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              const Text(
-                "In Mess Today",
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              const Expanded(
+                child: Text(
+                  "In Mess Today",
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                ),
               ),
               GestureDetector(
                 onTap: () => widget.onNavigateToTab?.call(1),
