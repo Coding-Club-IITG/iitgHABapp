@@ -532,10 +532,12 @@ const linkMicrosoftAccount = async (req, res, next) => {
       await existingUserWithEmail.save();
 
       // Return token for the merged account
-      const token = existingUserWithEmail.generateJWT();
+      const accessToken = existingUserWithEmail.generateAccessToken();
+      const refreshToken = existingUserWithEmail.generateRefreshToken();
       return res.status(200).json({
         message: "Microsoft account linked successfully - accounts merged",
-        token, // Return new token for merged account
+        accessToken, // Return new token for merged account
+        refreshToken,
         hasMicrosoftLinked: true,
       });
     }
@@ -633,9 +635,11 @@ const guestLoginHandler = async (req, res, next) => {
     // Create user using Mongoose (normal approach - rollNumber is explicitly set so no conflicts)
     const existingUser = await User.create(userData);
 
-    const token = existingUser.generateJWT();
+    const access_token = existingUser.generateAccessToken();
+    const refresh_token = existingUser.generateRefreshToken();
     return res.status(200).json({
-      token,
+      accessToken:access_token,
+      refreshToken:refresh_token,
       hasMicrosoftLinked: false,
     });
   } catch (err) {

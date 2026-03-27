@@ -1,17 +1,17 @@
+const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
-const mongoose = require("mongoose");
 const dotenv = require("dotenv");
 
-const ROOT_DIR = path.resolve(__dirname, "../../../..");
+const ROOT_DIR = path.resolve(__dirname, "../../..");
 const SERVER_DIR = path.join(ROOT_DIR, "server");
 const SERVER_V1_DIR = path.join(SERVER_DIR, "v1");
 
-dotenv.config({ path: path.resolve(__dirname, "../../../../server/.env") });
+dotenv.config({ path: path.resolve(SERVER_DIR, ".env") });
 
-const { User } = require("../../modules/user/userModel.js");
-const { Hostel } = require("../../modules/hostel/hostelModel.js");
-const UserAllocHostel = require("../../modules/hostel/hostelAllocModel.js");
+const { User } = require("../modules/user/userModel.js");
+const { Hostel } = require("../modules/hostel/hostelModel.js");
+const UserAllocHostel = require("../modules/hostel/hostelAllocModel.js");
 
 const SNAPSHOT_DIR = path.join(__dirname, "snapshots");
 const OUTPUT_DIR = path.join(__dirname, "outputs");

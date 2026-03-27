@@ -38,8 +38,8 @@ Future<void> authenticate() async {
 
     // print
     if (kDebugMode) {
-      print('Access Token: $accessToken');
-      print('Refresh Token: $refreshToken');
+      debugPrint('Access Token: $accessToken');
+      debugPrint('Refresh Token: $refreshToken');
     }
 
     await fetchUserDetails();

@@ -4,7 +4,6 @@
 require("dotenv").config({ path: "../.env" });
 const { installProcessHandlers } = require("../processHandlers.js");
 installProcessHandlers();
-console.log("MONGODB_URI from env:", process.env.MONGODB_URI);
 const authRoutes = require("./modules/auth/auth.routes.js");
 const express = require("express");
 const mongoose = require("mongoose");
@@ -19,9 +18,17 @@ const logsRoute = require("./modules/mess/ScanLogsRoute.js");
 const bugReportRoute = require("./modules/bug_report/bugReportRoute.js");
 const roomCleaningRoute = require("./modules/room_cleaning/roomCleaningRoute.js");
 const laundryRoute = require("./modules/laundry/laundryRoute.js");
+
+const compression = require("compression");
+
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const compression = require("compression");
+const winston = require("winston");
+const expressWinston = require("express-winston");
+const storeLogs = require("./middleware/logger.js");
+const { v4: uuidv4 } = require("uuid");
+const { Worker } = require("worker_threads");
+const path = require("path");
 const {
   setDelegatedTokens,
   tokenFilePath,
@@ -124,6 +131,77 @@ const swaggerOptions = {
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
+
+// Middleware to assign a unique request ID for better log correlation
+app.use((req, res, next) => {
+  req.headers['x-request-id'] = req.headers['x-request-id'] || uuidv4();
+  next();
+});
+
+// Custom Winston transport to handle log storage (e.g., database, file)
+class CustomTransport extends winston.Transport {
+  log(info, callback) {
+    setImmediate(() => {
+      this.emit('logged', info);
+    });
+
+    // Send full log object somewhere
+    console.log(info.message);
+    storeLogs(info);
+    callback();
+  }
+}
+
+
+// Example function to handle log data
+app.use(expressWinston.logger({
+  transports: [
+    new CustomTransport()
+  ],
+
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.json()
+  ),
+
+  meta: true,
+  msg: "[{{req.headers['x-request-id']}}] HTTP {{req.method}} {{req.url}} {{res.statusCode}}",
+  expressFormat: true,
+  colorize: false,
+
+  // Use status code to determine log level (500=error, 400=warn, etc.)
+  statusLevels: true,
+
+  // IMPORTANT: By default, headers and body are NOT logged.
+  // You must whitelist them here:
+  requestWhitelist: ['url', 'method', 'query', 'body'],
+  responseWhitelist: ['statusCode', 'body'],
+
+  // ADDED: Crucial metadata for debugging at scale
+  dynamicMeta: (req, res) => {
+    return {
+      correlationId: req.headers['x-request-id'],
+      user: req.body?.username || 'anonymous',
+      ip: req.headers['x-forwarded-for'] || req.socket.remoteAddress,
+      userAgent: req.get('User-Agent') || 'unknown',
+      env: process.env.NODE_ENV || 'development'
+    };
+  },
+  // This replaces the value of 'password' with '*****' in the logs
+  bodyBlacklist: ['password', 'secret', 'token'],
+}));
+
+function startWorker() {
+  const worker = new Worker(path.resolve(__dirname, "./workers/loggerWorker.js"));
+  
+  worker.on("error", (err) => console.error("Worker Error:", err));
+  worker.on("exit", (code) => {
+    if (code !== 0) console.error(`Worker stopped with exit code ${code}`);
+  });
+}
+
+startWorker();
+
 app.use(
   "/api/docs",
   swaggerUi.serve,
@@ -160,7 +238,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // MongoDB connection
 mongoose
-  .connect(MONGOdb_uri)
+  .connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("MongoDB connected");
 

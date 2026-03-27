@@ -17,3 +17,6 @@ GeneratedPluginRegistrant.swift
 key.properties
 **/*.keystore
 **/*.jks
+
+# Firebase
+google-services.json

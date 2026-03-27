@@ -230,7 +230,7 @@ const userSchema = new mongoose.Schema({
 userSchema.methods.generateAccessToken = function () {
   var user = this;
   var token = jwt.sign({ user: user._id }, ACCESS_TOKEN_SECRET, {
-    expiresIn: "10s",
+    expiresIn: "1d",
   });
   return token;
 };
@@ -238,7 +238,7 @@ userSchema.methods.generateAccessToken = function () {
 userSchema.methods.generateRefreshToken = function () {
   var user = this;
   var token = jwt.sign({ user: user._id }, REFRESH_TOKEN_SECRET, {
-    expiresIn: "1m",
+    expiresIn: "60d",
   });
   return token;
 };

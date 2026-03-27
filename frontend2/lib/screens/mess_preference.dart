@@ -286,6 +286,7 @@ class _MessChangePreferenceScreenState
                       ),
                     ),
                     const SizedBox(height: 32),
+
                     const Text(
                       'Choose the mess that suits your taste or convenience.',
                       style: TextStyle(
@@ -294,6 +295,47 @@ class _MessChangePreferenceScreenState
                       ),
                     ),
                     const SizedBox(height: 16),
+
+                    // Mess change instructions
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Color(0xFFE8F0FE),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Mess Change Instructions:',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                              color: Color(0xFF1A237E),
+                            ),
+                          ),
+                          SizedBox(height: 8),
+                          Text(
+                            '1. If you have already changed your mess, your mess will automatically reset to your boarding hostel after this month. To continue with your current mess, you must apply again next month.',
+                            style:
+                                TextStyle(fontSize: 14, color: Colors.black87),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            '2. You cannot apply for a mess change to your own boarding hostel. However, you may apply to a hostel where you are a mess subscriber.',
+                            style:
+                                TextStyle(fontSize: 14, color: Colors.black87),
+                          ),
+                          SizedBox(height: 6),
+                          Text(
+                            "3. Once you apply for a mess change, it cannot be cancelled.",
+                            style:
+                                TextStyle(fontSize: 14, color: Colors.black87),
+                          ),
+                        ],
+                      ),
+                    ),
 
                     // Info banner if user is SMC
                     if (isSMC)

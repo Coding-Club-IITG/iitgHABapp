@@ -283,9 +283,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 18.0),
       child: SizedBox(
-        height: 106, // fixed height: 40 circle + 6 gap + ~28 two-line label + 24 vertical padding + 8 safety
+        height: 106, 
         child: PageView.builder(
-          controller: _pageController,  // stable controller from initState
+          controller: _pageController,  
           itemCount: _virtualCount,
           itemBuilder: (context, index) {
             final cardIndex = index % cards.length;
