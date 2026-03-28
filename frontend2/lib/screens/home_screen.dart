@@ -18,7 +18,7 @@ import '../widgets/alerts_card.dart';
 import '../widgets/microsoft_required_dialog.dart';
 import 'mess_preference.dart';
 import 'room_cleaning/room_cleaning.dart';
-import 'leave_application_screen.dart';
+import 'leave_application_list_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int)? onNavigateToTab;
@@ -258,7 +258,7 @@ class _HomeScreenState extends State<HomeScreen> {
           Navigator.push(
               context,
               MaterialPageRoute(
-                  builder: (_) => const LeaveApplicationScreen()));
+                  builder: (_) => const LeaveApplicationListScreen()));
         },
       ),
       if (hasLaundry)
