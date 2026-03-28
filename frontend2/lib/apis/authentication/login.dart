@@ -286,6 +286,8 @@ Future<void> linkMicrosoftAccount() async {
     // This will update SharedPreferences with the latest user data
     await fetchUserDetails();
     await getUserMessInfo();
+    await fetchUserProfilePicture();
+    ProfilePictureProvider.init();
 
     // Re-register FCM token to subscribe to hostel/mess-specific topics
     // await registerFcmToken();

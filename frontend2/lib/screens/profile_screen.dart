@@ -70,6 +70,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
       _isloading = true;
     });
     await getAllocatedHostel();
+    // Ensure profile picture is loaded from backend or cache
+    await fetchUserProfilePicture();
     setState(() {
       _isloading = false;
     });
