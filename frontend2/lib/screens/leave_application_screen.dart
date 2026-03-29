@@ -8,28 +8,53 @@ import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/screens/leave_application_list_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend2/screens/home_screen.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LeaveApplicationScreen extends StatefulWidget {
-  const LeaveApplicationScreen({super.key});
+  const LeaveApplicationScreen({super.key, required this.leaveType});
+  final int? leaveType;
   @override
   State<LeaveApplicationScreen> createState() => _LeaveApplicationScreenState();
 }
 
 class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
+  // Constants
+  static const Color _primaryColor = Color(0xFF4C4EDB);
+  static const Color _successColor = Color(0xFF1F8441);
+  static const Color _successBgColor = Color(0xFFE2F2EB);
+  static const Color _borderColor = Color(0xFFE6E6E6);
+  static const Color _greyBg = Color(0xFFF5F5F5);
+  static const Color _greyText = Color(0xFF939393);
 
-  int? _selectedValue;
+  // State variables
+  int? _selectedValue; // 1: Casual, 2: Academic, 3:Medical
+  int _currentStep = 1; // 1 or 2
   DateTimeRange? _selectedDateRange;
   PlatformFile? _pickedFile;
+  bool _agreeToTerms = false;
+  bool _isBankSaved = false;
+  final TextEditingController _reasonController = TextEditingController();
   final TextEditingController _accountNumberController = TextEditingController();
   final TextEditingController _ifscController = TextEditingController();
   final TextEditingController _bankNameController = TextEditingController();
   final TextEditingController _accountHolderController = TextEditingController();
 
+  @override
+  void initState() {
+    super.initState();
+    _selectedValue = widget.leaveType;
+    _currentStep = 1;
+    _loadBankDetails();
+  }
 
   Future<void> _selectDateRange() async {
+    DateTime today = DateTime.now();
+    DateTime baseDate = DateTime(today.year, today.month, today.day);
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
-      firstDate: (_selectedValue==3)?(DateTime.now().add(Duration(days: 1))):(DateTime.now()),
+     firstDate: (_selectedValue == 3)
+      ? baseDate.add(const Duration(days: 1))
+      : baseDate.add(const Duration(days: 4)),
       lastDate: DateTime(2027),
       builder: (context, child) {
         return Theme(data: ThemeData.light(), child: child!);
@@ -39,6 +64,60 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       setState(() => _selectedDateRange = picked);
     }
   }
+
+  Future<void> _loadBankDetails() async {
+  final prefs = await SharedPreferences.getInstance();
+
+  final accountHolder = prefs.getString('accountHolder');
+  final bankName = prefs.getString('bankName');
+  final accountNumber = prefs.getString('accountNumber');
+  final ifsc = prefs.getString('ifsc');
+
+  setState(() {
+    _accountHolderController.text = accountHolder ?? '';
+    _bankNameController.text = bankName ?? '';
+    _accountNumberController.text = accountNumber ?? '';
+    _ifscController.text = ifsc ?? '';
+
+    _isBankSaved = accountHolder != null &&
+                   bankName != null &&
+                   accountNumber != null &&
+                   ifsc != null &&
+                   accountHolder.isNotEmpty &&
+                   bankName.isNotEmpty &&
+                   accountNumber.isNotEmpty &&
+                   ifsc.isNotEmpty;
+  });
+}
+
+  void _onFieldChanged() {
+  if (_isBankSaved) {
+    setState(() => _isBankSaved = false);
+  }
+} 
+
+  Future<void> _saveBankDetails() async {
+  if (_accountHolderController.text.isEmpty ||
+      _bankNameController.text.isEmpty ||
+      _accountNumberController.text.isEmpty ||
+      _ifscController.text.isEmpty) {
+    _showSnackBar("Fill all fields before saving");
+    return;
+  }
+
+  final prefs = await SharedPreferences.getInstance();
+
+  await prefs.setString('accountHolder', _accountHolderController.text);
+  await prefs.setString('bankName', _bankNameController.text);
+  await prefs.setString('accountNumber', _accountNumberController.text);
+  await prefs.setString('ifsc', _ifscController.text);
+
+  setState(() {
+    _isBankSaved = true;
+  });
+
+  _showSnackBar("Bank details saved successfully");
+}
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
@@ -50,36 +129,31 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     }
   }
 
-  Future<bool> _sendRequest({required int reason, 
-  required DateTimeRange range, 
-  PlatformFile? file,
-  }) async {
-
+  Future<bool> _sendRequest() async {
     final accessToken = await getAccessToken();
-
     final dio = DioClient().dio;
 
     try {
       FormData formData = FormData.fromMap({
-        "leaveType": reason == 1 ? 'Academic' : reason==2 ? 'Medical' : 'Casual',
-        "startDate": DateFormat("yyyy-MM-dd").format(range.start),
-        "endDate": DateFormat("yyyy-MM-dd").format(range.end),
+        "leaveType": (_selectedValue == 1) ? 'Casual' : (_selectedValue == 2) ? 'Academic' : 'Medical',
+        "startDate": DateFormat("yyyy-MM-dd").format(_selectedDateRange!.start),
+        "endDate": DateFormat("yyyy-MM-dd").format(_selectedDateRange!.end),
         "bankAccountNumber": _accountNumberController.text,
         "bankIFSCCode": _ifscController.text,
         "bankName": _bankNameController.text,
         "bankAccountHoldersName": _accountHolderController.text,
       });
-      if (file != null && file.path != null) {
-      formData.files.add(
-        MapEntry(
-          "proofDocument",
-          await MultipartFile.fromFile(
-            file.path!,
-            filename: file.name,
+      if (_pickedFile != null && _pickedFile!.path != null) {
+        formData.files.add(
+          MapEntry(
+            "proofDocument",
+            await MultipartFile.fromFile(
+              _pickedFile!.path!,
+              filename: _pickedFile!.name,
+            ),
           ),
-        ),
-      );
-    }
+        );
+      }
 
       final response = await dio.post(
         MessRebateEndpoints.sendApplication,
@@ -92,287 +166,609 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         ),
       );
       return response.statusCode == 200 || response.statusCode == 201;
-
     } catch (e) {
       return false;
     }
   }
 
+  int _calculateLeaveDays() {
+    if (_selectedDateRange == null) return 0;
+    return _selectedDateRange!.end.difference(_selectedDateRange!.start).inDays + 1;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:Colors.white,
+      backgroundColor: Colors.white,
       appBar: AppBar(
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
         iconTheme: const IconThemeData(color: Colors.black),
         title: const Text(
           "Mess Rebate",
-          style: TextStyle(color: Colors.black, fontWeight: FontWeight.bold),
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w500,
+            fontSize: 20,
+          ),
         ),
+        titleSpacing: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            if(_selectedValue==null){
+            if (_currentStep == 2) {
+              setState(() => _currentStep = 1);
+            } else {
               Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const LeaveApplicationListScreen(),
-              ),
-             );
-            }else{
-              setState(() {
-                _selectedValue=null;
-              });
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      const LeaveApplicationListScreen(),
+                ),
+              );
             }
           },
         ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Text(
+                  getLeaveTypeText(),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+          ),
+        ),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            (_selectedValue == null)?
-            _buildSection(
-              title: "Type of Leave",
-              child: Column(
-                children: [
-                  RadioListTile<int>(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text("Academic Leave"),
-                    value: 1,
-                    groupValue: _selectedValue,
-                    onChanged: (val) => setState(() => _selectedValue = val),
-                  ),
-                  RadioListTile<int>(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text("Medical Leave"),
-                    value: 2,
-                    groupValue: _selectedValue,
-                    onChanged: (val) => setState(() => _selectedValue = val),
-                  ),
-                  RadioListTile<int>(
-                    contentPadding: EdgeInsets.zero,
-                    title: const Text("Casual Leave"),
-                    value: 3,
-                    groupValue: _selectedValue,
-                    onChanged: (val) => setState(() => _selectedValue = val),
-                  ),
-                ],
-              ),
-            ):Text(
-              (_selectedValue==1)?"Academic Leave":((_selectedValue==2)?"Medical Leave":"Casual Leave"),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.black54,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            (_selectedValue != null)?
-              Column(
-              children: [
-                _buildSection(
-                  title: "Leave Duration",
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.calendar_month),
-                    title: Text(_selectedDateRange == null
-                        ? "Select Date Range"
-                        : "${DateFormat('dd MMM').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM').format(_selectedDateRange!.end)}",
-                        style: const TextStyle(fontSize: 15),
-                        ),
-                    trailing: const Icon(Icons.edit, size: 20),
-                    onTap: _selectDateRange,
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-
-                _buildSection(
-                  title: "Supporting Documents",
-                  child: ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: const Icon(Icons.upload_file),
-                    title: Text(_pickedFile == null ?((_selectedValue==2)?"Upload File (PDF/IMG) (Max. Size - 5MB) *Optional for now":"Upload File (PDF/IMG) (Max. Size - 5MB)") : _pickedFile!.name,
-                    style: const TextStyle(fontSize: 15),
-                    ),
-                    subtitle: _pickedFile != null ? Text("${(_pickedFile!.size / 1024).toStringAsFixed(2)} KB",style: TextStyle(fontSize: 12),) : null,
-                    trailing: const Icon(Icons.attach_file),
-                    onTap: _pickFile,
-                  ),
-                ),
-                const SizedBox(height: 24),
-
-                _buildSection(
-                  title: "Bank Details",
-                  child: Column(
-                    children: [
-
-                      const SizedBox(height: 8),
-
-                      TextField(
-                        controller: _accountNumberController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: "Bank Account Number",
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      TextField(
-                        controller: _ifscController,
-                        decoration: const InputDecoration(
-                          labelText: "IFSC Code",
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      TextField(
-                        controller: _bankNameController,
-                        decoration: const InputDecoration(
-                          labelText: "Bank Name",
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-
-                      const SizedBox(height: 16),
-
-                      TextField(
-                        controller: _accountHolderController,
-                        decoration: const InputDecoration(
-                          labelText: "Account Holder Name",
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 40),
-
-
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 18,vertical: 18),
-                    backgroundColor: Colors.blueAccent,
-                    elevation:2,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  onPressed: () async{
-
-                    if (_selectedValue != null &&
-                    _selectedDateRange != null &&
-                    _accountNumberController.text.trim().isNotEmpty &&
-                    _ifscController.text.trim().isNotEmpty &&
-                    _bankNameController.text.trim().isNotEmpty &&
-                    _accountHolderController.text.trim().isNotEmpty) {
-
-                  if ((_selectedValue == 'Casual' || _selectedValue == 'Academic') &&
-                      _pickedFile == null) {
-                    _showStatusDialog(
-                      isSuccess: false,
-                      title: "Failure",
-                      message: "Please upload a document for $_selectedValue leave.",
-                    );
-                    return;
-                  }
-
-                  if (_pickedFile != null &&
-                      (_pickedFile!.size) / (1024 * 1024) >= 5) {
-                    _showStatusDialog(
-                      isSuccess: false,
-                      title: "Failure",
-                      message: "File size exceeds 5 MB.",
-                    );
-                    return;
-                  }
-
-                  if ((_selectedDateRange!.end
-                              .difference(_selectedDateRange!.start)
-                              .inDays +1) <4) {
-                    _showStatusDialog(
-                      isSuccess: false,
-                      title: "Failure",
-                      message: "Leave must atleast be of 4 days.",
-                    );
-                    return;
-                  }
-
-                  bool flag = await _sendRequest(
-                    reason: _selectedValue!,
-                    range: _selectedDateRange!,
-                    file: _pickedFile, 
-                  );
-
-                  if (flag) {
-                    _showStatusDialog(
-                      isSuccess: true,
-                      title: "Success",
-                      message: "Application sent successfully!",
-                    );
-                  } else {
-                    _showStatusDialog(
-                      isSuccess: false,
-                      title: "Failure",
-                      message:
-                          "Something went wrong. Please check your connection and try again.",
-                    );
-                  }
-
-                } else {
-                  _showStatusDialog(
-                    isSuccess: false,
-                    title: "Failure",
-                    message: "Please fill all fields.",
-                  );
-                }
-                  },
-                  child: const Text("Submit Application", style: TextStyle(color: Colors.white, fontSize: 16)),
-                ),
-              ],
-            ):const Text(
-              "Select a type of leave to continue.",
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w500,
-                color: Colors.black54,
-              ),
-            ),
-
-          const SizedBox(height: 40),
-          ],
-        ),
-            
+        child: _currentStep == 1
+          ? _buildStep1()
+          : _buildStep2(),
       ),
     );
   }
 
+  String getLeaveTypeText() {
+  switch (_selectedValue) {
+    case 1:
+      return "Casual Leave";
+    case 2:
+      return "Academic Leave";
+    case 3:
+      return "Medical Leave";
+    default:
+      return "";
+  }
+}
 
-  Widget _buildSection({required String title, required Widget child}) {
+  Widget _buildStep1() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildProgressHeader(1),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Reason for Leave
+              const SizedBox(height: 24),
+              const Text(
+                "Reason for Leave",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _reasonController,
+                decoration: InputDecoration(
+                  hintText: "e.g. Trip to home",
+                  hintStyle: const TextStyle(color: _greyText),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: _borderColor),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: _borderColor),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                ),
+              ),
+
+              // Upload Valid Proof
+              const SizedBox(height: 24),
+              const Text(
+                "Upload Valid Proof (Optional for Medical Leave for now)",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                "Proof can be travel ticket or parents consent with signature or medical certificate depending on the type of leave.",
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Color(0xFF535353),
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _pickFile,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _borderColor),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.cloud_upload, color: _primaryColor, size: 20),
+                      const SizedBox(width: 8),
+                      Text(
+                        _pickedFile == null ? "Upload a PDF" : _pickedFile!.name,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: _pickedFile == null ? _primaryColor : Colors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Duration of Absence
+              const SizedBox(height: 24),
+              const Text(
+                "Select the duration of absence",
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "From",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _selectDateRange,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _borderColor),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_month, color: Colors.grey),
+                      const SizedBox(width: 12),
+                      Text(
+                        _selectedDateRange == null
+                            ? "DD/MM/YY"
+                            : DateFormat("dd/MM/yy").format(_selectedDateRange!.start),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _selectedDateRange == null ? _greyText : Colors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text(
+                "Till",
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _selectDateRange,
+                child: Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: _borderColor),
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.white,
+                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.calendar_month, color: Colors.grey),
+                      const SizedBox(width: 12),
+                      Text(
+                        _selectedDateRange == null
+                            ? "DD/MM/YY"
+                            : DateFormat("dd/MM/yy").format(_selectedDateRange!.end),
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: _selectedDateRange == null ? _greyText : Colors.black,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Info text
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Icon(Icons.info, size: 16, color: Color(0xFF676767)),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "You will receive a rebate of ₹XXXX per day on approved mess leave.",
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+        _buildBottomButtons(
+          onNext: () {
+            if (_reasonController.text.isEmpty) {
+              _showSnackBar("Please enter reason for leave");
+              return;
+            }
+            if (_pickedFile == null&&_selectedValue!=3) {
+              _showSnackBar("Please upload a proof document");
+              return;
+            }
+            if (_selectedDateRange == null) {
+              _showSnackBar("Please select dates");
+              return;
+            }
+            if (_selectedDateRange!.end.difference(_selectedDateRange!.start).inDays+1 < 4) {
+              _showSnackBar("Please select a date range of at least 4 days");
+              return;
+            }
+            setState(() => _currentStep = 2);
+          },
+          showBack: false,
+          nextLabel: "Next",
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStep2() {
+    int leaveDays = _calculateLeaveDays();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _buildProgressHeader(2),
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Info Box
+              Container(
+                decoration: BoxDecoration(
+                  color: _successBgColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      "Leave days taken: $leaveDays",
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black,
+                      ),
+                    ),
+                    const Text(
+                      "500 Rupee",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: _successColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Bank Details
+              const SizedBox(height: 24),
+              const Text(
+                "Add receiver's bank details.",
+                style: TextStyle(
+                  fontSize: 14,
+                  color: Colors.black,
+                ),
+              ),
+              const SizedBox(height: 24),
+              _buildBankField("Bank Holder Name", _accountHolderController, "e.g. Raj Kumar"),
+              const SizedBox(height: 16),
+              _buildBankField("Bank Name", _bankNameController, "e.g. Raj Kumar"),
+              const SizedBox(height: 16),
+              _buildBankField("Bank Account Number", _accountNumberController, ""),
+              const SizedBox(height: 16),
+              _buildBankField("IFSC Code", _ifscController, "e.g. UTIB0000000"),
+
+              // Save Details link
+              const SizedBox(height: 24),
+              Align(
+                alignment: Alignment.centerRight,
+                child: InkWell(
+                  onTap: _saveBankDetails,
+                  borderRadius: BorderRadius.circular(8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _isBankSaved ? Icons.bookmark : Icons.bookmark_border,
+                        color: _primaryColor,
+                        size: 22,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _isBankSaved ? "Saved" : "Save details",
+                        style: const TextStyle(
+                          color: _primaryColor,
+                          fontWeight: FontWeight.w500,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Checkbox
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Checkbox(
+                    value: _agreeToTerms,
+                    onChanged: (val) => setState(() => _agreeToTerms = val ?? false),
+                  ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        "I am aware, If I take a mess rebate, I won't be able to eat in mess during those days.",
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey[700],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 40),
+            ],
+          ),
+        ),
+        _buildBottomButtons(
+          onNext: () async {
+            if (!_validateStep2()) return;
+
+            bool success = await _sendRequest();
+            if (mounted) {
+              _showStatusDialog(
+                isSuccess: success,
+                title: success ? "Success" : "Failure",
+                message: success
+                    ? "Application sent successfully!"
+                    : "Something went wrong. Please check your connection and try again.",
+              );
+            }
+          },
+          showBack: true,
+          nextLabel: "Submit",
+        ),
+      ],
+    );
+  }
+
+  Widget _buildProgressHeader(int step) {
     return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.1), blurRadius: 10,spreadRadius: 1,offset: Offset(0, 4),)
-        ],),
-      padding: const EdgeInsets.all(12),
+      decoration: const BoxDecoration(
+        border: Border(bottom: BorderSide(color: _borderColor)),
+      ),
+      padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          const Divider(),
-          child,
+          Text(
+            "Step $step / 2",
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: _primaryColor,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: _primaryColor,
+                    borderRadius: BorderRadius.circular(9999),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Container(
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: step == 2 ? _primaryColor : _greyBg,
+                    borderRadius: BorderRadius.circular(9999),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBankField(String label, TextEditingController controller, String hint) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          onChanged: (_) => _onFieldChanged(),
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: _greyText),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _borderColor),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _borderColor),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: _primaryColor, width: 2),
+            ),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBottomButtons({
+    required VoidCallback onNext,
+    required bool showBack,
+    required String nextLabel,
+  }) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: _greyBg,
+        border: Border(top: BorderSide(color: _borderColor)),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        children: [
+          if (showBack)
+            Expanded(
+              child: OutlinedButton(
+                onPressed: () => setState(() => _currentStep = 1),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  side: const BorderSide(color: _borderColor),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                child: const Text(
+                  "Back",
+                  style: TextStyle(
+                    color: _primaryColor,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          if (showBack) const SizedBox(width: 8),
+          Expanded(
+            child: ElevatedButton(
+              onPressed: onNext,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _primaryColor,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                elevation: 0,
+              ),
+              child: Text(
+                nextLabel,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w500,
+                  fontSize: 16,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  bool _validateStep2() {
+    if (_accountHolderController.text.isEmpty ||
+        _bankNameController.text.isEmpty ||
+        _accountNumberController.text.isEmpty ||
+        _ifscController.text.isEmpty) {
+      _showSnackBar("Please fill all bank details");
+      return false;
+    }
+    if (!_agreeToTerms) {
+      _showSnackBar("Please agree to the terms");
+      return false;
+    }
+    return true;
+  }
+
+  void _showSnackBar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -392,11 +788,12 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Icon Container
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: isSuccess ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
+                    color: isSuccess
+                        ? Colors.green.withOpacity(0.1)
+                        : Colors.red.withOpacity(0.1),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -406,8 +803,6 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Title
                 Text(
                   title,
                   style: const TextStyle(
@@ -417,8 +812,6 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Message
                 Text(
                   message,
                   textAlign: TextAlign.center,
@@ -428,19 +821,18 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                   ),
                 ),
                 const SizedBox(height: 32),
-
-                // Button
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: isSuccess ? Colors.green : Colors.red,
                       padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
                       elevation: 0,
                     ),
                     onPressed: () {
-                      Navigator.pop(context); // close dialog
+                      Navigator.pop(context);
                       if (isSuccess) {
                         Navigator.pushReplacement(
                           context,
@@ -453,7 +845,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     },
                     child: Text(
                       isSuccess ? "Awesome!" : "Try Again",
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
