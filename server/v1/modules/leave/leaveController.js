@@ -201,6 +201,9 @@ const applyForLeave = async (req, res) => {
         });
         return;
       }
+      else {
+        console.log("Not uploading proof document");
+      }
     }
     else {
       await uploadToOnedrive(req,res,()=> {
