@@ -9,6 +9,7 @@ import 'package:frontend2/screens/leave_application_list_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend2/screens/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class LeaveApplicationScreen extends StatefulWidget {
   const LeaveApplicationScreen({super.key, required this.leaveType});
@@ -316,21 +317,64 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     color: Colors.white,
                   ),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(Icons.cloud_upload, color: _primaryColor, size: 20),
-                      const SizedBox(width: 8),
-                      Text(
-                        _pickedFile == null ? "Upload a PDF" : _pickedFile!.name,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                          color: _pickedFile == null ? _primaryColor : Colors.black,
+                 child: _pickedFile == null
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        SvgPicture.asset(
+                          'assets/icons/download-2-line.svg',
+                          color: _primaryColor,
+                          width: 20,
+                          height: 20,
                         ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "Upload a PDF",
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                            color: _primaryColor,
+                          ),
+                        ),
+                      ],
+                    )
+                  : Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade100,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.grey.shade300),
                       ),
-                    ],
-                  ),
+                      child: Row(
+                        children: [
+                          SvgPicture.asset(
+                          'assets/icons/file-upload.svg',
+                          color: _primaryColor,
+                          width: 20,
+                          height: 20,
+                          ),
+                          const SizedBox(width: 10),
+
+                          /// File name
+                          Expanded(
+                            child: Text(
+                              _pickedFile!.name,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+
+                          /// Green check
+                          SvgPicture.asset(
+                          'assets/icons/check.svg',
+                          color: Colors.green,
+                        ),
+                        ],
+                      ),
+                    ),
                 ),
               ),
 
@@ -365,7 +409,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_month, color: Colors.grey),
+                      SvgPicture.asset(
+                        'assets/icons/calendar.svg',
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         _selectedDateRange == null
@@ -401,7 +448,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   child: Row(
                     children: [
-                      const Icon(Icons.calendar_month, color: Colors.grey),
+                      SvgPicture.asset(
+                        'assets/icons/calendar.svg',
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 12),
                       Text(
                         _selectedDateRange == null
@@ -521,7 +571,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               const SizedBox(height: 16),
               _buildBankField("Bank Name", _bankNameController, "e.g. Raj Kumar"),
               const SizedBox(height: 16),
-              _buildBankField("Bank Account Number", _accountNumberController, ""),
+              _buildBankField("Bank Account Number", _accountNumberController, "eg. 123542332"),
               const SizedBox(height: 16),
               _buildBankField("IFSC Code", _ifscController, "e.g. UTIB0000000"),
 
