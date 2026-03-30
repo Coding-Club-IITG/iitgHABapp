@@ -3,7 +3,7 @@
 const mongoose = require("mongoose");
 const path = require("path");
 const dotenv = require("dotenv");
-dotenv.config({ path: path.resolve(__dirname, "../../server/.env") });
+dotenv.config({ path: path.resolve(__dirname, "../../../server/.env") });
 
 const { Hostel } = require("../modules/hostel/hostelModel");
 const { Mess } = require("../modules/mess/messModel");
