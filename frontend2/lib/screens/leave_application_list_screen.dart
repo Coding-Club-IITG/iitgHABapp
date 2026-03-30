@@ -8,6 +8,7 @@ import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/screens/leave_application_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend2/screens/home_screen.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class LeaveApplicationListScreen extends StatefulWidget {
   const LeaveApplicationListScreen({super.key});
@@ -17,85 +18,76 @@ class LeaveApplicationListScreen extends StatefulWidget {
       _LeaveApplicationListScreenState();
 }
 
-class _LeaveTypeCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _LeaveTypeCard({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFE6E6E6)),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.08),
-              blurRadius: 16,
-              offset: const Offset(0, 0),
-            ),
-          ],
-        ),
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: const Color(0xFF4C4EDB).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(18),
-              ),
-              child: Icon(
-                icon,
-                color: const Color(0xFF4C4EDB),
-                size: 24,
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF2E2F31),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w400,
-                      color: Color(0xFF2E2F31),
-                    ),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.chevron_right, color: Color(0xFF4C4EDB)),
-          ],
-        ),
+Widget _LeaveTypeCard(
+  String title,
+  String description,
+  String icon,
+  VoidCallback onTap
+) {
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border.all(color: const Color(0xFFE6E6E6)),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 0),
+          ),
+        ],
       ),
-    );
-  }
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        children: [
+          Container(
+            width: 24,
+            height: 24,
+            // decoration: BoxDecoration(
+            //   color: const Color(0xFF4C4EDB).withOpacity(0.1),
+            //   borderRadius: BorderRadius.circular(18),
+            // ),
+            child: SvgPicture.asset(
+              icon,
+              color: const Color(0xFF4C4EDB),
+              width: 24,
+              height: 24,
+            ),
+          ),
+          const SizedBox(width: 24),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF2E2F31),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w400,
+                    color: Color(0xFF2E2F31),
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const Icon(Icons.chevron_right, color: Color(0xFF4C4EDB)),
+        ],
+      ),
+    ),
+  );
 }
 
 class _LeaveApplicationListScreenState
@@ -135,6 +127,191 @@ class _LeaveApplicationListScreenState
         isLoading = false;
       });
     }
+  }
+
+  Future<void> _deleteApplication(String applicationId) async {
+    try {
+      final accessToken = await getAccessToken();
+      if (accessToken == 'error') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error deleting application')),
+        );
+        return;
+      }
+      final dio = DioClient().dio;
+      final response = await dio.delete(
+        '${MessRebateEndpoints.getApplications}/$applicationId',
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      if (response.statusCode == 200) {
+        setState(() {
+          myApplications.removeWhere((app) => app['_id'] == applicationId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Application deleted successfully')),
+        );
+        await _fetchHistory();
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error deleting application')),
+      );
+    }
+  }
+
+  Future<bool> _deleteApplicationWithConfirm(String applicationId) async {
+    try {
+      final accessToken = await getAccessToken();
+      if (accessToken == 'error') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Error deleting application')),
+        );
+        return false;
+      }
+      final dio = DioClient().dio;
+      final response = await dio.delete(
+        '${MessRebateEndpoints.getApplications}/$applicationId',
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      if (response.statusCode == 200||response.statusCode == 201) {
+        setState(() {
+          myApplications.removeWhere((app) => app['_id'] == applicationId);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Application deleted successfully')),
+        );
+        await _fetchHistory();
+        return true;
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to delete application')),
+        );
+        return false;
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error deleting application')),
+      );
+      return false;
+    }
+  }
+
+  Future<void> _uploadLateDocument(String applicationId) async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'jpg', 'png'],
+    );
+    if (result == null) return;
+    final pickedFile = result.files.first;
+    if (pickedFile.path == null) return;
+
+    final accessToken = await getAccessToken();
+    if (accessToken == 'error') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Authentication error')),
+      );
+      return;
+    }
+    final dio = DioClient().dio;
+    try {
+      FormData formData = FormData.fromMap({
+        "proofDocument": await MultipartFile.fromFile(
+          pickedFile.path!,
+          filename: pickedFile.name,
+        ),
+      });
+      final response = await dio.post(
+        '${MessRebateEndpoints.getApplications}/$applicationId/upload-late-medical-document',
+        data: formData,
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+            "Content-Type": "multipart/form-data"
+          },
+        ),
+      );
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Document uploaded successfully')),
+        );
+        await _fetchHistory();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to upload document')),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error uploading document')),
+      );
+    }
+  }
+
+  Widget _buildUploadProofButton(VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          border: Border.all(color: const Color(0xFFE6E6E6)),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.upload_file, color: const Color(0xFF4C4EDB), size: 16),
+            const SizedBox(width: 8),
+            Text(
+              "Upload Proof",
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF4C4EDB),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  List<dynamic> _getFilteredApplications() {
+    if (selectedTab == 'All') {
+      return myApplications.where((app) => app['status']?.toLowerCase() != 'cancelled').toList();
+    } else if (selectedTab == 'Approved') {
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() == 'approved')
+          .toList();
+    } else if (selectedTab == 'Decline') {
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() == 'rejected')
+          .toList();
+    } else if (selectedTab == 'Deleted') {
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() == 'cancelled')
+          .toList();
+    }
+    return myApplications;
+  }
+
+  int _getTabCount(String tab) {
+    if (tab == 'All') {
+      return myApplications.where((app) => app['status']?.toLowerCase() != 'cancelled').length;
+    } else if (tab == 'Approved') {
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() == 'approved')
+          .length;
+    } else if (tab == 'Decline') {
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() == 'rejected')
+          .length;
+    } else if (tab == 'Deleted') {
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() == 'cancelled')
+          .length;
+    }
+    return 0;
   }
 
   @override
@@ -184,11 +361,10 @@ class _LeaveApplicationListScreenState
                         ),
                         const SizedBox(height: 20),
                         _LeaveTypeCard(
-                          title: "Casual",
-                          description:
-                              "Short, unforeseen personal work or urgent errands.",
-                          icon: Icons.note_outlined,
-                          onTap: () {
+                          "Casual",
+                          "Short, unforeseen personal work or urgent errands.",
+                          'assets/icon/notes.svg',
+                          () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -200,11 +376,10 @@ class _LeaveApplicationListScreenState
                         ),
                         const SizedBox(height: 16),
                         _LeaveTypeCard(
-                          title: "Academic",
-                          description:
-                              "Research, field trips, or attending conferences/competitions.",
-                          icon: Icons.card_membership_outlined,
-                          onTap: () {
+                          "Academic",
+                          "Research, field trips, or attending conferences/competitions.",
+                          'assets/icon/file-certificate.svg',
+                          () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -216,10 +391,10 @@ class _LeaveApplicationListScreenState
                         ),
                         const SizedBox(height: 16),
                         _LeaveTypeCard(
-                          title: "Medical",
-                          description: "Recovery from illness or injury.",
-                          icon: Icons.health_and_safety_outlined,
-                          onTap: () {
+                          "Medical",
+                          "Recovery from illness or injury.",
+                          'assets/icon/report-medical.svg',
+                          () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -235,10 +410,11 @@ class _LeaveApplicationListScreenState
                           padding: const EdgeInsets.symmetric(horizontal: 0),
                           child: Row(
                             children: [
-                              const Icon(
-                                Icons.info_outline,
-                                size: 16,
-                                color: Color(0xFF2E2F31),
+                              SvgPicture.asset(
+                                'assets/icon/info-circle.svg',
+                                width: 16,
+                                height: 16,
+                                color: const Color(0xFF2E2F31),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -283,11 +459,8 @@ class _LeaveApplicationListScreenState
                           child: Row(
                             children: filterTabs.map((tab) {
                               bool isSelected = selectedTab == tab;
-                              int count =
-                                  tab == 'All' ? myApplications.length : 0;
-                              String tabLabel = tab == 'All'
-                                  ? 'All (${myApplications.length})'
-                                  : tab;
+                              int count = _getTabCount(tab);
+                              String tabLabel = '$tab ($count)';
                               return Padding(
                                 padding: const EdgeInsets.only(right: 8),
                                 child: GestureDetector(
@@ -328,155 +501,214 @@ class _LeaveApplicationListScreenState
                         ),
                         const SizedBox(height: 16),
                         // Leave records list
-                        if (myApplications.isEmpty)
-                          Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.assignment_outlined,
-                                  size: 80,
-                                  color: Colors.grey[400],
+                        Builder(
+                          builder: (context) {
+                            final filteredApplications = _getFilteredApplications();
+                            if (filteredApplications.isEmpty)
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(
+                                      Icons.assignment_outlined,
+                                      size: 80,
+                                      color: Colors.grey[400],
+                                    ),
+                                    const SizedBox(height: 20),
+                                    const Text(
+                                      "No leaves found",
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w500,
+                                        color: Colors.black54,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      "Your leave history will appear here.",
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        color: Colors.black38,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                                const SizedBox(height: 20),
-                                const Text(
-                                  "No leaves found",
-                                  textAlign: TextAlign.center,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w500,
-                                    color: Colors.black54,
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                const Text(
-                                  "Your leave history will appear here.",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Colors.black38,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          )
-                        else
-                          ListView.builder(
-                            shrinkWrap: true,
-                            physics: const NeverScrollableScrollPhysics(),
-                            itemCount: myApplications.length,
-                            itemBuilder: (context, index) {
-                              final application = myApplications[index];
-                              final startDate = DateFormat('dd MMM').format(
-                                  DateTime.parse(application['startDate'])
-                                      .add(const Duration(days: 1)));
-                              final endDate = DateFormat('dd MMM').format(
-                                  DateTime.parse(application['endDate'])
-                                      .add(const Duration(days: 1)));
-                              final status = application['status'] ?? '';
-                              final leaveType =
-                                  application['leaveType'] ?? 'Leave';
+                              );
+                            return ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: filteredApplications.length,
+                              itemBuilder: (context, index) {
+                                final filteredApplications = _getFilteredApplications();
+                                final application = filteredApplications[index];
+                                final applicationId = application['_id'] ?? '';
+                                final startDate = DateFormat('dd MMM').format(
+                                    DateTime.parse(application['startDate'])
+                                        .add(const Duration(days: 1)));
+                                final endDate = DateFormat('dd MMM').format(
+                                    DateTime.parse(application['endDate'])
+                                        .add(const Duration(days: 1)));
+                                final status = application['status'] ?? '';
+                                final leaveType =
+                                    application['leaveType'] ?? 'Leave';
 
-                              Color statusColor = const Color(0xFFA36500);
-                              IconData statusIcon = Icons.done_all;
+                                Color statusColor = const Color(0xFFA36500);
+                                IconData statusIcon = Icons.done_all;
 
-                              if (status.toLowerCase() == 'approved') {
-                                statusColor = Colors.green;
-                                statusIcon = Icons.check_circle;
-                              } else if (status.toLowerCase() == 'rejected') {
-                                statusColor = Colors.red;
-                                statusIcon = Icons.cancel;
-                              }
+                                if (status.toLowerCase() == 'approved') {
+                                  statusColor = Colors.green;
+                                  statusIcon = Icons.check_circle;
+                                } else if (status.toLowerCase() == 'rejected') {
+                                  statusColor = Colors.red;
+                                  statusIcon = Icons.cancel;
+                                }
 
-                              IconData leaveIcon = Icons.note_outlined;
-                              if (leaveType
-                                  .toLowerCase()
-                                  .contains('academic')) {
-                                leaveIcon = Icons.card_membership_outlined;
-                              } else if (leaveType
-                                  .toLowerCase()
-                                  .contains('medical')) {
-                                leaveIcon = Icons.health_and_safety_outlined;
-                              }
+                                IconData leaveIcon = Icons.note_outlined;
+                                if (leaveType
+                                    .toLowerCase()
+                                    .contains('academic')) {
+                                  leaveIcon = Icons.card_membership_outlined;
+                                } else if (leaveType
+                                    .toLowerCase()
+                                    .contains('medical')) {
+                                  leaveIcon = Icons.health_and_safety_outlined;
+                                }
 
-                              return Padding(
-                                padding: const EdgeInsets.only(bottom: 12),
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: const Color(0xFFF5F5F5),
-                                    border: Border.all(
-                                        color: const Color(0xFFE6E6E6)),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  padding: const EdgeInsets.all(16),
-                                  child: Row(
-                                    children: [
-                                      Icon(leaveIcon,
-                                          size: 20,
-                                          color: const Color(0xFF535353)),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
+                                final cardContent = Padding(
+                                  padding: const EdgeInsets.only(bottom: 12),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFF5F5F5),
+                                      border: Border.all(
+                                          color: const Color(0xFFE6E6E6)),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.all(16),
+                                    child: Row(
+                                      children: [
+                                        Icon(leaveIcon,
+                                            size: 20,
+                                            color: const Color(0xFF535353)),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                leaveType,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: Color(0xFF2E2F31),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        Column(
                                           crossAxisAlignment:
-                                              CrossAxisAlignment.start,
+                                              CrossAxisAlignment.end,
                                           children: [
+                                            (status=="pending")
+                                                ? const SizedBox(height: 0)
+                                                : const SizedBox(height:8),
                                             Text(
-                                              leaveType,
+                                              "$startDate - $endDate",
                                               style: const TextStyle(
-                                                fontSize: 14,
+                                                fontSize: 12,
                                                 fontWeight: FontWeight.w400,
                                                 color: Color(0xFF2E2F31),
                                               ),
                                             ),
+                                            Text(
+                                              status == 'pending'
+                                                  ? "Waiting for approval"
+                                                  : "",
+                                              style: TextStyle(
+                                                fontSize: 14,
+                                                fontWeight: FontWeight.w500,
+                                                fontStyle: FontStyle.italic,
+                                                color: statusColor,
+                                                letterSpacing: 0.2,
+                                              ),
+                                            ),
                                           ],
                                         ),
-                                      ),
-                                      Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            "$startDate - $endDate",
-                                            style: const TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w400,
-                                              color: Color(0xFF2E2F31),
+                                        if (status.toLowerCase() == 'approved' ||
+                                            status.toLowerCase() == 'rejected')
+                                          Padding(
+                                            padding:
+                                                const EdgeInsets.fromLTRB(8, 3, 3, 5),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              width: 10,
+                                              height: 10,
+                                              decoration: BoxDecoration(
+                                                color: statusColor,
+                                                shape: BoxShape.circle,
+                                              ),
                                             ),
                                           ),
-                                          const SizedBox(height: 6),
-                                          Text(
-                                            status == 'pending'
-                                                ? "Waiting for approval"
-                                                : status.toUpperCase(),
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w500,
-                                              fontStyle: FontStyle.italic,
-                                              color: statusColor,
-                                              letterSpacing: 0.2,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      if (status.toLowerCase() == 'approved' ||
-                                          status.toLowerCase() == 'rejected')
-                                        Padding(
-                                          padding:
-                                              const EdgeInsets.only(left: 8),
-                                          child: Container(
-                                            width: 16,
-                                            height: 16,
-                                            decoration: BoxDecoration(
-                                              color: statusColor,
-                                              shape: BoxShape.circle,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                ),
-                              );
-                            },
-                          ),
+                                );
+
+                                if (status.toLowerCase() == 'pending') {
+                                  final startDateParsed = DateTime.parse(application['startDate']);
+                                  final now = DateTime.now();
+                                  final daysDiff = startDateParsed.difference(now).inDays;
+                                  final isMedical = leaveType.toLowerCase().contains('medical');
+                                  final canUpload = isMedical && daysDiff <= 7 && daysDiff >= 0;
+
+                                  Widget dismissibleChild = cardContent;
+                                  if (canUpload) {
+                                    dismissibleChild = Column(
+                                      children: [
+                                        cardContent,
+                                        const SizedBox(height: 8),
+                                        Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: _buildUploadProofButton(() => _uploadLateDocument(applicationId)),
+                                        ),
+                                      ],
+                                    );
+                                  }
+
+                                  return Dismissible(
+                                    key: Key(applicationId),
+                                    direction: DismissDirection.endToStart,
+                                    background: Padding(
+                                      padding: const EdgeInsets.only(bottom: 12),
+                                      child: Container(
+                                        alignment: Alignment.centerRight,
+                                        padding: const EdgeInsets.only(right: 20),
+                                        decoration: BoxDecoration(
+                                          color: Colors.red,
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                        child: SvgPicture.asset(
+                                          'assets/icon/trash.svg',
+                                          color: Colors.white,
+                                          width: 24,
+                                          height: 24,
+                                        ),
+                                      ),
+                                    ),
+                                    confirmDismiss: (direction) async {
+                                      return await _deleteApplicationWithConfirm(applicationId);
+                                    },
+                                    child: dismissibleChild,
+                                  );
+                                }
+
+                                return cardContent;
+                              },
+                            );
+                          },
+                        )
                       ],
                     ),
                   ),
@@ -484,7 +716,6 @@ class _LeaveApplicationListScreenState
                 ],
               ),
             ),
-      
     );
   }
 }

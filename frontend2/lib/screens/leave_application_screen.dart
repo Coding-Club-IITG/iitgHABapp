@@ -35,10 +35,12 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   bool _agreeToTerms = false;
   bool _isBankSaved = false;
   final TextEditingController _reasonController = TextEditingController();
-  final TextEditingController _accountNumberController = TextEditingController();
+  final TextEditingController _accountNumberController =
+      TextEditingController();
   final TextEditingController _ifscController = TextEditingController();
   final TextEditingController _bankNameController = TextEditingController();
-  final TextEditingController _accountHolderController = TextEditingController();
+  final TextEditingController _accountHolderController =
+      TextEditingController();
 
   @override
   void initState() {
@@ -53,9 +55,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     DateTime baseDate = DateTime(today.year, today.month, today.day);
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
-     firstDate: (_selectedValue == 3)
-      ? baseDate.add(const Duration(days: 1))
-      : baseDate.add(const Duration(days: 4)),
+      firstDate: (_selectedValue == 3)
+          ? baseDate.add(const Duration(days: 1))
+          : baseDate.add(const Duration(days: 4)),
       lastDate: DateTime(2027),
       builder: (context, child) {
         return Theme(data: ThemeData.light(), child: child!);
@@ -67,58 +69,58 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   Future<void> _loadBankDetails() async {
-  final prefs = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
 
-  final accountHolder = prefs.getString('accountHolder');
-  final bankName = prefs.getString('bankName');
-  final accountNumber = prefs.getString('accountNumber');
-  final ifsc = prefs.getString('ifsc');
+    final accountHolder = prefs.getString('accountHolder');
+    final bankName = prefs.getString('bankName');
+    final accountNumber = prefs.getString('accountNumber');
+    final ifsc = prefs.getString('ifsc');
 
-  setState(() {
-    _accountHolderController.text = accountHolder ?? '';
-    _bankNameController.text = bankName ?? '';
-    _accountNumberController.text = accountNumber ?? '';
-    _ifscController.text = ifsc ?? '';
+    setState(() {
+      _accountHolderController.text = accountHolder ?? '';
+      _bankNameController.text = bankName ?? '';
+      _accountNumberController.text = accountNumber ?? '';
+      _ifscController.text = ifsc ?? '';
 
-    _isBankSaved = accountHolder != null &&
-                   bankName != null &&
-                   accountNumber != null &&
-                   ifsc != null &&
-                   accountHolder.isNotEmpty &&
-                   bankName.isNotEmpty &&
-                   accountNumber.isNotEmpty &&
-                   ifsc.isNotEmpty;
-  });
-}
+      _isBankSaved = accountHolder != null &&
+          bankName != null &&
+          accountNumber != null &&
+          ifsc != null &&
+          accountHolder.isNotEmpty &&
+          bankName.isNotEmpty &&
+          accountNumber.isNotEmpty &&
+          ifsc.isNotEmpty;
+    });
+  }
 
   void _onFieldChanged() {
-  if (_isBankSaved) {
-    setState(() => _isBankSaved = false);
+    if (_isBankSaved) {
+      setState(() => _isBankSaved = false);
+    }
   }
-} 
 
   Future<void> _saveBankDetails() async {
-  if (_accountHolderController.text.isEmpty ||
-      _bankNameController.text.isEmpty ||
-      _accountNumberController.text.isEmpty ||
-      _ifscController.text.isEmpty) {
-    _showSnackBar("Fill all fields before saving");
-    return;
+    if (_accountHolderController.text.isEmpty ||
+        _bankNameController.text.isEmpty ||
+        _accountNumberController.text.isEmpty ||
+        _ifscController.text.isEmpty) {
+      _showSnackBar("Fill all fields before saving");
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+
+    await prefs.setString('accountHolder', _accountHolderController.text);
+    await prefs.setString('bankName', _bankNameController.text);
+    await prefs.setString('accountNumber', _accountNumberController.text);
+    await prefs.setString('ifsc', _ifscController.text);
+
+    setState(() {
+      _isBankSaved = true;
+    });
+
+    _showSnackBar("Bank details saved successfully");
   }
-
-  final prefs = await SharedPreferences.getInstance();
-
-  await prefs.setString('accountHolder', _accountHolderController.text);
-  await prefs.setString('bankName', _bankNameController.text);
-  await prefs.setString('accountNumber', _accountNumberController.text);
-  await prefs.setString('ifsc', _ifscController.text);
-
-  setState(() {
-    _isBankSaved = true;
-  });
-
-  _showSnackBar("Bank details saved successfully");
-}
 
   Future<void> _pickFile() async {
     final result = await FilePicker.platform.pickFiles(
@@ -136,7 +138,11 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 
     try {
       FormData formData = FormData.fromMap({
-        "leaveType": (_selectedValue == 1) ? 'Casual' : (_selectedValue == 2) ? 'Academic' : 'Medical',
+        "leaveType": (_selectedValue == 1)
+            ? 'Casual'
+            : (_selectedValue == 2)
+                ? 'Academic'
+                : 'Medical',
         "startDate": DateFormat("yyyy-MM-dd").format(_selectedDateRange!.start),
         "endDate": DateFormat("yyyy-MM-dd").format(_selectedDateRange!.end),
         "bankAccountNumber": _accountNumberController.text,
@@ -174,7 +180,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 
   int _calculateLeaveDays() {
     if (_selectedDateRange == null) return 0;
-    return _selectedDateRange!.end.difference(_selectedDateRange!.start).inDays + 1;
+    return _selectedDateRange!.end
+            .difference(_selectedDateRange!.start)
+            .inDays +
+        1;
   }
 
   @override
@@ -203,8 +212,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               Navigator.push(
                 context,
                 MaterialPageRoute(
-                  builder: (context) =>
-                      const LeaveApplicationListScreen(),
+                  builder: (context) => const LeaveApplicationListScreen(),
                 ),
               );
             }
@@ -231,25 +239,23 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         ),
       ),
       body: SingleChildScrollView(
-        child: _currentStep == 1
-          ? _buildStep1()
-          : _buildStep2(),
+        child: _currentStep == 1 ? _buildStep1() : _buildStep2(),
       ),
     );
   }
 
   String getLeaveTypeText() {
-  switch (_selectedValue) {
-    case 1:
-      return "Casual Leave";
-    case 2:
-      return "Academic Leave";
-    case 3:
-      return "Medical Leave";
-    default:
-      return "";
+    switch (_selectedValue) {
+      case 1:
+        return "Casual Leave";
+      case 2:
+        return "Academic Leave";
+      case 3:
+        return "Medical Leave";
+      default:
+        return "";
+    }
   }
-}
 
   Widget _buildStep1() {
     return Column(
@@ -274,18 +280,27 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               const SizedBox(height: 8),
               TextField(
                 controller: _reasonController,
+                maxLines: null,
                 decoration: InputDecoration(
                   hintText: "e.g. Trip to home",
-                  hintStyle: const TextStyle(color: _greyText),
+                  hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+                  filled: true,
+                  fillColor: _greyBg,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: _borderColor),
+                    borderSide: const BorderSide(color: _borderColor, width: 1),
                   ),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: _borderColor),
+                    borderSide: const BorderSide(color: _borderColor, width: 1),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide:
+                        const BorderSide(color: _primaryColor, width: 2),
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 ),
               ),
 
@@ -316,65 +331,67 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     borderRadius: BorderRadius.circular(12),
                     color: Colors.white,
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                 child: _pickedFile == null
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        SvgPicture.asset(
-                          'assets/icons/download-2-line.svg',
-                          color: _primaryColor,
-                          width: 20,
-                          height: 20,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          "Upload a PDF",
-                          style: TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w500,
-                            color: _primaryColor,
-                          ),
-                        ),
-                      ],
-                    )
-                  : Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: Row(
-                        children: [
-                          SvgPicture.asset(
-                          'assets/icons/file-upload.svg',
-                          color: _primaryColor,
-                          width: 20,
-                          height: 20,
-                          ),
-                          const SizedBox(width: 10),
-
-                          /// File name
-                          Expanded(
-                            child: Text(
-                              _pickedFile!.name,
-                              style: const TextStyle(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                  child: _pickedFile == null
+                      ? Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            SvgPicture.asset(
+                              'assets/icon/download-2-line.svg',
+                              color: _primaryColor,
+                              width: 20,
+                              height: 20,
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              "Upload a PDF",
+                              style: TextStyle(
                                 fontSize: 14,
                                 fontWeight: FontWeight.w500,
+                                color: _primaryColor,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
+                          ],
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade100,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
                           ),
+                          child: Row(
+                            children: [
+                              SvgPicture.asset(
+                                'assets/icon/file-upload.svg',
+                                color: _primaryColor,
+                                width: 20,
+                                height: 20,
+                              ),
+                              const SizedBox(width: 10),
 
-                          /// Green check
-                          SvgPicture.asset(
-                          'assets/icons/check.svg',
-                          color: Colors.green,
+                              /// File name
+                              Expanded(
+                                child: Text(
+                                  _pickedFile!.name,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+
+                              /// Green check
+                              SvgPicture.asset(
+                                'assets/icon/check.svg',
+                                color: Colors.green,
+                              ),
+                            ],
+                          ),
                         ),
-                        ],
-                      ),
-                    ),
                 ),
               ),
 
@@ -406,21 +423,25 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     borderRadius: BorderRadius.circular(12),
                     color: Colors.white,
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   child: Row(
                     children: [
                       SvgPicture.asset(
-                        'assets/icons/calendar.svg',
+                        'assets/icon/calendar.svg',
                         color: Colors.grey,
                       ),
                       const SizedBox(width: 12),
                       Text(
                         _selectedDateRange == null
                             ? "DD/MM/YY"
-                            : DateFormat("dd/MM/yy").format(_selectedDateRange!.start),
+                            : DateFormat("dd/MM/yy")
+                                .format(_selectedDateRange!.start),
                         style: TextStyle(
                           fontSize: 14,
-                          color: _selectedDateRange == null ? _greyText : Colors.black,
+                          color: _selectedDateRange == null
+                              ? _greyText
+                              : Colors.black,
                         ),
                       ),
                     ],
@@ -445,21 +466,25 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     borderRadius: BorderRadius.circular(12),
                     color: Colors.white,
                   ),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                   child: Row(
                     children: [
                       SvgPicture.asset(
-                        'assets/icons/calendar.svg',
+                        'assets/icon/calendar.svg',
                         color: Colors.grey,
                       ),
                       const SizedBox(width: 12),
                       Text(
                         _selectedDateRange == null
                             ? "DD/MM/YY"
-                            : DateFormat("dd/MM/yy").format(_selectedDateRange!.end),
+                            : DateFormat("dd/MM/yy")
+                                .format(_selectedDateRange!.end),
                         style: TextStyle(
                           fontSize: 14,
-                          color: _selectedDateRange == null ? _greyText : Colors.black,
+                          color: _selectedDateRange == null
+                              ? _greyText
+                              : Colors.black,
                         ),
                       ),
                     ],
@@ -495,7 +520,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               _showSnackBar("Please enter reason for leave");
               return;
             }
-            if (_pickedFile == null&&_selectedValue!=3) {
+            if (_pickedFile == null && _selectedValue != 3) {
               _showSnackBar("Please upload a proof document");
               return;
             }
@@ -503,7 +528,11 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               _showSnackBar("Please select dates");
               return;
             }
-            if (_selectedDateRange!.end.difference(_selectedDateRange!.start).inDays+1 < 4) {
+            if (_selectedDateRange!.end
+                        .difference(_selectedDateRange!.start)
+                        .inDays +
+                    1 <
+                4) {
               _showSnackBar("Please select a date range of at least 4 days");
               return;
             }
@@ -534,7 +563,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                   color: _successBgColor,
                   borderRadius: BorderRadius.circular(12),
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -567,11 +597,14 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              _buildBankField("Bank Holder Name", _accountHolderController, "e.g. Raj Kumar"),
+              _buildBankField("Bank Holder Name", _accountHolderController,
+                  "e.g. Raj Kumar"),
               const SizedBox(height: 16),
-              _buildBankField("Bank Name", _bankNameController, "e.g. Raj Kumar"),
+              _buildBankField(
+                  "Bank Name", _bankNameController, "e.g. Raj Kumar"),
               const SizedBox(height: 16),
-              _buildBankField("Bank Account Number", _accountNumberController, "eg. 123542332"),
+              _buildBankField("Bank Account Number", _accountNumberController,
+                  "eg. 123542332"),
               const SizedBox(height: 16),
               _buildBankField("IFSC Code", _ifscController, "e.g. UTIB0000000"),
 
@@ -611,7 +644,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                 children: [
                   Checkbox(
                     value: _agreeToTerms,
-                    onChanged: (val) => setState(() => _agreeToTerms = val ?? false),
+                    onChanged: (val) =>
+                        setState(() => _agreeToTerms = val ?? false),
                   ),
                   Expanded(
                     child: Padding(
@@ -700,7 +734,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     );
   }
 
-  Widget _buildBankField(String label, TextEditingController controller, String hint) {
+  Widget _buildBankField(
+      String label, TextEditingController controller, String hint) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -718,20 +753,23 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           onChanged: (_) => _onFieldChanged(),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(color: _greyText),
+            hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+            filled: true,
+            fillColor: _greyBg,
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _borderColor),
+              borderSide: const BorderSide(color: _borderColor, width: 1),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _borderColor),
+              borderSide: const BorderSide(color: _borderColor, width: 1),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: const BorderSide(color: _primaryColor, width: 2),
             ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
         ),
       ],
@@ -832,7 +870,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           child: Padding(
             padding: const EdgeInsets.all(24.0),
             child: Column(
@@ -847,7 +886,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isSuccess ? Icons.check_circle_rounded : Icons.error_outline_rounded,
+                    isSuccess
+                        ? Icons.check_circle_rounded
+                        : Icons.error_outline_rounded,
                     color: isSuccess ? Colors.green : Colors.red,
                     size: 60,
                   ),
