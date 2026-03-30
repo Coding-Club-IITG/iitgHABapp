@@ -37,9 +37,9 @@ leaveRouter.get('/:id', authenticateJWT, getApplicationByID);
 
 leaveRouter.get('/:id/proof', authenticateJWT, getApplicationProof);
 
-leaveRouter.post('/:id/upload-late-medical-document', authenticateJWT, validateUploadDoc , uploadMiddleware, uploadToOnedrive, uploadDocForMedicalLeave )
+leaveRouter.post('/my-applications/:id/upload-late-medical-document', authenticateJWT, validateUploadDoc , uploadMiddleware, uploadToOnedrive, uploadDocForMedicalLeave )
 
-leaveRouter.get('/:id/cancel-application', authenticateJWT, cancelApplication)
+leaveRouter.delete('/my-applications/:id', authenticateJWT, cancelApplication)
 
 //Hostel Office Endpoints
 leaveRouter.get('/hostel/pending', authenticateAdminJWT, getAllPendingApplications);
