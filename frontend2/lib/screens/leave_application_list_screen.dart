@@ -552,7 +552,7 @@ class _LeaveApplicationListScreenState
                                 final status = application['status'] ?? '';
                                 final leaveType =
                                     application['leaveType'] ?? 'Leave';
-
+                                final proofDocument = application['proofDocumentFilename'] != null || application['proofDocumentUrl'] != null;
                                 Color statusColor = const Color(0xFFA36500);
                                 IconData statusIcon = Icons.done_all;
 
@@ -661,7 +661,7 @@ class _LeaveApplicationListScreenState
                                   final now = DateTime.now();
                                   final daysDiff = startDateParsed.difference(now).inDays;
                                   final isMedical = leaveType.toLowerCase().contains('medical');
-                                  final canUpload = isMedical && daysDiff <= 7 && daysDiff >= 0;
+                                  final canUpload = (isMedical && daysDiff <= 7) && !proofDocument;
 
                                   Widget dismissibleChild = cardContent;
                                   if (canUpload) {
