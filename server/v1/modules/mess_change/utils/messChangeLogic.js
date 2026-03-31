@@ -9,12 +9,12 @@ const initializeCapacityTracker = async (hostels) => {
   const subscriberRows = await UserAllocHostel.aggregate([
     {
       $match: {
-        current_subscribed_mess: { $ne: null },
+        hostel: { $ne: null },
       },
     },
     {
       $group: {
-        _id: "$current_subscribed_mess",
+        _id: "$hostel",
         count: { $sum: 1 },
       },
     },

@@ -55,24 +55,13 @@ const updateAcceptedUsers = async (acceptedUsers) => {
     const user = await User.findById(a.id);
     if (!user) continue;
 
-    // UserAllocHostel update will now happen on the 1st of the month via allotmentScheduler
-    /*
-    if (user.rollNumber) {
-      await UserAllocHostel.updateOne(
-        { rollno: user.rollNumber },
-        { $set: { current_subscribed_mess: a.toHostelId } },
-      );
-    }
-    */
-
     const [fromHostel, toHostel] = await Promise.all([
       Hostel.findById(a.fromHostelId),
       Hostel.findById(a.toHostelId),
     ]);
 
-    user.next_mess = a.toHostelId; // Staged for the 1st of next month
+    user.next_mess = a.toHostelId; // Staged for 1st of next month
     user.applied_for_mess_changed = false;
-    user.got_mess_changed = true;
     user.applied_hostel_string = "";
     user.next_mess1 = null;
     user.next_mess2 = null;
@@ -110,21 +99,12 @@ const updateRejectedUsers = async (rejectedUsers) => {
     const user = await User.findById(r.id);
     if (!user) continue;
 
-    if (user.rollNumber) {
-      await UserAllocHostel.updateOne(
-        { rollno: user.rollNumber },
-        { $set: { current_subscribed_mess: user.hostel } },
-      );
-    }
-
-    user.curr_subscribed_mess = user.hostel;
     user.applied_for_mess_changed = false;
     user.applied_hostel_string = "";
     user.next_mess = null;
     user.next_mess1 = null;
     user.next_mess2 = null;
     user.next_mess3 = null;
-    user.got_mess_changed = false;
     await user.save();
 
     try {
@@ -159,16 +139,13 @@ const processAllMessChangeRequests = async (req, res) => {
       return res.status(400).json({ message: "No mess change requests found" });
     }
 
-    await User.updateMany({}, { got_mess_changed: false });
-    await resetAllUsersToHostel();
-
     const hostels = await Hostel.find({});
     const capacityTracker = await initializeCapacityTracker(hostels);
 
     const { acceptedUsers, rejectedUsers } = await processUsersInIterations(
       users,
       capacityTracker,
-    ); // ✅ async fix
+    );
 
     await updateAcceptedUsers(acceptedUsers);
     await updateRejectedUsers(rejectedUsers);
@@ -210,7 +187,6 @@ const rejectAllMessChangeRequests = async (req, res) => {
       user.next_mess1 = null;
       user.next_mess2 = null;
       user.next_mess3 = null;
-      user.got_mess_changed = false;
       await user.save();
     }
 
