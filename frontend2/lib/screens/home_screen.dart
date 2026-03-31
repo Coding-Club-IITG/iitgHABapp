@@ -240,7 +240,7 @@ class _HomeScreenState extends State<HomeScreen> {
         label: 'Room Cleaning',
         status: 'Over',
         statusColor: textMuted,
-        icon: Icons.cleaning_services_outlined,
+        iconAsset: 'assets/icon/room_cleaning_icon.svg',
         onTap: () => _requireMicrosoftThenNavigate(
           featureName: 'Room Cleaning',
           screen: const RoomCleaningScreen(),
@@ -258,16 +258,16 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         },
       ),
-      _QuickActionData(
-        label: 'Mess Change',
-        status: 'Open',
-        statusColor: primary,
-        iconAsset: 'assets/icon/messicon.svg',
-        onTap: () => _requireMicrosoftThenNavigate(
-          featureName: 'Mess Change',
-          screen: const MessChangePreferenceScreen(),
-        ),
-      ),
+      // _QuickActionData(
+      //   label: 'Mess Change',
+      //   status: 'Open',
+      //   statusColor: primary,
+      //   iconAsset: 'assets/icon/messicon.svg',
+      //   onTap: () => _requireMicrosoftThenNavigate(
+      //     featureName: 'Mess Change',
+      //     screen: const MessChangePreferenceScreen(),
+      //   ),
+      // ),
     ];
 
     if (HostelsNotifier.isLaundryAvailableForHostel(userHostelId)) {
@@ -301,8 +301,8 @@ class _HomeScreenState extends State<HomeScreen> {
       boxShadow: const [
         BoxShadow(
           color: shadow,
-          blurRadius: 4,
-          offset: Offset(0, 2),
+          blurRadius: 6,
+          offset: Offset(0, 4),
         ),
       ],
     );
