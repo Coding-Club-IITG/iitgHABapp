@@ -596,7 +596,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        const Text('🌞', style: TextStyle(fontSize: 14)),
+                        Image.asset(
+                          'assets/images/sun.jpg',
+                          height: 18.6,
+                          width: 18.6,
+                        ),
                         const SizedBox(width: 3),
                         Flexible(
                           child: Text(
