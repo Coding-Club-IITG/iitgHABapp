@@ -1,3 +1,5 @@
+// Run before Mess Change processing to test
+
 const mongoose = require("mongoose");
 const fs = require("fs");
 const path = require("path");
@@ -22,7 +24,7 @@ async function generateReport() {
     const users = await User.find({ applied_for_mess_changed: true });
 
     if (users.length === 0) {
-      console.log("No mess change requests found in the database (v1).");
+      console.log("No mess change requests found in the database.");
       await mongoose.connection.close();
       process.exit(0);
     }
@@ -35,7 +37,7 @@ async function generateReport() {
       capacityTracker,
     );
 
-    // --- REPORT GENERATION ---
+    // REPORT GENERATION
     const hostelMap = {};
     hostels.forEach((h) => (hostelMap[h._id.toString()] = h.hostel_name));
 
