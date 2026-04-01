@@ -230,6 +230,10 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  isBanned: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 // Generic JWT helper kept for backward compatibility.
@@ -263,6 +267,7 @@ userSchema.statics.findByAccessToken = async function (token) {
     const id = decoded.user;
     const fetchedUser = await user.findOne({ _id: id });
     if (!fetchedUser) return false;
+    if (fetchedUser.isBanned) return false;
     return fetchedUser;
   } catch (error) {
     throw error;
