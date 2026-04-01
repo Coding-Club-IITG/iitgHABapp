@@ -232,6 +232,14 @@ const userSchema = new mongoose.Schema({
   },
 });
 
+// Generic JWT helper kept for backward compatibility.
+// It simply reuses the existing access-token format so that any
+// existing `generateJWT()` call sites behave exactly like
+// `generateAccessToken()`.
+userSchema.methods.generateJWT = function () {
+  return this.generateAccessToken();
+};
+
 userSchema.methods.generateAccessToken = function () {
   var user = this;
   var token = jwt.sign({ user: user._id }, ACCESS_TOKEN_SECRET, {
