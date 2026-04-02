@@ -192,7 +192,45 @@ class _LeaveApplicationListScreenState
     }
   }
 
+  Future<bool> _isDocumentAlreadyUploaded(String applicationId) async {
+    final accessToken = await getAccessToken();
+    if (accessToken == 'error') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Authentication error')),
+      );
+      return false;
+    }
+
+    final dio = DioClient().dio;
+    try {
+      final response = await dio.get(
+        '${MessRebateEndpoints.getApplications}/$applicationId/check-document-status',
+        options: Options(
+          headers: {
+            'Authorization': 'Bearer $accessToken',
+          },
+        ),
+      );
+      if (response.statusCode == 200 && response.data['isUploaded'] == true) {
+        return true;
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Error checking document status')),
+      );
+    }
+    return false;
+  }
+
   Future<void> _uploadLateDocument(String applicationId) async {
+    final isUploaded = await _isDocumentAlreadyUploaded(applicationId);
+    if (isUploaded) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('A document is already uploaded for this application.')),
+      );
+      return;
+    }
+
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'png'],
