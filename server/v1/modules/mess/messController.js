@@ -239,6 +239,7 @@ const getUserMessInfo = async (req, res) => {
   }
 };
 
+//Optimized aggregation pipeline to fetch all messes with hostel names and subscriber counts in a single query, reducing the number of database calls and improving performance.
 const getAllMessInfo = async (req, res) => {
   try {
     const messesWithHostelName = await Mess.aggregate([
@@ -434,29 +435,42 @@ const getMessMenuItemById = async (req, res) => {
   }
 };
 
+// Toggle like/unlike for a menu item. If the user has already liked the item, it will be unliked, and vice versa. The response message indicates whether the item was liked or unliked.
+
 const toggleLikeMenuItem = async (req, res) => {
   try {
-    const menuItemId = req.params.menuItemId;
+    const { menuItemId } = req.params;
     const userId = req.user.id;
 
-    const menuItem = await MenuItem.findById(menuItemId);
-    if (!menuItem) {
+    const updatedItem = await MenuItem.findByIdAndUpdate(
+      menuItemId,
+      [
+        {
+          $set: {
+            likes: {
+              $cond: [
+                { $in: [userId, { $ifNull: ["$likes", []] }] },
+                { $filter: { input: "$likes", cond: { $ne: ["$$this", userId] } } },
+                { $concatArrays: [{ $ifNull: ["$likes", []] }, [userId]] }
+              ]
+            }
+          }
+        }
+      ],
+      { new: true }
+    );
+
+    if (!updatedItem) {
       return res.status(404).json({ message: "Menu item not found" });
     }
 
-    if (menuItem.likes.includes(userId)) {
-      menuItem.likes = menuItem.likes.filter(
-        (id) => id.toString() !== userId.toString(),
-      );
-      await menuItem.save();
-      return res
-        .status(200)
-        .json({ message: "Menu item unliked successfully" });
-    } else {
-      menuItem.likes.push(userId);
-      await menuItem.save();
-      return res.status(200).json({ message: "Menu item liked successfully" });
-    }
+    const isLiked = updatedItem.likes.some(
+      (id) => id.toString() === userId.toString()
+    );
+
+    return res.status(200).json({ 
+      message: isLiked ? "Menu item liked successfully" : "Menu item unliked successfully" 
+    });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
