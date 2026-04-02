@@ -36,6 +36,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   PlatformFile? _pickedFile;
   bool _agreeToTerms = false;
   bool _isBankSaved = false;
+  bool _isSubmitting = false;
+  DateTime? _lastSubmitTime;
   final TextEditingController _reasonController = TextEditingController();
   final TextEditingController _accountNumberController =
       TextEditingController();
@@ -581,142 +583,175 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   Widget _buildStep2() {
     int leaveDays = _calculateLeaveDays();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _buildProgressHeader(2),
-        Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Info Box
-              Container(
-                decoration: BoxDecoration(
-                  color: _successBgColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      "Leave days taken: $leaveDays",
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.black,
-                      ),
-                    ),
-                    const Text(
-                      "500 Rupee",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w500,
-                        color: _successColor,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Bank Details
-              const SizedBox(height: 24),
-              const Text(
-                "Add receiver's bank details.",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 24),
-              _buildBankField("Bank Holder Name", _accountHolderController,
-                  "e.g. Raj Kumar"),
-              const SizedBox(height: 16),
-              _buildBankField(
-                  "Bank Name", _bankNameController, "e.g. Raj Kumar"),
-              const SizedBox(height: 16),
-              _buildBankField("Bank Account Number", _accountNumberController,
-                  "eg. 123542332"),
-              const SizedBox(height: 16),
-              _buildBankField("IFSC Code", _ifscController, "e.g. UTIB0000000"),
-
-              // Save Details link
-              const SizedBox(height: 24),
-              Align(
-                alignment: Alignment.centerRight,
-                child: InkWell(
-                  onTap: _saveBankDetails,
-                  borderRadius: BorderRadius.circular(8),
+    return Stack(
+      children:[
+        Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildProgressHeader(2),
+          Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Info Box
+                Container(
+                  decoration: BoxDecoration(
+                    color: _successBgColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   child: Row(
-                    mainAxisSize: MainAxisSize.min,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(
-                        _isBankSaved ? Icons.bookmark : Icons.bookmark_border,
-                        color: _primaryColor,
-                        size: 22,
-                      ),
-                      const SizedBox(width: 6),
                       Text(
-                        _isBankSaved ? "Saved" : "Save details",
+                        "Leave days taken: $leaveDays",
                         style: const TextStyle(
-                          color: _primaryColor,
-                          fontWeight: FontWeight.w500,
+                          fontSize: 12,
+                          color: Colors.black,
+                        ),
+                      ),
+                      const Text(
+                        "500 Rupee",
+                        style: TextStyle(
                           fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                          color: _successColor,
                         ),
                       ),
                     ],
                   ),
                 ),
-              ),
-
-              // Checkbox
-              const SizedBox(height: 16),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Checkbox(
-                    value: _agreeToTerms,
-                    onChanged: (val) =>
-                        setState(() => _agreeToTerms = val ?? false),
+      
+                // Bank Details
+                const SizedBox(height: 24),
+                const Text(
+                  "Add receiver's bank details.",
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.black,
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.only(top: 8),
-                      child: Text(
-                        "I am aware, If I take a mess rebate, I won't be able to eat in mess during those days.",
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey[700],
+                ),
+                const SizedBox(height: 24),
+                _buildBankField("Bank Holder Name", _accountHolderController,
+                    "e.g. Raj Kumar"),
+                const SizedBox(height: 16),
+                _buildBankField(
+                    "Bank Name", _bankNameController, "e.g. Raj Kumar"),
+                const SizedBox(height: 16),
+                _buildBankField("Bank Account Number", _accountNumberController,
+                    "eg. 123542332"),
+                const SizedBox(height: 16),
+                _buildBankField("IFSC Code", _ifscController, "e.g. UTIB0000000"),
+      
+                // Save Details link
+                const SizedBox(height: 24),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: InkWell(
+                    onTap: _saveBankDetails,
+                    borderRadius: BorderRadius.circular(8),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _isBankSaved ? Icons.bookmark : Icons.bookmark_border,
+                          color: _primaryColor,
+                          size: 22,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          _isBankSaved ? "Saved" : "Save details",
+                          style: const TextStyle(
+                            color: _primaryColor,
+                            fontWeight: FontWeight.w500,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+      
+                // Checkbox
+                const SizedBox(height: 16),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Checkbox(
+                      value: _agreeToTerms,
+                      onChanged: (val) =>
+                          setState(() => _agreeToTerms = val ?? false),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text(
+                          "I am aware, If I take a mess rebate, I won't be able to eat in mess during those days.",
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Colors.grey[700],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                ],
-              ),
-
-              const SizedBox(height: 40),
-            ],
+                  ],
+                ),
+      
+                const SizedBox(height: 40),
+              ],
+            ),
           ),
-        ),
-        _buildBottomButtons(
-          onNext: () async {
-            if (!_validateStep2()) return;
-
-            bool success = await _sendRequest();
-            if (mounted) {
-              _showStatusDialog(
-                isSuccess: success,
-                title: success ? "Success" : "Failure",
-                message: success
-                    ? "Application sent successfully!"
-                    : "Something went wrong. Please check your connection and try again.",
-              );
-            }
+          _buildBottomButtons(
+            onNext: () async {
+              final now = DateTime.now();
+              if (_lastSubmitTime != null &&
+                  now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
+                return;
+              }
+              _lastSubmitTime = now;
+      
+              if (_isSubmitting) return;
+              if (!_validateStep2()) return;
+              setState(() {
+                _isSubmitting = true;
+              });
+      
+               bool success = false;
+      
+              try {
+                success = await _sendRequest();
+              } catch (e) {
+                success = false;
+              }
+      
+              if (mounted) {
+                setState(() {
+                  _isSubmitting = false;
+                });
+                _showStatusDialog(
+                  isSuccess: success,
+                  title: success ? "Success" : "Failure",
+                  message: success
+                      ? "Application sent successfully!"
+                      : "Something went wrong. Please check your connection and try again.",
+                );
+              }
           },
-          showBack: true,
-          nextLabel: "Submit",
+            showBack: true,
+            nextLabel: "Submit",
+          ),
+        ],
+      ),
+      if (_isSubmitting)
+      Container(
+        color: Colors.black.withOpacity(0.5),
+        child: Center(
+          child: CircularProgressIndicator(),
         ),
+      ),
+
       ],
     );
   }
@@ -884,7 +919,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             child: ElevatedButton(
               onPressed: onNext,
               style: ElevatedButton.styleFrom(
-                backgroundColor: _primaryColor,
+                backgroundColor: (_currentStep==1) ? _primaryColor : (_agreeToTerms ? _primaryColor : Color.fromARGB(80, 76, 78, 219)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
