@@ -624,16 +624,18 @@ class _LeaveApplicationListScreenState
 
                                 var messageText = "";
 
+                                var canUpload = false;
+
                                 if (status.toLowerCase() == 'pending') {
                                   final startDateParsed =
                                       DateTime.parse(application['startDate']);
                                   final now = DateTime.now();
                                   final daysDiff =
-                                      startDateParsed.difference(now).inDays;
+                                      startDateParsed.add(const Duration(days: 7)).difference(now).inDays;
                                   final isMedical = leaveType
                                       .toLowerCase()
                                       .contains('medical');
-                                  final canUpload = (isMedical && daysDiff <= 7) && !proofDocument;
+                                  canUpload = daysDiff >= 0 && isMedical && !proofDocument;
                                   final daysLeftText = daysDiff >= 0
                                       ? '${daysDiff + 1} day${daysDiff + 1 == 1 ? '' : 's'} left to upload'
                                       : 'Upload window expired';
@@ -641,8 +643,8 @@ class _LeaveApplicationListScreenState
                                   // Attach upload reminder/info into card content if medical
                                   messageText = isMedical
                                       ? (canUpload
-                                          ? 'Tap this card to upload medical document. $daysLeftText'
-                                          : 'Medical upload unavailable: $daysLeftText')
+                                          ? daysLeftText
+                                          : 'Waiting for approval')
                                       : '';
                                 }
 
@@ -694,9 +696,7 @@ class _LeaveApplicationListScreenState
                                               ),
                                             ),
                                             Text(
-                                              status == 'pending'
-                                                  ? "Waiting for approval"
-                                                  : "",
+                                              messageText,
                                               style: TextStyle(
                                                 fontSize: 14,
                                                 fontWeight: FontWeight.w500,
@@ -707,6 +707,11 @@ class _LeaveApplicationListScreenState
                                             ),
                                           ],
                                         ),
+                                        if (canUpload)
+                                          Container(
+                                            padding: EdgeInsets.only(left: 8),
+                                            child: const Icon(Icons.chevron_right, color: Color(0xFF535353),),
+                                          ),
                                         if (status.toLowerCase() ==
                                                 'approved' ||
                                             status.toLowerCase() == 'rejected')
@@ -727,6 +732,7 @@ class _LeaveApplicationListScreenState
                                     ),
                                   ),
                                 );
+
 
                                 if (status.toLowerCase() == 'pending') {
                                   final startDateParsed =
