@@ -247,7 +247,7 @@ userSchema.methods.generateJWT = function () {
 userSchema.methods.generateAccessToken = function () {
   var user = this;
   var token = jwt.sign({ user: user._id }, ACCESS_TOKEN_SECRET, {
-    expiresIn: "1d",
+    expiresIn: "4d",
   });
   return token;
 };
