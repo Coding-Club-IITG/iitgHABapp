@@ -700,57 +700,67 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                 ),
       
                 const SizedBox(height: 40),
+
               ],
             ),
           ),
-          _buildBottomButtons(
-            onNext: () async {
-              final now = DateTime.now();
-              if (_lastSubmitTime != null &&
-                  now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
-                return;
-              }
-              _lastSubmitTime = now;
-      
-              if (_isSubmitting) return;
-              if (!_validateStep2()) return;
-              setState(() {
-                _isSubmitting = true;
-              });
-      
-               bool success = false;
-      
-              try {
-                success = await _sendRequest();
-              } catch (e) {
-                success = false;
-              }
-      
-              if (mounted) {
+          Expanded(
+            child: _buildBottomButtons(
+              onNext: () async {
+                final now = DateTime.now();
+                if (_lastSubmitTime != null &&
+                    now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
+                  return;
+                }
+                _lastSubmitTime = now;
+                  
+                if (_isSubmitting) return;
+                if (!_validateStep2()) return;
                 setState(() {
-                  _isSubmitting = false;
+                  _isSubmitting = true;
                 });
-                _showStatusDialog(
-                  isSuccess: success,
-                  title: success ? "Success" : "Failure",
-                  message: success
-                      ? "Application sent successfully!"
-                      : "Something went wrong. Please check your connection and try again.",
-                );
-              }
-          },
-            showBack: true,
-            nextLabel: "Submit",
+                  
+                 bool success = false;
+                  
+                try {
+                  success = await _sendRequest();
+                } catch (e) {
+                  success = false;
+                }
+                  
+                if (mounted) {
+                  setState(() {
+                    _isSubmitting = false;
+                  });
+                  _showStatusDialog(
+                    isSuccess: success,
+                    title: success ? "Success" : "Failure",
+                    message: success
+                        ? "Application sent successfully!"
+                        : "Something went wrong. Please check your connection and try again.",
+                  );
+                }
+            },
+              showBack: true,
+              nextLabel: "Submit",
+            ),
           ),
         ],
       ),
       if (_isSubmitting)
-      Container(
-        color: Colors.black.withOpacity(0.5),
-        child: Center(
-          child: CircularProgressIndicator(),
+        Positioned.fill(
+          child: AbsorbPointer(
+            absorbing: true, // blocks all touches
+            child: Container(
+              color: Colors.black.withOpacity(0.5),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: _primaryColor,
+                ),
+              ),
+            ),
+          ),
         ),
-      ),
 
       ],
     );
