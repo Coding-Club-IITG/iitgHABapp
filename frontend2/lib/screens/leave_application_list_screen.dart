@@ -5,6 +5,7 @@ import 'package:flutter_launcher_icons/constants.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
+import 'package:frontend2/constants/themes.dart';
 import 'package:frontend2/screens/leave_application_screen.dart';
 import 'package:intl/intl.dart';
 import 'package:frontend2/screens/home_screen.dart';
@@ -59,6 +60,7 @@ Widget _LeaveTypeCard(
               children: [
                 Text(
                   title,
+                  maxLines: 1,
                   style: const TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w500,
@@ -192,45 +194,7 @@ class _LeaveApplicationListScreenState
     }
   }
 
-  Future<bool> _isDocumentAlreadyUploaded(String applicationId) async {
-    final accessToken = await getAccessToken();
-    if (accessToken == 'error') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Authentication error')),
-      );
-      return false;
-    }
-
-    final dio = DioClient().dio;
-    try {
-      final response = await dio.get(
-        '${MessRebateEndpoints.getApplications}/$applicationId/check-document-status',
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $accessToken',
-          },
-        ),
-      );
-      if (response.statusCode == 200 && response.data['isUploaded'] == true) {
-        return true;
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error checking document status')),
-      );
-    }
-    return false;
-  }
-
   Future<void> _uploadLateDocument(String applicationId) async {
-    final isUploaded = await _isDocumentAlreadyUploaded(applicationId);
-    if (isUploaded) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A document is already uploaded for this application.')),
-      );
-      return;
-    }
-
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'png'],
@@ -356,9 +320,17 @@ class _LeaveApplicationListScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
+      // extendBodyBehindAppBar: true,
       appBar: AppBar(
+        scrolledUnderElevation: 0,
         elevation: 0,
-        backgroundColor: Colors.transparent,
+        backgroundColor: Colors.white,
+        shape: const Border(
+          bottom: BorderSide(
+            color: Color(0xFFE6E6E6), // Matches your card borders perfectly
+            width: 1, // Thickness of the border
+          ),
+        ),
         iconTheme: const IconThemeData(color: Colors.black),
         title: const Text(
           "Mess Rebate",
@@ -529,6 +501,7 @@ class _LeaveApplicationListScreenState
                                     ),
                                     child: Text(
                                       tabLabel,
+                                      // maxLines: 1,
                                       style: TextStyle(
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
@@ -646,31 +619,42 @@ class _LeaveApplicationListScreenState
                                           ? daysLeftText
                                           : 'Waiting for approval')
                                       : '';
+
+                                  statusColor = isMedical
+                                      ? (canUpload
+                                          ? Color(0xFF4B4EDA)
+                                          : statusColor)
+                                      : statusColor;
+                                  
                                 }
 
-                                final cardContent = Padding(
-                                  padding: const EdgeInsets.only(bottom: 12),
+                                // 1. PURE CARD CONTENT (No outer margins here)
+                                final cardContent = FittedBox(
+                                  fit: BoxFit.scaleDown, // Only shrinks if it hits the maxWidth, otherwise does nothing
                                   child: Container(
+                                    // 1. ADD THIS: It gives Expanded a wall to hit, preventing the crash
+                                    constraints: BoxConstraints(
+                                      maxWidth: MediaQuery.of(context).size.width - 32, // Adjust 32 based on your screen's side padding
+                                    ),
                                     decoration: BoxDecoration(
                                       color: const Color(0xFFF5F5F5),
-                                      border: Border.all(
-                                          color: const Color(0xFFE6E6E6)),
+                                      border: Border.all(color: const Color(0xFFE6E6E6)),
                                       borderRadius: BorderRadius.circular(12),
                                     ),
                                     padding: const EdgeInsets.all(16),
+                                    
+                                    // 2. The rest of your exact widget stays completely untouched!
                                     child: Row(
                                       children: [
-                                        Icon(leaveIcon,
-                                            size: 20,
-                                            color: const Color(0xFF535353)),
+                                        Icon(leaveIcon, size: 20, color: const Color(0xFF535353)),
                                         const SizedBox(width: 16),
                                         Expanded(
                                           child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
                                               Text(
                                                 leaveType,
+                                                maxLines: 1,
                                                 style: const TextStyle(
                                                   fontSize: 14,
                                                   fontWeight: FontWeight.w400,
@@ -681,43 +665,54 @@ class _LeaveApplicationListScreenState
                                           ),
                                         ),
                                         Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
+                                          crossAxisAlignment: CrossAxisAlignment.end,
                                           children: [
-                                            (status == "pending")
-                                                ? const SizedBox(height: 0)
-                                                : const SizedBox(height: 8),
-                                            Text(
-                                              "$startDate - $endDate",
-                                              style: const TextStyle(
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w400,
-                                                color: Color(0xFF2E2F31),
+                                            if (messageText.isNotEmpty) ...[
+                                              Text(
+                                                "$startDate - $endDate",
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: Color(0xFF2E2F31),
+                                                ),
                                               ),
-                                            ),
-                                            Text(
-                                              messageText,
-                                              style: TextStyle(
-                                                fontSize: 14,
-                                                fontWeight: FontWeight.w500,
-                                                fontStyle: FontStyle.italic,
-                                                color: statusColor,
-                                                letterSpacing: 0.2,
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                messageText,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  fontStyle: FontStyle.italic,
+                                                  color: statusColor,
+                                                  letterSpacing: 0.2,
+                                                ),
                                               ),
-                                            ),
+                                            ] else ...[
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                "$startDate - $endDate",
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: Color(0xFF2E2F31),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                            ]
                                           ],
                                         ),
                                         if (canUpload)
                                           Container(
-                                            padding: EdgeInsets.only(left: 8),
-                                            child: const Icon(Icons.chevron_right, color: Color(0xFF535353),),
+                                            padding: const EdgeInsets.only(left: 8),
+                                            child: const Icon(
+                                              Icons.chevron_right,
+                                              color: Color(0xFF535353),
+                                            ),
                                           ),
-                                        if (status.toLowerCase() ==
-                                                'approved' ||
+                                        if (status.toLowerCase() == 'approved' ||
                                             status.toLowerCase() == 'rejected')
                                           Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                                8, 3, 3, 5),
+                                            padding: const EdgeInsets.fromLTRB(8, 3, 3, 5),
                                             child: Container(
                                               padding: const EdgeInsets.all(4),
                                               width: 10,
@@ -734,103 +729,273 @@ class _LeaveApplicationListScreenState
                                 );
 
 
-                                if (status.toLowerCase() == 'pending') {
-                                  final startDateParsed =
-                                      DateTime.parse(application['startDate']);
-                                  final now = DateTime.now();
-                                  final daysDiff =
-                                      startDateParsed.difference(now).inDays;
-                                  final isMedical = leaveType
-                                      .toLowerCase()
-                                      .contains('medical');
-                                  final canUpload = (isMedical && daysDiff <= 7) && !proofDocument;
-                                  final daysLeftText = daysDiff >= 0
-                                      ? '${daysDiff + 1} day${daysDiff + 1 == 1 ? '' : 's'} left to upload'
-                                      : 'Upload window expired';
-
-                                  // Attach upload reminder/info into card content if medical
-                                  final messageText = isMedical
-                                      ? (canUpload
-                                          ? 'Tap this card to upload medical document. $daysLeftText'
-                                          : 'Medical upload unavailable: $daysLeftText')
-                                      : '';
-
-                                  final pendingContent = Padding(
-                                    padding: const EdgeInsets.only(bottom: 12),
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF5F5F5),
-                                        border: Border.all(
-                                            color: const Color(0xFFE6E6E6)),
-                                        borderRadius: BorderRadius.circular(12),
-                                      ),
-                                      padding: const EdgeInsets.all(16),
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          cardContent,
-                                          if (isMedical)
-                                            Padding(
-                                              padding:
-                                                  const EdgeInsets.only(top: 8),
-                                              child: Text(
-                                                messageText,
-                                                style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w500,
-                                                  color: canUpload
-                                                      ? const Color(0xFF4C4EDB)
-                                                      : Colors.red,
+                                final whiteCardContent = FittedBox(
+                                  fit: BoxFit.scaleDown, // Only shrinks if it hits the maxWidth, otherwise does nothing
+                                  child: Container(
+                                    // 1. ADD THIS: It gives Expanded a wall to hit, preventing the crash
+                                    constraints: BoxConstraints(
+                                      maxWidth: MediaQuery.of(context).size.width - 32, // Adjust 32 based on your screen's side padding
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFFFFF),
+                                      border: Border.all(color: const Color(0xFFE6E6E6)),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    padding: const EdgeInsets.all(16),
+                                    
+                                    // 2. The rest of your exact widget stays completely untouched!
+                                    child: Row(
+                                      children: [
+                                        Icon(leaveIcon, size: 20, color: const Color(0xFF535353)),
+                                        const SizedBox(width: 16),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                leaveType,
+                                                maxLines: 1,
+                                                style: const TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: Color(0xFF2E2F31),
                                                 ),
                                               ),
+                                            ],
+                                          ),
+                                        ),
+                                        Column(
+                                          crossAxisAlignment: CrossAxisAlignment.end,
+                                          children: [
+                                            if (messageText.isNotEmpty) ...[
+                                              Text(
+                                                "$startDate - $endDate",
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: Color(0xFF2E2F31),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 6),
+                                              Text(
+                                                messageText,
+                                                style: TextStyle(
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w500,
+                                                  fontStyle: FontStyle.italic,
+                                                  color: statusColor,
+                                                  letterSpacing: 0.2,
+                                                ),
+                                              ),
+                                            ] else ...[
+                                              const SizedBox(height: 10),
+                                              Text(
+                                                "$startDate - $endDate",
+                                                style: const TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w400,
+                                                  color: Color(0xFF2E2F31),
+                                                ),
+                                              ),
+                                              const SizedBox(height: 10),
+                                            ]
+                                          ],
+                                        ),
+                                        if (canUpload)
+                                          Container(
+                                            padding: const EdgeInsets.only(left: 8),
+                                            child: const Icon(
+                                              Icons.chevron_right,
+                                              color: Color(0xFF535353),
                                             ),
-                                        ],
-                                      ),
+                                          ),
+                                        if (status.toLowerCase() == 'approved' ||
+                                            status.toLowerCase() == 'rejected')
+                                          Padding(
+                                            padding: const EdgeInsets.fromLTRB(8, 3, 3, 5),
+                                            child: Container(
+                                              padding: const EdgeInsets.all(4),
+                                              width: 10,
+                                              height: 10,
+                                              decoration: BoxDecoration(
+                                                color: statusColor,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
-                                  );
+                                  ),
+                                );
 
-                                  Widget dismissibleChild = pendingContent;
+                                // 2. LOGIC FOR PENDING (Swipeable via Stack)
+                                if (status.toLowerCase() == 'pending') {
+                                  Widget interactiveChild = cardContent;
                                   if (canUpload) {
-                                    dismissibleChild = GestureDetector(
-                                      onTap: () =>
-                                          _uploadLateDocument(applicationId),
-                                      child: pendingContent,
+                                    interactiveChild = GestureDetector(
+                                      onTap: () {
+                                        _showUploadDialog(applicationId, 
+                                          FittedBox(
+                                            fit: BoxFit.scaleDown, // Only shrinks if it hits the maxWidth, otherwise does nothing
+                                            child: Container(
+                                              // 1. ADD THIS: It gives Expanded a wall to hit, preventing the crash
+                                              constraints: BoxConstraints(
+                                                maxWidth: MediaQuery.of(context).size.width - 32, // Adjust 32 based on your screen's side padding
+                                              ),
+                                              decoration: BoxDecoration(
+                                                color: const Color(0xFFFFFFFF),
+                                                border: Border.all(color: const Color(0xFFE6E6E6)),
+                                                borderRadius: BorderRadius.circular(12),
+                                              ),
+                                              padding: const EdgeInsets.all(16),
+                                              
+                                              // 2. The rest of your exact widget stays completely untouched!
+                                              child: Column(
+                                                children: [
+                                                  Row(
+                                                    children: [
+                                                      Icon(leaveIcon, size: 20, color: const Color(0xFF535353)),
+                                                      const SizedBox(width: 16),
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text(
+                                                              leaveType,
+                                                              maxLines: 1,
+                                                              style: const TextStyle(
+                                                                fontSize: 14,
+                                                                fontWeight: FontWeight.w400,
+                                                                color: Color(0xFF2E2F31),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+                                                      Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                                        children: [
+                                                          if (messageText.isNotEmpty) ...[
+                                                            Text(
+                                                              "$startDate - $endDate",
+                                                              style: const TextStyle(
+                                                                fontSize: 12,
+                                                                fontWeight: FontWeight.w400,
+                                                                color: Color(0xFF2E2F31),
+                                                              ),
+                                                            ),
+                                                            const SizedBox(height: 6),
+                                                            Text(
+                                                              messageText,
+                                                              style: TextStyle(
+                                                                fontSize: 14,
+                                                                fontWeight: FontWeight.w500,
+                                                                fontStyle: FontStyle.italic,
+                                                                color: statusColor,
+                                                                letterSpacing: 0.2,
+                                                              ),
+                                                            ),
+                                                          ] else ...[
+                                                            const SizedBox(height: 10),
+                                                            Text(
+                                                              "$startDate - $endDate",
+                                                              style: const TextStyle(
+                                                                fontSize: 12,
+                                                                fontWeight: FontWeight.w400,
+                                                                color: Color(0xFF2E2F31),
+                                                              ),
+                                                            ),
+                                                            const SizedBox(height: 10),
+                                                          ]
+                                                        ],
+                                                      ),
+                                                      if (canUpload)
+                                                        Container(
+                                                          padding: const EdgeInsets.only(left: 8),
+                                                          child: const Icon(
+                                                            Icons.chevron_right,
+                                                            color: Color(0xFF535353),
+                                                          ),
+                                                        ),
+                                                      if (status.toLowerCase() == 'approved' ||
+                                                          status.toLowerCase() == 'rejected')
+                                                        Padding(
+                                                          padding: const EdgeInsets.fromLTRB(8, 3, 3, 5),
+                                                          child: Container(
+                                                            padding: const EdgeInsets.all(4),
+                                                            width: 10,
+                                                            height: 10,
+                                                            decoration: BoxDecoration(
+                                                              color: statusColor,
+                                                              shape: BoxShape.circle,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                    ],
+                                                  ),
+                                                  SizedBox(height: 12),
+                                                  GestureDetector(
+                                                    onTap: () {_uploadLateDocument(applicationId);},
+                                                    child: Container(
+                                                      decoration: BoxDecoration(
+                                                        border: Border.all(color: Color(0xFFE6E6E6)),
+                                                        borderRadius: BorderRadius.circular(12),
+                                                        color: Colors.white,
+                                                      ),
+                                                      padding:
+                                                          const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                                                      child: Row(
+                                                              mainAxisAlignment: MainAxisAlignment.center,
+                                                              children: [
+                                                                SvgPicture.asset(
+                                                                  'assets/icon/download-2-line.svg',
+                                                                  color: Colors.black,
+                                                                  width: 20,
+                                                                  height: 20,
+                                                                ),
+                                                                const SizedBox(width: 8),
+                                                                Text(
+                                                                  "Upload a PDF",
+                                                                  style: TextStyle(
+                                                                    fontSize: 14,
+                                                                    fontWeight: FontWeight.w500,
+                                                                    color: Colors.black,
+                                                                  ),
+                                                                ),
+                                                              ],
+                                                            )
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          )
+                                        );
+                                      },
+                                      child: cardContent,
                                     );
                                   }
 
-                                  return Dismissible(
-                                    key: Key(applicationId),
-                                    direction: DismissDirection.endToStart,
-                                    background: Padding(
-                                      padding:
-                                          const EdgeInsets.only(bottom: 12),
-                                      child: Container(
-                                        alignment: Alignment.centerRight,
-                                        padding:
-                                            const EdgeInsets.only(right: 20),
-                                        decoration: BoxDecoration(
-                                          color: Colors.red,
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        child: SvgPicture.asset(
-                                          'assets/icon/trash.svg',
-                                          color: Colors.white,
-                                          width: 24,
-                                          height: 24,
-                                        ),
-                                      ),
+                                  return Container(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    // Use the custom native widget here!
+                                    child: NativeSwipeToReveal(
+                                      applicationId: applicationId,
+                                      child: interactiveChild,
+                                      contentChild: whiteCardContent,
+                                      // Pass a reference to your dialog function
+                                      onConfirmDelete: (id, card) {
+                                        return _showConfirmDeleteDialog(id, card);
+                                      },
                                     ),
-                                    confirmDismiss: (direction) async {
-                                      return await _deleteApplicationWithConfirm(
-                                          applicationId);
-                                    },
-                                    child: cardContent,
                                   );
                                 }
 
-                                return cardContent;
+                                // 3. LOGIC FOR ALL OTHER STATUSES
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 10),
+                                  child: cardContent,
+                                );
                               },
                             );
                           },
@@ -842,6 +1007,253 @@ class _LeaveApplicationListScreenState
                 ],
               ),
             ),
+    );
+  }
+
+  Future<bool> _showConfirmDeleteDialog(String applicationId, Widget cardContent) async {
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          insetPadding: EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    'Do you want to delete?',
+                    style: TextStyle(
+                      color: Color(0xFF676767), // Grey-1
+                      fontSize: 16,
+                      fontFamily: 'General Sans Variable',
+                      fontWeight: FontWeight.w600,
+                      height: 1.50,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                
+                // Your injected custom card content
+                cardContent,
+                
+                const SizedBox(height: 10),
+                
+                // 2. Fixed Row layout using Expanded widgets
+                Row(
+                  children: [
+                    // Cancel Button (Moved to the left, which is standard UI practice)
+                    Expanded(
+                      flex: 2,
+                      child: OutlinedButton(
+                        style: OutlinedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          // Adding a subtle border matches your card design perfectly
+                          side: const BorderSide(color: Color(0xFFE6E6E6)),
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context, false);
+                        },
+                        child: const Text(
+                          'Go back',
+                          style: TextStyle(
+                            color: const Color(0xFF4B4EDA) /* Brand-Primary */,
+                            fontSize: 16,
+                            fontFamily: 'General Sans Variable',
+                            fontWeight: FontWeight.w500,
+                            height: 1.50,
+                          ),
+                        )
+                      ),
+                    ),
+                    const SizedBox(width: 8), // Nice spacing between buttons
+                    // Delete Button
+                    Expanded(
+                      flex: 3,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                          Navigator.pop(context, true);
+                        },
+                        child: const Text(
+                          "Yes",
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (shouldDelete == true) {
+      return await _deleteApplicationWithConfirm(applicationId);
+    }
+
+    return false;
+  }
+
+  Future<bool> _showUploadDialog(String applicationId, Widget cardContent) async {
+    final bool? shouldDelete = await showDialog<bool>(
+      context: context,
+      builder: (BuildContext context) {
+        return Dialog(
+          insetPadding: EdgeInsets.symmetric(horizontal: 20),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          backgroundColor: Colors.white,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 12, left: 16, right: 16, bottom: 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  alignment: Alignment.centerLeft,
+                  child: const Text(
+                    'Do you want to upload a proof?',
+                    style: TextStyle(
+                      color: Color(0xFF676767), // Grey-1
+                      fontSize: 16,
+                      fontFamily: 'General Sans Variable',
+                      fontWeight: FontWeight.w600,
+                      height: 1.50,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Your injected custom card content
+                cardContent,                
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    if (shouldDelete == true) {
+      return await _deleteApplicationWithConfirm(applicationId);
+    }
+
+    return false;
+  }
+
+}
+
+
+class NativeSwipeToReveal extends StatefulWidget {
+  final Widget child;
+  final Widget contentChild;
+  final String applicationId;
+  // We pass your existing dialog function in here
+  final Future<bool> Function(String id, Widget card) onConfirmDelete;
+
+  const NativeSwipeToReveal({
+    Key? key,
+    required this.child,
+    required this.contentChild,
+    required this.applicationId,
+    required this.onConfirmDelete,
+  }) : super(key: key);
+
+  @override
+  State<NativeSwipeToReveal> createState() => _NativeSwipeToRevealState();
+}
+
+class _NativeSwipeToRevealState extends State<NativeSwipeToReveal> {
+  double _dragExtent = 0.0;
+  // 60 pixels gives enough room for your 24px SVG and 20px padding!
+  final double _maxDrag = 60.0; 
+
+  void _onDragUpdate(DragUpdateDetails details) {
+    setState(() {
+      _dragExtent += details.primaryDelta!;
+      if (_dragExtent > 0) _dragExtent = 0; // Prevents dragging to the right
+      if (_dragExtent < -_maxDrag) _dragExtent = -_maxDrag; // Stops exactly at 60px
+    });
+  }
+
+  void _onDragEnd(DragEndDetails details) async {
+    // If they dragged more than halfway, snap it open and show the dialog
+    if (_dragExtent < -(_maxDrag / 2)) {
+      setState(() {
+        _dragExtent = -_maxDrag; // Snap fully open
+      });
+
+      // Trigger your dialog
+      bool shouldDelete = await widget.onConfirmDelete(widget.applicationId, widget.contentChild);
+      
+      // If they clicked "Cancel", smoothly snap the card back closed
+      if (!shouldDelete && mounted) {
+        setState(() {
+          _dragExtent = 0;
+        });
+      }
+    } else {
+      // If they didn't drag far enough, snap it closed
+      setState(() {
+        _dragExtent = 0;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        // LAYER 1: The Red Background (Always sitting behind)
+        Positioned.fill(
+          child: Container(
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: 20),
+            decoration: BoxDecoration(
+              color: Colors.red,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: SvgPicture.asset(
+              'assets/icon/trash.svg',
+              color: Colors.white,
+              width: 24,
+              height: 24,
+            ),
+          ),
+        ),
+
+        // LAYER 2: The Swipeable Card
+        GestureDetector(
+          onHorizontalDragUpdate: _onDragUpdate,
+          onHorizontalDragEnd: _onDragEnd,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 100), // Smooth snap animation
+            curve: Curves.easeOut,
+            // Physically moves the card left by the exact drag amount
+            transform: Matrix4.translationValues(_dragExtent, 0, 0), 
+            child: widget.child,
+          ),
+        ),
+      ],
     );
   }
 }
