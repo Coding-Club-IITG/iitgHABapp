@@ -83,9 +83,9 @@ async function flush() {
       params,
     );
 
-    console.log("Inserted", parsed.length);
+    console.log("[Worker] Inserted", parsed.length);
   } catch (error) {
     // Prevents the worker from crashing and restarting in PM2 if an insert fails
-    console.error("[Worker] Error during flush:", error.message || error);
+    console.log("[Worker] Error during flush:", error.message || error);
   }
 }
