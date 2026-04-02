@@ -622,6 +622,30 @@ class _LeaveApplicationListScreenState
                                   leaveIcon = Icons.health_and_safety_outlined;
                                 }
 
+                                var messageText = "";
+
+                                if (status.toLowerCase() == 'pending') {
+                                  final startDateParsed =
+                                      DateTime.parse(application['startDate']);
+                                  final now = DateTime.now();
+                                  final daysDiff =
+                                      startDateParsed.difference(now).inDays;
+                                  final isMedical = leaveType
+                                      .toLowerCase()
+                                      .contains('medical');
+                                  final canUpload = (isMedical && daysDiff <= 7) && !proofDocument;
+                                  final daysLeftText = daysDiff >= 0
+                                      ? '${daysDiff + 1} day${daysDiff + 1 == 1 ? '' : 's'} left to upload'
+                                      : 'Upload window expired';
+
+                                  // Attach upload reminder/info into card content if medical
+                                  messageText = isMedical
+                                      ? (canUpload
+                                          ? 'Tap this card to upload medical document. $daysLeftText'
+                                          : 'Medical upload unavailable: $daysLeftText')
+                                      : '';
+                                }
+
                                 final cardContent = Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
                                   child: Container(
@@ -796,7 +820,7 @@ class _LeaveApplicationListScreenState
                                       return await _deleteApplicationWithConfirm(
                                           applicationId);
                                     },
-                                    child: dismissibleChild,
+                                    child: cardContent,
                                   );
                                 }
 

@@ -270,6 +270,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   Widget _buildStep1() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         _buildProgressHeader(1),
         Padding(
@@ -587,6 +588,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       children:[
         Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           _buildProgressHeader(2),
           Padding(
@@ -704,46 +706,44 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               ],
             ),
           ),
-          Expanded(
-            child: _buildBottomButtons(
-              onNext: () async {
-                final now = DateTime.now();
-                if (_lastSubmitTime != null &&
-                    now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
-                  return;
-                }
-                _lastSubmitTime = now;
-                  
-                if (_isSubmitting) return;
-                if (!_validateStep2()) return;
+          _buildBottomButtons(
+            onNext: () async {
+              final now = DateTime.now();
+              if (_lastSubmitTime != null &&
+                  now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
+                return;
+              }
+              _lastSubmitTime = now;
+                
+              if (_isSubmitting) return;
+              if (!_validateStep2()) return;
+              setState(() {
+                _isSubmitting = true;
+              });
+                
+               bool success = false;
+                
+              try {
+                success = await _sendRequest();
+              } catch (e) {
+                success = false;
+              }
+                
+              if (mounted) {
                 setState(() {
-                  _isSubmitting = true;
+                  _isSubmitting = false;
                 });
-                  
-                 bool success = false;
-                  
-                try {
-                  success = await _sendRequest();
-                } catch (e) {
-                  success = false;
-                }
-                  
-                if (mounted) {
-                  setState(() {
-                    _isSubmitting = false;
-                  });
-                  _showStatusDialog(
-                    isSuccess: success,
-                    title: success ? "Success" : "Failure",
-                    message: success
-                        ? "Application sent successfully!"
-                        : "Something went wrong. Please check your connection and try again.",
-                  );
-                }
-            },
-              showBack: true,
-              nextLabel: "Submit",
-            ),
+                _showStatusDialog(
+                  isSuccess: success,
+                  title: success ? "Success" : "Failure",
+                  message: success
+                      ? "Application sent successfully!"
+                      : "Something went wrong. Please check your connection and try again.",
+                );
+              }
+          },
+            showBack: true,
+            nextLabel: "Submit",
           ),
         ],
       ),
