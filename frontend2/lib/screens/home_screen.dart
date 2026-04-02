@@ -8,6 +8,7 @@ import 'package:frontend2/models/mess_menu_model.dart';
 import 'package:frontend2/models/notification_model.dart';
 import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/providers/notifications.dart';
+import 'package:frontend2/providers/room_cleaning_provider.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/laundry/laundry_screen.dart';
 import 'package:frontend2/screens/notification.dart';
@@ -33,7 +34,8 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen>
+    with SingleTickerProviderStateMixin {
   static const pageBackground = Color(0xFFFCFCFC);
   static const surface = Color(0xFFFFFFFF);
   static const sectionDivider = Color(0xF2ECECEC);
@@ -49,6 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x22070707);
+  static const bool _showDummyImportantMessages = false;
 
   String name = '';
   String currSubscribedMess = '';
@@ -57,19 +60,38 @@ class _HomeScreenState extends State<HomeScreen> {
   String scanQrStatus = 'Closed';
   Color scanQrStatusColor = textMuted;
   Timer? _scanQrStatusTimer;
+  late final AnimationController _shimmerController;
+  late final Animation<double> _shimmerAnimation;
 
   @override
   void initState() {
     super.initState();
+    _shimmerController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+    _shimmerAnimation = Tween<double>(begin: -1.5, end: 2.5).animate(
+      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
+    );
     fetchUserData();
     fetchMessIdAndToken();
     _startScanQrStatusTicker();
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final roomCleaningProvider = context.read<RoomCleaningProvider>();
+      if (!roomCleaningProvider.isBookingsLoading &&
+          roomCleaningProvider.myBookings.isEmpty &&
+          roomCleaningProvider.bookingsError == null) {
+        roomCleaningProvider.loadMyBookings();
+      }
+    });
   }
 
   @override
   void dispose() {
     _scanQrStatusTimer?.cancel();
+    _shimmerController.dispose();
     homeScreenRefreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
   }
@@ -234,12 +256,42 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  int? _daysSince(DateTime? date) {
+    if (date == null) return null;
+    final now = DateTime.now().toLocal();
+    final localDate = date.toLocal();
+    final today = DateTime(now.year, now.month, now.day);
+    final thatDay = DateTime(localDate.year, localDate.month, localDate.day);
+    return today.difference(thatDay).inDays;
+  }
+
+  String _buildRoomCleaningStatusText(RoomCleaningProvider provider) {
+    final cleanedBookings = provider.myBookings
+        .where((booking) => booking.status == 'Cleaned')
+        .toList()
+      ..sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
+
+    final latestCleanedBooking =
+        cleanedBookings.isNotEmpty ? cleanedBookings.first : null;
+    final daysSince = _daysSince(latestCleanedBooking?.bookingDate);
+
+    if (daysSince == null || daysSince < 0) {
+      return 'Cleaned recently';
+    }
+
+    return daysSince == 1
+        ? 'Cleaned 1 day ago'
+        : 'Cleaned $daysSince days ago';
+  }
+
   List<_QuickActionData> _buildQuickActions() {
+    final roomCleaningProvider = context.watch<RoomCleaningProvider>();
+
     final actions = <_QuickActionData>[
       _QuickActionData(
         label: 'Room Cleaning',
-        status: 'Over',
-        statusColor: textMuted,
+        status: _buildRoomCleaningStatusText(roomCleaningProvider),
+        statusColor: green,
         iconAsset: 'assets/icon/room_cleaning_icon.svg',
         onTap: () => _requireMicrosoftThenNavigate(
           featureName: 'Room Cleaning',
@@ -310,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   TextStyle _sectionTitleStyle() {
     return const TextStyle(
-      fontSize:19,
+      fontSize:16,
       height: 1.5,
       fontWeight: FontWeight.w500,
       color: textSecondary,
@@ -431,6 +483,122 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  Widget _buildShimmerBlock({
+    required double height,
+    double? width,
+    BorderRadius radius = const BorderRadius.all(Radius.circular(8)),
+  }) {
+    return AnimatedBuilder(
+      animation: _shimmerAnimation,
+      builder: (context, child) {
+        return Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            borderRadius: radius,
+            gradient: LinearGradient(
+              begin: Alignment(_shimmerAnimation.value - 1, 0),
+              end: Alignment(_shimmerAnimation.value + 1, 0),
+              colors: const [
+                Color(0xFFF2F2F2),
+                Color(0xFFF9F9F9),
+                Color(0xFFF2F2F2),
+              ],
+              stops: const [0.1, 0.5, 0.9],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildMenuShimmerPlaceholder() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _buildShimmerBlock(height: 28, width: 110),
+            const SizedBox(width: 8),
+            _buildShimmerBlock(height: 24, width: 84),
+            const Spacer(),
+            _buildShimmerBlock(height: 20, width: 110),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(20),
+          decoration: _cardDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFFFFFFFF), Color(0xFFFFFEF8)],
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildShimmerBlock(height: 16, width: 48, radius: BorderRadius.circular(4)),
+              const SizedBox(height: 12),
+              _buildShimmerBlock(height: 18),
+              const SizedBox(height: 8),
+              _buildShimmerBlock(height: 18, width: 180),
+              const SizedBox(height: 12),
+              const Divider(height: 1, thickness: 1, color: Color(0xFFE6E6E6)),
+              const SizedBox(height: 20),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildShimmerBlock(
+                            height: 16,
+                            width: 96,
+                            radius: BorderRadius.circular(4),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildShimmerBlock(height: 18),
+                          const SizedBox(height: 8),
+                          _buildShimmerBlock(height: 18, width: 120),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      margin: const EdgeInsets.symmetric(horizontal: 24),
+                      color: const Color(0xFFE6E6E6),
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildShimmerBlock(
+                            height: 16,
+                            width: 60,
+                            radius: BorderRadius.circular(4),
+                          ),
+                          const SizedBox(height: 12),
+                          _buildShimmerBlock(height: 18),
+                          const SizedBox(height: 8),
+                          _buildShimmerBlock(height: 18, width: 90),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
   Widget _buildHomeMessMenuCard(List<MenuModel> menus) {
     if (menus.isEmpty) {
       return Container(
@@ -460,7 +628,7 @@ class _HomeScreenState extends State<HomeScreen> {
               menu.type,
               style: const TextStyle(
                 fontSize: 20,
-                height: 28 / 24,
+                height: 28 / 20,
                 fontWeight: FontWeight.w500,
                 color: textPrimary,
               ),
@@ -469,7 +637,7 @@ class _HomeScreenState extends State<HomeScreen> {
             Text(
               cardData.statusText,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: 18,
                 height: 24 / 18,
                 fontWeight: FontWeight.w500,
                 color: cardData.statusColor,
@@ -596,12 +764,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     const SizedBox(height: 2),
                     Row(
                       children: [
-                        Image.asset(
-                          'assets/images/sun.jpg',
-                          height: 18.6,
-                          width: 18.6,
-                        ),
-                        const SizedBox(width: 3),
                         Flexible(
                           child: Text(
                             '${getGreeting()}, $displayName',
@@ -628,12 +790,14 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildImportantMessagesCard(List<NotificationModel> activeAlerts) {
-    final messages = activeAlerts.isNotEmpty
-        ? activeAlerts
+    if (activeAlerts.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final messages = activeAlerts
         .take(2)
         .map((alert) => alert.body.isNotEmpty ? alert.body : alert.title)
-        .toList()
-        : const ['No notifications need your attention right now.'];
+        .toList();
 
     return Container(
       width: double.infinity,
@@ -673,11 +837,11 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          // const SizedBox(height: 8),
           for (final message in messages)
             Container(
               width: double.infinity,
-              margin: const EdgeInsets.only(top: 6),
+              margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.only(left: 10),
               decoration: const BoxDecoration(
                 border: Border(left: BorderSide(color: yellow, width: 2)),
@@ -751,11 +915,35 @@ class _HomeScreenState extends State<HomeScreen> {
             .toList();
         final unreadCount =
             notifications.where((notification) => !notification.isRead).length;
+        final displayedAlerts = activeAlerts.isNotEmpty
+            ? activeAlerts
+            : (_showDummyImportantMessages
+                  ?  [
+                      NotificationModel(
+                        title: 'Water supply interruption',
+                        body:
+                            'Water supply will be unavailable in Hostel Block C from 2:00 PM to 4:00 PM today.',
+                        timestamp: DateTime.now(),
+                        isRead: false,
+                        // isAlertActive: true,
+                      ),
+                      NotificationModel(
+                        title: 'Mess timing update',
+                        body:
+                            'Dinner will begin 30 minutes late today due to kitchen maintenance.',
+                        timestamp: DateTime.now(),
+                        isRead: false,
+                        // isAlertActive: true,
+                      ),
+                    ]
+                  : const <NotificationModel>[]);
 
         return Column(
           children: [
-            _buildImportantMessagesCard(activeAlerts),
-            const SizedBox(height: 16),
+            if (displayedAlerts.isNotEmpty) ...[
+              _buildImportantMessagesCard(displayedAlerts),
+              const SizedBox(height: 16),
+            ],
             _buildUpdatesCard(unreadCount),
           ],
         );
@@ -792,22 +980,25 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: iconChild,
               ),
-              const Spacer(),
-              Text(
-                action.status,
-                style: TextStyle(
-                  fontSize: 13,
-                  height: 16 / 12,
-                  fontWeight: FontWeight.w500,
-                  color: action.statusColor,
+              // const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 10),
+                child: Text(
+                  action.status,
+                  style: TextStyle(
+                    fontSize: 12,
+                    // height: 16 / 12,
+                    fontWeight: FontWeight.w500,
+                    color: action.statusColor,
+                  ),
                 ),
               ),
-              const SizedBox(height: 4),
+              // const SizedBox(height: 4),
               Text(
                 action.label,
                 style: const TextStyle(
-                  fontSize: 15,
-                  height: 20 / 14,
+                  fontSize: 14,
+                  // height: 20 / 14,
                   fontWeight: FontWeight.w500,
                   color: textPrimary,
                 ),
@@ -961,25 +1152,14 @@ class _HomeScreenState extends State<HomeScreen> {
             Consumer<MessInfoProvider>(
               builder: (context, messProvider, child) {
                 if (messProvider.isLoading) {
-                  return Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 32),
-                    decoration: _cardDecoration(radius: 16),
-                    child: const Center(child: CircularProgressIndicator()),
-                  );
+                  return _buildMenuShimmerPlaceholder();
                 }
 
                 return FutureBuilder<List<MenuModel>>(
                   future: fetchMenu(currSubscribedMess, getTodayDay()),
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
-                      return Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(vertical: 32),
-                        decoration: _cardDecoration(radius: 16),
-                        child:
-                            const Center(child: CircularProgressIndicator()),
-                      );
+                      return _buildMenuShimmerPlaceholder();
                     }
 
                     if (snapshot.hasError) {
