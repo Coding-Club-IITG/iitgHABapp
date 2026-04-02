@@ -560,7 +560,7 @@ class _LeaveApplicationListScreenState
                                 final status = application['status'] ?? '';
                                 final leaveType =
                                     application['leaveType'] ?? 'Leave';
-                                final proofDocument = application['proofDocumentFilename'] != null || application['proofDocumentUrl'] != null;
+
                                 Color statusColor = const Color(0xFFA36500);
                                 IconData statusIcon = Icons.done_all;
 
@@ -669,11 +669,6 @@ class _LeaveApplicationListScreenState
                                   final startDateParsed =
                                       DateTime.parse(application['startDate']);
                                   final now = DateTime.now();
-<<<<<<< HEAD
-                                  final daysDiff = startDateParsed.difference(now).inDays;
-                                  final isMedical = leaveType.toLowerCase().contains('medical');
-                                  final canUpload = (isMedical && daysDiff <= 7) && !proofDocument;
-=======
                                   final daysDiff =
                                       startDateParsed.difference(now).inDays;
                                   final isMedical = leaveType
@@ -685,7 +680,6 @@ class _LeaveApplicationListScreenState
                                   final daysLeftText = daysDiff >= 0
                                       ? '${daysDiff + 1} day${daysDiff + 1 == 1 ? '' : 's'} left to upload'
                                       : 'Upload window expired';
->>>>>>> 70ffb30 (UI: improved input field states (focus, filled))
 
                                   // Attach upload reminder/info into card content if medical
                                   final messageText = isMedical
