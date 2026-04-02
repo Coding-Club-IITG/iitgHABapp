@@ -14,6 +14,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 class LeaveApplicationScreen extends StatefulWidget {
   const LeaveApplicationScreen({super.key, required this.leaveType});
   final int? leaveType;
+  
   @override
   State<LeaveApplicationScreen> createState() => _LeaveApplicationScreenState();
 }
@@ -26,6 +27,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   static const Color _borderColor = Color(0xFFE6E6E6);
   static const Color _greyBg = Color(0xFFF5F5F5);
   static const Color _greyText = Color(0xFF939393);
+  final FocusNode _reasonFocusNode = FocusNode();
 
   // State variables
   int? _selectedValue; // 1: Casual, 2: Academic, 3:Medical
@@ -48,6 +50,12 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     _selectedValue = widget.leaveType;
     _currentStep = 1;
     _loadBankDetails();
+  }
+
+  @override
+  void dispose() {
+    _reasonFocusNode.dispose();
+    super.dispose();
   }
 
   Future<void> _selectDateRange() async {
@@ -278,32 +286,57 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: _reasonController,
-                maxLines: null,
-                decoration: InputDecoration(
-                  hintText: "e.g. Trip to home",
-                  hintStyle: const TextStyle(color: _greyText, fontSize: 14),
-                  filled: true,
-                  fillColor: _greyBg,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: _borderColor, width: 1),
-                  ),
-                  enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: _borderColor, width: 1),
-                  ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide:
-                        const BorderSide(color: _primaryColor, width: 2),
-                  ),
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                ),
-              ),
+              StatefulBuilder(
+                builder: (context, setState) {
+                  bool isFocused = _reasonFocusNode.hasFocus;
+                  bool isFilled = _reasonController.text.isNotEmpty;
 
+                  Color borderColor = _borderColor;
+                  Color fillColor = _greyBg;
+                  Widget? suffixIcon;
+
+                  if (isFocused) {
+                    // Focused
+                    borderColor = _primaryColor;
+                    fillColor = _primaryColor.withOpacity(0.08);
+                  } else if (isFilled) {
+                    //Completed
+                    suffixIcon = const Icon(Icons.check, color: Colors.green);
+                  }
+
+                  return TextField(
+                    controller: _reasonController,
+                    focusNode: _reasonFocusNode,
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) {
+                      FocusScope.of(context).unfocus();
+                      setState(() {});
+                    },
+                    decoration: InputDecoration(
+                      hintText: "e.g. Trip to home",
+                      hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+                      filled: true,
+                      fillColor: fillColor,
+                      suffixIcon: suffixIcon,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor, width: 1),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: borderColor, width: 1),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide:
+                            const BorderSide(color: _primaryColor, width: 2),
+                      ),
+                      contentPadding:
+                          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    ),
+                  );
+                },
+              ),
               // Upload Valid Proof
               const SizedBox(height: 24),
               const Text(
@@ -735,46 +768,82 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   Widget _buildBankField(
-      String label, TextEditingController controller, String hint) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
-            color: Colors.black,
+  String label,
+  TextEditingController controller,
+  String hint,
+) {
+  final focusNode = FocusNode();
+
+  return StatefulBuilder(
+    builder: (context, setState) {
+      bool isFocused = focusNode.hasFocus;
+      bool isFilled = controller.text.isNotEmpty;
+
+      Color borderColor = _borderColor;
+      Color fillColor = _greyBg;
+      Widget? suffixIcon;
+
+      if (isFocused) {
+        // Focused state
+        borderColor = _primaryColor;
+        fillColor = _primaryColor.withOpacity(0.08);
+      } else if (isFilled) {
+        //Completed state
+        borderColor = _borderColor;
+        fillColor = _greyBg;
+        suffixIcon = const Icon(Icons.check, color: Colors.green);
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Colors.black,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: controller,
-          onChanged: (_) => _onFieldChanged(),
-          decoration: InputDecoration(
-            hintText: hint,
-            hintStyle: const TextStyle(color: _greyText, fontSize: 14),
-            filled: true,
-            fillColor: _greyBg,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _borderColor, width: 1),
+          const SizedBox(height: 8),
+          TextField(
+            controller: controller,
+            focusNode: focusNode,
+            onChanged: (_) {
+              setState(() {});
+              _onFieldChanged();
+            },
+            onSubmitted: (_) {
+              FocusScope.of(context).unfocus(); // simulate "enter"
+              setState(() {});
+            },
+            decoration: InputDecoration(
+              hintText: hint,
+              hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+              filled: true,
+              fillColor: fillColor,
+              suffixIcon: suffixIcon,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: borderColor, width: 1),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: borderColor, width: 1),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(color: _primaryColor, width: 2),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _borderColor, width: 1),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: _primaryColor, width: 2),
-            ),
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           ),
-        ),
-      ],
-    );
-  }
+        ],
+      );
+    },
+  );
+}
 
   Widget _buildBottomButtons({
     required VoidCallback onNext,

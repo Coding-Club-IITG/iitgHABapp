@@ -19,11 +19,7 @@ class LeaveApplicationListScreen extends StatefulWidget {
 }
 
 Widget _LeaveTypeCard(
-  String title,
-  String description,
-  String icon,
-  VoidCallback onTap
-) {
+    String title, String description, String icon, VoidCallback onTap) {
   return GestureDetector(
     onTap: onTap,
     child: Container(
@@ -173,7 +169,7 @@ class _LeaveApplicationListScreenState
         '${MessRebateEndpoints.getApplications}/$applicationId',
         options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
       );
-      if (response.statusCode == 200||response.statusCode == 201) {
+      if (response.statusCode == 200 || response.statusCode == 201) {
         setState(() {
           myApplications.removeWhere((app) => app['_id'] == applicationId);
         });
@@ -278,7 +274,9 @@ class _LeaveApplicationListScreenState
 
   List<dynamic> _getFilteredApplications() {
     if (selectedTab == 'All') {
-      return myApplications.where((app) => app['status']?.toLowerCase() != 'cancelled').toList();
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() != 'cancelled')
+          .toList();
     } else if (selectedTab == 'Approved') {
       return myApplications
           .where((app) => app['status']?.toLowerCase() == 'approved')
@@ -297,7 +295,9 @@ class _LeaveApplicationListScreenState
 
   int _getTabCount(String tab) {
     if (tab == 'All') {
-      return myApplications.where((app) => app['status']?.toLowerCase() != 'cancelled').length;
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() != 'cancelled')
+          .length;
     } else if (tab == 'Approved') {
       return myApplications
           .where((app) => app['status']?.toLowerCase() == 'approved')
@@ -369,7 +369,9 @@ class _LeaveApplicationListScreenState
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    const LeaveApplicationScreen(leaveType: 1,),
+                                    const LeaveApplicationScreen(
+                                  leaveType: 1,
+                                ),
                               ),
                             );
                           },
@@ -384,7 +386,9 @@ class _LeaveApplicationListScreenState
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    const LeaveApplicationScreen(leaveType: 2,),
+                                    const LeaveApplicationScreen(
+                                  leaveType: 2,
+                                ),
                               ),
                             );
                           },
@@ -399,7 +403,9 @@ class _LeaveApplicationListScreenState
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    const LeaveApplicationScreen(leaveType: 3,),
+                                    const LeaveApplicationScreen(
+                                  leaveType: 3,
+                                ),
                               ),
                             );
                           },
@@ -503,7 +509,8 @@ class _LeaveApplicationListScreenState
                         // Leave records list
                         Builder(
                           builder: (context) {
-                            final filteredApplications = _getFilteredApplications();
+                            final filteredApplications =
+                                _getFilteredApplications();
                             if (filteredApplications.isEmpty)
                               return Center(
                                 child: Column(
@@ -540,7 +547,8 @@ class _LeaveApplicationListScreenState
                               physics: const NeverScrollableScrollPhysics(),
                               itemCount: filteredApplications.length,
                               itemBuilder: (context, index) {
-                                final filteredApplications = _getFilteredApplications();
+                                final filteredApplications =
+                                    _getFilteredApplications();
                                 final application = filteredApplications[index];
                                 final applicationId = application['_id'] ?? '';
                                 final startDate = DateFormat('dd MMM').format(
@@ -611,9 +619,9 @@ class _LeaveApplicationListScreenState
                                           crossAxisAlignment:
                                               CrossAxisAlignment.end,
                                           children: [
-                                            (status=="pending")
+                                            (status == "pending")
                                                 ? const SizedBox(height: 0)
-                                                : const SizedBox(height:8),
+                                                : const SizedBox(height: 8),
                                             Text(
                                               "$startDate - $endDate",
                                               style: const TextStyle(
@@ -636,11 +644,12 @@ class _LeaveApplicationListScreenState
                                             ),
                                           ],
                                         ),
-                                        if (status.toLowerCase() == 'approved' ||
+                                        if (status.toLowerCase() ==
+                                                'approved' ||
                                             status.toLowerCase() == 'rejected')
                                           Padding(
-                                            padding:
-                                                const EdgeInsets.fromLTRB(8, 3, 3, 5),
+                                            padding: const EdgeInsets.fromLTRB(
+                                                8, 3, 3, 5),
                                             child: Container(
                                               padding: const EdgeInsets.all(4),
                                               width: 10,
@@ -657,23 +666,75 @@ class _LeaveApplicationListScreenState
                                 );
 
                                 if (status.toLowerCase() == 'pending') {
-                                  final startDateParsed = DateTime.parse(application['startDate']);
+                                  final startDateParsed =
+                                      DateTime.parse(application['startDate']);
                                   final now = DateTime.now();
+<<<<<<< HEAD
                                   final daysDiff = startDateParsed.difference(now).inDays;
                                   final isMedical = leaveType.toLowerCase().contains('medical');
                                   final canUpload = (isMedical && daysDiff <= 7) && !proofDocument;
+=======
+                                  final daysDiff =
+                                      startDateParsed.difference(now).inDays;
+                                  final isMedical = leaveType
+                                      .toLowerCase()
+                                      .contains('medical');
+                                  final canUpload = isMedical &&
+                                      daysDiff <= 7 &&
+                                      daysDiff >= 0;
+                                  final daysLeftText = daysDiff >= 0
+                                      ? '${daysDiff + 1} day${daysDiff + 1 == 1 ? '' : 's'} left to upload'
+                                      : 'Upload window expired';
+>>>>>>> 70ffb30 (UI: improved input field states (focus, filled))
 
-                                  Widget dismissibleChild = cardContent;
+                                  // Attach upload reminder/info into card content if medical
+                                  final messageText = isMedical
+                                      ? (canUpload
+                                          ? 'Tap this card to upload medical document. $daysLeftText'
+                                          : 'Medical upload unavailable: $daysLeftText')
+                                      : '';
+
+                                  final pendingContent = Padding(
+                                    padding: const EdgeInsets.only(bottom: 12),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF5F5F5),
+                                        border: Border.all(
+                                            color: const Color(0xFFE6E6E6)),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      padding: const EdgeInsets.all(16),
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          cardContent,
+                                          if (isMedical)
+                                            Padding(
+                                              padding:
+                                                  const EdgeInsets.only(top: 8),
+                                              child: Text(
+                                                messageText,
+                                                style: TextStyle(
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w500,
+                                                  color: canUpload
+                                                      ? const Color(0xFF4C4EDB)
+                                                      : Colors.red,
+                                                ),
+                                              ),
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+
+                                  Widget dismissibleChild = pendingContent;
                                   if (canUpload) {
-                                    dismissibleChild = Column(
-                                      children: [
-                                        cardContent,
-                                        const SizedBox(height: 8),
-                                        Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: _buildUploadProofButton(() => _uploadLateDocument(applicationId)),
-                                        ),
-                                      ],
+                                    dismissibleChild = GestureDetector(
+                                      onTap: () =>
+                                          _uploadLateDocument(applicationId),
+                                      child: pendingContent,
                                     );
                                   }
 
@@ -681,13 +742,16 @@ class _LeaveApplicationListScreenState
                                     key: Key(applicationId),
                                     direction: DismissDirection.endToStart,
                                     background: Padding(
-                                      padding: const EdgeInsets.only(bottom: 12),
+                                      padding:
+                                          const EdgeInsets.only(bottom: 12),
                                       child: Container(
                                         alignment: Alignment.centerRight,
-                                        padding: const EdgeInsets.only(right: 20),
+                                        padding:
+                                            const EdgeInsets.only(right: 20),
                                         decoration: BoxDecoration(
                                           color: Colors.red,
-                                          borderRadius: BorderRadius.circular(12),
+                                          borderRadius:
+                                              BorderRadius.circular(12),
                                         ),
                                         child: SvgPicture.asset(
                                           'assets/icon/trash.svg',
@@ -698,7 +762,8 @@ class _LeaveApplicationListScreenState
                                       ),
                                     ),
                                     confirmDismiss: (direction) async {
-                                      return await _deleteApplicationWithConfirm(applicationId);
+                                      return await _deleteApplicationWithConfirm(
+                                          applicationId);
                                     },
                                     child: dismissibleChild,
                                   );
