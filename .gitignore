@@ -10,3 +10,6 @@ login-frontend/.env
 # macOS system files
 .DS_Store
 **/.DS_Store
+
+**/devtools_options.yaml
+**/bug-**.jpg
