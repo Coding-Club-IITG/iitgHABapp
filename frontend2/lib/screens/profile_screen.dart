@@ -19,77 +19,13 @@ import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/widgets/common/custom_linear_progress.dart';
 import 'package:frontend2/widgets/common/hostel_name.dart';
 import 'package:frontend2/apis/authentication/login.dart' as auth;
+import 'package:frontend2/apis/hostel/hmc.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart'
     show ProfilePictureProvider;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HMC member model & static data
+// HMC member model & data (now fetched from API)
 // ─────────────────────────────────────────────────────────────────────────────
-
-class HmcMember {
-  final String name;
-  final String email;
-  final String phone;
-  final String? photoAsset; // optional local asset path
-
-  const HmcMember({
-    required this.name,
-    required this.email,
-    required this.phone,
-    this.photoAsset,
-  });
-}
-
-class HmcRole {
-  final String title;
-  final List<HmcMember> members;
-
-  const HmcRole({required this.title, required this.members});
-}
-
-// Replace with your actual HMC data.
-const List<HmcRole> kHmcRoles = [
-  HmcRole(
-    title: 'General Secretary',
-    members: [
-      HmcMember(
-        name: 'Nimesh',
-        email: 'v.vasu@iitg.ac.in',
-        phone: '7084415423',
-      ),
-    ],
-  ),
-  HmcRole(
-    title: 'Maintenance Secretary',
-    members: [
-      HmcMember(
-        name: 'Nimesh',
-        email: 'v.vasu@iitg.ac.in',
-        phone: '7084415423',
-      ),
-      HmcMember(
-        name: 'Nimesh',
-        email: 'v.vasu@iitg.ac.in',
-        phone: '7084415423',
-      ),
-    ],
-  ),
-  HmcRole(
-    title: 'Services Secretary',
-    members: [
-      HmcMember(
-        name: 'Nimesh',
-        email: 'v.vasu@iitg.ac.in',
-        phone: '7084415423',
-      ),
-      HmcMember(
-        name: 'Nimesh',
-        email: 'v.vasu@iitg.ac.in',
-        phone: '7084415423',
-      ),
-    ],
-  ),
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared accent colour
@@ -964,6 +900,38 @@ class _HmcInfoScreen extends StatefulWidget {
 class _HmcInfoScreenState extends State<_HmcInfoScreen> {
   // Track which member cards are expanded: key = "roleIndex-memberIndex"
   final Set<String> _expanded = {};
+  List<HmcRole> _hmcRoles = [];
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchHmcData();
+  }
+
+  Future<void> _fetchHmcData() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final roles = await fetchHmcMembers();
+      if (mounted) {
+        setState(() {
+          _hmcRoles = roles;
+          _loading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to load HMC data';
+          _loading = false;
+        });
+      }
+    }
+  }
 
   void _toggle(String key) {
     setState(() {
@@ -981,6 +949,7 @@ class _HmcInfoScreenState extends State<_HmcInfoScreen> {
   }
 
   Future<void> _mail(String email) async {
+    debugPrint("Attempting to mail $email");
     final uri = Uri(scheme: 'mailto', path: email);
     if (await canLaunchUrl(uri)) await launchUrl(uri);
   }
@@ -1006,36 +975,59 @@ class _HmcInfoScreenState extends State<_HmcInfoScreen> {
         ),
         centerTitle: false,
       ),
-      body: ListView(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-        children: [
-          for (int ri = 0; ri < kHmcRoles.length; ri++) ...[
-            // Role heading
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
-              child: Text(
-                kHmcRoles[ri].title,
-                style: const TextStyle(
-                  fontFamily: kFont,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-            ),
-            // Member cards
-            for (int mi = 0; mi < kHmcRoles[ri].members.length; mi++)
-              _HmcMemberCard(
-                member: kHmcRoles[ri].members[mi],
-                isExpanded: _expanded.contains('$ri-$mi'),
-                onToggle: () => _toggle('$ri-$mi'),
-                onCall: () => _call(kHmcRoles[ri].members[mi].phone),
-                onMail: () => _mail(kHmcRoles[ri].members[mi].email),
-              ),
-          ],
-          const SizedBox(height: 32),
-        ],
-      ),
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : _error != null
+              ? Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_error!, style: const TextStyle(color: Colors.red)),
+                      const SizedBox(height: 16),
+                      ElevatedButton(
+                        onPressed: _fetchHmcData,
+                        child: const Text('Retry'),
+                      ),
+                    ],
+                  ),
+                )
+              : _hmcRoles.isEmpty
+                  ? const Center(child: Text('No HMC members found'))
+                  : ListView(
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 8, horizontal: 8),
+                      children: [
+                        for (int ri = 0; ri < _hmcRoles.length; ri++) ...[
+                          // Role heading
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
+                            child: Text(
+                              _hmcRoles[ri].title,
+                              style: const TextStyle(
+                                fontFamily: kFont,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                                color: Colors.black87,
+                              ),
+                            ),
+                          ),
+                          // Member cards
+                          for (int mi = 0;
+                              mi < _hmcRoles[ri].members.length;
+                              mi++)
+                            _HmcMemberCard(
+                              member: _hmcRoles[ri].members[mi],
+                              isExpanded: _expanded.contains('$ri-$mi'),
+                              onToggle: () => _toggle('$ri-$mi'),
+                              onCall: () =>
+                                  _call(_hmcRoles[ri].members[mi].phone),
+                              onMail: () =>
+                                  _mail(_hmcRoles[ri].members[mi].email),
+                            ),
+                        ],
+                        const SizedBox(height: 32),
+                      ],
+                    ),
     );
   }
 }
