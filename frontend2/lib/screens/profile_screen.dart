@@ -1279,15 +1279,13 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
 
       final deviceInfo = jsonEncode(deviceData);
 
-      final endpoint =
-          _type == 0 ? '$baseUrl/bug-report' : '$baseUrl/suggestion';
-
       final formData = FormData.fromMap({
         'title': title,
         'description': desc,
         if (email.isNotEmpty) 'email': email,
         'deviceInfo': deviceInfo,
-        if (_type == 0) 'frequency': _frequency,
+        'type': _type == 0 ? 'bug' : 'suggestion',
+        if (_type == 0 && _frequency.isNotEmpty) 'frequency': _frequency,
         if (_screenshots.isNotEmpty)
           'screenshots': [
             for (final f in _screenshots)
@@ -1299,7 +1297,7 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
       });
 
       final res = await DioClient().dio.post(
-            endpoint,
+            '$baseUrl/bug-report',
             data: formData,
             options: Options(headers: {'Authorization': 'Bearer $token'}),
           );
@@ -1314,7 +1312,11 @@ class _FeedbackSheetState extends State<_FeedbackSheet> {
         setState(() => _titleError = 'Submission failed. Try again.');
       }
     } catch (e) {
-      if (mounted) setState(() => _titleError = 'Error: ${e.toString()}');
+      if (mounted) {
+        setState(
+            () => _titleError = 'Error while sending feedback. Try again.');
+      }
+      debugPrint('Feedback submission error: $e');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }

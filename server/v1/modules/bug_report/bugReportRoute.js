@@ -20,7 +20,7 @@ router.use(
  * @swagger
  * /api/bug-report:
  *   post:
- *     summary: Submit a bug report
+ *     summary: Submit a bug report or suggestion
  *     tags: [Bug Report]
  *     requestBody:
  *       required: true
@@ -31,11 +31,15 @@ router.use(
  *             required:
  *               - title
  *               - description
+ *               - type
  *             properties:
  *               title:
  *                 type: string
  *               description:
  *                 type: string
+ *               type:
+ *                 type: string
+ *                 enum: [bug, suggestion]
  *               email:
  *                 type: string
  *               screenshots:
@@ -58,13 +62,13 @@ router.post("/", uploadMiddleware, createBugReport);
  * @swagger
  * /api/bug-report:
  *   get:
- *     summary: Get all bug reports (Admin only)
+ *     summary: Get all bug reports and suggestions (Admin only)
  *     tags: [Bug Report]
  *     security:
  *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: List of bug reports
+ *         description: List of bug reports and suggestions
  */
 router.get("/", authenticateAdminJWT, getBugReports);
 
