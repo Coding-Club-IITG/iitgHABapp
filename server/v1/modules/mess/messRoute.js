@@ -3,6 +3,7 @@ const {
   authenticateJWT,
   authenticateHabJWT,
   authenticateUserOrAdminJWT,
+  authenticateAdminJWT,
 } = require("../../middleware/authenticateJWT.js");
 const {
   requireMicrosoftAuth,
@@ -26,6 +27,9 @@ const {
   assignMessToHostel,
   changeHostel,
   unassignMess,
+  getMessWorkers,
+  createMessWorker,
+  deleteMessWorker,
 } = require("./messController");
 const {
   getMessMenuByDayForSMC,
@@ -75,6 +79,11 @@ messRouter.delete(
 );
 messRouter.post("/get", authenticateJWT, getUserMessInfo);
 messRouter.post("/all", getAllMessInfo);
+// Move workers routes before /:id to prevent route shadowing
+messRouter.get("/workers", authenticateAdminJWT, getMessWorkers);
+messRouter.post("/workers", authenticateAdminJWT, createMessWorker);
+messRouter.delete("/workers/:id", authenticateAdminJWT, deleteMessWorker);
+
 messRouter.get("/:id", authenticateHabJWT, getMessInfo);
 messRouter.post("/menu/:messId", authenticateJWT, getMessMenuByDay);
 messRouter.post(

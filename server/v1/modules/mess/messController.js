@@ -1,4 +1,5 @@
 const { Mess } = require("./messModel");
+const { MessWorker } = require("./messWorkerModel");
 const { Menu } = require("./menuModel");
 const { MenuItem } = require("./menuItemModel");
 const { User } = require("../user/userModel");
@@ -1006,8 +1007,71 @@ const formatTime2 = (time) => {
     .padStart(2, "0")}`;
 };
 
+const getMessWorkers = async (req, res) => {
+  try {
+    let query = {};
+    if (req.hostel && req.hostel.messId) {
+      query.messId = req.hostel.messId;
+    }
+    const workers = await MessWorker.find(query);
+    return res.status(200).json({ workers });
+  } catch (error) {
+    console.error("Error fetching mess workers:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const createMessWorker = async (req, res) => {
+  try {
+    const { name, designation, rate } = req.body;
+    
+    let messId = null;
+    if (req.hostel && req.hostel.messId) {
+      messId = req.hostel.messId;
+    }
+
+    if (!messId) {
+      return res.status(400).json({ message: "Hostel does not have an active mess assigned." });
+    }
+
+    if (!name || !rate) {
+      return res.status(400).json({ message: "Name and daily wage rate are required" });
+    }
+
+    const newWorker = new MessWorker({
+      name,
+      designation: designation || "Unskilled",
+      rate,
+      messId
+    });
+
+    await newWorker.save();
+    return res.status(201).json(newWorker);
+  } catch (error) {
+    console.error("Error creating mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const deleteMessWorker = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const worker = await MessWorker.findByIdAndDelete(id);
+    if (!worker) {
+      return res.status(404).json({ message: "Mess worker not found" });
+    }
+    return res.status(200).json({ message: "Mess worker deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 module.exports = {
   createMess,
+  getMessWorkers,
+  createMessWorker,
+  deleteMessWorker,
   createMessWithoutHostel,
   createMenu,
   deleteMenu,
