@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import axios from "axios";
-import { API_BASE_URL } from "../apis";
+import { getMessSubscribers } from "../apis/hostelApi";
+import { getMessWorkers } from "../apis/messApi";
 
 const MessBillCalculator = ({ hostelId, hostelName }) => {
   // Generate available months (before current month, excluding current month)
@@ -31,7 +31,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
     availableMonths.length > 0 ? 0 : null
   );
 
-  const selectedMonthData = 
+  const selectedMonthData =
     selectedMonthIndex !== null ? availableMonths[selectedMonthIndex] : null;
   const selectedMonth = selectedMonthData?.month ?? new Date().getMonth();
   const selectedYear = selectedMonthData?.year ?? new Date().getFullYear();
@@ -63,6 +63,18 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [workers, setWorkers] = useState([]);
+  const [workerAttendances, setWorkerAttendances] = useState({});
+
+  const handleAttendanceChange = (workerId, value) => {
+    let days = parseFloat(value);
+    if (isNaN(days)) days = 0;
+    days = Math.max(0, Math.min(31, days));
+    setWorkerAttendances(prev => ({
+      ...prev,
+      [workerId]: days
+    }));
+  };
 
   // Update month and year when selection changes
   useEffect(() => {
@@ -77,21 +89,29 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
     }));
   }, [selectedMonthIndex]);
 
-  // Fetch users subscribed to this hostel's mess
-  const fetchMessSubscribers = async () => {
+  // Fetch users subscribed to this hostel's mess and mess workers
+  const fetchData = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(
-        `${API_BASE_URL}/hostel/mess-subscribers`
-      );
+      const [subscribersData, workersData] = await Promise.all([
+        getMessSubscribers(),
+        getMessWorkers(),
+      ]);
+
+      const initialAttendances = {};
+      workersData.forEach(w => {
+        initialAttendances[w._id] = 26;
+      });
+      setWorkerAttendances(initialAttendances);
+      setWorkers(workersData);
 
       setBillData((prev) => ({
         ...prev,
-        totalSubscribers: response.data.count || 0,
-        messDays: (response.data.count || 0) * 30, // M = N * D
+        totalSubscribers: subscribersData.length || 0,
+        messDays: (subscribersData.length || 0) * 30, // M = N * D
       }));
     } catch (err) {
-      setError("Failed to fetch mess subscribers: " + err.message);
+      setError("Failed to fetch data: " + err.message);
     } finally {
       setLoading(false);
     }
@@ -99,10 +119,22 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
 
   useEffect(() => {
     if (hostelId) {
-      fetchMessSubscribers();
+      fetchData();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hostelId, selectedMonthIndex]);
+
+  // Update total wages when workers or attendance change
+  useEffect(() => {
+    const totalWageCalc = workers.reduce((sum, worker) => {
+      const days = workerAttendances[worker._id] ?? 26;
+      return sum + ((worker.rate || 0) * days);
+    }, 0);
+    setBillData((prev) => ({
+      ...prev,
+      totalWage: totalWageCalc,
+    }));
+  }, [workers, workerAttendances]);
 
   // Calculate all derived values when inputs change
   useEffect(() => {
@@ -183,9 +215,8 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
           </style>
         </head>
         <body>
-          <div class="header">MESS BILL CALCULATION FOR ${billData.month.toUpperCase()} ${
-      billData.year
-    }</div>
+          <div class="header">MESS BILL CALCULATION FOR ${billData.month.toUpperCase()} ${billData.year
+      }</div>
           
           <table>
             <tr>
@@ -256,9 +287,9 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
             </tr>
             <tr>
               <td>Total Wage</td>
-              <td class="formula">W</td>
+              <td class="formula">W = Σ(Rate × Attendance)</td>
               <td class="value">${formatCurrency(billData.totalWage)}</td>
-              <td>Manual entry</td>
+              <td>Calculated automatically</td>
             </tr>
             <tr>
               <td>Mess Bill (Claimed by caterer)</td>
@@ -288,24 +319,24 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
               <td>First Installment of Payment from hostel office to the caterer</td>
               <td class="formula">P1 = B - (T2 + (0.2×F)) - Misc</td>
               <td class="value">${formatCurrency(
-                billData.firstInstallment
-              )}</td>
+        billData.firstInstallment
+      )}</td>
               <td></td>
             </tr>
             <tr>
               <td>Second Installment of Payment from hostel office to the caterer</td>
               <td class="formula">P2 = 0.2 × F</td>
               <td class="value">${formatCurrency(
-                billData.secondInstallment
-              )}</td>
+        billData.secondInstallment
+      )}</td>
               <td></td>
             </tr>
             <tr>
               <td>Rebate Reimbursement (hostel office should release to the student)</td>
               <td class="formula">RR = R × 119</td>
               <td class="value">${formatCurrency(
-                billData.rebateReimbursement
-              )}</td>
+        billData.rebateReimbursement
+      )}</td>
               <td></td>
             </tr>
             <tr>
@@ -324,8 +355,8 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
               <td>Total Mess bill Expenditure (For HAB Office Use Only)</td>
               <td class="formula">T2 + T3</td>
               <td class="value">${formatCurrency(
-                billData.totalExpenditure
-              )}</td>
+        billData.totalExpenditure
+      )}</td>
               <td></td>
             </tr>
           </table>
@@ -382,148 +413,108 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
         </select>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* General Information */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">
-            General Information
-          </h3>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Month and Year
-            </label>
-            <input
-              type="text"
-              value={`${billData.month}, ${billData.year}`}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100"
-              readOnly
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Selected from month picker above
-            </p>
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+        
+        {/* Left Side: General Info & Input Parameters (Span 8) */}
+        <div className="lg:col-span-8 flex flex-col gap-6">
+          {/* General Information Box */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">
+              General Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Month and Year</label>
+                <input type="text" value={`${billData.month}, ${billData.year}`} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 focus:outline-none" readOnly />
+                <p className="text-xs text-gray-500 mt-1">Selected from month picker above</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hostel Name</label>
+                <input type="text" value={billData.hostelName} onChange={(e) => handleInputChange("hostelName", e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Hostel Mess Account Number (Canara Bank)</label>
+                <input type="text" value={billData.accountNumber} onChange={(e) => handleInputChange("accountNumber", e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter account number" />
+              </div>
+            </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Hostel Name
-            </label>
-            <input
-              type="text"
-              value={billData.hostelName}
-              onChange={(e) => handleInputChange("hostelName", e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Hostel Mess Account Number (Canara Bank)
-            </label>
-            <input
-              type="text"
-              value={billData.accountNumber}
-              onChange={(e) =>
-                handleInputChange("accountNumber", e.target.value)
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter account number"
-            />
+          {/* Input Parameters Box */}
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm">
+            <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4">
+              Input Parameters
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">No of mess operating Days (D)</label>
+                <input type="number" value={billData.operatingDays} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 focus:outline-none" readOnly />
+                <p className="text-xs text-gray-500 mt-1">Hardcoded to 30</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total No of mess subscribers (N)</label>
+                <input type="number" value={billData.totalSubscribers} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 focus:outline-none" readOnly />
+                <p className="text-xs text-gray-500 mt-1">Auto-populated from database</p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">No of Mess Days (M = N × D)</label>
+                <input type="number" value={billData.messDays} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 focus:outline-none" readOnly />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Total Rebate Days (R)</label>
+                <input type="number" value={billData.rebateDays} onChange={(e) => handleInputChange("rebateDays", parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter rebate days" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Misc deduction</label>
+                <input type="number" value={billData.miscDeduction} onChange={(e) => handleInputChange("miscDeduction", parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter misc deduction" />
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Input Parameters */}
-        <div className="space-y-4">
-          <h3 className="text-lg font-semibold text-gray-700 border-b pb-2">
-            Input Parameters
-          </h3>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              No of mess operating Days (D)
-            </label>
-            <input
-              type="number"
-              value={billData.operatingDays}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100"
-              readOnly
-            />
-            <p className="text-xs text-gray-500 mt-1">Hardcoded to 30</p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Total No of mess subscribers (N)
-            </label>
-            <input
-              type="number"
-              value={billData.totalSubscribers}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100"
-              readOnly
-            />
-            <p className="text-xs text-gray-500 mt-1">
-              Auto-populated from database
-            </p>
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              No of Mess Days (M = N × D)
-            </label>
-            <input
-              type="number"
-              value={billData.messDays}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100"
-              readOnly
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Total Rebate Days (R)
-            </label>
-            <input
-              type="number"
-              value={billData.rebateDays}
-              onChange={(e) =>
-                handleInputChange("rebateDays", parseFloat(e.target.value) || 0)
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter rebate days"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Total Wage (W)
-            </label>
-            <input
-              type="number"
-              value={billData.totalWage}
-              onChange={(e) =>
-                handleInputChange("totalWage", parseFloat(e.target.value) || 0)
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter total wage"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Misc deduction
-            </label>
-            <input
-              type="number"
-              value={billData.miscDeduction}
-              onChange={(e) =>
-                handleInputChange(
-                  "miscDeduction",
-                  parseFloat(e.target.value) || 0
-                )
-              }
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Enter misc deduction"
-            />
+        {/* Right Side: Manage Worker Attendance & Total Wage (Span 4) */}
+        <div className="lg:col-span-4 flex flex-col gap-6">
+          <div className="bg-gray-50 border border-gray-200 rounded-xl p-5 shadow-sm flex flex-col h-full min-h-[400px]">
+             <h3 className="text-lg font-semibold text-gray-800 border-b border-gray-200 pb-2 mb-4 flex items-center gap-2">
+               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+               Manage Worker Attendance
+             </h3>
+             
+             <div className="flex-1 bg-white border border-gray-200 rounded-lg p-2 overflow-y-auto space-y-2 mb-4 shadow-inner max-h-[350px]">
+               {workers.length === 0 ? (
+                 <p className="text-xs text-center text-gray-400 italic py-4">No workers found.</p>
+               ) : (
+                 workers.map(worker => (
+                   <div key={worker._id} className="flex items-center justify-between bg-gray-50 p-2 rounded border border-gray-200 hover:bg-gray-100 transition-colors">
+                     <div className="flex flex-col overflow-hidden mr-2">
+                       <span className="text-sm font-semibold text-gray-800 truncate">{worker.name}</span>
+                       <span className="text-[10px] text-gray-500 truncate">{worker.designation} - ₹{worker.rate}/day</span>
+                     </div>
+                     <div className="flex items-center gap-1 shrink-0">
+                       <input
+                         type="number"
+                         min="0"
+                         max="31"
+                         value={workerAttendances[worker._id] ?? 26}
+                         onChange={(e) => handleAttendanceChange(worker._id, e.target.value)}
+                         className="w-14 px-1 py-1 border border-gray-300 rounded text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                       />
+                       <span className="text-[10px] text-gray-500 font-medium">days</span>
+                     </div>
+                   </div>
+                 ))
+               )}
+             </div>
+            
+             {/* Total Wage Pinned at Bottom */}
+             <div className="mt-auto pt-4 border-t border-gray-200 shrink-0">
+               <label className="block text-sm font-bold text-gray-800 mb-2 uppercase tracking-wide">
+                 Total Mess Wage (W)
+               </label>
+               <div className="w-full text-center px-4 py-3 bg-white border-2 border-gray-300 rounded-lg text-gray-800 text-2xl font-black shadow-sm">
+                 {formatCurrency(billData.totalWage)}
+               </div>
+               <p className="text-xs text-gray-500 mt-2 text-center font-medium opacity-80">Auto-computed: Σ(Rate × Attendance)</p>
+             </div>
           </div>
         </div>
       </div>
@@ -678,13 +669,13 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
               <tr>
                 <td className="border border-gray-300 px-4 py-2">Total Wage</td>
                 <td className="border border-gray-300 px-4 py-2 text-gray-600 italic">
-                  W
+                  W = Σ(Rate × Attendance)
                 </td>
                 <td className="border border-gray-300 px-4 py-2 font-semibold">
                   {formatCurrency(billData.totalWage)}
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-sm text-gray-500">
-                  Manual entry
+                  Calculated automatically
                 </td>
               </tr>
               <tr className="bg-gray-50">
