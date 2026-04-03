@@ -286,8 +286,11 @@ class _HomeScreenState extends State<HomeScreen>
         .toList()
       ..sort((a, b) => b.bookingDate.compareTo(a.bookingDate));
 
-    final latestCleanedBooking =
-        cleanedBookings.isNotEmpty ? cleanedBookings.first : null;
+    if (cleanedBookings.isEmpty) {
+      return 'Not cleaned yet';
+    }
+
+    final latestCleanedBooking = cleanedBookings.first;
     final daysSince = _daysSince(latestCleanedBooking?.bookingDate);
 
     if (daysSince == null || daysSince < 0) {

@@ -1088,7 +1088,7 @@ class _MessMenuLoadingSkeleton extends StatelessWidget {
         SizedBox(height: 20),
         _MessDayChipsSkeleton(),
         SizedBox(height: 20),
-        _MessMealCardSkeleton(expanded: true),
+        _MessMealCardSkeleton(expanded: false),
         SizedBox(height: 12),
         _MessMealCardSkeleton(expanded: false),
         SizedBox(height: 12),
@@ -1199,10 +1199,10 @@ class _MessMealCardSkeleton extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         _MessShimmerBlock(height: 16, width: 88),
                         SizedBox(height: 16),
                         _MessShimmerBlock(height: 28, width: 78),
@@ -1213,13 +1213,13 @@ class _MessMealCardSkeleton extends StatelessWidget {
                   ),
                   Container(
                     width: 1,
-                    margin: EdgeInsets.symmetric(horizontal: 16),
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
                     color: _MessScreenState.border,
                   ),
-                  Expanded(
+                  const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
+                      children: [
                         _MessShimmerBlock(height: 16, width: 52),
                         SizedBox(height: 16),
                         _MessShimmerBlock(height: 28, width: 88),
