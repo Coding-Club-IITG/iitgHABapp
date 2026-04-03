@@ -36,10 +36,11 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
-  static const pageBackground = Color(0xFFFCFCFC);
+  static const pageBackground = Color(0xFFFFFFFF);
+  static const topBarBackground = Color(0xFFFAFAFA);
   static const surface = Color(0xFFFFFFFF);
-  static const sectionDivider = Color(0xF2ECECEC);
-  static const border = Color(0xFFD2D2D2);
+  static const sectionDivider = Color(0xFFF0F0F0);
+  static const border = Color(0xFFE6E6E6);
   static const primary = Color(0xFF4C4EDB);
   static const primarySoft = Color(0xFFEDEDFB);
   static const textPrimary = Color(0xFF2E2F31);
@@ -50,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen>
   static const yellowSoft = Color(0xFFFFFAEB);
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
-  static const shadow = Color(0x22070707);
+  static const shadow = Color(0x14000000);
   static const bool _showDummyImportantMessages = false;
 
   String name = '';
@@ -170,6 +171,20 @@ class _HomeScreenState extends State<HomeScreen>
     }
     final safeMinutes = minutes <= 0 ? 1 : minutes;
     return '$safeMinutes min left';
+  }
+
+  String _formatTimeWithMeridiem(String time) {
+    final parts = time.split(':');
+    if (parts.length != 2) return time;
+
+    final hour = int.tryParse(parts[0]);
+    final minute = int.tryParse(parts[1]);
+    if (hour == null || minute == null) return time;
+
+    final suffix = hour >= 12 ? 'PM' : 'AM';
+    final twelveHour = hour % 12 == 0 ? 12 : hour % 12;
+    final minuteText = minute.toString().padLeft(2, '0');
+    return '$twelveHour:$minuteText $suffix';
   }
 
   Future<void> _loadScanQrStatus(String messId) async {
@@ -645,7 +660,7 @@ class _HomeScreenState extends State<HomeScreen>
             ),
             const Spacer(),
             Text(
-              '${menu.startTime} - ${menu.endTime}',
+              '${_formatTimeWithMeridiem(menu.startTime)} - ${_formatTimeWithMeridiem(menu.endTime)}',
               style: const TextStyle(
                 fontSize: 14,
                 height: 20 / 14,
@@ -740,7 +755,7 @@ class _HomeScreenState extends State<HomeScreen>
     final displayName = name.isNotEmpty ? name : 'User';
     return Container(
       decoration: const BoxDecoration(
-        color: surface,
+        color: topBarBackground,
         border: Border(bottom: BorderSide(color: border)),
       ),
       child: SafeArea(
