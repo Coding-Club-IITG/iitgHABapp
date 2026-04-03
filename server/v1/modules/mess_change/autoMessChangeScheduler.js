@@ -1,3 +1,5 @@
+// autoMessChangeScheduler.js
+
 const schedule = require("node-schedule");
 const { MessChangeSettings } = require("./messChangeSettingsModel");
 const {
@@ -7,6 +9,53 @@ const {
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
+
+const admin = require("../notification/firebase");
+const { FCMToken } = require("../notification/FCMToken");
+const { User } = require("../user/userModel");
+
+/**
+ * Sends a targeted reminder only to students who haven't applied for a mess change.
+ * @param {number} hoursLeft - The number of hours remaining in the window.
+ */
+const sendMessChangeReminder = async (hoursLeft) => {
+  try {
+    // 1. Find all users who have NOT applied for a mess change this month
+    // (Note: Ensure 'hasAppliedForMessChange' matches your actual boolean in userModel)
+    const slackers = await User.find({ hasAppliedForMessChange: false }).select('_id');
+    
+    if (slackers.length === 0) {
+      console.log(`No mess change reminders needed for ${hoursLeft}hr mark.`);
+      return; 
+    }
+
+    const userIds = slackers.map(u => u._id);
+
+    // 2. Fetch all registered device tokens for those specific users
+    const tokens = await FCMToken.find({ user: { $in: userIds } }).select('token');
+    const tokenArray = tokens.map(t => t.token);
+
+    if (tokenArray.length === 0) return;
+
+    // 3. Blast the Multicast using the correct Native Channel ID
+    const response = await admin.messaging().sendMulticast({
+      tokens: tokenArray,
+      notification: {
+        title: "Mess Change Window Closing! ⏳",
+        body: `You have ${hoursLeft} hours left to apply for a mess change for next month.`,
+      },
+      android: {
+        notification: {
+          channelId: "hab_mess_updates" // Allows users to mute this category in Android settings
+        }
+      }
+    });
+
+    console.log(`Sent ${hoursLeft}hr mess change reminder to ${response.successCount} users.`);
+  } catch (error) {
+    console.error("Error sending mess change reminders:", error);
+  }
+};
 
 // Helper to get mess change window dates for a given month
 // Server is already in IST timezone, so we use local time
@@ -65,19 +114,22 @@ const scheduleMessChangeReminders = async () => {
     const reminder12h = new Date(closingTime.getTime() - 12 * 60 * 60 * 1000);
     if (reminder12h > now) {
       const jobName12h = `messchange-reminder-12h-${Date.now()}`;
+      // schedule.scheduleJob(jobName12h, reminder12h, () => {
+      //   sendNotificationMessage(
+      //     "MESS CHANGE",
+      //     "Mess change application form will close in 12 hours",
+      //     "All_Hostels",
+      //     { redirectType: "mess_change", isAlert: "true" },
+      //   ).catch((err) =>
+      //     console.error(
+      //       "📢 [MESS CHANGE] 12h mess change reminder send failed:",
+      //       err,
+      //     ),
+      //   );
+      //   console.log("📢 [MESS CHANGE] Sent 12h mess change reminder");
+      // });
       schedule.scheduleJob(jobName12h, reminder12h, () => {
-        sendNotificationMessage(
-          "MESS CHANGE",
-          "Mess change application form will close in 12 hours",
-          "All_Hostels",
-          { redirectType: "mess_change", isAlert: "true" },
-        ).catch((err) =>
-          console.error(
-            "📢 [MESS CHANGE] 12h mess change reminder send failed:",
-            err,
-          ),
-        );
-        console.log("📢 [MESS CHANGE] Sent 12h mess change reminder");
+        sendMessChangeReminder(12);
       });
       console.log(
         `📅 [MESS CHANGE] Scheduled 12h reminder for ${reminder12h.toLocaleString(
@@ -93,19 +145,22 @@ const scheduleMessChangeReminders = async () => {
     const reminder2h = new Date(closingTime.getTime() - 2 * 60 * 60 * 1000);
     if (reminder2h > now) {
       const jobName2h = `messchange-reminder-2h-${Date.now()}`;
+      // schedule.scheduleJob(jobName2h, reminder2h, () => {
+      //   sendNotificationMessage(
+      //     "MESS CHANGE",
+      //     "Mess change application form will close in 2 hours",
+      //     "All_Hostels",
+      //     { redirectType: "mess_change", isAlert: "true" },
+      //   ).catch((err) =>
+      //     console.error(
+      //       "📢 [MESS CHANGE] 2h mess change reminder send failed:",
+      //       err,
+      //     ),
+      //   );
+      //   console.log("📢 [MESS CHANGE] Sent 2h mess change reminder");
+      // });
       schedule.scheduleJob(jobName2h, reminder2h, () => {
-        sendNotificationMessage(
-          "MESS CHANGE",
-          "Mess change application form will close in 2 hours",
-          "All_Hostels",
-          { redirectType: "mess_change", isAlert: "true" },
-        ).catch((err) =>
-          console.error(
-            "📢 [MESS CHANGE] 2h mess change reminder send failed:",
-            err,
-          ),
-        );
-        console.log("📢 [MESS CHANGE] Sent 2h mess change reminder");
+        sendMessChangeReminder(2);
       });
       console.log(
         `📅 [MESS CHANGE] Scheduled 2h reminder for ${reminder2h.toLocaleString(
