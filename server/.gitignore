@@ -3,3 +3,7 @@ node_modules/
 .secrets/
 
 modules/notification/serviceAccountKey.json
+
+# App version config (environment-specific)
+modules/app_version/config/appVersion.json
+modules/app_version/config/hqAppVersion.json

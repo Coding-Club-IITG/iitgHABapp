@@ -1,36 +1,57 @@
 const express = require("express");
-const router = express.Router();
+const appVersionRouter = express.Router();
+const hqAppVersionRouter = express.Router();
+const rcAppVersionRouter = express.Router();
 const {
   getVersionInfo,
   updateVersionInfo,
   getAllVersionInfo,
+  getHqVersionInfo,
+  updateHqVersionInfo,
+  getAllHqVersionInfo,
+  getRcVersionInfo,
+  updateRcVersionInfo,
+  getAllRcVersionInfo,
 } = require("./appVersionController");
 
 /**
- * @swagger
- * /api/app-version/{platform}:
- *   get:
- *     summary: Get app version info for a platform
- *     tags: [App Version]
- *     parameters:
- *       - in: path
- *         name: platform
- *         required: true
- *         schema:
- *           type: string
- *           enum: [android, ios]
- *         description: The platform (android or ios)
- *     responses:
- *       200:
- *         description: Version info retrieved successfully
- *       400:
- *         description: Invalid platform
- *       500:
- *         description: Server error
+ * HABit main app version routes
+ * Base path (gateway): /api/app-version
+ *
+ * GET  /api/app-version/:platform
+ * PUT  /api/app-version/:platform
+ * GET  /api/app-version/
  */
-router.get("/:platform", getVersionInfo);
+appVersionRouter.get("/:platform", getVersionInfo);
+appVersionRouter.put("/:platform", updateVersionInfo);
+appVersionRouter.get("/", getAllVersionInfo);
 
-router.put("/:platform", updateVersionInfo);
-router.get("/", getAllVersionInfo);
+/**
+ * HABit HQ (manager app) version routes
+ * Base path (gateway): /api/hq-app-version
+ *
+ * GET  /api/hq-app-version/android
+ * PUT  /api/hq-app-version/android
+ * GET  /api/hq-app-version/
+ */
+hqAppVersionRouter.get("/:platform", getHqVersionInfo);
+hqAppVersionRouter.put("/:platform", updateHqVersionInfo);
+hqAppVersionRouter.get("/", getAllHqVersionInfo);
 
-module.exports = router;
+/**
+ * HABit RC (room-cleaning manager app) version routes
+ * Base path (gateway): /api/rc-app-version
+ *
+ * GET  /api/rc-app-version/android
+ * PUT  /api/rc-app-version/android
+ * GET  /api/rc-app-version/
+ */
+rcAppVersionRouter.get("/:platform", getRcVersionInfo);
+rcAppVersionRouter.put("/:platform", updateRcVersionInfo);
+rcAppVersionRouter.get("/", getAllRcVersionInfo);
+
+module.exports = {
+  appVersionRouter,
+  hqAppVersionRouter,
+  rcAppVersionRouter,
+};

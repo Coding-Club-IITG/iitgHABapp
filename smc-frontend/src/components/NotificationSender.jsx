@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { API_BASE_URL } from "../apis";
-import axios from "axios";
+import apiClient from "../apiClient";
 import Button from "./ui/Button";
 import { useAuth } from "../context/AuthProvider";
 
@@ -29,8 +28,8 @@ const NotificationSender = () => {
       setSuccess(false);
 
       // Get hostel name from user's hostel
-      const response = await axios.get(
-        `${API_BASE_URL}/hostel/all/smc/${user.hostel}`,
+      const response = await apiClient.get(
+        `/hostel/all/smc/${user.hostel}`,
       );
       const hostelName =
         response.data.hostel?.hostel_name?.replaceAll(" ", "_") || "";
@@ -40,7 +39,7 @@ const NotificationSender = () => {
           ? `Boarders_${hostelName}`
           : `Subscribers_${hostelName}`;
 
-      await axios.post(`${API_BASE_URL}/notification/send`, {
+      await apiClient.post("/notification/send", {
         title,
         body,
         topic,

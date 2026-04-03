@@ -3,6 +3,7 @@ const axios = require("axios");
 const qs = require("querystring");
 const jwt = require("jsonwebtoken");
 const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 const AppError = require("../../utils/appError.js");
 const {
   getUserFromToken,
@@ -11,11 +12,14 @@ const {
   findUserWithAppleIdentifier,
   findUserWithGuestIdentifier,
 } = require("../user/userModel.js");
+const { Hostel } = require("../hostel/hostelModel.js");
 const UserAllocHostel = require("../hostel/hostelAllocModel.js");
 const {
   sendNotificationToUser,
 } = require("../notification/notificationController.js");
 require("dotenv").config();
+const redisClient = require("../../utils/redisClient.js");
+const Session = require("../session/session.model.js");
 
 const clientId = process.env.CLIENT_ID;
 const clientSecret = process.env.CLIENT_SECRET;
@@ -72,8 +76,8 @@ const mobileRedirectHandler = async (req, res, next) => {
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
     );
 
-    const accessToken = tokenResp.data.access_token;
-    const userFromToken = await getUserFromToken(accessToken);
+    const microsoftAccessToken = tokenResp.data.access_token;
+    const userFromToken = await getUserFromToken(microsoftAccessToken);
     if (!userFromToken?.data) throw new AppError(401, "Access denied");
 
     const roll = userFromToken.data.surname;
@@ -90,6 +94,8 @@ const mobileRedirectHandler = async (req, res, next) => {
     // currentSubscribedMess is optional - if not found, User model will default to hostel
 
     let existingUser = await findUserWithEmail(userFromToken.data.mail);
+    let isFirstLogin = false;
+    console.log("Existing user: ", existingUser);
 
     if (!existingUser) {
       const userData = {
@@ -127,13 +133,22 @@ const mobileRedirectHandler = async (req, res, next) => {
       await existingUser.save();
     }
 
-    const token = existingUser.generateJWT();
+    const accessToken = existingUser.generateAccessToken();
+    const refreshToken = existingUser.generateRefreshToken();
+
+    await Session.create({
+      user: existingUser._id,
+      refreshToken: refreshToken,
+      userAgent: req.headers["user-agent"],
+      ipAddress: req.ip,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
 
     // Welcome notification is now sent from frontend after FCM token registration
     // This ensures the FCM token exists before sending the notification
 
     return res.redirect(
-      `iitghab://success?token=${token}&user=${encodeURIComponent(
+      `iitghab://success?accessToken=${accessToken}&refreshToken=${refreshToken}&user=${encodeURIComponent(
         existingUser.email,
       )}`,
     );
@@ -143,8 +158,84 @@ const mobileRedirectHandler = async (req, res, next) => {
   }
 };
 
+// Refresh
+const refreshTokenHandler = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      console.log("Refresh token is missing");
+
+      return res.status(401).json({ message: "Refresh token is missing" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+    } catch (err) {
+      console.error("Error verifying refresh token:", err);
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(refreshToken)
+      .digest("hex");
+
+    const session = await Session.findOne({
+      refreshToken: hashedToken,
+      isRevoked: false,
+    });
+
+    if (!session) {
+      console.error("Session not found");
+      return res.status(401).json({ message: "Session not found" });
+    }
+
+    if (session.expiresAt < new Date()) {
+      console.error("Session expired");
+      return res.status(403).json({ message: "Session expired" });
+    }
+
+    const user = await User.findById(decoded.user);
+    if (!user) {
+      console.error("User not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const accessToken = user.generateAccessToken();
+    session.isRevoked = true;
+    await session.save();
+    /// TODO: Maybe delete old session to prevent useless DB entries
+
+    const newRefreshToken = user.generateRefreshToken();
+
+    await Session.create({
+      user: user._id,
+      refreshToken: newRefreshToken,
+      userAgent: req.headers["user-agent"],
+      ipAddress: req.ip,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    return res.json({
+      accessToken,
+      refreshToken: newRefreshToken,
+    });
+  } catch (err) {
+    console.error("Error in refreshTokenHandler:", err);
+    next(new AppError(500, "Failed to refresh token"));
+  }
+};
+
 // Logout
-const logoutHandler = (req, res) => {
+const logoutHandler = async (req, res) => {
+  const token =
+    req.cookies?.token ||
+    (req.headers.authorization && req.headers.authorization.split(" ")[1]);
+  if (token)
+    await redisClient.set(`bl_${token}`, "true", "EX", 24 * 24 * 60 * 60);
+  res.clearCookie("token");
   res.status(200).json({ message: "Logged out" });
 };
 
@@ -244,7 +335,7 @@ const meHandler = async (req, res, next) => {
 
     // Try user
     try {
-      const user = await User.findByJWT(token);
+      const user = await User.findByAccessToken(token);
       if (user)
         return res
           .status(200)
@@ -254,7 +345,7 @@ const meHandler = async (req, res, next) => {
     // Try hostel
     try {
       const { Hostel } = require("../hostel/hostelModel.js");
-      const hostel = await Hostel.findByJWT(token);
+      const hostel = await Hostel.findByAccessToken(token);
       if (hostel)
         return res
           .status(200)
@@ -553,6 +644,55 @@ const guestLoginHandler = async (req, res, next) => {
   }
 };
 
+/**
+ * HABit HQ: Hostel manager login via password (no Microsoft OAuth).
+ * Body: { hostelName, password }
+ * Returns: { success, token, message? }
+ */
+const managerLoginHandler = async (req, res, next) => {
+  try {
+    const { hostelName, password } = req.body || {};
+
+    if (!hostelName || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "hostelName and password are required",
+      });
+    }
+
+    const hostel = await Hostel.findOne({
+      hostel_name: hostelName,
+    }).select("+managerPasswordHash");
+
+    if (!hostel || !hostel.managerPasswordHash) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid hostel or password",
+      });
+    }
+
+    const ok = await bcrypt.compare(
+      String(password),
+      hostel.managerPasswordHash,
+    );
+    if (!ok) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid hostel or password",
+      });
+    }
+
+    const token = hostel.generateJWT();
+    return res.status(200).json({
+      success: true,
+      token,
+    });
+  } catch (err) {
+    console.error("Error in managerLoginHandler:", err);
+    next(new AppError(500, "Manager login failed"));
+  }
+};
+
 module.exports = {
   mobileRedirectHandler,
   webLoginHandler,
@@ -561,4 +701,6 @@ module.exports = {
   guestLoginHandler,
   appleLoginHandler,
   linkMicrosoftAccount,
+  managerLoginHandler,
+  refreshTokenHandler,
 };

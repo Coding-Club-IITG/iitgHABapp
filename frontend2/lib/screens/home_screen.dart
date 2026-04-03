@@ -1,9 +1,12 @@
 import 'dart:convert';
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-// removed unused imports: feedback_provider, complaints_screen, mess_feedback_page
+import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
+import 'package:frontend2/screens/laundry/laundry_screen.dart';
 import 'package:frontend2/screens/profile_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/utilities/notifications.dart';
@@ -15,6 +18,8 @@ import '../utilities/startupitem.dart';
 import '../widgets/alerts_card.dart';
 import '../widgets/microsoft_required_dialog.dart';
 import 'mess_preference.dart';
+import 'room_cleaning/room_cleaning.dart';
+// import 'leave_application_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int)? onNavigateToTab;
@@ -29,13 +34,13 @@ class _HomeScreenState extends State<HomeScreen> {
   bool feedbackform = true;
   String currSubscribedMess = '';
   String? token;
+  String? userHostelId;
 
   @override
   void initState() {
     super.initState();
     fetchUserData();
     fetchMessIdAndToken();
-    // Listen for refresh requests (e.g., after linking account)
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
   }
 
@@ -49,7 +54,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (homeScreenRefreshNotifier.value) {
       fetchUserData();
       fetchMessIdAndToken();
-      homeScreenRefreshNotifier.value = false; // Reset
+      homeScreenRefreshNotifier.value = false;
     }
   }
 
@@ -79,10 +84,10 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       currSubscribedMess = prefs.getString('messID') ?? '';
       token = prefs.getString('access_token');
+      userHostelId = prefs.getString('hostel') ?? prefs.getString('hostelID');
     });
   }
 
-  // Add the missing getTodayDay method
   String getTodayDay() {
     final now = DateTime.now();
     const days = [
@@ -97,133 +102,255 @@ class _HomeScreenState extends State<HomeScreen> {
     return days[now.weekday - 1];
   }
 
+  List<Widget> _buildQuickActionCards() {
+    final hasLaundry =
+        HostelsNotifier.isLaundryAvailableForHostel(userHostelId);
+    final cards = <Widget>[
+      _wrapQuickCard(
+        iconPath: 'assets/icon/qrscan.svg',
+        label: 'Scan QR',
+        iconData: null,
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const QrScan()),
+          );
+        },
+      ),
+      _wrapQuickCard(
+        iconPath: 'assets/icon/cleaning.svg',
+        label: 'Room Cleaning',
+        iconData: Icons.cleaning_services_rounded,
+        onTap: () async {
+          final prefs = await SharedPreferences.getInstance();
+          final hasMicrosoftLinked =
+              prefs.getBool('hasMicrosoftLinked') ?? false;
+          if (!mounted) return;
+          if (!hasMicrosoftLinked) {
+            showDialog(
+              context: context,
+              builder: (context) => const MicrosoftRequiredDialog(
+                featureName: 'Room Cleaning',
+              ),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const RoomCleaningScreen(),
+            ),
+          );
+        },
+      ),
+      _wrapQuickCard(
+        iconPath: 'assets/icon/messicon.svg',
+        label: 'Mess Change',
+        iconData: null,
+        onTap: () async {
+          final prefs = await SharedPreferences.getInstance();
+          final hasMicrosoftLinked =
+              prefs.getBool('hasMicrosoftLinked') ?? false;
+          if (!mounted) return;
+          if (!hasMicrosoftLinked) {
+            showDialog(
+              context: context,
+              builder: (context) => const MicrosoftRequiredDialog(
+                featureName: 'Mess Change',
+              ),
+            );
+            return;
+          }
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MessChangePreferenceScreen(),
+            ),
+          );
+        },
+      ),
+    ];
+    if (hasLaundry) {
+      cards.add(
+        _wrapQuickCard(
+          iconPath: '',
+          label: 'Laundry Service',
+          iconData: Icons.local_laundry_service_rounded,
+          onTap: () async {
+            final prefs = await SharedPreferences.getInstance();
+            final hasMicrosoftLinked =
+                prefs.getBool('hasMicrosoftLinked') ?? false;
+            if (!mounted) return;
+            if (!hasMicrosoftLinked) {
+              showDialog(
+                context: context,
+                builder: (context) => const MicrosoftRequiredDialog(
+                  featureName: 'Laundry Service',
+                ),
+              );
+              return;
+            }
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const LaundryScreen(),
+              ),
+            );
+          },
+        ),
+      );
+    }
+    return cards;
+  }
+
+  Widget _wrapQuickCard({
+    required String iconPath,
+    required String label,
+    IconData? iconData,
+    required VoidCallback onTap,
+  }) {
+    return _quickCard(
+      iconPath: iconPath,
+      label: label,
+      iconData: iconData,
+      onTap: onTap,
+    );
+  }
+
+  // Quick action slider state
+  final PageController _quickNavPageController = PageController();
+  Timer? _quickNavTimer;
+
   Widget buildQuickActions() {
+    final cards = _buildQuickActionCards();
+    final useSlider = cards.length >= 4;
+
+    if (!useSlider) {
+      _quickNavTimer?.cancel();
+      _quickNavTimer = null;
+
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 8),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: cards,
+        ),
+      );
+    }
+
+    const int virtualCount = 100000;
+    const int startPage = virtualCount ~/ 2;
+
+    final PageController controller = PageController(
+      viewportFraction: 0.32, // 👈 better centering (instead of 1/3)
+      initialPage: startPage,
+    );
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _quickNavTimer?.cancel();
+      _quickNavTimer = Timer.periodic(const Duration(seconds: 3), (_) {
+        if (!mounted || !controller.hasClients) return;
+        final nextPage = (controller.page ?? startPage.toDouble()).round() + 1;
+        controller.animateToPage(
+          nextPage,
+          duration: const Duration(milliseconds: 450),
+          curve: Curves.easeInOut,
+        );
+      });
+    });
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18.0),
-      child: Row(
+      padding: const EdgeInsets.symmetric(vertical: 18.0, horizontal: 8),
+      child: SizedBox(
+        height: 110,
+        child: PageView.builder(
+          controller: controller,
+          itemCount: virtualCount,
+          itemBuilder: (context, index) {
+            final cardIndex = index % cards.length;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: cards[cardIndex],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  static const TextStyle _labelStyle = TextStyle(
+    color: Colors.black,
+    fontWeight: FontWeight.w600,
+    fontSize: 12,
+  );
+
+  Widget _buildLabel(String label) {
+    final parts = label.split(' ');
+    if (parts.length >= 2) {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const QrScan()),
-                );
-              },
-              child: Container(
-                height: 90,
-                decoration: BoxDecoration(
-                  // color: const Color(0xFFF6F6F6),
-                  color: const Color(0xFFFFFFFF),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF3754DB),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icon/qrscan.svg',
-                          colorFilter: const ColorFilter.mode(
-                              Colors.white, BlendMode.srcIn),
-                          width: 22,
-                          height: 22,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Scan QR",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: InkWell(
-              borderRadius: BorderRadius.circular(18),
-              onTap: () async {
-                final prefs = await SharedPreferences.getInstance();
-                final hasMicrosoftLinked =
-                    prefs.getBool('hasMicrosoftLinked') ?? false;
-
-                if (!mounted) return;
-
-                if (!hasMicrosoftLinked) {
-                  showDialog(
-                    context: context,
-                    builder: (context) => const MicrosoftRequiredDialog(
-                      featureName: 'Mess Change',
-                    ),
-                  );
-                  return;
-                }
-
-                Navigator.push(
-                  context,
-                  // MaterialPageRoute(builder: (context) => MessChangeScreen()),
-                  MaterialPageRoute(
-                      builder: (context) => const MessChangePreferenceScreen()),
-                );
-              },
-              child: Container(
-                height: 90,
-                decoration: BoxDecoration(
-                  // color: const Color(0xFFF6F6F6),
-                  color: const Color(0xFFFFFFFF),
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF3754DB),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Center(
-                        child: SvgPicture.asset(
-                          'assets/icon/messicon.svg',
-                          colorFilter: const ColorFilter.mode(
-                              Colors.white, BlendMode.srcIn),
-                          width: 22,
-                          height: 22,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Mess Change",
-                      style: TextStyle(
-                        color: Colors.black,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
+          Text(parts[0], textAlign: TextAlign.center, style: _labelStyle),
+          Text(parts.sublist(1).join(' '),
+              textAlign: TextAlign.center, style: _labelStyle),
         ],
+      );
+    }
+    return Text(label,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: _labelStyle);
+  }
+
+  Widget _quickCard({
+    required String label,
+    String iconPath = '',
+    IconData? iconData,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: SizedBox(
+        width: 100, // 👈 ensures consistent spacing in slider
+        child: Container(
+          height: 104, // FIX: was 100, increased by 4px to fix 2px overflow
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+          decoration: BoxDecoration(
+            color: const Color(0xFFFFFFFF),
+            borderRadius: BorderRadius.circular(18),
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Container(
+                width: 40,
+                height: 40,
+                decoration: const BoxDecoration(
+                  color: Color(0xFF3754DB),
+                  shape: BoxShape.circle,
+                ),
+                child: Center(
+                  child: iconData != null
+                      ? Icon(iconData, size: 22, color: Colors.white)
+                      : SvgPicture.asset(
+                          iconPath,
+                          colorFilter: const ColorFilter.mode(
+                            Colors.white,
+                            BlendMode.srcIn,
+                          ),
+                          width: 22,
+                          height: 22,
+                        ),
+                ),
+              ),
+              const SizedBox(height: 6), // FIX: was 8
+              _buildLabel(label),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -240,10 +367,7 @@ class _HomeScreenState extends State<HomeScreen> {
             children: [
               const Text(
                 "In Mess Today",
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                ),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               GestureDetector(
                 onTap: () => widget.onNavigateToTab?.call(1),
@@ -262,7 +386,6 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 8),
         Consumer<MessInfoProvider>(
           builder: (context, messProvider, child) {
-            // Fixed null safety issues
             if (messProvider.isLoading) {
               return const Card(
                 color: Colors.white,
@@ -277,11 +400,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             }
-
-            final messId = currSubscribedMess;
-
             return MenuFutureBuilder(
-              messId: messId,
+              messId: currSubscribedMess,
               day: getTodayDay(),
             );
           },
@@ -289,6 +409,8 @@ class _HomeScreenState extends State<HomeScreen> {
       ],
     );
   }
+
+  // ── Build ───────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -306,20 +428,16 @@ class _HomeScreenState extends State<HomeScreen> {
             hoverColor: Colors.transparent,
             splashColor: Colors.transparent,
             highlightColor: Colors.transparent,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const ProfileScreen()),
-              );
-            },
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const ProfileScreen()),
+            ),
             child: ValueListenableBuilder(
               valueListenable: ProfilePictureProvider.profilePictureString,
               builder: (context, value, child) {
                 final String b64 = value;
-
                 return CircleAvatar(
                   radius: 16,
-                  // prefer transparent bg so default asset is visible
                   backgroundColor: Colors.transparent,
                   backgroundImage: b64.isNotEmpty
                       ? MemoryImage(base64Decode(b64))
@@ -343,9 +461,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
       body: SingleChildScrollView(
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16.0,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -377,17 +493,14 @@ class _HomeScreenState extends State<HomeScreen> {
               const SizedBox(height: 8),
               const Text(
                 "No notifications need your attention",
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.black87,
-                ),
+                style: TextStyle(fontSize: 14, color: Colors.black87),
               ),
               const SizedBox(height: 24),
-              AlertsCard(
-                feedbackform: feedbackform,
+              AlertsCard(feedbackform: feedbackform),
+              ValueListenableBuilder<List<String>>(
+                valueListenable: HostelsNotifier.hostelNotifier,
+                builder: (context, _, __) => buildQuickActions(),
               ),
-              buildQuickActions(),
-              // Only show "In Mess Today" if mess exists
               if (currSubscribedMess.isNotEmpty) buildMessTodayCard(),
               const SizedBox(height: 32),
             ],

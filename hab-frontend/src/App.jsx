@@ -8,6 +8,8 @@ import Students from "./pages/Students";
 import HostelForm from "./pages/HostelForm";
 import HostelPage from "./pages/HostelPage";
 import MessChangePage from "./pages/MessChangePage.jsx";
+import GalaDinnerPage from "./pages/GalaDinnerPage.jsx";
+import GalaDinnerDetailPage from "./pages/GalaDinnerDetailPage.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import CreateMess from "./components/CreateMess";
 import MessDetails from "./components/MessDetails";
@@ -76,6 +78,14 @@ function App() {
                           <Route
                             path="/mess/changeapplication"
                             element={<MessChangePage />}
+                          />
+                          <Route
+                            path="/gala-dinner"
+                            element={<GalaDinnerPage />}
+                          />
+                          <Route
+                            path="/gala-dinner/:galaDinnerId"
+                            element={<GalaDinnerDetailPage />}
                           />
                           {/** Allocate Hostel and Profile Settings moved into Students page; routes removed */}
                           {/* Feedback Control page removed from router (now embedded in Caterers when needed) */}

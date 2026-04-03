@@ -10,9 +10,6 @@ const {
   findUserWithAppleIdentifier,
 } = require("../user/userModel.js");
 const UserAllocHostel = require("../hostel/hostelAllocModel.js");
-const {
-  sendNotificationToUser,
-} = require("../notification/notificationController.js");
 require("dotenv").config();
 
 const clientId = process.env.CLIENT_ID;
@@ -73,7 +70,6 @@ const mobileRedirectHandler = async (req, res, next) => {
       );
 
     let existingUser = await findUserWithEmail(userFromToken.data.mail);
-    let isFirstLogin = false;
 
     if (!existingUser) {
       const user = new User({
@@ -86,7 +82,6 @@ const mobileRedirectHandler = async (req, res, next) => {
         hasMicrosoftLinked: true, // Microsoft login = student account (surname exists)
       });
       existingUser = await user.save();
-      isFirstLogin = true;
     } else {
       // Microsoft login always means student account (surname exists), so always set hasMicrosoftLinked
       existingUser.email = userFromToken.data.mail; // Update email to Microsoft email
@@ -99,18 +94,6 @@ const mobileRedirectHandler = async (req, res, next) => {
     }
 
     const token = existingUser.generateJWT();
-
-    if (isFirstLogin) {
-      try {
-        await sendNotificationToUser(
-          existingUser._id,
-          "Welcome to HAB App",
-          "Thanks for signing in! You will receive updates here."
-        );
-      } catch (e) {
-        console.warn("Failed to send welcome notification", e);
-      }
-    }
 
     return res.redirect(
       `iitghab://success?token=${token}&user=${encodeURIComponent(

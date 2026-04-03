@@ -1,9 +1,13 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:frontend2/screens/login_screen.dart';
 import 'package:frontend2/utilities/version_checker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend2/apis/authentication/login.dart'; // for refreshAccessToken
+import 'package:frontend2/main.dart'; // for navigatorKey
 
 class DioClient {
-  // Singleton pattern: Ensures we only have one Dio instance across the app
   static final DioClient _instance = DioClient._internal();
   late final Dio _dio;
 
@@ -13,33 +17,100 @@ class DioClient {
 
   DioClient._internal() {
     _dio = Dio(BaseOptions(
-      // Increased timeouts for slow connections
       connectTimeout: const Duration(seconds: 30),
       receiveTimeout: const Duration(seconds: 30),
       sendTimeout: const Duration(seconds: 30),
     ));
 
-    // ADD THE INTERCEPTOR (Crucial Step)
+    // ADD INTERCEPTOR
     _dio.interceptors.add(InterceptorsWrapper(
-      onRequest: (options, handler) {
-        // Inject the version header dynamically
-        // Only add headers that don't conflict with FormData (which sets Content-Type automatically)
+      // =======================
+      // REQUEST INTERCEPTOR
+      // =======================
+      onRequest: (options, handler) async {
+        final prefs = await SharedPreferences.getInstance();
+        final token = prefs.getString('access_token');
+
+        // Attach access token
+        if (token != null) {
+          options.headers['Authorization'] = 'Bearer $token';
+        }
+
+        // Add version headers
         final apiHeaders = VersionChecker.getApiHeaders();
         apiHeaders.forEach((key, value) {
-          // Don't override Content-Type if it's already set (FormData will set it with boundary)
-          if (key.toLowerCase() != 'content-type' || !options.headers.containsKey('content-type')) {
+          if (key.toLowerCase() != 'content-type' ||
+              !options.headers.containsKey('content-type')) {
             options.headers[key] = value;
           }
         });
-        
-        // Helpful Debug Log
-        if (kDebugMode) debugPrint("Request: ${options.uri} | Headers: ${options.headers}");
-        
+
+        if (kDebugMode) {
+          debugPrint("Request: ${options.uri}");
+        }
+
         return handler.next(options);
+      },
+
+      // =======================
+      // ERROR INTERCEPTOR
+      // =======================
+      onError: (error, handler) async {
+        // 🔥 Only handle 401 (access token expired)
+        if (error.response?.statusCode == 401 &&
+            !error.requestOptions.path.contains('/auth/refresh')) {
+          if (kDebugMode) {
+            debugPrint("401 detected → trying refresh");
+            debugPrint(
+                "[DioClient] Attempting refresh for request: ${error.requestOptions.uri}");
+          }
+
+          final success = await refreshAccessToken();
+
+          debugPrint("Refresh success: $success");
+
+          if (success) {
+            final prefs = await SharedPreferences.getInstance();
+            final newAccess = prefs.getString('access_token');
+
+            if (newAccess != null) {
+              // 🔁 Retry original request
+              final requestOptions = error.requestOptions;
+
+              requestOptions.headers['Authorization'] = 'Bearer $newAccess';
+
+              try {
+                final response = await _dio.fetch(requestOptions);
+                return handler.resolve(response);
+              } catch (e) {
+                return handler.reject(error);
+              }
+            }
+          }
+
+          // Refresh failed → logout user
+          if (kDebugMode) {
+            debugPrint("Refresh failed → logging out");
+          }
+
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.clear();
+
+          // TODO: LOGIN SCREEN IS NOT SHOWING UP AFTER LOGOUT - FIX THIS
+
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            navigatorKey.currentState?.pushAndRemoveUntil(
+              MaterialPageRoute(builder: (_) => const LoginScreen()),
+              (route) => false,
+            );
+          });
+          return handler.reject(error);
+        }
+
+        return handler.next(error);
       },
     ));
   }
 
-  // Getter to access the configured Dio instance
   Dio get dio => _dio;
 }

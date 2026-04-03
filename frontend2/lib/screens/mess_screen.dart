@@ -10,7 +10,8 @@ import '../widgets/mess_widgets/horizontal_menu_builder.dart';
 import 'package:intl/intl.dart';
 
 class MessApp extends StatefulWidget {
-  const MessApp({super.key});
+  final bool active;
+  const MessApp({super.key, this.active = false});
 
   @override
   State<MessApp> createState() => _MessAppState();
@@ -19,12 +20,13 @@ class MessApp extends StatefulWidget {
 class _MessAppState extends State<MessApp> {
   @override
   Widget build(BuildContext context) {
-    return const MessScreen();
+    return MessScreen(active: widget.active);
   }
 }
 
 class MessScreen extends StatefulWidget {
-  const MessScreen({super.key});
+  final bool active;
+  const MessScreen({super.key, this.active = false});
 
   @override
   State<MessScreen> createState() => _MessScreenState();
@@ -34,15 +36,24 @@ String currSubscribedMess = '';
 
 class _MessScreenState extends State<MessScreen> {
   bool _isLoading = true;
-
+  bool started_loading = false;
   String caterername = '';
   int? rating;
   int? rank;
+  int visibility = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+  }
+
+  bool __isloading() {
+    if (widget.active && !started_loading) {
+      print("Loading Mess Screen Data!");
+      started_loading = true;
+      _loadData();
+    }
+    return _isLoading;
   }
 
   Future<void> _loadData() async {
@@ -67,7 +78,7 @@ class _MessScreenState extends State<MessScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
+    if (__isloading()) {
       return const Scaffold(
         backgroundColor: Colors.white, // Force correct bg
         body: Center(child: CircularProgressIndicator()),

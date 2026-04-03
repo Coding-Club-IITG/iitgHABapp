@@ -391,7 +391,19 @@ class _QrScanState extends State<QrScan> {
       if (e is DioException) {
         if (e.response != null && e.response?.data != null) {
           final data = e.response?.data;
-          errorMessage = data['message'] ?? 'Server error';
+          if (data is Map) {
+            errorMessage = data['message']?.toString() ?? 'Server error';
+          } else {
+            errorMessage = 'Server error (${e.response?.statusCode})';
+          }
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+            e.type == DioExceptionType.receiveTimeout ||
+            e.type == DioExceptionType.sendTimeout) {
+          errorMessage =
+              'Connection timeout. Please check your internet connection.';
+        } else if (e.type == DioExceptionType.connectionError) {
+          errorMessage =
+              'Connection failed. Please check your internet connection.';
         } else {
           errorMessage = e.message ?? 'Network error';
         }

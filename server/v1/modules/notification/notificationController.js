@@ -117,7 +117,7 @@ const sendNotificationToUser = async (userId, title, body) => {
 const sendNotification = async (req, res) => {
   try {
     const { title, body, topic, isAlert } = req.body;
-    sendNotificationMessage(title, body, topic, {}, isAlert || false);
+    await sendNotificationMessage(title, body, topic, {}, isAlert || false);
     res.status(200).json({ message: "Notification sent" });
   } catch (err) {
     console.error(err);

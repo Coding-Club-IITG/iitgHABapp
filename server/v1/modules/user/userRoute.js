@@ -3,6 +3,7 @@ const {
   authenticateJWT,
   authenticateHabJWT,
   authenticateUserOrAdminJWT,
+  authenticateMessManagerJWT,
 } = require("../../middleware/authenticateJWT.js");
 
 const {
@@ -11,11 +12,12 @@ const {
   getAllUsers,
   getUserCount,
   deleteUserAccount,
+  getUserForManager,
 } = require("./userController.js");
 
 const userRouter = express.Router();
 
-userRouter.get("/", authenticateUserOrAdminJWT, getUserData);
+userRouter.get("/", getUserData);
 
 userRouter.post("/save", authenticateJWT, saveUserProfile);
 
@@ -114,6 +116,13 @@ userRouter.delete("/account", authenticateJWT, deleteUserAccount);
  *                   type: string
  *                   example: "Error fetching users"
  */
-userRouter.get("/all/hab", authenticateHabJWT, getAllUsers);
+userRouter.get("/all/hab", getAllUsers);
+
+// Mess-manager (HABit HQ): fetch user profile by ID
+userRouter.get(
+  "/manager/:userId",
+  authenticateMessManagerJWT,
+  getUserForManager,
+);
 
 module.exports = userRouter;

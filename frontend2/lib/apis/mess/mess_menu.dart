@@ -22,7 +22,8 @@ Future<List<MenuModel>> fetchMenu(String messId, String day) async {
 
     final endTime = DateTime.now();
     final responseTime = endTime.difference(startTime).inMilliseconds;
-    if (kDebugMode) debugPrint("⏱️ fetchMenu Response Time (from cache): $responseTime ms");
+    if (kDebugMode)
+      debugPrint("⏱️ fetchMenu Response Time (from cache): $responseTime ms");
 
     return _menuCache[key]!;
   }
@@ -35,7 +36,8 @@ Future<List<MenuModel>> fetchMenu(String messId, String day) async {
       throw Exception('⚠️ Access token not found');
     }
 
-    if (kDebugMode) debugPrint('📤 Fetching menu for Mess ID: $messId, Day: $day');
+    if (kDebugMode)
+      debugPrint('📤 Fetching menu for Mess ID: $messId, Day: $day');
 
     final response = await DioClient().dio.post(
       '$baseUrl/mess/menu/$messId',
@@ -49,6 +51,15 @@ Future<List<MenuModel>> fetchMenu(String messId, String day) async {
     );
 
     if (response.statusCode == 200) {
+      if (response.data is Map<String, dynamic> &&
+          response.data['isMessClosed'] == true) {
+        if (kDebugMode)
+          debugPrint('Mess is closed for $key: ${response.data['message']}');
+
+        _menuCache[key] = [];
+        return [];
+      }
+
       final List data = response.data;
       final menu =
           data.map<MenuModel>((json) => MenuModel.fromJson(json)).toList();
@@ -58,7 +69,8 @@ Future<List<MenuModel>> fetchMenu(String messId, String day) async {
 
       final endTime = DateTime.now();
       final responseTime = endTime.difference(startTime).inMilliseconds;
-      if (kDebugMode) debugPrint("⏱️ fetchMenu Response Time (from API): $responseTime ms");
+      if (kDebugMode)
+        debugPrint("⏱️ fetchMenu Response Time (from API): $responseTime ms");
 
       return menu;
     } else {

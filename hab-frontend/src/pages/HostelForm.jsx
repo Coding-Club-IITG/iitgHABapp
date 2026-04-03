@@ -13,6 +13,8 @@ export default function HostelForm() {
   const [unassignedMess, setUnassignedMess] = useState([]);
   const [error, setError] = useState(null);
   const [microsoftEmail, setMicrosoftEmail] = useState("");
+  const [secretaryEmail, setSecretaryEmail] = useState("");
+  const [hostelPassword, setHostelPassword] = useState("");
 
   const uploadHandle = async (e) => {
     e.preventDefault();
@@ -22,6 +24,8 @@ export default function HostelForm() {
       hostel_name: hostelName,
       curr_cap: Number(capacity),
       microsoft_email: microsoftEmail,
+      secretary_email: secretaryEmail || undefined,
+      password: hostelPassword,
     };
 
     try {
@@ -99,6 +103,39 @@ export default function HostelForm() {
           <p className="text-sm text-gray-500 mt-1">
             Enter the Microsoft email ID for this hostel (should already be
             created)
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-gray-700 font-medium mb-1">
+            Secretary Email
+          </label>
+          <input
+            type="email"
+            value={secretaryEmail}
+            onChange={(e) => setSecretaryEmail(e.target.value)}
+            placeholder="secretary@iitg.ac.in"
+            className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-sm text-gray-500 mt-1">
+            Optional: email of the hostel secretary for reference and contact.
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-gray-700 font-medium mb-1">
+            Hostel Password
+          </label>
+          <input
+            type="password"
+            value={hostelPassword}
+            onChange={(e) => setHostelPassword(e.target.value)}
+            required
+            className="w-full border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <p className="text-sm text-gray-500 mt-1">
+            This password will be used by the hostel in HABit HQ. It is stored
+            securely (hashed) on the server.
           </p>
         </div>
 

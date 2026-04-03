@@ -11,7 +11,15 @@ class HostelsNotifier {
   static var hostelNotifier = ValueNotifier<List<String>>([]);
   static var hostels = <String>[];
   static var hostelIdToNameMap = <String, String>{};
+  /// Hostel ID -> whether laundry is available at that hostel.
+  static var hostelIdToLaundry = <String, bool>{};
   static var onHostelChanged = <void Function()>[];
+
+  static bool isLaundryAvailableForHostel(String? hostelId) {
+    if (hostelId == null || hostelId.isEmpty) return false;
+    return hostelIdToLaundry[hostelId] == true;
+  }
+
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     try {
@@ -21,16 +29,22 @@ class HostelsNotifier {
       );
       hostels = [];
       hostelIdToNameMap = {};
+      hostelIdToLaundry = {};
       for (Map hostel in response.data) {
         final hostelName = hostel['hostel_name'] as String;
         final hostelId = hostel['_id'] as String;
         hostels.add(hostelName);
         hostelIdToNameMap[hostelId] = hostelName;
+        hostelIdToLaundry[hostelId] = hostel['isLaundryAvailable'] == true;
       }
       // Store the mapping in SharedPreferences for offline access
       final mapJson =
           hostelIdToNameMap.map((key, value) => MapEntry(key, value));
       await prefs.setString('hostelIdToNameMap', jsonEncode(mapJson));
+      await prefs.setString(
+        'hostelIdToLaundry',
+        jsonEncode(hostelIdToLaundry.map((k, v) => MapEntry(k, v))),
+      );
       // Update the cache in hostel_name.dart
       updateHostelIdCache(hostelIdToNameMap);
     } catch (e) {
@@ -56,8 +70,13 @@ class HostelsNotifier {
           final map = jsonDecode(cachedMap) as Map<String, dynamic>;
           hostelIdToNameMap =
               map.map((key, value) => MapEntry(key, value.toString()));
-          // Update the cache in hostel_name.dart
           updateHostelIdCache(hostelIdToNameMap);
+        }
+        final cachedLaundry = prefs.getString('hostelIdToLaundry');
+        if (cachedLaundry != null) {
+          final map = jsonDecode(cachedLaundry) as Map<String, dynamic>;
+          hostelIdToLaundry =
+              map.map((key, value) => MapEntry(key, value == true));
         }
       } catch (_) {
         // If cache is also unavailable, map will remain empty

@@ -45,10 +45,12 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
   Widget _buildStatusContent(BuildContext context) {
     final statusCode = widget.response.statusCode ?? 500;
     final data = widget.response.data as Map<String, dynamic>? ?? {};
+
     if (kDebugMode) debugPrint(data['message']?.toString());
     if (kDebugMode) debugPrint(statusCode.toString());
-    if (statusCode == 200 &&
-        data['message']?.toString().contains('Already') != true) {
+
+    final bool success = data['success'] == true;
+    if (statusCode == 200 && success) {
       return _buildSuccessScreen(context, data);
     } else if (statusCode == 200 &&
         data['message']?.toString().contains('Already') == true) {

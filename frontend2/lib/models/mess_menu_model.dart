@@ -12,11 +12,11 @@ class MenuItemModel {
   });
 
   factory MenuItemModel.fromJson(Map<String, dynamic> json) => MenuItemModel(
-    id: json['_id'],
-    name: json['name'],
-    type: json['type'],
-    isLiked: json['isLiked'] ?? false,
-  );
+        id: json['_id'] ?? '',
+        name: json['name'] ?? '',
+        type: json['type'] ?? '',
+        isLiked: json['isLiked'] ?? false,
+      );
 }
 
 class MenuModel {
@@ -39,14 +39,16 @@ class MenuModel {
   });
 
   factory MenuModel.fromJson(Map<String, dynamic> json) => MenuModel(
-    messID: json['messId'],
-    day: json['day'],
-    id: json['_id'],
-    type: json['type'],
-    startTime: json['startTime'],
-    endTime: json['endTime'],
-    items: (json['items'] as List)
-        .map((item) => MenuItemModel.fromJson(item))
-        .toList(),
-  );
+        messID: json['messId'] ?? '',
+        day: json['day'] ?? '',
+        id: json['_id'] ?? '',
+        type: json['type'] ?? '',
+        startTime: json['startTime'] ?? '',
+        endTime: json['endTime'] ?? '',
+        items: (json['items'] as List?)
+                ?.map((item) =>
+                    MenuItemModel.fromJson(item as Map<String, dynamic>))
+                .toList() ??
+            [],
+      );
 }

@@ -10,6 +10,7 @@ const {
   checkFeedbackSubmitted,
   getFeedbackWindowTimeLeft,
   getFeedbacksByCaterer,
+  getDetailedFeedbackByWindow,
 } = require("./feedbackController");
 const {
   authenticateJWT,
@@ -47,5 +48,10 @@ feedbackRouter.get(
 feedbackRouter.get("/windows", authenticateHabJWT, getAvailableWindows);
 feedbackRouter.get("/window-time-left", getFeedbackWindowTimeLeft);
 feedbackRouter.get("/by-caterer", authenticateHabJWT, getFeedbacksByCaterer);
+feedbackRouter.get(
+  "/detailed-by-window",
+  authenticateHabJWT,
+  getDetailedFeedbackByWindow,
+);
 
 module.exports = feedbackRouter;

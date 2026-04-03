@@ -9,6 +9,8 @@ const { QR } = require("../qr/qrModel.js");
 const qrcode = require("qrcode");
 const { MessClosure } = require("../hostel/messClosureModel");
 
+const redisClient = require("../../utils/redisClient.js");
+
 const QR_CODE_DATA_URL_OPTIONS = {
   width: 1024,
   margin: 2,
@@ -49,6 +51,8 @@ const createMess = async (req, res) => {
     await QRres.save();
     newMess.qrCode = QRres._id;
     await newMess.save();
+
+    await redisClient.del("all_mess_info");
 
     return res.status(201).json(newMess);
   } catch (error) {
@@ -164,7 +168,7 @@ const createMenuItem = async (req, res) => {
       type,
     });
     const newItem = await newMenuItem.save();
-    const menu = await Menu.findOne({ messId: messId, day: day, type: meal });
+    let menu = await Menu.findOne({ messId: messId, day: day, type: meal });
     if (!menu) {
       const newMenu = new Menu({
         messId,
@@ -177,6 +181,7 @@ const createMenuItem = async (req, res) => {
 
     menu.items.push(newItem._id);
     await menu.save();
+    await redisClient.del(`menu_${messId}_${day}`);
     return res.status(201).json(newItem);
   } catch (error) {
     console.error(error);
@@ -187,9 +192,15 @@ const createMenuItem = async (req, res) => {
 const deleteMenuItem = async (req, res) => {
   try {
     const _Id = req.body._Id;
+    const menuToInvalidate = await Menu.findOne({ items: _Id });
     const deletedMenuItem = await MenuItem.findByIdAndDelete(_Id);
     if (!deletedMenuItem) {
       return res.status(404).json({ message: "Menu item not found" });
+    }
+    if (menuToInvalidate) {
+      await redisClient.del(
+        `menu_${menuToInvalidate.messId}_${menuToInvalidate.day}`,
+      );
     }
     /*const menu = await Menu.findById(deletedMenuItem.menuId);
     if (!menu) {
@@ -242,14 +253,19 @@ const getUserMessInfo = async (req, res) => {
 //Optimized aggregation pipeline to fetch all messes with hostel names and subscriber counts in a single query, reducing the number of database calls and improving performance.
 const getAllMessInfo = async (req, res) => {
   try {
+    const cachedData = await redisClient.get("all_mess_info");
+    if (cachedData) {
+      return res.status(200).json(JSON.parse(cachedData));
+    }
+
     const messesWithHostelName = await Mess.aggregate([
       {
         $lookup: {
           from: "hostels",
           localField: "hostelId",
           foreignField: "_id",
-          as: "hostelInfo"
-        }
+          as: "hostelInfo",
+        },
       },
       {
         $lookup: {
@@ -257,42 +273,46 @@ const getAllMessInfo = async (req, res) => {
           let: { hId: "$hostelId" },
           pipeline: [
             { $match: { $expr: { $eq: ["$curr_subscribed_mess", "$$hId"] } } },
-            { $count: "count" }
+            { $count: "count" },
           ],
-          as: "subscribers"
-        }
+          as: "subscribers",
+        },
       },
       {
         $addFields: {
-          hostelName: { 
-            $ifNull: [{ $arrayElemAt: ["$hostelInfo.hostel_name", 0] }, null] 
+          hostelName: {
+            $ifNull: [{ $arrayElemAt: ["$hostelInfo.hostel_name", 0] }, null],
           },
-          user_count: { 
-            $ifNull: [{ $arrayElemAt: ["$subscribers.count", 0] }, 0] 
+          user_count: {
+            $ifNull: [{ $arrayElemAt: ["$subscribers.count", 0] }, 0],
           },
-          rating: { 
-            $round: [{ $ifNull: ["$rating", 0] }, 0] 
+          rating: {
+            $round: [{ $ifNull: ["$rating", 0] }, 0],
           },
-          ranking: { 
-            $round: [{ $ifNull: ["$ranking", 0] }, 0] 
-          }
-        }
+          ranking: {
+            $round: [{ $ifNull: ["$ranking", 0] }, 0],
+          },
+        },
       },
       {
         $project: {
           hostelInfo: 0,
-          subscribers: 0
-        }
-      }
+          subscribers: 0,
+        },
+      },
     ]);
 
     if (!messesWithHostelName || messesWithHostelName.length === 0) {
       return res.status(404).json({ message: "No mess found" });
     }
 
-    console.log("All messes with hostel names:", messesWithHostelName);
+    await redisClient.set(
+      "all_mess_info",
+      JSON.stringify(messesWithHostelName),
+      "EX",
+      300,
+    );
     return res.status(200).json(messesWithHostelName);
-
   } catch (error) {
     console.error("Error in getAllMessInfo:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -332,19 +352,64 @@ const getMessMenuByDay = async (req, res) => {
       return res.status(400).json({ message: "Mess ID and day are required" });
     }
 
-    const menu = await Menu.find({ messId, day }).sort({ startTime: 1 });
-    if (!menu || menu.length === 0) {
-      return res.status(404).json({ message: "Menu not found" });
+    const cacheKey = `menu_${messId}_${day}`;
+    let populatedMenus = await redisClient.get(cacheKey);
+    if (populatedMenus) populatedMenus = JSON.parse(populatedMenus);
+
+    if (!populatedMenus) {
+      const menu = await Menu.find({ messId, day }).sort({ startTime: 1 });
+      if (!menu || menu.length === 0) {
+        return res.status(404).json({ message: "Menu not found" });
+      }
+
+      populatedMenus = await Promise.all(
+        menu.map(async (m) => {
+          const menuObj = m.toObject();
+          const menuItems = menuObj.items;
+          const menuItemDetails = await MenuItem.find({
+            _id: { $in: menuItems },
+          }).lean();
+
+          menuObj.items = menuItemDetails;
+          return menuObj;
+        }),
+      );
+
+      await redisClient.set(
+        cacheKey,
+        JSON.stringify(populatedMenus),
+        "EX",
+        86400,
+      );
     }
+
+    // Apply user-specific logic (likes) to cached data
+    const userSpecificMenus = populatedMenus.map((m) => {
+      const mClone = { ...m };
+      mClone.items = m.items.map((item) => {
+        return {
+          ...item,
+          isLiked:
+            item.likes &&
+            item.likes.some((id) => id.toString() === userId.toString()),
+          likesCount: item.likes ? item.likes.length : 0,
+          likes: undefined, // Hide massive array
+        };
+      });
+      return mClone;
+    });
 
     // Check if the mess is closed today
     const mess = await Mess.findById(messId);
     const currentDate = getCurrentDate();
     const todayDate = new Date(currentDate);
-    const isClosed = await MessClosure.findOne({
-      hostelId: mess.hostelId,
-      closureDate: todayDate,
-    });
+    let isClosed = null;
+    if (mess && mess.hostelId) {
+      isClosed = await MessClosure.findOne({
+        hostelId: mess.hostelId,
+        closureDate: todayDate,
+      }).lean();
+    }
 
     if (isClosed) {
       return res.status(200).json({
@@ -353,24 +418,7 @@ const getMessMenuByDay = async (req, res) => {
       });
     }
 
-    const populatedMenus = [];
-
-    for (let i = 0; i < menu.length; i++) {
-      const menuObj = menu[i].toObject();
-      const menuItems = menuObj.items;
-      const menuItemDetails = await MenuItem.find({ _id: { $in: menuItems } });
-
-      const updatedMenuItems = menuItemDetails.map((item) => {
-        const itemObj = item.toObject();
-        itemObj.isLiked = item.likes.includes(userId);
-        return itemObj;
-      });
-
-      menuObj.items = updatedMenuItems;
-      populatedMenus.push(menuObj);
-    }
-
-    return res.status(200).json(populatedMenus);
+    return res.status(200).json(userSpecificMenus);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -386,27 +434,51 @@ const getMessMenuByDayForAdminHAB = async (req, res) => {
       return res.status(400).json({ message: "Mess ID and day are required" });
     }
 
-    const menu = await Menu.find({ messId, day }).sort({ startTime: 1 });
-    if (!menu || menu.length === 0) {
-      return res.status(404).json({ message: "Menu not found" });
+    const cacheKey = `menu_${messId}_${day}`;
+    let populatedMenus = await redisClient.get(cacheKey);
+    if (populatedMenus) populatedMenus = JSON.parse(populatedMenus);
+
+    if (!populatedMenus) {
+      const menu = await Menu.find({ messId, day }).sort({ startTime: 1 });
+      if (!menu || menu.length === 0) {
+        return res.status(404).json({ message: "Menu not found" });
+      }
+
+      populatedMenus = await Promise.all(
+        menu.map(async (m) => {
+          const menuObj = m.toObject();
+          const menuItems = menuObj.items;
+          const menuItemDetails = await MenuItem.find({
+            _id: { $in: menuItems },
+          }).lean();
+
+          menuObj.items = menuItemDetails;
+          return menuObj;
+        }),
+      );
+
+      await redisClient.set(
+        cacheKey,
+        JSON.stringify(populatedMenus),
+        "EX",
+        86400,
+      );
     }
 
-    const populatedMenus = [];
-    for (let i = 0; i < menu.length; i++) {
-      const menuObj = menu[i].toObject();
-      const menuItems = menuObj.items;
-      const menuItemDetails = await MenuItem.find({ _id: { $in: menuItems } });
-
-      const updatedMenuItems = menuItemDetails.map((item) => {
-        const itemObj = item.toObject();
-        return itemObj;
+    // Apply formatting to cached data
+    const specificMenus = populatedMenus.map((m) => {
+      const mClone = { ...m };
+      mClone.items = m.items.map((item) => {
+        return {
+          ...item,
+          likesCount: item.likes ? item.likes.length : 0,
+          likes: undefined, // Hide massive array
+        };
       });
+      return mClone;
+    });
 
-      menuObj.items = updatedMenuItems;
-      populatedMenus.push(menuObj);
-    }
-
-    return res.status(200).json(populatedMenus);
+    return res.status(200).json(specificMenus);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -425,7 +497,7 @@ const getMessMenuItemById = async (req, res) => {
     }
 
     menuItem.isLiked = menuItem.likes.some(
-      (id) => id.toString() === userId.toString()
+      (id) => id.toString() === userId.toString(),
     );
 
     return res.status(200).json(menuItem);
@@ -470,7 +542,7 @@ const toggleLikeMenuItem = async (req, res) => {
 
     return res.status(200).json({ 
       message: isLiked ? "Menu item liked successfully" : "Menu item unliked successfully" 
-    });
+    })
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -571,7 +643,7 @@ const ScanMess = async (req, res) => {
     const closureRecord = await MessClosure.findOne({
       hostelId: messInfo.hostelId,
       closureDate: new Date(currentDate),
-    });
+    }).lean();
     if (closureRecord) {
       return res.status(400).json({
         message: "Scan failed: Mess is closed today.",
@@ -579,14 +651,14 @@ const ScanMess = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).lean();
     if (!user) {
       return res
         .status(404)
         .json({ message: "User not found", success: false });
     }
 
-    const hostel = await Hostel.findById(user.curr_subscribed_mess);
+    const hostel = await Hostel.findById(user.curr_subscribed_mess).lean();
     if (!hostel) {
       return res
         .status(404)
@@ -594,7 +666,7 @@ const ScanMess = async (req, res) => {
     }
 
     const messId = hostel.messId;
-    const userMess = await Mess.findById(messId);
+    const userMess = await Mess.findById(messId).lean();
     if (!userMess) {
       return res
         .status(404)
@@ -620,11 +692,15 @@ const ScanMess = async (req, res) => {
       });
     }
 
-    const [breakfast, lunch, dinner] = await Promise.all([
-      Menu.findOne({ messId, day: currentDay, type: "Breakfast" }),
-      Menu.findOne({ messId, day: currentDay, type: "Lunch" }),
-      Menu.findOne({ messId, day: currentDay, type: "Dinner" }),
-    ]);
+    const todayMenus = await Menu.find({
+      messId,
+      day: currentDay,
+      type: { $in: ["Breakfast", "Lunch", "Dinner"] },
+    }).lean();
+
+    const breakfast = todayMenus.find((m) => m.type === "Breakfast");
+    const lunch = todayMenus.find((m) => m.type === "Lunch");
+    const dinner = todayMenus.find((m) => m.type === "Dinner");
 
     let mealType = null;
     let alreadyScanned = false;
@@ -700,6 +776,24 @@ const ScanMess = async (req, res) => {
     const kolkataTime = new Date(
       new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
     );
+
+    // Broadcast to connected mess-manager WebSocket clients (cluster-safe via Redis pub/sub when REDIS_URL is set)
+    try {
+      const { publishMessScan } = require("../../utils/scanBroadcast.js");
+      publishMessScan({
+        hostelId: hostel._id.toString(),
+        messId: messId.toString(),
+        mealType,
+        user: {
+          _id: user._id,
+          name: user.name,
+          rollNumber: user.rollNumber,
+        },
+        time: kolkataTime,
+      });
+    } catch (e) {
+      console.error("Failed to broadcast mess scan to managers:", e);
+    }
 
     return res.status(200).json({
       message: "Scan successful",
@@ -883,6 +977,8 @@ const unassignMess = async (req, res) => {
       );
       console.log("Updated hostel:", updatedHostel);
     }
+
+    await redisClient.del("all_mess_info");
 
     return res.status(200).json({
       message: "Mess unassigned successfully",

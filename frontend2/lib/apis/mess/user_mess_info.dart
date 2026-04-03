@@ -30,11 +30,11 @@ Future<void> getUserMessInfo() async {
       final Map<String, dynamic> userData =
           response.data as Map<String, dynamic>;
       if (kDebugMode) debugPrint('user mess info is $userData');
-      final String messID = userData['_id'] ?? "Not found";
-      final String messName = userData['name'] ?? "Not found";
-      final String hostelID = userData['hostelId'] ?? "Not found";
-      final int rating = userData['rating'] ?? "Not found";
-      final int ranking = userData['ranking'] ?? "Not found";
+      final String messID = userData['_id']?.toString() ?? "Not found";
+      final String messName = userData['name']?.toString() ?? "Not found";
+      final String hostelID = userData['hostelId']?.toString() ?? "Not found";
+      final int rating = (userData['rating'] as num?)?.toInt() ?? 0;
+      final int ranking = (userData['ranking'] as num?)?.toInt() ?? 0;
 
       prefs.setString('messID', messID);
       prefs.setString('messName', messName);

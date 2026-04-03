@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <!-- Trust the default system CA store -->
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <!-- Pin the ISRG Root X1 used by Let's Encrypt (covers R10-R14 intermediates) -->
+    <domain-config>
+        <domain includeSubdomains="true">hab.codingclub.in</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/isrg_root_x1" />
+        </trust-anchors>
+    </domain-config>
+</network-security-config>

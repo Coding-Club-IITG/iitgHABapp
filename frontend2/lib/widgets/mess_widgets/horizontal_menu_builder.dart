@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend2/apis/mess/menu_like.dart';
@@ -24,11 +26,23 @@ class HorizontalMenuBuilder extends StatefulWidget {
 
 class _HorizontalMenuBuilderState extends State<HorizontalMenuBuilder> {
   late Future<List<MenuModel>> _menuFuture;
+  Timer? _autoExpandTicker;
 
   @override
   void initState() {
     super.initState();
     _menuFuture = fetchMenu(widget.messId, widget.day);
+    _autoExpandTicker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _autoExpandTicker?.cancel();
+    super.dispose();
   }
 
   @override
@@ -51,6 +65,22 @@ class _HorizontalMenuBuilderState extends State<HorizontalMenuBuilder> {
       int.parse(parts[0]),
       int.parse(parts[1]),
     );
+  }
+
+  String _getAutoExpandedMealType(List<MenuModel> menus) {
+    if (menus.isEmpty) return widget.mealType;
+
+    final now = DateTime.now();
+    for (final menu in menus) {
+      final start = _parseTime(menu.startTime);
+      final end = _parseTime(menu.endTime);
+      if (now.isBefore(start) || (now.isAfter(start) && now.isBefore(end))) {
+        return menu.type;
+      }
+    }
+
+    // If all meals are over, keep the last meal (typically Dinner) expanded.
+    return menus.last.type;
   }
 
   @override
@@ -93,6 +123,17 @@ class _HorizontalMenuBuilderState extends State<HorizontalMenuBuilder> {
         }
 
         final menus = snapshot.data!;
+        final isToday = {
+              "monday": 1,
+              "tuesday": 2,
+              "wednesday": 3,
+              "thursday": 4,
+              "friday": 5,
+              "saturday": 6,
+              "sunday": 7
+            }[widget.day.toLowerCase()] ==
+            DateTime.now().weekday;
+        final autoExpandedMealType = _getAutoExpandedMealType(menus);
         final selectedMeal = menus.firstWhere(
           (m) => m.type.toLowerCase() == widget.mealType.toLowerCase(),
           orElse: () => MenuModel(
@@ -111,16 +152,10 @@ class _HorizontalMenuBuilderState extends State<HorizontalMenuBuilder> {
           // isSubscribed: true,
           isSubscribed: widget.userMessId == widget.messId,
           parseTime: _parseTime,
-          statusDisplay: {
-                "monday": 1,
-                "tuesday": 2,
-                "wednesday": 3,
-                "thursday": 4,
-                "friday": 5,
-                "saturday": 6,
-                "sunday": 7
-              }[widget.day.toLowerCase()] ==
-              DateTime.now().weekday,
+          statusDisplay: isToday,
+          autoExpanded: isToday &&
+              selectedMeal.type.toLowerCase() ==
+                  autoExpandedMealType.toLowerCase(),
         );
       },
     );
@@ -133,6 +168,7 @@ class IndividualMealCard extends StatefulWidget {
   final DateTime Function(String) parseTime;
   final VoidCallback? onExpandedChanged;
   final bool? statusDisplay;
+  final bool autoExpanded;
 
   const IndividualMealCard({
     super.key,
@@ -141,6 +177,7 @@ class IndividualMealCard extends StatefulWidget {
     required this.parseTime,
     this.onExpandedChanged,
     this.statusDisplay,
+    this.autoExpanded = false,
   });
 
   @override
@@ -151,13 +188,36 @@ class _IndividualMealCardState extends State<IndividualMealCard>
     with SingleTickerProviderStateMixin {
   late MenuModel _menu;
   bool _expanded = false;
+  Timer? _ticker;
 
   @override
   void initState() {
     super.initState();
     _menu = widget.menu;
     if (kDebugMode) debugPrint("🥳🥳 is mess subscribes??: ${widget.isSubscribed}");
-    _expanded = _statusText().startsWith("Ongoing");
+    _expanded = widget.autoExpanded;
+    _ticker = Timer.periodic(const Duration(minutes: 1), (_) {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant IndividualMealCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.menu != widget.menu) {
+      _menu = widget.menu;
+    }
+    if (oldWidget.autoExpanded != widget.autoExpanded) {
+      _expanded = widget.autoExpanded;
+    }
+  }
+
+  @override
+  void dispose() {
+    _ticker?.cancel();
+    super.dispose();
   }
 
   /// Calculates total likes for the meal

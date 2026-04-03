@@ -1,4 +1,5 @@
 node_modules
+.idea
 
 # Ignore specific frontend .env files (local secrets)
 hab-frontend/.env
@@ -9,6 +10,3 @@ login-frontend/.env
 # macOS system files
 .DS_Store
 **/.DS_Store
-
-# App version config (environment-specific)
-server/modules/app_version/config/appVersion.json

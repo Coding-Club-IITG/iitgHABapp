@@ -3,6 +3,7 @@ const multer = require("multer");
 const {
   setProfilePicture,
   getProfilePicture,
+  getProfilePictureForManager,
   markSetupComplete,
 } = require("./profileController.js");
 const {
@@ -13,6 +14,7 @@ const {
 const {
   authenticateJWT,
   authenticateHabJWT,
+  authenticateMessManagerJWT,
 } = require("../../middleware/authenticateJWT.js");
 
 const router = express.Router();
@@ -94,6 +96,13 @@ router.post(
  *         description: Returns URL or image bytes
  */
 router.get("/picture/get", authenticateJWT, getProfilePicture);
+
+// Mess-manager (HABit HQ): get profile picture for a user by ID
+router.get(
+  "/picture/manager/:userId",
+  authenticateMessManagerJWT,
+  getProfilePictureForManager,
+);
 
 /** Mark setup complete */
 router.post("/setup/complete", authenticateJWT, markSetupComplete);

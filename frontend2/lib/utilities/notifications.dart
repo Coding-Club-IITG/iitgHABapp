@@ -39,6 +39,8 @@ final ValueNotifier<bool> homeScreenRefreshNotifier =
 // ✅ Global navigator key reference (set from main.dart to avoid circular imports)
 GlobalKey<NavigatorState>? globalNavigatorKey;
 
+bool _fcmTokenRefreshListenerAttached = false;
+
 // ✅ Set the navigator key (called from main.dart)
 void setNavigatorKey(GlobalKey<NavigatorState> key) {
   globalNavigatorKey = key;
@@ -434,32 +436,38 @@ Future<void> registerFcmToken() async {
     final dio = DioClient().dio;
 
     // ✅ Listen for token refresh events and re-register
-    FirebaseMessaging.instance.onTokenRefresh.listen((fcmToken) async {
-      // Get fresh access token for each refresh
-      final freshHeader = await getAccessToken();
-      if (freshHeader == 'error') {
-        if (kDebugMode) debugPrint('⚠️ Cannot re-register FCM token: User not authenticated');
-        return;
-      }
+    if (!_fcmTokenRefreshListenerAttached) {
+      _fcmTokenRefreshListenerAttached = true;
+      FirebaseMessaging.instance.onTokenRefresh.listen((fcmToken) async {
+        // Get fresh access token for each refresh
+        final freshHeader = await getAccessToken();
+        if (freshHeader == 'error') {
+          if (kDebugMode) {
+            debugPrint(
+                '⚠️ Cannot re-register FCM token: User not authenticated');
+          }
+          return;
+        }
 
-      final res = await dio.post(
-        NotificationEndpoints.registerToken,
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $freshHeader',
-            'Content-Type': 'application/json',
-          },
-        ),
-        data: jsonEncode({'fcmToken': fcmToken}), // ✅ Use fcmToken here
-      );
-      if (res.statusCode == 200) {
-        if (kDebugMode) debugPrint('🔄 FCM token re-registered: $fcmToken');
-      } else {
-        if (kDebugMode) debugPrint('❌ Failed to re-register token');
-      }
-    }).onError((err) {
-      if (kDebugMode) debugPrint('❌ Failed to re-register token: $err');
-    });
+        final res = await dio.post(
+          NotificationEndpoints.registerToken,
+          options: Options(
+            headers: {
+              'Authorization': 'Bearer $freshHeader',
+              'Content-Type': 'application/json',
+            },
+          ),
+          data: jsonEncode({'fcmToken': fcmToken}), // ✅ Use fcmToken here
+        );
+        if (res.statusCode == 200) {
+          if (kDebugMode) debugPrint('🔄 FCM token re-registered: $fcmToken');
+        } else {
+          if (kDebugMode) debugPrint('❌ Failed to re-register token');
+        }
+      }).onError((err) {
+        if (kDebugMode) debugPrint('❌ Failed to re-register token: $err');
+      });
+    }
 
     // ✅ Register the current token
     final res = await dio.post(

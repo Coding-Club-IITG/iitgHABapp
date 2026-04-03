@@ -78,7 +78,7 @@ const enableMessChange = async (req, res) => {
       "Mess Change for this month has been enabled",
       "All_Hostels",
       { redirectType: "mess_change", isAlert: "true" },
-    );
+    ).catch((err) => console.error("Mess change enabled notification failed:", err));
 
     return res.status(200).json({
       message: "Mess change enabled successfully",

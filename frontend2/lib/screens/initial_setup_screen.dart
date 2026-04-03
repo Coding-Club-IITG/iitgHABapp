@@ -16,7 +16,7 @@ import 'package:frontend2/apis/users/user.dart';
 class ProfilePictureProvider {
   static var profilePictureString = ValueNotifier<String>("");
   static var isSetupDone = ValueNotifier<bool>(false);
-  static void init() async {
+  static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     // Do NOT overwrite existing stored picture
     profilePictureString.value = prefs.getString("profilePicture") ?? "";
