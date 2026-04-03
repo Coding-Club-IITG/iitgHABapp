@@ -11,6 +11,7 @@ import {
   Pencil,
   X,
   Shirt,
+  Receipt,
 } from "lucide-react";
 // NotificationSender and notification tab hidden for now
 import Card from "../components/ui/Card";
@@ -350,6 +351,7 @@ const Dashboard = () => {
     { label: "SMC Management", value: "smc", icon: UserCheck },
     { label: "Room Cleaners", value: "cleaners", icon: Users },
     { label: "Laundry", value: "laundry", icon: Shirt },
+    { label: "Bill", value: "bill", icon: Receipt },
   ];
 
   return (
@@ -1264,6 +1266,10 @@ const Dashboard = () => {
                   </div>
                 )}
               </Card>
+            )}
+
+            {activeTab === "bill" && (
+              <MessBillCalculator hostelId={user?.hostel_id} hostelName={user?.hostel_name} />
             )}
           </main>
         </div>

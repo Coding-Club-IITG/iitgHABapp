@@ -3,6 +3,39 @@ import axios from "axios";
 import { API_BASE_URL } from "../apis";
 
 const MessBillCalculator = ({ hostelId, hostelName }) => {
+  // Generate available months (before current month, excluding current month)
+  const getAvailableMonths = () => {
+    const months = [];
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    // Get past 12 months (excluding current month)
+    for (let i = 11; i >= 1; i--) {
+      let month = currentMonth - i;
+      let year = currentYear;
+
+      if (month < 0) {
+        month += 12;
+        year -= 1;
+      }
+
+      months.push({ year, month });
+    }
+
+    return months.reverse();
+  };
+
+  const availableMonths = getAvailableMonths();
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(
+    availableMonths.length > 0 ? 0 : null
+  );
+
+  const selectedMonthData = 
+    selectedMonthIndex !== null ? availableMonths[selectedMonthIndex] : null;
+  const selectedMonth = selectedMonthData?.month ?? new Date().getMonth();
+  const selectedYear = selectedMonthData?.year ?? new Date().getFullYear();
+
   const [billData, setBillData] = useState({
     month: new Date().toLocaleString("default", { month: "long" }),
     year: new Date().getFullYear(),
@@ -31,6 +64,19 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Update month and year when selection changes
+  useEffect(() => {
+    const monthName = new Date(selectedYear, selectedMonth, 1).toLocaleString(
+      "default",
+      { month: "long" }
+    );
+    setBillData((prev) => ({
+      ...prev,
+      month: monthName,
+      year: selectedYear,
+    }));
+  }, [selectedMonthIndex]);
+
   // Fetch users subscribed to this hostel's mess
   const fetchMessSubscribers = async () => {
     try {
@@ -56,7 +102,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
       fetchMessSubscribers();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostelId]);
+  }, [hostelId, selectedMonthIndex]);
 
   // Calculate all derived values when inputs change
   useEffect(() => {
@@ -313,6 +359,29 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
         </div>
       )}
 
+      {/* Month Selection Dropdown */}
+      <div className="mb-6 flex items-center gap-2">
+        <label className="text-sm font-medium text-gray-700">Month:</label>
+        <select
+          value={selectedMonthIndex ?? ""}
+          onChange={(e) => setSelectedMonthIndex(parseInt(e.target.value))}
+          className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+        >
+          <option value="">-- Select Month --</option>
+          {availableMonths.map((item, idx) => {
+            const monthName = new Date(item.year, item.month, 1).toLocaleString(
+              "default",
+              { month: "long" }
+            );
+            return (
+              <option key={idx} value={idx}>
+                {monthName} {item.year}
+              </option>
+            );
+          })}
+        </select>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* General Information */}
         <div className="space-y-4">
@@ -327,9 +396,12 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
             <input
               type="text"
               value={`${billData.month}, ${billData.year}`}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 bg-gray-100"
               readOnly
             />
+            <p className="text-xs text-gray-500 mt-1">
+              Selected from month picker above
+            </p>
           </div>
 
           <div>
