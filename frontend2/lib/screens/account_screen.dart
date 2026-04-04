@@ -1,38 +1,21 @@
 import 'dart:convert';
-import 'dart:io';
 
-import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/themes.dart';
 import 'package:frontend2/screens/account/feedback_sheet.dart';
 import 'package:frontend2/screens/account/hmc_info_screen.dart';
 import 'package:frontend2/screens/account/profile_screen.dart';
-import 'package:image_picker/image_picker.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
-import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/apis/users/user.dart';
-import 'package:frontend2/constants/endpoint.dart';
-import 'package:frontend2/widgets/common/custom_linear_progress.dart';
 import 'package:frontend2/widgets/common/hostel_name.dart';
 import 'package:frontend2/apis/authentication/login.dart' as auth;
 import 'package:frontend2/screens/initial_setup_screen.dart'
     show ProfilePictureProvider;
 
 // ─────────────────────────────────────────────────────────────────────────────
-// HMC member model & data (now fetched from API)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Shared accent colour
-// ─────────────────────────────────────────────────────────────────────────────
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AccountScreen  (replaces ProfileScreen as the top-level entry point)
+// AccountScreen
 // ─────────────────────────────────────────────────────────────────────────────
 
 class AccountScreen extends StatefulWidget {
@@ -43,7 +26,6 @@ class AccountScreen extends StatefulWidget {
 }
 
 class _AccountScreenState extends State<AccountScreen> {
-  // ── user data ──────────────────────────────────────────────────────────────
   String name = '';
   String hostel = '';
   String email = '';
@@ -52,17 +34,15 @@ class _AccountScreenState extends State<AccountScreen> {
   String phone = '';
   String rollNo = '';
 
-  bool _isLoading = true;
-  bool _started = false;
-
-  // ── profile-pic upload state ───────────────────────────────────────────────
-  bool _uploading = false;
-  bool _canChangePhoto = true;
-
-  // ── edit-profile controllers ───────────────────────────────────────────────
   final TextEditingController _roomController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
   bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
 
   @override
   void dispose() {
@@ -71,24 +51,8 @@ class _AccountScreenState extends State<AccountScreen> {
     super.dispose();
   }
 
-  // Lazy init: called the first time build runs.
-  bool _ensureLoaded() {
-    if (!_started) {
-      _started = true;
-      _loadAll();
-    }
-    return _isLoading;
-  }
-
-  Future<void> _loadAll() async {
-    setState(() => _isLoading = true);
-    await Future.wait([_loadPrefs(), _fetchProfileSettings()]);
-    if (mounted) setState(() => _isLoading = false);
-  }
-
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
-    if (!mounted) return;
     setState(() {
       hostel = prefs.getString('hostel') ?? '';
       name = prefs.getString('name') ?? '';
@@ -101,88 +65,6 @@ class _AccountScreenState extends State<AccountScreen> {
       _phoneController.text = phone;
     });
   }
-
-  Future<void> _fetchProfileSettings() async {
-    try {
-      final token = await getAccessToken();
-      if (token == 'error') return;
-      final res = await DioClient().dio.get(
-            '$baseUrl/profile/settings',
-            options: Options(headers: {'Authorization': 'Bearer $token'}),
-          );
-      if (res.statusCode == 200 && mounted) {
-        setState(() {
-          _canChangePhoto =
-              (res.data as Map)['allowProfilePhotoChange'] == true;
-        });
-      }
-    } catch (_) {}
-  }
-
-  // ── profile picture ────────────────────────────────────────────────────────
-
-  Future<void> _pickAndUploadPhoto() async {
-    if (!_canChangePhoto) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-              'Changing profile photo is not allowed now. Please contact the HAB Admin.'),
-        ),
-      );
-      return;
-    }
-    final XFile? picked =
-        await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked == null) return;
-
-    final tmpDir = await getTemporaryDirectory();
-    final finalPath = '${tmpDir.path}/${picked.name}';
-    await FlutterImageCompress.compressAndGetFile(
-      picked.path,
-      finalPath,
-      minWidth: 256,
-      minHeight: 256,
-      quality: 85,
-    );
-
-    final file = File(finalPath);
-    final b64 = base64Encode(file.readAsBytesSync());
-    ProfilePictureProvider.profilePictureString.value = b64;
-
-    if (!mounted) return;
-    setState(() => _uploading = true);
-    try {
-      final token = await getAccessToken();
-      if (token == 'error') throw Exception('Not authenticated');
-      final res = await DioClient().dio.post(
-            ProfilePicture.changeUserProfilePicture,
-            data: FormData.fromMap({
-              'file':
-                  await MultipartFile.fromFile(file.path, filename: picked.name)
-            }),
-            options: Options(headers: {'Authorization': 'Bearer $token'}),
-          );
-      if (res.statusCode == 200) {
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('profilePicture', b64);
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Profile picture updated')),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _uploading = false);
-    }
-  }
-
-  // ── save editable fields ───────────────────────────────────────────────────
 
   Future<void> _saveEditableFields() async {
     if (_saving) return;
@@ -216,11 +98,8 @@ class _AccountScreenState extends State<AccountScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile updated')),
         );
-        // Pop the bottom sheet
         Navigator.of(context).pop();
-        // Pop the profile detail screen
         Navigator.of(context).pop();
-        // Repush it with updated values
         Navigator.of(context).push(
           MaterialPageRoute(
             builder: (_) => ProfileScreen(
@@ -231,8 +110,6 @@ class _AccountScreenState extends State<AccountScreen> {
               phone: newPhone,
               rollNo: rollNo,
               email: email,
-              uploading: _uploading,
-              onPickPhoto: _pickAndUploadPhoto,
               onEdit: _openEditSheet,
             ),
           ),
@@ -312,8 +189,6 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // ── logout ─────────────────────────────────────────────────────────────────
-
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -337,15 +212,12 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
-  // ── feedback bottom sheet ──────────────────────────────────────────────────
-
   void _openFeedbackSheet() {
     final rootContext = context;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: const Color.fromARGB(
-          255, 255, 255, 255), // grey background for whole sheet
+      backgroundColor: const Color.fromARGB(255, 255, 255, 255),
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -353,13 +225,8 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
-  // ─────────────────────────────────────────────────────────────────────────
-  // BUILD
-  // ─────────────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
-    final loading = _ensureLoaded();
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
@@ -379,115 +246,104 @@ class _AccountScreenState extends State<AccountScreen> {
         ),
         centerTitle: false,
       ),
-      body: loading
-          ? const Center(
-              child: CustomLinearProgress(
-                text: 'Loading your details, please wait...',
-              ),
-            )
-          : ListView(
-              children: [
-                // ── Profile card ──────────────────────────────────────────
-                _AccountProfileCard(
+      body: ListView(
+        children: [
+          // ── Profile card ──────────────────────────────────────────
+          _AccountProfileCard(
+            name: name,
+            hostel: hostel,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProfileScreen(
                   name: name,
                   hostel: hostel,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ProfileScreen(
-                        name: name,
-                        hostel: hostel,
-                        currMess: currMess,
-                        roomNo: roomNo,
-                        phone: phone,
-                        rollNo: rollNo,
-                        email: email,
-                        uploading: _uploading,
-                        onPickPhoto: _pickAndUploadPhoto,
-                        onEdit: _openEditSheet,
-                      ),
-                    ),
-                  ),
+                  currMess: currMess,
+                  roomNo: roomNo,
+                  phone: phone,
+                  rollNo: rollNo,
+                  email: email,
+                  onEdit: _openEditSheet,
                 ),
+              ),
+            ),
+          ),
 
-                // const SizedBox(height: 20),
-                Container(height: 8, color: Colors.grey[100]),
-                Container(height: 24, color: Colors.white),
+          Container(height: 8, color: Colors.grey[100]),
+          Container(height: 24, color: Colors.white),
 
-                // ── Hostel Info ───────────────────────────────────────────
-                _SectionHeader(title: 'Hostel Info'),
+          // ── Hostel Info ───────────────────────────────────────────
+          _SectionHeader(title: 'Hostel Info'),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: _CardSettingsRow(
+              iconPath: "assets/icon/id.svg",
+              iconColor: Themes.kAccent,
+              label: 'Know Your HMC',
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const HmcInfoScreen()),
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // ── App Settings ──────────────────────────────────────────
+          const _SectionHeader(title: 'App Settings'),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                _CardSettingsRow(
+                  iconPath: "assets/icon/theme.svg",
+                  iconColor: Themes.kAccent,
+                  label: 'Appearance',
+                  subtitle: 'Light Mode',
+                  onTap: () {},
+                  roundBottom: false,
+                ),
                 const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _CardSettingsRow(
-                    iconPath: "assets/icon/id.svg",
-                    iconColor: Themes.kAccent,
-                    label: 'Know Your HMC',
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const HmcInfoScreen()),
-                    ),
-                  ),
+                _CardSettingsRow(
+                  iconPath: "assets/icon/feedback.svg",
+                  iconColor: Themes.kAccent,
+                  label: 'App Feedback',
+                  onTap: _openFeedbackSheet,
+                  roundTop: false,
                 ),
-
-                const SizedBox(height: 32),
-
-                // ── App Settings ──────────────────────────────────────────
-                const _SectionHeader(title: 'App Settings'),
-                const SizedBox(height: 8),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Column(
-                    children: [
-                      _CardSettingsRow(
-                        iconPath: "assets/icon/theme.svg",
-                        iconColor: Themes.kAccent,
-                        label: 'Appearance',
-                        subtitle: 'Light Mode',
-                        onTap: () {
-                          // Placeholder — no logic yet
-                        },
-                        roundBottom: false,
-                      ),
-                      const SizedBox(height: 8),
-                      _CardSettingsRow(
-                        iconPath: "assets/icon/feedback.svg",
-                        iconColor: Themes.kAccent,
-                        label: 'App Feedback',
-                        onTap: _openFeedbackSheet,
-                        roundTop: false,
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 20),
-
-                // ── Logout (plain row, no card) ───────────────────────────
-                InkWell(
-                  onTap: _logout,
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                    child: Row(
-                      children: [
-                        Icon(Icons.logout, color: Colors.red, size: 22),
-                        SizedBox(width: 14),
-                        Text(
-                          'Logout',
-                          style: TextStyle(
-                              fontFamily: Themes.kFont,
-                              color: Colors.red,
-                              fontSize: 15,
-                              fontWeight: FontWeight.w500),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-                const SizedBox(height: 32),
               ],
             ),
+          ),
+
+          const SizedBox(height: 20),
+
+          // ── Logout ──────────────────────────────────────────────
+          InkWell(
+            onTap: _logout,
+            child: const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 32, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(Icons.logout, color: Colors.red, size: 22),
+                  SizedBox(width: 14),
+                  Text(
+                    'Logout',
+                    style: TextStyle(
+                        fontFamily: Themes.kFont,
+                        color: Colors.red,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(height: 32),
+        ],
+      ),
     );
   }
 }
@@ -594,7 +450,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Card settings row — rounded bordered card matching the design
+// Card settings row
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _CardSettingsRow extends StatelessWidget {
