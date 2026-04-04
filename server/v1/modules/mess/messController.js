@@ -1133,6 +1133,36 @@ const getMessBill = async (req, res) => {
   }
 };
 
+const getAllMessBillsByMonth = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    
+    if (!month || !year) {
+      return res.status(400).json({ message: "Month and year are required" });
+    }
+
+    const allHostels = await Hostel.find().lean();
+    const bills = await MessBill.find({ month, year }).lean();
+
+    const responseData = allHostels.map(hostel => {
+      const bill = bills.find(b => b.hostel.toString() === hostel._id.toString());
+      return {
+        hostelId: hostel._id,
+        hostel_name: hostel.hostel_name,
+        isGenerated: !!bill,
+        messBillClaimed: bill ? bill.messBillClaimed : 0,
+        totalExpenditure: bill ? bill.totalExpenditure : 0,
+        billDetails: bill || null,
+      };
+    });
+
+    return res.status(200).json(responseData);
+  } catch (error) {
+    console.error("Error fetching all mess bills by month:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 module.exports = {
   createMess,
   getMessWorkers,
@@ -1157,4 +1187,5 @@ module.exports = {
   changeHostel,
   generateMessBill,
   getMessBill,
+  getAllMessBillsByMonth,
 };

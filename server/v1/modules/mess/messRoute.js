@@ -32,6 +32,7 @@ const {
   deleteMessWorker,
   generateMessBill,
   getMessBill,
+  getAllMessBillsByMonth,
 } = require("./messController");
 const {
   getMessMenuByDayForSMC,
@@ -87,6 +88,7 @@ messRouter.post("/workers", authenticateAdminJWT, createMessWorker);
 messRouter.delete("/workers/:id", authenticateAdminJWT, deleteMessWorker);
 messRouter.post("/bill/generate", authenticateAdminJWT, generateMessBill);
 messRouter.get("/bill", authenticateAdminJWT, getMessBill);
+messRouter.get("/bills/all", authenticateHabJWT, getAllMessBillsByMonth);
 
 messRouter.get("/:id", authenticateHabJWT, getMessInfo);
 messRouter.post("/menu/:messId", authenticateJWT, getMessMenuByDay);
