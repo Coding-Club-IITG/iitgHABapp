@@ -4,6 +4,7 @@
 require("dotenv").config({ path: "../.env" });
 const { installProcessHandlers } = require("../processHandlers.js");
 installProcessHandlers();
+console.log("MONGODB_URI from env:", process.env.MONGODB_URI);
 const authRoutes = require("./modules/auth/auth.routes.js");
 const express = require("express");
 const mongoose = require("mongoose");
@@ -13,22 +14,12 @@ const feedbackRoute = require("./modules/feedback/feedbackRoute.js");
 const hostelRoute = require("./modules/hostel/hostelRoute.js");
 const notificationRoute = require("./modules/notification/notificationRoute.js");
 const messRoute = require("./modules/mess/messRoute.js");
-const leaveRoute = require("./modules/leave/leaveRoute.js");
 const logsRoute = require("./modules/mess/ScanLogsRoute.js");
 const bugReportRoute = require("./modules/bug_report/bugReportRoute.js");
 const roomCleaningRoute = require("./modules/room_cleaning/roomCleaningRoute.js");
-const laundryRoute = require("./modules/laundry/laundryRoute.js");
-
-const compression = require("compression");
-
 const cors = require("cors");
 const bodyParser = require("body-parser");
-const winston = require("winston");
-const expressWinston = require("express-winston");
-const storeLogs = require("./middleware/logger.js");
-const { randomUUID } = require("crypto");
-const { Worker } = require("worker_threads");
-const path = require("path");
+const compression = require("compression");
 const {
   setDelegatedTokens,
   tokenFilePath,
@@ -58,29 +49,6 @@ function buildAuthorizeUrl() {
 const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 
-const {
-  initializeFeedbackAutoScheduler,
-} = require("./modules/feedback/autoFeedbackScheduler.js");
-
-const {
-  initializeMessChangeAutoScheduler,
-} = require("./modules/mess_change/autoMessChangeScheduler.js");
-const {
-  initializeGuestCleanupScheduler,
-} = require("./modules/auth/autoGuestCleanupScheduler.js");
-const {
-  initializeMessRebateAutoScheduler,
-} = require("./modules/leave/autoMessRebateScheduler.js");
-const {
-  initializeMessAllotmentScheduler,
-} = require("./modules/mess_change/allotmentScheduler.js");
-const {
-  initializeAnonymizedUser,
-} = require("./modules/user/anonymizedUserInit.js");
-
-const {
-  initializeRoomCleaningAutoResolveScheduler,
-} = require("./modules/room_cleaning/autoRoomCleaningResolveScheduler.js");
 const messChangeRouter = require("./modules/mess_change/messchangeRoute.js");
 const galaRoute = require("./modules/gala/galaRoute.js");
 require("dotenv").config();
@@ -134,78 +102,6 @@ const swaggerOptions = {
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
-// Middleware to assign a unique request ID for better log correlation
-app.use((req, res, next) => {
-  req.headers["x-request-id"] = req.headers["x-request-id"] || randomUUID();
-  next();
-});
-
-// Custom Winston transport to handle log storage (e.g., database, file)
-class CustomTransport extends winston.Transport {
-  log(info, callback) {
-    setImmediate(() => {
-      this.emit("logged", info);
-    });
-
-    // Send full log object somewhere
-    console.log(info.message);
-    storeLogs(info);
-    callback();
-  }
-}
-
-// Example function to handle log data
-app.use(
-  expressWinston.logger({
-    transports: [new CustomTransport()],
-
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json(),
-    ),
-
-    meta: true,
-    msg: "[{{req.headers['x-request-id']}}] HTTP {{req.method}} {{req.url}} {{res.statusCode}}",
-    expressFormat: true,
-    colorize: false,
-
-    // Use status code to determine log level (500=error, 400=warn, etc.)
-    statusLevels: true,
-
-    // IMPORTANT: By default, headers and body are NOT logged.
-    // You must whitelist them here:
-    requestWhitelist: ["url", "method", "query", "body"],
-    responseWhitelist: ["statusCode", "body"],
-
-    // ADDED: Crucial metadata for debugging at scale
-    dynamicMeta: (req, res) => {
-      return {
-        correlationId: req.headers["x-request-id"],
-        user: req.body?.username || "anonymous",
-        ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress,
-        userAgent: req.get("User-Agent") || "unknown",
-        env: process.env.NODE_ENV || "development",
-      };
-    },
-    // This replaces the value of 'password' with '*****' in the logs
-    bodyBlacklist: ["password", "secret", "token"],
-  }),
-);
-
-function startWorker() {
-  const worker = new Worker(
-    path.resolve(__dirname, "./workers/loggerWorker.js"),
-    { execArgv: process.execArgv },
-  );
-
-  worker.on("error", (err) => console.error("Worker Error:", err));
-  worker.on("exit", (code) => {
-    if (code !== 0) console.error(`Worker stopped with exit code ${code}`);
-  });
-}
-
-startWorker();
-
 app.use(
   "/api/docs",
   swaggerUi.serve,
@@ -242,7 +138,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // MongoDB connection
 mongoose
-  .connect(process.env.MONGODB_URI)
+  .connect(MONGOdb_uri)
   .then(() => {
     console.log("MongoDB connected");
 
@@ -251,14 +147,29 @@ mongoose
       process.env.NODE_APP_INSTANCE === "0" ||
       typeof process.env.NODE_APP_INSTANCE === "undefined"
     ) {
-      console.log(`[CHECK] Current Time: ${new Date().toLocaleString()}`);
       console.log("Primary instance detected. Starting schedulers...");
+
+      const {
+        wednesdayScheduler,
+        sundayScheduler,
+      } = require("./modules/hostel/hostelScheduler.js");
+      wednesdayScheduler();
+      sundayScheduler();
+
+      // Initialize automatic schedulers for feedback, mess change, and guest cleanup
+      const {
+        initializeFeedbackAutoScheduler,
+      } = require("./modules/feedback/autoFeedbackScheduler.js");
+      const {
+        initializeMessChangeAutoScheduler,
+      } = require("./modules/mess_change/autoMessChangeScheduler.js");
+      const {
+        initializeGuestCleanupScheduler,
+      } = require("./modules/auth/autoGuestCleanupScheduler.js");
+
       initializeFeedbackAutoScheduler();
       initializeMessChangeAutoScheduler();
       initializeGuestCleanupScheduler();
-      initializeMessRebateAutoScheduler();
-      initializeRoomCleaningAutoResolveScheduler();
-      initializeMessAllotmentScheduler();
     } else {
       console.log(
         `Worker instance ${process.env.NODE_APP_INSTANCE} started. Schedulers disabled here.`,
@@ -266,6 +177,9 @@ mongoose
     }
 
     // Initialize anonymized user for soft-deleted account references
+    const {
+      initializeAnonymizedUser,
+    } = require("./modules/user/anonymizedUserInit.js");
     initializeAnonymizedUser();
   })
   .catch((err) => console.log(err));
@@ -320,8 +234,6 @@ app.use("/api/mess", messRoute);
 
 // Gala Dinner route
 app.use("/api/gala", galaRoute);
-// Mess rebate route
-app.use("/api/leave", leaveRoute);
 
 //mess change route
 app.use("/api/mess-change", messChangeRouter);
@@ -338,9 +250,6 @@ app.use("/api/bug-report", bugReportRoute);
 
 // Room cleaning availability route
 app.use("/api/room-cleaning", roomCleaningRoute);
-
-// Laundry service route
-app.use("/api/laundry", laundryRoute);
 
 // Debug route: accept delegated tokens and save to disk for server use
 // WARNING: Protect this route in production (e.g., require admin auth, restrict IPs)
@@ -419,12 +328,7 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
 // Global error handler (must be after all routes). Catches errors passed to next(err).
 app.use((err, req, res, next) => {
   console.error("[Express error]", err);
-
-  const statusCode = err.status || 500;
-
-  res.status(statusCode).json({
-    message: err.message || "Internal server error",
-  });
+  res.status(500).json({ message: "Internal server error" });
 });
 
 const { initMessManagerWs } = require("./modules/mess/messManagerWs.js");

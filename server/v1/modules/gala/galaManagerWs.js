@@ -1,5 +1,5 @@
 const url = require("url");
-const { Server: WebSocketServer } = require("ws");
+const { WebSocketServer } = require("ws");
 const { Hostel } = require("../hostel/hostelModel.js");
 
 // Connected gala manager clients per hostel
@@ -22,7 +22,7 @@ function initGalaManagerWs(server) {
         return;
       }
 
-      const hostel = await Hostel.findByAccessToken(token);
+      const hostel = await Hostel.findByJWT(token);
       if (!hostel) {
         ws.close(1008, "Invalid token");
         return;
@@ -95,3 +95,4 @@ module.exports = {
   initGalaManagerWs,
   broadcastGalaScanToManagers,
 };
+

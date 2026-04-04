@@ -11,7 +11,6 @@ const {
   appleLoginHandler,
   linkMicrosoftAccount,
   managerLoginHandler,
-  refreshTokenHandler,
 } = require("./auth.controller.js");
 const { authenticateJWT } = require("../../middleware/authenticateJWT.js");
 
@@ -103,9 +102,6 @@ router.post("/apple", appleLoginHandler);
 
 // Link Microsoft Account (POST) - requires authentication, accepts ?code=xxx
 router.post("/link-microsoft", authenticateJWT, linkMicrosoftAccount);
-
-// Refresh token endpoint
-router.post("/refresh", refreshTokenHandler);
 
 // Exporting the router
 module.exports = router;

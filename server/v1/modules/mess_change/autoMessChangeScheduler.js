@@ -55,9 +55,10 @@ const scheduleMessChangeReminders = async () => {
       return;
     }
 
-    // Get closing time
-    const { endDate } = getMessChangeWindowDates();
-    const closingTime = endDate;
+    // Calculate closing time (2 days from enabledAt, EOD)
+    const closingTime = new Date(settings.enabledAt);
+    closingTime.setDate(closingTime.getDate() + 2);
+    closingTime.setHours(23, 59, 59, 999);
 
     const now = new Date();
 
@@ -70,22 +71,14 @@ const scheduleMessChangeReminders = async () => {
           "MESS CHANGE",
           "Mess change application form will close in 12 hours",
           "All_Hostels",
-          { redirectType: "mess_change", isAlert: "true" },
-        ).catch((err) =>
-          console.error(
-            "📢 [MESS CHANGE] 12h mess change reminder send failed:",
-            err,
-          ),
-        );
-        console.log("📢 [MESS CHANGE] Sent 12h mess change reminder");
+          { redirectType: "mess_change", isAlert: "true" }
+        ).catch((err) => console.error("📢 12h mess change reminder send failed:", err));
+        console.log("📢 Sent 12h mess change reminder");
       });
       console.log(
-        `📅 [MESS CHANGE] Scheduled 12h reminder for ${reminder12h.toLocaleString(
-          "en-IN",
-          {
-            timeZone: "Asia/Kolkata",
-          },
-        )}`,
+        `📅 Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+        })}`
       );
     }
 
@@ -98,22 +91,14 @@ const scheduleMessChangeReminders = async () => {
           "MESS CHANGE",
           "Mess change application form will close in 2 hours",
           "All_Hostels",
-          { redirectType: "mess_change", isAlert: "true" },
-        ).catch((err) =>
-          console.error(
-            "📢 [MESS CHANGE] 2h mess change reminder send failed:",
-            err,
-          ),
-        );
-        console.log("📢 [MESS CHANGE] Sent 2h mess change reminder");
+          { redirectType: "mess_change", isAlert: "true" }
+        ).catch((err) => console.error("📢 2h mess change reminder send failed:", err));
+        console.log("📢 Sent 2h mess change reminder");
       });
       console.log(
-        `📅 [MESS CHANGE] Scheduled 2h reminder for ${reminder2h.toLocaleString(
-          "en-IN",
-          {
-            timeZone: "Asia/Kolkata",
-          },
-        )}`,
+        `📅 Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+        })}`
       );
     }
   } catch (error) {
@@ -142,26 +127,36 @@ const initializeMessChangeAutoScheduler = () => {
     // Check if today is the start date
     if (day === startDay) {
       console.log(
-        `📅 Mess change start date detected: ${day}/${month + 1}/${year}`,
+        `📅 Mess change start date detected: ${day}/${month + 1}/${year}`
       );
-      const { endDate } = getMessChangeWindowDates(month, year);
-      await enableMessChangeAutomatic(endDate);
+      await enableMessChangeAutomatic();
       await scheduleMessChangeReminders();
     }
   });
 
-  // Schedule to disable - runs daily at 12:01 AM IST
-  schedule.scheduleJob("1 0 * * *", async () => {
-    try {
+  // Schedule to disable at EOD - runs daily at 11:59 PM IST
+  schedule.scheduleJob("59 23 * * *", async () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const day = now.getDate();
+
+    let endDay;
+    if (month === 1) {
+      endDay = 28; // February
+    } else {
+      endDay = 30; // Other months
+    }
+
+    // Check if today is the end date
+    if (day === endDay) {
+      console.log(
+        `📅 Mess change end date detected: ${day}/${month + 1}/${year}`
+      );
       const settings = await MessChangeSettings.findOne();
-      if (settings?.isEnabled && settings.currentWindowClosingTime) {
-        if (new Date() > new Date(settings.currentWindowClosingTime)) {
-          console.log(`📅 Mess change closing time reached, disabling now.`);
-          await disableMessChangeAutomatic();
-        }
+      if (settings?.isEnabled) {
+        await disableMessChangeAutomatic();
       }
-    } catch (e) {
-      console.error("❌ Error in automatic mess change closing job:", e);
     }
   });
 

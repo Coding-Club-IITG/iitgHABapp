@@ -12,10 +12,26 @@ dotenv.config();
  * @swagger
  * components:
  *   schemas:
+ *     UserTimeStamp:
+ *       type: object
+ *       required:
+ *         - user
+ *       properties:
+ *         user:
+ *           type: string
+ *           description: Reference to User ObjectId
+ *           example: "64a1b2c3d4e5f6789012345"
+ *         reason_for_change:
+ *           type: string
+ *           description: Reason for hostel change
+ *           default: ""
+ *           example: "Academic requirements"
+ *
  *     Hostel:
  *       type: object
  *       required:
  *         - hostel_name
+ *         - users
  *         - curr_cap
  *       properties:
  *         _id:
@@ -26,6 +42,18 @@ dotenv.config();
  *           type: string
  *           description: Name of the hostel
  *           example: "Kameng Hostel"
+ *         users:
+ *           type: array
+ *           items:
+ *             $ref: '#/components/schemas/UserTimeStamp'
+ *           description: Array of users in this hostel
+ *           default: []
+ *           example: [
+ *             {
+ *               "user": "64a1b2c3d4e5f6789012345",
+ *               "reason_for_change": "Academic requirements"
+ *             }
+ *           ]
  *         messId:
  *           type: string
  *           description: Reference to Mess ObjectId
@@ -67,10 +95,6 @@ const hostelSchema = new mongoose.Schema({
     type: String,
     select: false,
   },
-  isLaundryAvailable: {
-    type: Boolean,
-    default: false,
-  },
 });
 
 hostelSchema.methods.generateJWT = function () {
@@ -83,7 +107,7 @@ hostelSchema.methods.generateJWT = function () {
   return token;
 };
 
-hostelSchema.statics.findByAccessToken = async function (token) {
+hostelSchema.statics.findByJWT = async function (token) {
   try {
     let hostel = this;
     var decoded = jwt.verify(token, adminjwtsecret);
@@ -93,7 +117,7 @@ hostelSchema.statics.findByAccessToken = async function (token) {
     return fetchedHostel;
   } catch (error) {
     console.error("Error verifying token:", error);
-    throw error;
+    return false;
   }
 };
 

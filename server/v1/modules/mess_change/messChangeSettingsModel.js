@@ -20,14 +20,10 @@ const messChangeSettingsSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
-    currentWindowClosingTime: {
-      type: Date,
-      default: null,
-    },
   },
   {
     timestamps: true,
-  },
+  }
 );
 
 // Ensure only one record exists
@@ -43,7 +39,7 @@ messChangeSettingsSchema.pre("save", async function (next) {
 
 const MessChangeSettings = mongoose.model(
   "MessChangeSettings",
-  messChangeSettingsSchema,
+  messChangeSettingsSchema
 );
 
 module.exports = { MessChangeSettings };
