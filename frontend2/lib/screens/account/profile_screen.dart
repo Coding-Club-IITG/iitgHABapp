@@ -18,6 +18,8 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
 
+import 'package:shared_preferences/shared_preferences.dart';
+
 class ProfileScreen extends StatefulWidget {
   final String name;
   final String hostel;
@@ -85,8 +87,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
       );
       return;
     }
-    final XFile? picked =
-        await ImagePicker().pickImage(source: ImageSource.gallery);
+
+    XFile? picked;
+    try {
+      picked = await ImagePicker().pickImage(source: ImageSource.gallery);
+    } catch (e) {
+      return; // The above line would result in an exception if the user taps twice very fast, causing the image picker to open multiple times. This catch prevents that crash.
+    }
     if (picked == null) return;
 
     final tmpDir = await getTemporaryDirectory();
@@ -99,34 +106,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
       quality: 85,
     );
 
-    final file = File(finalPath);
-    final b64 = base64Encode(file.readAsBytesSync());
-    ProfilePictureProvider.profilePictureString.value = b64;
-
+    final imageB64 = base64Encode(File(finalPath).readAsBytesSync());
+    ProfilePictureProvider.profilePictureString.value = imageB64;
     if (!mounted) return;
+    await _uploadProfileImage(File(finalPath), picked.name, imageB64);
+  }
+
+  Future<void> _uploadProfileImage(
+      File file, String filename, String imageB64) async {
+    if (_uploading) return;
     setState(() => _uploading = true);
     try {
       final token = await getAccessToken();
-      if (token == 'error') throw Exception('Not authenticated');
-      final res = await DioClient().dio.post(
-            '$baseUrl/profile/picture',
-            data: FormData.fromMap({
-              'file':
-                  await MultipartFile.fromFile(file.path, filename: picked.name)
-            }),
-            options: Options(headers: {'Authorization': 'Bearer $token'}),
-          );
+      if (token == 'error') {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('Not authenticated. Please login again.')),
+        );
+        return;
+      }
+
+      final dio = DioClient().dio;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(
+          file.path,
+          filename: filename,
+        ),
+      });
+
+      final res = await dio.post(
+        ProfilePicture.changeUserProfilePicture,
+        data: formData,
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+
       if (res.statusCode == 200) {
+        final prefs = await SharedPreferences.getInstance();
+        // Persist only the base64 image locally. Do not store the remote URL in prefs.
+        await prefs.setString('profilePicture', imageB64);
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Profile picture updated')),
         );
-      }
-    } catch (e) {
-      if (mounted) {
+      } else {
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Upload failed: $e')),
+          SnackBar(content: Text('Upload failed (${res.statusCode})')),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Upload error: $e')),
+      );
     } finally {
       if (mounted) setState(() => _uploading = false);
     }
