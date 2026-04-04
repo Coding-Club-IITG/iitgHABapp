@@ -40,7 +40,7 @@ roomCleaningRouter.post(
   submitFeedback,
 );
 
-// RC Manager (HABit RC app): tomorrow bookings and assignments
+// RC Manager (HABit RC app): tomorrow bookings and assignments.
 roomCleaningRouter.get(
   "/rc/tomorrow",
   authenticateMessManagerJWT,
@@ -52,14 +52,14 @@ roomCleaningRouter.post(
   postRcTomorrowAssign,
 );
 
-// RC Manager (HABit RC app): finalize statuses for a date (e.g. Yesterday)
+// RC Manager (HABit RC app): finalize statuses for a date (e.g. Yesterday).
 roomCleaningRouter.post(
   "/rc/status/finalize",
   authenticateMessManagerJWT,
   postRcFinalizeStatuses,
 );
 
-// Hostel frontend: manage room cleaners
+// Hostel frontend: manage room cleaners (drives slot capacity + ratings).
 roomCleaningRouter.get(
   "/rc/cleaners",
   authenticateMessManagerJWT,

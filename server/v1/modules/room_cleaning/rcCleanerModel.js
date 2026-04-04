@@ -25,6 +25,7 @@ const rcCleanerSchema = new mongoose.Schema(
         message: "Cleaner must be assigned to at least one slot",
       },
     },
+    // Seed neutral baseline so averageRating is meaningful before first feedback.
     totalFeedbacks: {
       type: Number,
       default: 1,

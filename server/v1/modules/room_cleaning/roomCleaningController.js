@@ -64,7 +64,7 @@ function isBookingWindowOpen(bookingDate, now = getISTNow()) {
 }
 
 // Shared helper to validate targetDate (D+2 or D+3), resolve hostel,
-// and compute booking window.
+// and compute booking window (keeps D+2/D+3 rules consistent across endpoints).
 async function resolveContext({ req, dateParam, allowWindowBypass = false }) {
   if (!req.user?._id) {
     const err = new Error("User not authenticated");
@@ -531,6 +531,7 @@ const deleteRcCleaner = async (req, res) => {
  *    otherwise "Buffered" if buffer slots left; otherwise rejects.
  */
 const createBooking = async (req, res) => {
+  // Transaction protects against race conditions in capacity checks.
   const session = await RoomCleaningBooking.startSession();
   session.startTransaction();
 
@@ -598,6 +599,7 @@ const createBooking = async (req, res) => {
       (b) => b.status === "Buffered",
     ).length;
 
+    // Buffer only opens after primary capacity is filled.
     const slotsLeft = Math.max(primaryCapacity - primaryUsed, 0);
     const bufferSlotsLeft =
       slotsLeft > 0 ? 0 : Math.max(bufferCapacity - bufferUsed, 0);
@@ -783,7 +785,7 @@ const getMyBookings = async (req, res) => {
       .select("_id bookingDate slot status hostelId feedbackId reason assignedTo")
       .lean();
 
-    // Resolve assigned cleaner details with Redis cache
+    // Resolve assigned cleaner details with Redis cache to avoid repeated DB lookups.
     const assignedCleanerIds = [
       ...new Set(
         bookings
@@ -925,6 +927,7 @@ const submitFeedback = async (req, res) => {
       });
     }
 
+    // Transaction guarantees booking + feedback link are written atomically.
     const session = await RoomCleaningBooking.startSession();
     session.startTransaction();
     try {
@@ -953,6 +956,7 @@ const submitFeedback = async (req, res) => {
       session.endSession();
 
       // Update cleaner average rating atomically (fire-and-forget, outside transaction)
+      // to avoid blocking the client on a non-critical aggregation.
       if (booking.assignedTo) {
         RcCleaner.findOneAndUpdate(
           { _id: booking.assignedTo },
@@ -1184,6 +1188,7 @@ const postRcTomorrowAssign = async (req, res) => {
     }
 
     // Send notifications to users with assigned cleaners (fire-and-forget)
+    // so assignment updates don't block the manager flow.
     const assignedBookings = await RoomCleaningBooking.find({
       hostelId: hostel._id,
       bookingDate: tomorrowStart,
@@ -1331,6 +1336,7 @@ const postRcFinalizeStatuses = async (req, res) => {
     }
 
     // Send notifications to affected users (fire-and-forget)
+    // to keep manager finalization responsive.
     if (finalizedBookings.length > 0) {
       const bookingIds = finalizedBookings.map((b) => b.bookingId);
       const bookingDocs = await RoomCleaningBooking.find({

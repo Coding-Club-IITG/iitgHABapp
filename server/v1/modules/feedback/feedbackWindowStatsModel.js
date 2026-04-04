@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+// Snapshot of leaderboard rows for a window to avoid recomputing aggregations.
 const feedbackWindowStatsSchema = new mongoose.Schema(
   {
     windowNumber: {

@@ -11,6 +11,7 @@ const {
 const redisClient = require("../../utils/redisClient.js");
 
 const LEADERBOARD_CACHE_TTL_MS = 5 * 60 * 1000;
+// In-memory cache avoids repeated aggregations during a live feedback window.
 const leaderboardCache = new Map();
 const LEADERBOARD_ALL_KEY = "leaderboard:all";
 
@@ -32,6 +33,7 @@ const setCachedValue = (key, value, ttlMs = LEADERBOARD_CACHE_TTL_MS) => {
 };
 
 const getCachedLeaderboardRows = async (key) => {
+  // Use Redis to share cached leaderboard rows across cluster workers.
   const inMemory = getCachedValue(key);
   if (inMemory) return inMemory;
 
@@ -62,6 +64,7 @@ const setCachedLeaderboardRows = async (
 };
 
 const invalidateLeaderboardCache = async (windowNumber = null) => {
+  // Clear both memory + Redis so reads stay consistent after writes.
   leaderboardCache.clear();
   await redisClient.del(LEADERBOARD_ALL_KEY);
   if (typeof windowNumber === "number") {
@@ -345,6 +348,7 @@ const getFeedbacksByCaterer = async (req, res) => {
     try {
       let rows = null;
       if (parsedWindowNumber) {
+        // Prefer precomputed window snapshot to keep response fast for HAB dashboards.
         const snapshot = await getWindowLeaderboardSnapshot(parsedWindowNumber);
         if (snapshot?.rows?.length) rows = snapshot.rows;
       }
@@ -363,6 +367,7 @@ const getFeedbacksByCaterer = async (req, res) => {
           if (parsedWindowNumber) {
             fbQuery.feedbackWindowNumber = parsedWindowNumber;
           }
+          // Fallback: compute leaderboard on-demand when cache is cold.
           const all = await Feedback.find(fbQuery)
             .populate("user", "isSMC")
             .populate("caterer", "name")
@@ -435,6 +440,7 @@ const submitFeedback = async (req, res) => {
     }
 
     // Check if feedback for this user and current window already exists
+    // Check DB directly so stale user flags don't allow duplicate submissions.
     const alreadySubmitted = await Feedback.findOne(
       {
         user: user._id,
@@ -882,7 +888,11 @@ const checkFeedbackSubmitted = async (req, res) => {
         .status(401)
         .json({ submitted: false, message: "User not authenticated" });
 
-    const settings = await FeedbackSettings.findOne({}, { currentWindowNumber: 1 })
+    // Use the feedback collection as source of truth instead of user flag.
+    const settings = await FeedbackSettings.findOne(
+      {},
+      { currentWindowNumber: 1 },
+    )
       .lean();
     const currentWindowNumber = settings?.currentWindowNumber || 1;
 
@@ -978,7 +988,7 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
     .populate("user", "isSMC")
     .lean();
 
-  // Get subscriber counts per hostel (fixed: now actually filters to relevant hostelIds)
+  // Get subscriber counts per hostel (restricted to the relevant hostels only).
   const relevantHostelIds = Array.from(hostelByMess.values());
   const subscriberRows = await UserAllocHostel.aggregate([
     {
@@ -1016,7 +1026,7 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
   // Group feedbacks by mess
   const groups = new Map();
 
-  // Pre-initialise all messes so zero-feedback ones still get updated (fixed: stale ratings)
+  // Pre-initialize all messes so zero-feedback ones still get updated.
   for (const mess of messes) {
     groups.set(String(mess._id), {
       totalUsers: 0,
@@ -1052,7 +1062,7 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
     }
   }
 
-  // Compute OPI and ranking for all messes using the same logic as getFeedbackLeaderboardByWindow
+  // Compute OPI and ranking for all messes using the same logic as leaderboard.
   const rows = [];
   for (const [messId, g] of groups) {
     const hostelId = hostelByMess.get(messId);
@@ -1118,13 +1128,14 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
   rows.sort((a, b) => b.overall - a.overall);
   rows.forEach((r, i) => (r.rank = i + 1));
 
-  // Fixed: bulk update instead of sequential awaits
+  // Bulk update keeps write latency low for large hostel sets.
   await Promise.all(
     rows.map((r) =>
       Mess.findByIdAndUpdate(r.messId, { rating: r.overall, ranking: r.rank }),
     ),
   );
 
+  // Persist a snapshot so HAB dashboards can read quickly without recomputing.
   await FeedbackWindowStats.findOneAndUpdate(
     { windowNumber },
     {

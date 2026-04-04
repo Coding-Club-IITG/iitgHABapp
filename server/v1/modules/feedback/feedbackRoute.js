@@ -36,7 +36,7 @@ feedbackRouter.get(
 // Settings route (common, unprotected)
 feedbackRouter.get("/settings", getFeedbackSettings);
 
-// HAB routes
+// HAB routes: keep surface area limited to operational views (leaderboards + by-caterer).
 feedbackRouter.post("/enable", authenticateHabJWT, enableFeedback);
 feedbackRouter.post("/disable", authenticateHabJWT, disableFeedback);
 feedbackRouter.get(

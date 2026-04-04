@@ -72,11 +72,12 @@ const scheduleFeedbackReminders = async () => {
         ).catch((err) => console.error("📢 12h feedback reminder send failed:", err));
         console.log("📢 Sent 12h feedback reminder");
       });
-      console.log(
-        `📅 Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", {
-          timeZone: "Asia/Kolkata",
-        })}`
-      );
+        // Keep reminder timestamps in IST to match HAB operations calendar.
+        console.log(
+          `📅 Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+          })}`,
+        );
     }
 
     // 2 hours before closing (IST 9:59 PM on end day)
@@ -92,11 +93,12 @@ const scheduleFeedbackReminders = async () => {
         ).catch((err) => console.error("📢 2h feedback reminder send failed:", err));
         console.log("📢 Sent 2h feedback reminder");
       });
-      console.log(
-        `📅 Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", {
-          timeZone: "Asia/Kolkata",
-        })}`
-      );
+        // Keep reminder timestamps in IST to match HAB operations calendar.
+        console.log(
+          `📅 Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+          })}`,
+        );
     }
   } catch (error) {
     console.error("❌ Error scheduling feedback reminders:", error);
@@ -131,7 +133,8 @@ const initializeFeedbackAutoScheduler = () => {
     }
   });
 
-  // Schedule to disable at EOD - runs daily at 11:59 PM IST
+  // Disable at month-specific EOD to match the window end date logic.
+  // We avoid relying on the stored closingTime to keep behavior deterministic.
   schedule.scheduleJob("59 23 * * *", async () => {
     const now = new Date();
     const year = now.getFullYear();
