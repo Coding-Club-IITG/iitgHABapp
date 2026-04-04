@@ -6,6 +6,7 @@ const { User } = require("../user/userModel");
 const { Hostel } = require("../hostel/hostelModel");
 const { ScanLogs } = require("./ScanLogsModel.js");
 const mongoose = require("mongoose");
+const MessBill = require("./messBillModel");
 const { QR } = require("../qr/qrModel.js");
 const qrcode = require("qrcode");
 const { MessClosure } = require("../hostel/messClosureModel");
@@ -1067,6 +1068,71 @@ const deleteMessWorker = async (req, res) => {
   }
 };
 
+const generateMessBill = async (req, res) => {
+  try {
+    const { hostelId, billData } = req.body;
+    if (!hostelId || !billData || !billData.month || !billData.year) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res.status(403).json({ message: "Unauthorized to generate bill for another hostel" });
+    }
+    
+    const existingBill = await MessBill.findOne({ hostel: hostelId, month: billData.month, year: billData.year });
+    if (existingBill) {
+      return res.status(400).json({ message: "Bill for this month already exists" });
+    }
+
+    const { 
+      hostelName, month, year, accountNumber, operatingDays, shutdownDate, 
+      totalSubscribers, totalSubscribersOffset, messDays, rebateDays, 
+      rebateDaysOffset, consumingDays, foodCost, totalWage, messBillClaimed, 
+      messBill, gstAmount, tdsAmount, firstInstallment, secondInstallment, 
+      rebateReimbursement, miscDeduction, habTransfer, totalExpenditure,
+      workerAttendances
+    } = billData;
+
+    const newBill = new MessBill({
+      hostel: hostelId,
+      hostelName, month, year, accountNumber, operatingDays, shutdownDate,
+      totalSubscribers, totalSubscribersOffset, messDays, rebateDays,
+      rebateDaysOffset, consumingDays, foodCost, totalWage, messBillClaimed,
+      messBill, gstAmount, tdsAmount, firstInstallment, secondInstallment,
+      rebateReimbursement, miscDeduction, habTransfer, totalExpenditure,
+      workerAttendances,
+      generatedBy: req.hostel ? req.hostel._id : (req.user ? req.user.id : null)
+    });
+
+    await newBill.save();
+    return res.status(201).json({ message: "Bill generated successfully", bill: newBill });
+  } catch (error) {
+    console.error("Error generating mess bill:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getMessBill = async (req, res) => {
+  try {
+    const { hostelId, month, year } = req.query;
+    if (!hostelId || !month || !year) {
+      return res.status(400).json({ message: "HostelId, month, and year are required" });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res.status(403).json({ message: "Unauthorized to fetch bill for another hostel" });
+    }
+    const bill = await MessBill.findOne({ hostel: hostelId, month, year });
+    if (!bill) {
+      return res.status(200).json(null);
+    }
+    return res.status(200).json(bill);
+  } catch (error) {
+    console.error("Error fetching mess bill:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 module.exports = {
   createMess,
   getMessWorkers,
@@ -1089,4 +1155,6 @@ module.exports = {
   assignMessToHostel,
   unassignMess,
   changeHostel,
+  generateMessBill,
+  getMessBill,
 };

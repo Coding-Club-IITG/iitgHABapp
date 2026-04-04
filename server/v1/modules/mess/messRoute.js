@@ -30,6 +30,8 @@ const {
   getMessWorkers,
   createMessWorker,
   deleteMessWorker,
+  generateMessBill,
+  getMessBill,
 } = require("./messController");
 const {
   getMessMenuByDayForSMC,
@@ -79,10 +81,12 @@ messRouter.delete(
 );
 messRouter.post("/get", authenticateJWT, getUserMessInfo);
 messRouter.post("/all", getAllMessInfo);
-// Move workers routes before /:id to prevent route shadowing
+// Move workers and bill routes before /:id to prevent route shadowing
 messRouter.get("/workers", authenticateAdminJWT, getMessWorkers);
 messRouter.post("/workers", authenticateAdminJWT, createMessWorker);
 messRouter.delete("/workers/:id", authenticateAdminJWT, deleteMessWorker);
+messRouter.post("/bill/generate", authenticateAdminJWT, generateMessBill);
+messRouter.get("/bill", authenticateAdminJWT, getMessBill);
 
 messRouter.get("/:id", authenticateHabJWT, getMessInfo);
 messRouter.post("/menu/:messId", authenticateJWT, getMessMenuByDay);
@@ -124,4 +128,7 @@ messRouter.post(
   authenticateUserOrAdminJWT,
   updateTimeSMC,
 );
+
+// Bill routes moved above /:id to prevent route shadowing
+
 module.exports = messRouter;

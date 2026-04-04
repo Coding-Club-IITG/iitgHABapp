@@ -14,3 +14,15 @@ export const deleteMessWorker = async (id) => {
   const response = await apiClient.delete(`/mess/workers/${id}`);
   return response.data;
 };
+
+export const generateMessBill = async (billData, hostelId) => {
+  const response = await apiClient.post("/mess/bill/generate", { billData, hostelId });
+  return response.data;
+};
+
+export const fetchMessBill = async (hostelId, month, year) => {
+  const response = await apiClient.get(`/mess/bill`, {
+    params: { hostelId, month, year }
+  });
+  return response.data;
+};
