@@ -70,7 +70,7 @@ const Dashboard = () => {
               position: "sticky",
               top: "24px",
             }}
-            className={`bg-white border border-gray-100 rounded-lg shadow-sm p-3 transition-all duration-200 flex flex-col overflow-x-hidden overflow-y-auto ${
+            className={`bg-white border border-gray-100 rounded-lg shadow-sm p-3 transition-all duration-200 flex flex-col overflow-hidden ${
               sidebarOpen ? "w-72" : "w-16"
             }`}
           >
@@ -118,9 +118,9 @@ const Dashboard = () => {
                     onClick={() => setActiveTab(tab.value)}
                     className={`flex items-center ${
                       sidebarOpen
-                        ? "gap-3 px-3 mx-1"
+                        ? "gap-3 px-3"
                         : "justify-center px-0 mx-0"
-                    } w-full py-2 rounded-md transition-colors ${
+                    } w-full py-2 rounded-md transition-colors box-border ${
                       activeTab === tab.value
                         ? "bg-blue-50 text-blue-600"
                         : "text-gray-600 hover:bg-gray-50"

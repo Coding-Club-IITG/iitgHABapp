@@ -44,8 +44,10 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
     operatingDays: 30, // Hardcoded as per requirement
     shutdownDate: "NA",
     totalSubscribers: 0,
+    totalSubscribersOffset: 0,
     messDays: 0,
     rebateDays: 0,
+    rebateDaysOffset: 0,
     consumingDays: 0,
     foodCost: 0,
     totalWage: 0,
@@ -108,7 +110,6 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
       setBillData((prev) => ({
         ...prev,
         totalSubscribers: subscribersData.length || 0,
-        messDays: (subscribersData.length || 0) * 30, // M = N * D
       }));
     } catch (err) {
       setError("Failed to fetch data: " + err.message);
@@ -138,9 +139,13 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
 
   // Calculate all derived values when inputs change
   useEffect(() => {
-    const { messDays, rebateDays, totalWage, miscDeduction } = billData;
+    const { totalSubscribers, totalSubscribersOffset, rebateDays, rebateDaysOffset, operatingDays, totalWage, miscDeduction } = billData;
 
-    const consumingDays = messDays - rebateDays; // T1 = M - R
+    const effectiveSubscribers = (totalSubscribers || 0) + (totalSubscribersOffset || 0);
+    const messDays = effectiveSubscribers * operatingDays;
+    const effectiveRebateDays = (rebateDays || 0) + (rebateDaysOffset || 0);
+
+    const consumingDays = messDays - effectiveRebateDays; // T1 = M - R
     const foodCost = consumingDays * 119; // F = T1 * 119
     const messBill = foodCost + totalWage; // F + W
     const messBillClaimed = 1.05 * messBill; // B = 1.05 * (F + W)
@@ -149,13 +154,14 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
     const firstInstallment =
       messBillClaimed - (tdsAmount + 0.2 * foodCost) - miscDeduction; // P1 = B - (T2 + (0.2*F)) - Misc
     const secondInstallment = 0.2 * foodCost; // P2 = 0.2 * F
-    const rebateReimbursement = rebateDays * 119; // RR = R * 119
+    const rebateReimbursement = effectiveRebateDays * 119; // RR = R * 119
     const habTransfer =
       firstInstallment + secondInstallment + rebateReimbursement; // T3 = P1 + P2 + RR
     const totalExpenditure = tdsAmount + habTransfer; // T2 + T3
 
     setBillData((prev) => ({
       ...prev,
+      messDays,
       consumingDays,
       foodCost,
       messBill,
@@ -170,8 +176,11 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    billData.messDays,
+    billData.totalSubscribers,
+    billData.totalSubscribersOffset,
     billData.rebateDays,
+    billData.rebateDaysOffset,
+    billData.operatingDays,
     billData.totalWage,
     billData.miscDeduction,
   ]);
@@ -258,7 +267,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
             <tr>
               <td>Total No of mess subscribers</td>
               <td class="formula">N</td>
-              <td class="value">${billData.totalSubscribers}</td>
+              <td class="value">${billData.totalSubscribers + billData.totalSubscribersOffset}</td>
               <td>Auto-populated from database</td>
             </tr>
             <tr>
@@ -270,7 +279,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
             <tr>
               <td>Total Rebate Days</td>
               <td class="formula">R</td>
-              <td class="value">${billData.rebateDays}</td>
+              <td class="value">${billData.rebateDays + billData.rebateDaysOffset}</td>
               <td>Manual entry</td>
             </tr>
             <tr>
@@ -337,7 +346,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
               <td class="value">${formatCurrency(
         billData.rebateReimbursement
       )}</td>
-              <td></td>
+              <td>R × 119</td>
             </tr>
             <tr>
               <td>Misc deduction</td>
@@ -452,16 +461,46 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Total No of mess subscribers (N)</label>
-                <input type="number" value={billData.totalSubscribers} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 focus:outline-none" readOnly />
-                <p className="text-xs text-gray-500 mt-1">Auto-populated from database</p>
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <input type="number" value={billData.totalSubscribers} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 focus:outline-none text-sm" readOnly />
+                    <p className="text-[10px] text-gray-500 mt-1">Auto-populated</p>
+                  </div>
+                  <div className="flex-1">
+                    <input 
+                      type="number" 
+                      value={billData.totalSubscribersOffset} 
+                      onChange={(e) => handleInputChange("totalSubscribersOffset", parseInt(e.target.value) || 0)} 
+                      className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                      placeholder="Offset"
+                    />
+                    <p className="text-[10px] text-blue-600 mt-1">Manual Offset</p>
+                  </div>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">No of Mess Days (M = N × D)</label>
                 <input type="number" value={billData.messDays} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 focus:outline-none" readOnly />
+                <p className="text-[10px] text-gray-500 mt-1">Effective N = {billData.totalSubscribers + billData.totalSubscribersOffset}</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Total Rebate Days (R)</label>
-                <input type="number" value={billData.rebateDays} onChange={(e) => handleInputChange("rebateDays", parseFloat(e.target.value) || 0)} className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" placeholder="Enter rebate days" />
+                <div className="flex gap-2">
+                  <div className="flex-1">
+                    <input type="number" value={billData.rebateDays} className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100 focus:outline-none text-sm" readOnly />
+                    <p className="text-[10px] text-gray-500 mt-1">From API</p>
+                  </div>
+                  <div className="flex-1">
+                    <input 
+                      type="number" 
+                      value={billData.rebateDaysOffset} 
+                      onChange={(e) => handleInputChange("rebateDaysOffset", parseFloat(e.target.value) || 0)} 
+                      className="w-full px-3 py-2 border border-blue-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" 
+                      placeholder="Offset"
+                    />
+                    <p className="text-[10px] text-blue-600 mt-1">Manual Offset</p>
+                  </div>
+                </div>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">Misc deduction</label>
@@ -606,7 +645,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
                   N
                 </td>
                 <td className="border border-gray-300 px-4 py-2 font-semibold">
-                  {billData.totalSubscribers}
+                  {billData.totalSubscribers + billData.totalSubscribersOffset}
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-sm text-gray-500">
                   Auto-populated from database
@@ -634,7 +673,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
                   R
                 </td>
                 <td className="border border-gray-300 px-4 py-2 font-semibold">
-                  {billData.rebateDays}
+                  {billData.rebateDays + billData.rebateDaysOffset}
                 </td>
                 <td className="border border-gray-300 px-4 py-2 text-sm text-gray-500">
                   Manual entry
