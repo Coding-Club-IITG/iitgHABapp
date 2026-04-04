@@ -70,28 +70,43 @@ const authenticateUserOrAdminJWT = async (req, res, next) => {
   const isBlacklisted = await redisClient.get(`bl_${token}`);
   if (isBlacklisted) return next(new AppError(401, "Token has been revoked"));
 
+  let lastError = null;
+
+  // First, try to treat the token as a normal user token
   try {
     const user = await User.findByAccessToken(token);
     if (user) {
       req.user = user;
       return next();
     }
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return next(new AppError(401, "Access token expired"));
+    }
+    // For non-expiry JWT errors (e.g. invalid signature), fall through to
+    // try hostel token verification instead of immediately returning 500.
+    lastError = err;
+  }
 
+  // If not a valid user token, try to treat it as a hostel (admin) token
+  try {
     const hostel = await Hostel.findByAccessToken(token);
     if (hostel) {
       req.hostel = hostel;
       return next();
     }
-
-    return next(new AppError(403, "Not Authenticated"));
   } catch (err) {
     if (err.name === "TokenExpiredError") {
       return next(new AppError(401, "Access token expired"));
     }
-
-    console.error("Error verifying token:", err);
-    return next(new AppError(500, "Server error during authentication"));
+    lastError = err;
   }
+
+  if (lastError) {
+    console.error("Error verifying token:", lastError);
+  }
+
+  return next(new AppError(403, "Not Authenticated"));
 };
 
 const authenticateHabJWT = async (req, res, next) => {

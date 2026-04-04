@@ -126,7 +126,8 @@ const getAllHostels = async (req, res) => {
     try {
       if (redisClient) {
         const cachedHostels = await redisClient.get(cacheKey);
-        if (cachedHostels) return res.json({ hostels: JSON.parse(cachedHostels) });
+        if (cachedHostels)
+          return res.status(200).json(JSON.parse(cachedHostels));
       }
     } catch (redisErr) {
       console.error("Redis get error:", redisErr);

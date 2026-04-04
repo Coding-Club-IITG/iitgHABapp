@@ -133,6 +133,10 @@ const mobileRedirectHandler = async (req, res, next) => {
       await existingUser.save();
     }
 
+    if (existingUser.isBanned) {
+      throw new AppError(403, "Your account has been banned");
+    }
+
     const accessToken = existingUser.generateAccessToken();
     const refreshToken = existingUser.generateRefreshToken();
 
@@ -201,6 +205,11 @@ const refreshTokenHandler = async (req, res, next) => {
     if (!user) {
       console.error("User not found");
       return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isBanned) {
+      console.error("User is banned");
+      return res.status(403).json({ message: "User has been banned" });
     }
 
     const accessToken = user.generateAccessToken();
@@ -414,6 +423,10 @@ const appleLoginHandler = async (req, res, next) => {
         }
       }
       await existingUser.save();
+    }
+
+    if (existingUser.isBanned) {
+      throw new AppError(403, "Your account has been banned");
     }
 
     const token = existingUser.generateJWT();

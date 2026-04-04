@@ -195,6 +195,7 @@ app.use(
 function startWorker() {
   const worker = new Worker(
     path.resolve(__dirname, "./workers/loggerWorker.js"),
+    { execArgv: process.execArgv },
   );
 
   worker.on("error", (err) => console.error("Worker Error:", err));

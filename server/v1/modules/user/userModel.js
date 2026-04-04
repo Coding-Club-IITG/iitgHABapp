@@ -230,12 +230,24 @@ const userSchema = new mongoose.Schema({
     type: Date,
     default: null,
   },
+  isBanned: {
+    type: Boolean,
+    default: false,
+  },
 });
+
+// Generic JWT helper kept for backward compatibility.
+// It simply reuses the existing access-token format so that any
+// existing `generateJWT()` call sites behave exactly like
+// `generateAccessToken()`.
+userSchema.methods.generateJWT = function () {
+  return this.generateAccessToken();
+};
 
 userSchema.methods.generateAccessToken = function () {
   var user = this;
   var token = jwt.sign({ user: user._id }, ACCESS_TOKEN_SECRET, {
-    expiresIn: "1d",
+    expiresIn: "4d",
   });
   return token;
 };
@@ -255,6 +267,7 @@ userSchema.statics.findByAccessToken = async function (token) {
     const id = decoded.user;
     const fetchedUser = await user.findOne({ _id: id });
     if (!fetchedUser) return false;
+    if (fetchedUser.isBanned) return false;
     return fetchedUser;
   } catch (error) {
     throw error;
