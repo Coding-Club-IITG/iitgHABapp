@@ -1,6 +1,7 @@
+import 'dart:io';
+import 'package:path_provider/path_provider.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-
 import '../constants/endpoint.dart';
 
 class LeaveApi {
@@ -103,5 +104,37 @@ class LeaveApi {
       options: Options(headers: _authHeaders(token)),
     );
     return response.data as Map<String, dynamic>;
+  }
+
+  static Future<File> downloadProofDocument({
+    required String token,
+    required String documentUrl,
+  }) async {
+    try {
+      // 1. Get the device's temporary directory
+      final tempDir = await getTemporaryDirectory();
+      
+      // 2. Generate a unique file name so we don't overwrite previous views
+      final fileName = 'leave_proof_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final savePath = '${tempDir.path}/$fileName';
+
+      // 3. Make the POST request requesting bytes
+      final response = await _dio.post(
+        LeaveEndpoints.downloadDocument,
+        data: {'proofDocumentUrl': documentUrl},
+        options: Options(
+          headers: _authHeaders(token),
+          responseType: ResponseType.bytes, // CRITICAL: Tells Dio to expect a file, not JSON
+        ),
+      );
+
+      // 4. Save the bytes to the file system
+      final file = File(savePath);
+      await file.writeAsBytes(response.data);
+      
+      return file;
+    } catch (e) {
+      rethrow;
+    }
   }
 }

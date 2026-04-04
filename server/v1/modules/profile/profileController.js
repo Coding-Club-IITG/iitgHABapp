@@ -371,6 +371,42 @@ async function getProfilePicture(req, res) {
   return sendProfilePictureForUser(user, res);
 }
 
+async function sendDocumentFromOneDrive(itemId, res) {
+  try {
+    if (!itemId) {
+      return res.status(400).json({ message: "No item ID provided" });
+    }
+
+    const token = await requireDelegatedToken();
+    const contentUrl = `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/content`;
+    
+    const resp = await axios.get(contentUrl, {
+      responseType: "arraybuffer",
+      headers: { Authorization: `Bearer ${token}` },
+      validateStatus: () => true,
+    });
+
+    if (resp.status >= 200 && resp.status < 300) {
+      res.setHeader(
+        "Content-Type",
+        resp.headers["content-type"] || "application/pdf" 
+      );
+      
+      return res.send(Buffer.from(resp.data));
+    }
+
+    return res.status(502).json({
+      message: "Failed to fetch document from Graph",
+      status: resp.status,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Failed to fetch document",
+      error: err.message,
+      status: err.response?.status,
+    });
+  }
+}
 // Mess-manager (HABit HQ): get profile picture for a mess user by userId
 async function getProfilePictureForManager(req, res) {
   try {

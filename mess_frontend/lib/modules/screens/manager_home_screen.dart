@@ -5,7 +5,7 @@ import '../models/manager_models.dart';
 import '../widgets/shared_widgets.dart';
 import 'scan_logs_screens.dart';
 import 'user_profile_screen.dart';
-import 'leave_applications_screen.dart'; // Add this import
+import 'leave_applications_screen.dart';
 
 class ManagerHomeScreen extends StatefulWidget {
   final String hostelName;
@@ -24,7 +24,7 @@ class ManagerHomeScreen extends StatefulWidget {
 class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   int _currentIndex = 0;
   bool _galaInitialized = false;
-  bool _leavesInitialized = false; // Add this state
+  bool _leavesInitialized = false;
 
   @override
   Widget build(BuildContext context) {
@@ -32,16 +32,16 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
       TodayMessScreen(
         hostelName: widget.hostelName,
         authToken: widget.authToken,
+        isActive: _currentIndex == 0, // Tells the tab if it is currently visible
       ),
       if (_galaInitialized)
         GalaSummaryScreen(
           hostelName: widget.hostelName,
           authToken: widget.authToken,
+          isActive: _currentIndex == 1,
         )
       else
         const SizedBox.shrink(),
-      
-      // Lazily create LeaveApplicationsScreen
       if (_leavesInitialized)
         LeaveApplicationsScreen(
           hostelName: widget.hostelName,
@@ -96,11 +96,13 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
 class TodayMessScreen extends StatefulWidget {
   final String hostelName;
   final String authToken;
+  final bool isActive;
 
   const TodayMessScreen({
     super.key,
     required this.hostelName,
     required this.authToken,
+    required this.isActive,
   });
 
   @override
@@ -120,13 +122,47 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
     'dinner': 0,
   };
 
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+    if (widget.isActive) {
+      _startTimer();
+    }
+  }
+
+  // Detects when the user switches tabs to pause/resume the timer
+  @override
+  void didUpdateWidget(covariant TodayMessScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _fetch(); // Fetch immediately on return
+      _startTimer();
+    } else if (!widget.isActive && oldWidget.isActive) {
+      _timer?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   void _startTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _fetch());
+    if (!widget.isActive) return;
+    
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      // ONLY fetch if this screen is the top-most screen (pauses when profile/logs are pushed)
+      if (ModalRoute.of(context)?.isCurrent == true) {
+        _fetch();
+      }
+    });
   }
 
   Future<void> _openMealLogs(BuildContext context, String meal) async {
-    _timer?.cancel();
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => MessMealScanLogsScreen(
@@ -136,23 +172,8 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
         ),
       ),
     );
-    if (mounted) {
-      _startTimer();
-      _fetch();
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetch();
-    _startTimer();
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+    // Refresh immediately when returning from the logs screen
+    if (mounted && widget.isActive) _fetch();
   }
 
   Future<void> _fetch() async {
@@ -326,8 +347,8 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
                     return GestureDetector(
                       onTap: entry.userId.isEmpty
                           ? null
-                          : () {
-                              Navigator.of(context).push(
+                          : () async {
+                              await Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) => ManagerUserProfileScreen(
                                     userId: entry.userId,
@@ -335,6 +356,8 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
                                   ),
                                 ),
                               );
+                              // Refresh immediately when returning from profile
+                              if (mounted && widget.isActive) _fetch();
                             },
                       child: RecentScanCard(entry: entry),
                     );
@@ -349,11 +372,13 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
 class GalaSummaryScreen extends StatefulWidget {
   final String hostelName;
   final String authToken;
+  final bool isActive;
 
   const GalaSummaryScreen({
     super.key,
     required this.hostelName,
     required this.authToken,
+    required this.isActive,
   });
 
   @override
@@ -374,13 +399,47 @@ class _GalaSummaryScreenState extends State<GalaSummaryScreen> {
   };
   bool _hasGalaToday = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _fetch();
+    if (widget.isActive) {
+      _startTimer();
+    }
+  }
+
+  // Detects when the user switches tabs to pause/resume the timer
+  @override
+  void didUpdateWidget(covariant GalaSummaryScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isActive && !oldWidget.isActive) {
+      _fetch();
+      _startTimer();
+    } else if (!widget.isActive && oldWidget.isActive) {
+      _timer?.cancel();
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
   void _startTimer() {
     _timer?.cancel();
-    _timer = Timer.periodic(const Duration(seconds: 5), (_) => _fetch());
+    if (!widget.isActive) return;
+
+    _timer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (!mounted) return;
+      // ONLY fetch if this screen is the top-most screen
+      if (ModalRoute.of(context)?.isCurrent == true) {
+        _fetch();
+      }
+    });
   }
 
   Future<void> _openCourseLogs(BuildContext context, String course) async {
-    _timer?.cancel();
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => GalaCourseScanLogsScreen(
@@ -390,23 +449,7 @@ class _GalaSummaryScreenState extends State<GalaSummaryScreen> {
         ),
       ),
     );
-    if (mounted) {
-      _startTimer();
-      _fetch();
-    }
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _fetch();
-    _startTimer();
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
+    if (mounted && widget.isActive) _fetch();
   }
 
   Future<void> _fetch() async {
@@ -609,9 +652,9 @@ class _GalaSummaryScreenState extends State<GalaSummaryScreen> {
                   itemBuilder: (context, index) {
                     final entry = visibleEntries[index];
                     return GestureDetector(
-                      onTap: () {
+                      onTap: () async {
                         if (entry.userId.isEmpty) return;
-                        Navigator.of(context).push(
+                        await Navigator.of(context).push(
                           MaterialPageRoute(
                             builder: (_) => ManagerUserProfileScreen(
                               userId: entry.userId,
@@ -619,6 +662,7 @@ class _GalaSummaryScreenState extends State<GalaSummaryScreen> {
                             ),
                           ),
                         );
+                        if (mounted && widget.isActive) _fetch();
                       },
                       child: RecentScanCard(entry: entry),
                     );

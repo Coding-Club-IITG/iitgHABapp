@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:open_filex/open_filex.dart'; // Replaced url_launcher
 import '../../apis/leave_api.dart';
 import '../widgets/shared_widgets.dart';
 
@@ -58,7 +58,11 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          title: Text(isApprove ? 'Approve Application' : 'Reject Application'),
+          backgroundColor: Colors.white,
+          title: Text(
+            isApprove ? 'Approve Application' : 'Reject Application',
+            style: const TextStyle(color: Colors.black87),
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -66,14 +70,32 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
                 isApprove
                     ? 'Are you sure you want to approve this leave?'
                     : 'Are you sure you want to reject this leave?',
+                style: const TextStyle(color: Colors.black87),
               ),
               const SizedBox(height: 16),
               TextField(
                 controller: feedbackController,
-                decoration: const InputDecoration(
+                style: const TextStyle(color: Colors.black87, fontSize: 14),
+                cursorColor: Colors.blue,
+                decoration: InputDecoration(
                   labelText: 'Feedback (Optional)',
+                  labelStyle: const TextStyle(color: Colors.black54),
                   hintText: 'Add a note for the student...',
-                  border: OutlineInputBorder(),
+                  hintStyle: const TextStyle(color: Colors.black38),
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey.shade300),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.blue, width: 1.5),
+                  ),
                 ),
                 maxLines: 2,
               ),
@@ -82,6 +104,7 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(context, false),
+              style: TextButton.styleFrom(foregroundColor: Colors.grey.shade700),
               child: const Text('Cancel'),
             ),
             ElevatedButton(
@@ -103,7 +126,7 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
 
     try {
       final feedback = feedbackController.text.trim();
-      
+
       if (isApprove) {
         await LeaveApi.approveApplication(
           token: widget.authToken,
@@ -150,17 +173,46 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
       return;
     }
 
-    final Uri url = Uri.parse(urlString);
+    // Show a loading indicator while the file downloads
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => Center(
+        child: Container(
+            padding: EdgeInsets.all(20),
+            decoration: BoxDecoration(
+            color: Colors.white,
+            shape: BoxShape.circle,
+          ),
+          child: CircularProgressIndicator(),
+        ),
+      ),
+    );
+
     try {
-      if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-        throw Exception('Could not launch $url');
-      }
-    } catch (e) {
-      if (mounted) {
+      // Fetch and save the file to local storage
+      final file = await LeaveApi.downloadProofDocument(
+        token: widget.authToken,
+        documentUrl: urlString,
+      );
+
+      if (!mounted) return;
+      Navigator.pop(context); // Close the loading dialog
+
+      // Command the OS to open the file with the default PDF/Image viewer
+      final result = await OpenFilex.open(file.path);
+      
+      if (result.type != ResultType.done && mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open document: $e')),
+          SnackBar(content: Text('Could not open file: ${result.message}')),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // Close the loading dialog
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to download document: $e')),
+      );
     }
   }
 
@@ -171,6 +223,18 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
     } catch (_) {
       return isoString;
     }
+  }
+
+  (Color, Color) _getLeaveTypeColors(String type) {
+    final lowerType = type.toLowerCase();
+    if (lowerType.contains('medical')) {
+      return (const Color(0xFFF3E8FF), const Color(0xFF7E22CE)); 
+    } else if (lowerType.contains('academic')) {
+      return (const Color(0xFFDBEAFE), const Color(0xFF1D4ED8)); 
+    } else if (lowerType.contains('personal') || lowerType.contains('casual')) {
+      return (const Color(0xFFFFEDD5), const Color(0xFFC2410C)); 
+    }
+    return (const Color(0xFFF3F4F6), const Color(0xFF4B5563)); 
   }
 
   @override
@@ -187,49 +251,60 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 16),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Leave Applications',
+                'Leave Requests',
                 style: TextStyle(
-                  color: Color(0xFF2E2F31),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+                  color: Colors.black,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.5,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                'Pending requests for ${widget.hostelName}',
-                style: const TextStyle(
-                  color: Color(0xFF6B7280),
-                  fontSize: 13,
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade200,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(
+                  '${_applications.length} Pending',
+                  style: TextStyle(
+                    color: Colors.grey.shade600,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const Divider(color: Color(0xFFE5E7EB), height: 1),
         Expanded(
           child: _applications.isEmpty
               ? const EmptyState(message: 'No pending leave applications.')
               : RefreshIndicator(
                   onRefresh: _fetchApplications,
                   child: ListView.builder(
-                    padding: const EdgeInsets.all(16),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
                     itemCount: _applications.length,
                     itemBuilder: (context, index) {
                       final app = _applications[index];
                       final user = app['user'] ?? {};
                       final docUrl = app['proofDocumentUrl'] as String?;
+                      final leaveType = app['leaveType'] ?? 'Unknown';
+                      final typeColors = _getLeaveTypeColors(leaveType);
 
                       return Card(
-                        elevation: 0,
-                        margin: const EdgeInsets.only(bottom: 12),
+                        elevation: 1,
+                        margin: const EdgeInsets.only(bottom: 16),
+                        color: Colors.white,
+                        surfaceTintColor: Colors.white,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          side: const BorderSide(color: Color(0xFFE5E7EB)),
+                          borderRadius: BorderRadius.circular(16),
+                          side: BorderSide(color: Colors.grey.shade200),
                         ),
                         child: Padding(
                           padding: const EdgeInsets.all(16),
@@ -240,110 +315,164 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
                                   Expanded(
-                                    child: Text(
-                                      user['name'] ?? 'Unknown User',
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w600,
+                                    child: RichText(
+                                      text: TextSpan(
+                                        style: const TextStyle(
+                                          fontSize: 15,
+                                          color: Colors.black,
+                                        ),
+                                        children: [
+                                          const TextSpan(
+                                            text: 'Student: ',
+                                            style: TextStyle(fontWeight: FontWeight.w800),
+                                          ),
+                                          TextSpan(
+                                            text: user['name'] ?? 'Unknown User',
+                                            style: const TextStyle(fontWeight: FontWeight.w500),
+                                          ),
+                                        ],
                                       ),
                                     ),
                                   ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(
-                                      horizontal: 8,
-                                      vertical: 4,
+                                      horizontal: 12,
+                                      vertical: 6,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFE0E7FF),
-                                      borderRadius: BorderRadius.circular(8),
+                                      color: typeColors.$1,
+                                      borderRadius: BorderRadius.circular(12),
                                     ),
                                     child: Text(
-                                      app['leaveType'] ?? 'Unknown',
-                                      style: const TextStyle(
-                                        color: Color(0xFF4338CA),
+                                      leaveType,
+                                      style: TextStyle(
+                                        color: typeColors.$2,
                                         fontSize: 12,
-                                        fontWeight: FontWeight.w600,
+                                        fontWeight: FontWeight.w700,
                                       ),
                                     ),
                                   ),
                                 ],
                               ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Roll No: ${user['rollNumber'] ?? 'N/A'}',
-                                style: const TextStyle(
-                                  color: Color(0xFF6B7280),
-                                  fontSize: 13,
+                              const SizedBox(height: 8),
+                              RichText(
+                                text: TextSpan(
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    color: Colors.black,
+                                  ),
+                                  children: [
+                                    const TextSpan(
+                                      text: 'Roll No: ',
+                                      style: TextStyle(fontWeight: FontWeight.w800),
+                                    ),
+                                    TextSpan(
+                                      text: user['rollNumber'] ?? 'N/A',
+                                      style: const TextStyle(fontWeight: FontWeight.w500),
+                                    ),
+                                  ],
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(Icons.calendar_today,
-                                      size: 14, color: Color(0xFF6B7280)),
-                                  const SizedBox(width: 6),
-                                  Text(
-                                    '${_formatDate(app['startDate'])}  -  ${_formatDate(app['endDate'])}',
-                                    style: const TextStyle(
-                                      color: Color(0xFF111827),
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w500,
+                                  Icon(Icons.calendar_month_rounded, size: 16, color: Colors.grey.shade800),
+                                  const SizedBox(width: 8),
+                                  RichText(
+                                    text: TextSpan(
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        color: Colors.black,
+                                      ),
+                                      children: [
+                                        const TextSpan(
+                                          text: 'Dates: ',
+                                          style: TextStyle(fontWeight: FontWeight.w800),
+                                        ),
+                                        TextSpan(
+                                          text: '${_formatDate(app['startDate'])} - ${_formatDate(app['endDate'])}',
+                                          style: const TextStyle(fontWeight: FontWeight.w500),
+                                        ),
+                                      ],
                                     ),
                                   ),
                                 ],
                               ),
                               const SizedBox(height: 16),
-                              Row(
+                              
+                              // --- UPDATED ACTION BUTTONS LAYOUT ---
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  if (docUrl != null)
-                                    Expanded(
-                                      flex: 4,
-                                      child: OutlinedButton.icon(
-                                        onPressed: () => _viewDocument(docUrl),
-                                        icon: const Icon(Icons.insert_drive_file_outlined, size: 16),
-                                        label: const FittedBox(
-                                          fit: BoxFit.scaleDown,
-                                          child: Text('View Doc'),
+                                  // View Document on its own row
+                                  if (docUrl != null) ...[
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: InkWell(
+                                        onTap: () => _viewDocument(docUrl),
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Padding(
+                                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              Icon(Icons.description_outlined, size: 18, color: Colors.grey.shade800),
+                                              const SizedBox(width: 6),
+                                              Text(
+                                                'View Document',
+                                                style: TextStyle(
+                                                  color: Colors.grey.shade800,
+                                                  fontSize: 14,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                         ),
-                                        style: OutlinedButton.styleFrom(
-                                          foregroundColor: const Color(0xFF4C4EDB),
-                                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                  ],
+                                  
+                                  // Accept and Reject taking up equal space on the bottom row
+                                  Row(
+                                    children: [
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () => _handleAction(app['_id'], false),
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: const Color(0xFFFEE2E2), 
+                                            foregroundColor: const Color(0xFFB91C1C), 
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Reject',
+                                            style: TextStyle(fontWeight: FontWeight.w700),
+                                          ),
                                         ),
                                       ),
-                                    ),
-                                  if (docUrl != null) const SizedBox(width: 8),
-                                  Expanded(
-                                    flex: 3,
-                                    child: ElevatedButton(
-                                      onPressed: () => _handleAction(app['_id'], false),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFFEF2F2),
-                                        foregroundColor: const Color(0xFFDC2626),
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: TextButton(
+                                          onPressed: () => _handleAction(app['_id'], true),
+                                          style: TextButton.styleFrom(
+                                            backgroundColor: const Color(0xFFDCFCE7), 
+                                            foregroundColor: const Color(0xFF15803D), 
+                                            padding: const EdgeInsets.symmetric(vertical: 12),
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius: BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          child: const Text(
+                                            'Approve',
+                                            style: TextStyle(fontWeight: FontWeight.w700),
+                                          ),
+                                        ),
                                       ),
-                                      child: const FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Text('Reject'),
-                                      ),
-                                    ),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Expanded(
-                                    flex: 3,
-                                    child: ElevatedButton(
-                                      onPressed: () => _handleAction(app['_id'], true),
-                                      style: ElevatedButton.styleFrom(
-                                        backgroundColor: const Color(0xFFF0FDF4),
-                                        foregroundColor: const Color(0xFF16A34A),
-                                        elevation: 0,
-                                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                                      ),
-                                      child: const FittedBox(
-                                        fit: BoxFit.scaleDown,
-                                        child: Text('Approve'),
-                                      ),
-                                    ),
+                                    ],
                                   ),
                                 ],
                               ),
