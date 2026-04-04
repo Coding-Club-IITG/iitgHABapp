@@ -297,15 +297,15 @@ class _AccountScreenState extends State<AccountScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16),
             child: Column(
               children: [
-                _CardSettingsRow(
-                  iconPath: "assets/icon/theme.svg",
-                  iconColor: Themes.kAccent,
-                  label: 'Appearance',
-                  subtitle: 'Light Mode',
-                  onTap: () {},
-                  roundBottom: false,
-                ),
-                const SizedBox(height: 8),
+                // _CardSettingsRow(
+                //   iconPath: "assets/icon/theme.svg",
+                //   iconColor: Themes.kAccent,
+                //   label: 'Appearance',
+                //   subtitle: 'Light Mode',
+                //   onTap: () {},
+                //   roundBottom: false,
+                // ),
+                // const SizedBox(height: 8),
                 _CardSettingsRow(
                   iconPath: "assets/icon/feedback.svg",
                   iconColor: Themes.kAccent,
