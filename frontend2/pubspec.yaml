@@ -115,7 +115,34 @@ flutter:
         - asset: assets/fonts/Manrope-SemiBold.ttf
     - family: GeneralSans
       fonts:
-        - asset: assets/fonts/GeneralSans-Variable.ttf
+        - asset: assets/fonts/GeneralSans-Regular.otf
+        - asset: assets/fonts/GeneralSans-Italic.otf
+          style: italic
+        - asset: assets/fonts/GeneralSans-Light.otf
+          weight: 300
+        - asset: assets/fonts/GeneralSans-LightItalic.otf
+          weight: 300
+          style: italic
+        - asset: assets/fonts/GeneralSans-Medium.otf
+          weight: 500
+        - asset: assets/fonts/GeneralSans-MediumItalic.otf
+          weight: 500
+          style: italic
+        - asset: assets/fonts/GeneralSans-Semibold.otf
+          weight: 600
+        - asset: assets/fonts/GeneralSans-SemiboldItalic.otf
+          weight: 600
+          style: italic
+        - asset: assets/fonts/GeneralSans-Bold.otf
+          weight: 700
+        - asset: assets/fonts/GeneralSans-BoldItalic.otf
+          weight: 700
+          style: italic
+        - asset: assets/fonts/GeneralSans-Extralight.otf
+          weight: 200
+        - asset: assets/fonts/GeneralSans-ExtralightItalic.otf
+          weight: 200
+          style: italic
 
   # assets:
   #   - images/a_dot_burr.jpeg
