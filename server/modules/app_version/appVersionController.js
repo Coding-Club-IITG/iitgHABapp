@@ -4,6 +4,7 @@ const path = require("path");
 // Common config files - same directory
 const mainConfigPath = path.join(__dirname, "./config/appVersion.json");
 const hqConfigPath = path.join(__dirname, "./config/hqAppVersion.json");
+const rcConfigPath = path.join(__dirname, "./config/rcAppVersion.json");
 
 /**
  * Read main HABit app version config
@@ -75,6 +76,41 @@ const saveHqVersionConfig = (config) => {
     return true;
   } catch (error) {
     console.error("Error saving HQ version config:", error);
+    return false;
+  }
+};
+
+/**
+ * Read HABit RC (room-cleaning manager app) version config
+ */
+const getRcVersionConfig = () => {
+  try {
+    const data = fs.readFileSync(rcConfigPath, "utf8");
+    return JSON.parse(data);
+  } catch (error) {
+    console.error("Error reading RC version config:", error);
+    // Default skeleton: Android-only, v1 style, force update when below minVersionv1
+    return {
+      android: {
+        minVersionv1: "1.0.0",
+        storeUrl: "",
+        updateMessage:
+          "A new version of HABit RC is available. Please update to continue.",
+      },
+    };
+  }
+};
+
+/**
+ * Save HABit RC (room-cleaning manager app) version config
+ */
+const saveRcVersionConfig = (config) => {
+  try {
+    fs.mkdirSync(path.dirname(rcConfigPath), { recursive: true });
+    fs.writeFileSync(rcConfigPath, JSON.stringify(config, null, 2));
+    return true;
+  } catch (error) {
+    console.error("Error saving RC version config:", error);
     return false;
   }
 };
@@ -292,6 +328,110 @@ const getAllHqVersionInfo = (req, res) => {
   }
 };
 
+/**
+ * Get HABit RC version info (Android only)
+ */
+const getRcVersionInfo = (req, res) => {
+  try {
+    const { platform } = req.params;
+    if (platform.toLowerCase() !== "android") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid platform. HABit RC supports only 'android'.",
+      });
+    }
+
+    const config = getRcVersionConfig();
+    const platformConfig = config.android || {};
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        platform: "android",
+        minVersionv1: platformConfig.minVersionv1,
+        storeUrl: platformConfig.storeUrl,
+        updateMessage: platformConfig.updateMessage,
+        // If app version < minVersionv1, client must force update (no optional skip)
+        forceUpdate: true,
+        minRCversion: platformConfig.minVersionv1,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching RC version info:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch HABit RC version info",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Update HABit RC version info (Android only, admin)
+ */
+const updateRcVersionInfo = (req, res) => {
+  try {
+    const { platform } = req.params;
+    if (platform.toLowerCase() !== "android") {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid platform. HABit RC supports only 'android'.",
+      });
+    }
+
+    const { minVersionv1, storeUrl, updateMessage } = req.body;
+
+    const config = getRcVersionConfig();
+    if (!config.android) {
+      config.android = {};
+    }
+
+    if (minVersionv1) config.android.minVersionv1 = minVersionv1;
+    if (storeUrl) config.android.storeUrl = storeUrl;
+    if (updateMessage) config.android.updateMessage = updateMessage;
+
+    if (saveRcVersionConfig(config)) {
+      return res.status(200).json({
+        success: true,
+        message: "HABit RC version info updated successfully",
+        data: config.android,
+      });
+    } else {
+      return res.status(500).json({
+        success: false,
+        message: "Failed to save HABit RC version config",
+      });
+    }
+  } catch (error) {
+    console.error("Error updating RC version info:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update HABit RC version info",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Get all HABit RC version info
+ */
+const getAllRcVersionInfo = (req, res) => {
+  try {
+    const config = getRcVersionConfig();
+    return res.status(200).json({
+      success: true,
+      data: config,
+    });
+  } catch (error) {
+    console.error("Error fetching all RC version info:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch HABit RC version info",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getVersionInfo,
   updateVersionInfo,
@@ -299,4 +439,7 @@ module.exports = {
   getHqVersionInfo,
   updateHqVersionInfo,
   getAllHqVersionInfo,
+  getRcVersionInfo,
+  updateRcVersionInfo,
+  getAllRcVersionInfo,
 };

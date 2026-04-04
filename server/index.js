@@ -8,6 +8,7 @@ const cors = require("cors");
 const {
   appVersionRouter,
   hqAppVersionRouter,
+  rcAppVersionRouter,
 } = require("./modules/app_version/appVersionRoute.js");
 
 const app = express();
@@ -71,6 +72,7 @@ const selectProxyTarget = (req) => {
 // 2.5. Centralized App Version Routes (Before Proxy)
 app.use("/api/app-version", appVersionRouter);
 app.use("/api/hq-app-version", hqAppVersionRouter);
+app.use("/api/rc-app-version", rcAppVersionRouter);
 
 // 3. Proxy Setup - http-proxy-middleware automatically handles multipart/form-data streaming
 const apiProxy = createProxyMiddleware({

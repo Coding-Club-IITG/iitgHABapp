@@ -220,6 +220,10 @@ const userSchema = new mongoose.Schema({
     enum: ["apple", "microsoft", "both", "guest"],
     default: "microsoft", // Default for backward compatibility
   },
+  lastLaundryUsed: {
+    type: Date,
+    default: null,
+  },
 });
 
 userSchema.methods.generateJWT = function () {

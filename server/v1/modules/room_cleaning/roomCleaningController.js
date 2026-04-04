@@ -3,6 +3,10 @@ const { RcFeedback } = require("./roomCleaningFeedbackModel");
 const { RcCleaner } = require("./rcCleanerModel");
 const { Hostel } = require("../hostel/hostelModel");
 const { User } = require("../user/userModel");
+const {
+  sendNotificationToUser,
+} = require("../notification/notificationController");
+const redisClient = require("../../utils/redisClient");
 
 // In-memory cache for per-hostel slot capacities.
 // Shape: { [hostelId]: { value, expiresAt } }
@@ -377,6 +381,8 @@ const getRcCleaners = async (req, res) => {
         _id: c._id,
         name: c.name,
         slots: c.slots,
+        averageRating: c.averageRating,
+        totalFeedbacks: c.totalFeedbacks,
       })),
     });
   } catch (err) {
@@ -529,7 +535,7 @@ const createBooking = async (req, res) => {
   session.startTransaction();
 
   try {
-    const { slot } = req.body || {};
+    const { slot, roomNumber, phoneNumber } = req.body || {};
 
     if (!SLOTS.some((s) => s.id === slot)) {
       await session.abortTransaction();
@@ -616,6 +622,13 @@ const createBooking = async (req, res) => {
             bookingDate: targetDate,
             slot,
             status,
+            // store snapshots if provided (frontend popup)
+            ...(roomNumber != null && String(roomNumber).trim().length > 0
+                ? { roomNumber: String(roomNumber).trim() }
+                : {}),
+            ...(phoneNumber != null && String(phoneNumber).trim().length > 0
+                ? { phoneNumber: String(phoneNumber).trim() }
+                : {}),
           },
         ],
         { session },
@@ -767,8 +780,47 @@ const getMyBookings = async (req, res) => {
       userId: req.user._id,
     })
       .sort({ bookingDate: -1, createdAt: -1 })
-      .select("_id bookingDate slot status hostelId feedbackId reason")
+      .select("_id bookingDate slot status hostelId feedbackId reason assignedTo")
       .lean();
+
+    // Resolve assigned cleaner details with Redis cache
+    const assignedCleanerIds = [
+      ...new Set(
+        bookings
+          .filter((b) => b.assignedTo)
+          .map((b) => b.assignedTo.toString()),
+      ),
+    ];
+    const cleanerMap = {};
+    if (assignedCleanerIds.length > 0) {
+      const cacheResults = await Promise.all(
+        assignedCleanerIds.map((id) => redisClient.get(`rc:cleaner:${id}`)),
+      );
+      const missedIds = [];
+      for (let i = 0; i < assignedCleanerIds.length; i++) {
+        if (cacheResults[i]) {
+          try {
+            cleanerMap[assignedCleanerIds[i]] = JSON.parse(cacheResults[i]);
+          } catch {
+            missedIds.push(assignedCleanerIds[i]);
+          }
+        } else {
+          missedIds.push(assignedCleanerIds[i]);
+        }
+      }
+      if (missedIds.length > 0) {
+        const cleaners = await RcCleaner.find({ _id: { $in: missedIds } })
+          .select("_id name averageRating")
+          .lean();
+        for (const c of cleaners) {
+          const data = { name: c.name, averageRating: c.averageRating };
+          cleanerMap[c._id.toString()] = data;
+          redisClient
+            .set(`rc:cleaner:${c._id}`, JSON.stringify(data), "EX", 3600)
+            .catch(() => {});
+        }
+      }
+    }
 
     const today = startOfDayIST(getISTNow());
     const list = bookings.map((b) => {
@@ -778,7 +830,16 @@ const getMyBookings = async (req, res) => {
         b.status === "Booked" || b.status === "Buffered";
       const windowOpen = future && isBookingWindowOpen(b.bookingDate);
       const canCancel = cancellableStatus && future && windowOpen;
-      return { ...b, canCancel };
+      const cleaner = b.assignedTo
+        ? cleanerMap[b.assignedTo.toString()] || null
+        : null;
+      return {
+        ...b,
+        canCancel,
+        assignedCleaner: cleaner
+          ? { name: cleaner.name, averageRating: cleaner.averageRating }
+          : null,
+      };
     });
 
     return res.status(200).json({ bookings: list });
@@ -891,6 +952,51 @@ const submitFeedback = async (req, res) => {
       await session.commitTransaction();
       session.endSession();
 
+      // Update cleaner average rating atomically (fire-and-forget, outside transaction)
+      if (booking.assignedTo) {
+        RcCleaner.findOneAndUpdate(
+          { _id: booking.assignedTo },
+          [
+            {
+              $set: {
+                averageRating: {
+                  $divide: [
+                    {
+                      $add: [
+                        { $multiply: ["$averageRating", "$totalFeedbacks"] },
+                        parsedSatisfaction,
+                      ],
+                    },
+                    { $add: ["$totalFeedbacks", 1] },
+                  ],
+                },
+                totalFeedbacks: { $add: ["$totalFeedbacks", 1] },
+              },
+            },
+          ],
+          { new: true },
+        )
+          .then((updatedCleaner) => {
+            if (updatedCleaner) {
+              const cacheData = {
+                name: updatedCleaner.name,
+                averageRating: updatedCleaner.averageRating,
+              };
+              redisClient
+                .set(
+                  `rc:cleaner:${updatedCleaner._id}`,
+                  JSON.stringify(cacheData),
+                  "EX",
+                  3600,
+                )
+                .catch(() => {});
+            }
+          })
+          .catch((err) =>
+            console.error("Failed to update cleaner average:", err),
+          );
+      }
+
       return res.status(201).json({
         message: "Feedback submitted successfully",
         feedbackId: feedbackDoc._id,
@@ -948,7 +1054,9 @@ const getRcTomorrow = async (req, res) => {
       status: { $ne: "Cancelled" },
     })
       .sort({ slot: 1, createdAt: 1 })
-      .select("_id userId slot assignedTo status statusFinalizedAt")
+      .select(
+        "_id userId slot assignedTo status reason statusFinalizedAt roomNumber phoneNumber",
+      )
       .lean();
 
     const userIds = [...new Set(bookings.map((b) => b.userId).filter(Boolean))];
@@ -967,19 +1075,29 @@ const getRcTomorrow = async (req, res) => {
     }
 
     const cleaners = await RcCleaner.find({ hostelId: hostel._id })
-      .select("_id name slots")
+      .select("_id name slots averageRating totalFeedbacks")
       .lean();
     const slotMap = Object.fromEntries(SLOTS.map((s) => [s.id, s.timeRange]));
     const list = bookings.map((b) => {
       const u = userMap[b.userId?.toString()];
+      const roomFromBooking =
+        b.roomNumber != null && String(b.roomNumber).trim().length > 0
+          ? String(b.roomNumber).trim()
+          : null;
+      const phoneFromBooking =
+        b.phoneNumber != null && String(b.phoneNumber).trim().length > 0
+          ? String(b.phoneNumber).trim()
+          : null;
+
       return {
         _id: b._id,
-        roomNumber: u?.roomNumber ?? "—",
-        phoneNumber: u?.phoneNumber ?? "—",
+        roomNumber: roomFromBooking ?? u?.roomNumber ?? "—",
+        phoneNumber: phoneFromBooking ?? u?.phoneNumber ?? "—",
         slot: b.slot,
         timeRange: slotMap[b.slot] || "",
         assignedTo: b.assignedTo ?? null,
         status: b.status ?? null,
+        reason: b.reason ?? null,
         statusFinalizedAt: b.statusFinalizedAt ?? null,
       };
     });
@@ -990,6 +1108,8 @@ const getRcTomorrow = async (req, res) => {
         _id: c._id,
         name: c.name,
         slots: c.slots,
+        averageRating: c.averageRating,
+        totalFeedbacks: c.totalFeedbacks,
       })),
     });
   } catch (err) {
@@ -1063,6 +1183,41 @@ const postRcTomorrowAssign = async (req, res) => {
       }
     }
 
+    // Send notifications to users with assigned cleaners (fire-and-forget)
+    const assignedBookings = await RoomCleaningBooking.find({
+      hostelId: hostel._id,
+      bookingDate: tomorrowStart,
+      assignedTo: { $ne: null },
+      status: { $in: ["Booked", "Buffered"] },
+    })
+      .select("userId assignedTo")
+      .lean();
+
+    if (assignedBookings.length > 0) {
+      const cleanerIds = [
+        ...new Set(assignedBookings.map((b) => b.assignedTo.toString())),
+      ];
+      const cleanerDocs = await RcCleaner.find({ _id: { $in: cleanerIds } })
+        .select("_id name")
+        .lean();
+      const cleanerNameMap = Object.fromEntries(
+        cleanerDocs.map((c) => [c._id.toString(), c.name]),
+      );
+
+      for (const b of assignedBookings) {
+        const cleanerName =
+          cleanerNameMap[b.assignedTo.toString()] || "a room cleaner";
+        sendNotificationToUser(
+          b.userId,
+          "Room Cleaning Allotted",
+          `Your room cleaning has been successfully allotted to ${cleanerName}.`,
+          { redirectType: "room_cleaning" },
+        ).catch((err) =>
+          console.error("RC assignment notification failed:", err),
+        );
+      }
+    }
+
     return res.status(200).json({ message: "Assignments saved" });
   } catch (err) {
     console.error("postRcTomorrowAssign error:", err);
@@ -1119,6 +1274,7 @@ const postRcFinalizeStatuses = async (req, res) => {
     let updated = 0;
     let locked = 0;
     const now = new Date();
+    const finalizedBookings = [];
 
     for (const item of updates) {
       const { bookingId, status, reason } = item || {};
@@ -1148,8 +1304,12 @@ const postRcFinalizeStatuses = async (req, res) => {
           $set: { status: "Cleaned", statusFinalizedAt: now },
           $unset: { reason: 1 },
         });
-        if (r?.modifiedCount) updated += 1;
-        else locked += 1;
+        if (r?.modifiedCount) {
+          updated += 1;
+          finalizedBookings.push({ bookingId, status, reason: null });
+        } else {
+          locked += 1;
+        }
       } else {
         if (!reason || !allowedReasons.has(reason)) {
           return res.status(400).json({
@@ -1161,8 +1321,50 @@ const postRcFinalizeStatuses = async (req, res) => {
         const r = await RoomCleaningBooking.updateOne(filter, {
           $set: { status: "CouldNotBeCleaned", reason, statusFinalizedAt: now },
         });
-        if (r?.modifiedCount) updated += 1;
-        else locked += 1;
+        if (r?.modifiedCount) {
+          updated += 1;
+          finalizedBookings.push({ bookingId, status, reason });
+        } else {
+          locked += 1;
+        }
+      }
+    }
+
+    // Send notifications to affected users (fire-and-forget)
+    if (finalizedBookings.length > 0) {
+      const bookingIds = finalizedBookings.map((b) => b.bookingId);
+      const bookingDocs = await RoomCleaningBooking.find({
+        _id: { $in: bookingIds },
+      })
+        .select("_id userId")
+        .lean();
+      const bookingUserMap = Object.fromEntries(
+        bookingDocs.map((b) => [b._id.toString(), b.userId]),
+      );
+
+      for (const fb of finalizedBookings) {
+        const userId = bookingUserMap[fb.bookingId];
+        if (!userId) continue;
+
+        if (fb.status === "Cleaned") {
+          sendNotificationToUser(
+            userId,
+            "Room Cleaning Successful",
+            "Your room cleaning was successful! Please rate your room cleaning service.",
+            { redirectType: "room_cleaning" },
+          ).catch((err) =>
+            console.error("RC finalize notification failed:", err),
+          );
+        } else {
+          sendNotificationToUser(
+            userId,
+            "Room Cleaning Update",
+            `Your room cleaning could not be completed. Reason: ${fb.reason}.`,
+            { redirectType: "room_cleaning" },
+          ).catch((err) =>
+            console.error("RC finalize notification failed:", err),
+          );
+        }
       }
     }
 

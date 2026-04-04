@@ -16,6 +16,16 @@ const roomCleaningBookingSchema = new mongoose.Schema(
       required: true,
       index: true,
     },
+    // Snapshot of user's room number at the time of booking (optional).
+    roomNumber: {
+      type: String,
+      default: null,
+    },
+    // Snapshot of user's phone number at the time of booking (optional).
+    phoneNumber: {
+      type: String,
+      default: null,
+    },
     hostelId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Hostel",

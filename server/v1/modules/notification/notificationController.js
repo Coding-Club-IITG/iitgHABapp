@@ -99,13 +99,14 @@ async function sendNotificationMessage(
 }
 
 // Send a notification directly to a specific user's FCM token
-const sendNotificationToUser = async (userId, title, body) => {
+const sendNotificationToUser = async (userId, title, body, data = {}) => {
   try {
     const tokenDoc = await FCMToken.findOne({ user: userId });
     if (!tokenDoc || !tokenDoc.token) return;
     const message = {
       token: tokenDoc.token,
       notification: { title, body },
+      ...(Object.keys(data).length > 0 ? { data } : {}),
     };
     await admin.messaging().send(message);
   } catch (e) {

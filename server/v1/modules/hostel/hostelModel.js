@@ -95,6 +95,10 @@ const hostelSchema = new mongoose.Schema({
     type: String,
     select: false,
   },
+  isLaundryAvailable: {
+    type: Boolean,
+    default: false,
+  },
 });
 
 hostelSchema.methods.generateJWT = function () {
