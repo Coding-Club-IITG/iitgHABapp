@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart'; // Add this import
+import 'package:url_launcher/url_launcher.dart';
 import '../../apis/leave_api.dart';
 import '../widgets/shared_widgets.dart';
 
@@ -35,38 +35,20 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
       _error = null;
     });
 
-    // Dummy data with a fake delay. Swap with your API call when ready.
-    await Future.delayed(const Duration(milliseconds: 800));
-
-    if (!mounted) return;
-
-    setState(() {
-      _applications = [
-        {
-          '_id': 'dummy_1',
-          'user': {
-            'name': 'Abhinav Rai',
-            'rollNumber': '220101000',
-          },
-          'leaveType': 'Medical',
-          'startDate': '2026-04-10T00:00:00.000Z',
-          'endDate': '2026-04-15T00:00:00.000Z',
-          'proofDocumentUrl': 'https://google.com',
-        },
-        {
-          '_id': 'dummy_2',
-          'user': {
-            'name': 'Rahul Sharma',
-            'rollNumber': '220101045',
-          },
-          'leaveType': 'Academic',
-          'startDate': '2026-04-18T00:00:00.000Z',
-          'endDate': '2026-04-22T00:00:00.000Z',
-          'proofDocumentUrl': null,
-        },
-      ];
-      _loading = false;
-    });
+    try {
+      final apps = await LeaveApi.fetchPendingApplications(widget.authToken);
+      if (!mounted) return;
+      setState(() {
+        _applications = apps;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _loading = false;
+      });
+    }
   }
 
   Future<void> _handleAction(String id, bool isApprove) async {
@@ -106,7 +88,7 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
               onPressed: () => Navigator.pop(context, true),
               style: ElevatedButton.styleFrom(
                 backgroundColor: isApprove ? Colors.green : Colors.red,
-                foregroundColor: Colors.white, // <-- ADD THIS LINE to fix text visibility
+                foregroundColor: Colors.white,
               ),
               child: Text(isApprove ? 'Approve' : 'Reject'),
             ),
@@ -120,8 +102,21 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
     setState(() => _loading = true);
 
     try {
-      // Dummy delay for UI testing, replace with actual API call later
-      await Future.delayed(const Duration(milliseconds: 600));
+      final feedback = feedbackController.text.trim();
+      
+      if (isApprove) {
+        await LeaveApi.approveApplication(
+          token: widget.authToken,
+          applicationId: id,
+          feedback: feedback.isNotEmpty ? feedback : null,
+        );
+      } else {
+        await LeaveApi.rejectApplication(
+          token: widget.authToken,
+          applicationId: id,
+          feedback: feedback.isNotEmpty ? feedback : null,
+        );
+      }
 
       setState(() {
         _applications.removeWhere((app) => app['_id'] == id);
@@ -147,7 +142,6 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
     }
   }
 
-  // Updated to launch URL in the external browser
   Future<void> _viewDocument(String? urlString) async {
     if (urlString == null || urlString.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -303,7 +297,7 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
                                 children: [
                                   if (docUrl != null)
                                     Expanded(
-                                      flex: 4, // Gives slightly more room to the button with an icon
+                                      flex: 4,
                                       child: OutlinedButton.icon(
                                         onPressed: () => _viewDocument(docUrl),
                                         icon: const Icon(Icons.insert_drive_file_outlined, size: 16),
