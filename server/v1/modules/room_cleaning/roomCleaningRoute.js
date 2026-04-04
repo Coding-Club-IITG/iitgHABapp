@@ -12,6 +12,7 @@ const {
   postRcCleaner,
   putRcCleaner,
   deleteRcCleaner,
+  devAutoTest,
 } = require("./roomCleaningController");
 const {
   authenticateJWT,
@@ -79,6 +80,9 @@ roomCleaningRouter.delete(
   authenticateMessManagerJWT,
   deleteRcCleaner,
 );
+
+// DEV/TEST ONLY: auto-assign + auto-finalize all active bookings for the user
+roomCleaningRouter.post("/dev/auto-test", authenticateJWT, devAutoTest);
 
 module.exports = roomCleaningRouter;
 

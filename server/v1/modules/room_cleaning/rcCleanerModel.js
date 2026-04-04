@@ -25,6 +25,17 @@ const rcCleanerSchema = new mongoose.Schema(
         message: "Cleaner must be assigned to at least one slot",
       },
     },
+    totalFeedbacks: {
+      type: Number,
+      default: 1,
+      min: 1,
+    },
+    averageRating: {
+      type: Number,
+      default: 3,
+      min: 1,
+      max: 5,
+    },
   },
   { timestamps: true },
 );
