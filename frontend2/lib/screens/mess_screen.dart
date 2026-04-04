@@ -165,11 +165,14 @@ class _MenuSectionState extends State<_MenuSection> {
   bool _isMenuLoading = true;
   String? _menuError;
   Timer? _statusTicker;
+  final ScrollController _dayScrollController = ScrollController();
+  late final List<GlobalKey> _dayChipKeys;
   late VoidCallback _removeHostelListener;
 
   @override
   void initState() {
     super.initState();
+    _dayChipKeys = List.generate(daysOnly.length, (_) => GlobalKey());
     selectedDay = DateFormat('EEEE').format(DateTime.now());
     selectedHostel = HostelsNotifier.userHostel.isNotEmpty
         ? HostelsNotifier.userHostel
@@ -192,11 +195,15 @@ class _MenuSectionState extends State<_MenuSection> {
         _loadMenus();
       }
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToSelectedDay(animated: false);
+    });
   }
 
   @override
   void dispose() {
     _statusTicker?.cancel();
+    _dayScrollController.dispose();
     try {
       _removeHostelListener();
     } catch (_) {}
@@ -295,7 +302,27 @@ class _MenuSectionState extends State<_MenuSection> {
       selectedDay = day;
       _menuRequested = true;
     });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scrollToSelectedDay();
+    });
     _loadMenus();
+  }
+
+  void _scrollToSelectedDay({bool animated = true}) {
+    if (!_dayScrollController.hasClients) return;
+
+    final selectedIndex = daysOnly.indexOf(selectedDay);
+    if (selectedIndex < 0 || selectedIndex >= _dayChipKeys.length) return;
+
+    final selectedContext = _dayChipKeys[selectedIndex].currentContext;
+    if (selectedContext == null) return;
+
+    Scrollable.ensureVisible(
+      selectedContext,
+      alignment: 0.5,
+      duration: animated ? const Duration(milliseconds: 250) : Duration.zero,
+      curve: Curves.easeOut,
+    );
   }
 
   @override
@@ -330,15 +357,19 @@ class _MenuSectionState extends State<_MenuSection> {
         SizedBox(
           height: 36,
           child: ListView.separated(
+            controller: _dayScrollController,
             scrollDirection: Axis.horizontal,
             itemCount: daysOnly.length,
             separatorBuilder: (_, __) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
               final day = daysOnly[index];
-              return _DayChip(
-                label: day,
-                selected: selectedDay == day,
-                onTap: () => _updateDay(day),
+              return KeyedSubtree(
+                key: _dayChipKeys[index],
+                child: _DayChip(
+                  label: day,
+                  selected: selectedDay == day,
+                  onTap: () => _updateDay(day),
+                ),
               );
             },
           ),

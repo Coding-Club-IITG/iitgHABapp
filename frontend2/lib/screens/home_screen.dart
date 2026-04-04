@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:frontend2/apis/mess/mess_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -58,8 +59,8 @@ class _HomeScreenState extends State<HomeScreen>
   String currSubscribedMess = '';
   String? token;
   String? userHostelId;
-  String scanQrStatus = 'Closed';
-  Color scanQrStatusColor = textMuted;
+  final ValueNotifier<_QuickActionStatusData> _scanQrStatusNotifier =
+      ValueNotifier(const _QuickActionStatusData(status: 'Closed', color: textMuted));
   Timer? _scanQrStatusTimer;
   late final AnimationController _shimmerController;
   late final Animation<double> _shimmerAnimation;
@@ -92,6 +93,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _scanQrStatusTimer?.cancel();
+    _scanQrStatusNotifier.dispose();
     _shimmerController.dispose();
     homeScreenRefreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
@@ -189,11 +191,10 @@ class _HomeScreenState extends State<HomeScreen>
 
   Future<void> _loadScanQrStatus(String messId) async {
     if (messId.isEmpty) {
-      if (!mounted) return;
-      setState(() {
-        scanQrStatus = 'Closed';
-        scanQrStatusColor = textMuted;
-      });
+      _scanQrStatusNotifier.value = const _QuickActionStatusData(
+        status: 'Closed',
+        color: textMuted,
+      );
       return;
     }
 
@@ -215,22 +216,23 @@ class _HomeScreenState extends State<HomeScreen>
         }
       }
 
-      setState(() {
-        if (activeMeal == null) {
-          scanQrStatus = 'Closed';
-          scanQrStatusColor = textMuted;
-        } else {
-          final mealEnd = _parseMenuTime(activeMeal!.endTime);
-          scanQrStatus = _formatMealCountdown(mealEnd.difference(now));
-          scanQrStatusColor = green;
-        }
-      });
+      if (activeMeal == null) {
+        _scanQrStatusNotifier.value = const _QuickActionStatusData(
+          status: 'Closed',
+          color: textMuted,
+        );
+      } else {
+        final mealEnd = _parseMenuTime(activeMeal.endTime);
+        _scanQrStatusNotifier.value = _QuickActionStatusData(
+          status: _formatMealCountdown(mealEnd.difference(now)),
+          color: green,
+        );
+      }
     } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        scanQrStatus = 'Closed';
-        scanQrStatusColor = textMuted;
-      });
+      _scanQrStatusNotifier.value = const _QuickActionStatusData(
+        status: 'Closed',
+        color: textMuted,
+      );
     }
   }
 
@@ -318,8 +320,9 @@ class _HomeScreenState extends State<HomeScreen>
       ),
       _QuickActionData(
         label: 'Scan mess QR',
-        status: scanQrStatus,
-        statusColor: scanQrStatusColor,
+        status: _scanQrStatusNotifier.value.status,
+        statusColor: _scanQrStatusNotifier.value.color,
+        statusListenable: _scanQrStatusNotifier,
         iconAsset: 'assets/icon/qrscan.svg',
         onTap: () {
           Navigator.push(
@@ -998,17 +1001,11 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
                 child: iconChild,
               ),
-              // const SizedBox(height: 10),
               Padding(
                 padding: const EdgeInsets.only(top: 10, bottom: 10),
-                child: Text(
-                  action.status,
-                  style: TextStyle(
-                    fontSize: 12,
-                    // height: 16 / 12,
-                    fontWeight: FontWeight.w500,
-                    color: action.statusColor,
-                  ),
+                child: _buildQuickActionStatusText(
+                  action: action,
+                  fontSize: 12,
                 ),
               ),
               // const SizedBox(height: 4),
@@ -1061,18 +1058,41 @@ class _HomeScreenState extends State<HomeScreen>
                 ),
               ),
               const SizedBox(height: 4),
-              Text(
-                action.status,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: action.statusColor,
-                ),
-              ),
+              _buildQuickActionStatusText(action: action, fontSize: 13),
             ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildQuickActionStatusText({
+    required _QuickActionData action,
+    required double fontSize,
+  }) {
+    if (action.statusListenable == null) {
+      return Text(
+        action.status,
+        style: TextStyle(
+          fontSize: fontSize,
+          fontWeight: FontWeight.w500,
+          color: action.statusColor,
+        ),
+      );
+    }
+
+    return ValueListenableBuilder<_QuickActionStatusData>(
+      valueListenable: action.statusListenable!,
+      builder: (context, statusData, child) {
+        return Text(
+          statusData.status,
+          style: TextStyle(
+            fontSize: fontSize,
+            fontWeight: FontWeight.w500,
+            color: statusData.color,
+          ),
+        );
+      },
     );
   }
 
@@ -1255,6 +1275,7 @@ class _QuickActionData {
   final String label;
   final String status;
   final Color statusColor;
+  final ValueListenable<_QuickActionStatusData>? statusListenable;
   final IconData? icon;
   final String? iconAsset;
   final VoidCallback onTap;
@@ -1264,8 +1285,19 @@ class _QuickActionData {
     required this.status,
     required this.statusColor,
     required this.onTap,
+    this.statusListenable,
     this.icon,
     this.iconAsset,
+  });
+}
+
+class _QuickActionStatusData {
+  final String status;
+  final Color color;
+
+  const _QuickActionStatusData({
+    required this.status,
+    required this.color,
   });
 }
 
