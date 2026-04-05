@@ -290,7 +290,7 @@ Future<void> linkMicrosoftAccount() async {
     ProfilePictureProvider.init();
 
     // Re-register FCM token to subscribe to hostel/mess-specific topics
-    // await registerFcmToken();
+    await registerFcmToken();
 
     // Trigger home screen refresh to update displayed name
     homeScreenRefreshNotifier.value = true;
