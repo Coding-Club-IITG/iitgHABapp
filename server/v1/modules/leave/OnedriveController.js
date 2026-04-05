@@ -261,7 +261,8 @@ async function uploadSingleToOnedrive(req, res, next) {
 }
 
 const sendDocument = async (req, res) => {
-  const { documentUrl } = req.body;
+  const { proofDocumentUrl } = req.body;
+  const documentUrl = proofDocumentUrl;
   try {
     if (!documentUrl) {
       return res.status(404).json({ message: "No document URL attached" });

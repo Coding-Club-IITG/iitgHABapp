@@ -207,12 +207,16 @@ const applyForLeave = async (req, res) => {
 
     //Only if user exists
     if (req.user && req.user.curr_subscribed_mess) {
-      if(!(req.files['hostelLeaveForm'] && req.files['hostelLeaveForm'].length > 0)) {
+      if (
+        !(
+          req.files["hostelLeaveForm"] &&
+          req.files["hostelLeaveForm"].length > 0
+        )
+      ) {
         return res.status(400).json({
-          message: "Please upload hostel leave form"
+          message: "Please upload hostel leave form",
         });
-      }
-      else {
+      } else {
         if (
           !(req.files["proofDocument"] && req.files["proofDocument"].length > 0)
         ) {
@@ -516,6 +520,8 @@ const getAllPendingApplications = async (req, res) => {
   const pendingApplications = await Leave.find({
     messHostel: req.managerHostel,
     status: "pending",
+    proofDocumentUrl: { $exists: true, $ne: null },
+    proofDocumentFilename: { $exists: true, $ne: null },
   })
     .sort({
       appliedAt: -1,
@@ -639,7 +645,7 @@ const approveApplication = async (req, res) => {
         await sendNotificationToUser(
           updatedDoc.user._id,
           "Your Leave Application has been accepted",
-          `Enjoy your stay from ${updatedDoc.startDate} to ${updatedDoc.endDate}.`,
+          `Enjoy your stay from ${updatedDoc.startDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} to ${updatedDoc.endDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}.`,
         );
       } catch (e) {
         console.error("Error in sending notification", e);
