@@ -46,6 +46,10 @@ const leaveSchema = new mongoose.Schema({
         type: String,
         required: false,
     },
+    leaveFormUrl: {
+        type: String,
+        required: true,
+    },
     appliedAt: {
         type: Date,
         required: true,
