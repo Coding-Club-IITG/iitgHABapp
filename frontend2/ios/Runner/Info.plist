@@ -51,6 +51,9 @@
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Photo library access is required to select and upload your profile picture.</string>
 
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Location access is required to show the home screen background based on your local weather.</string>
+
 	<!-- Background Modes -->
 	<key>UIBackgroundModes</key>
 	<array>

@@ -10,12 +10,12 @@ import 'package:frontend2/models/notification_model.dart';
 import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/providers/notifications.dart';
 import 'package:frontend2/providers/room_cleaning_provider.dart';
-import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/laundry/laundry_screen.dart';
 import 'package:frontend2/screens/notification.dart';
 import 'package:frontend2/screens/profile_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
+import 'package:frontend2/services/weather_background_service.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
@@ -23,7 +23,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../utilities/startupitem.dart';
-import 'mess_preference.dart';
+import 'initial_setup_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final void Function(int)? onNavigateToTab;
@@ -37,8 +37,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
+  static const bool _isWeatherBackgroundTesting = false;
+  static const String _testingWeatherGroup =
+      'cloudy'; // clear, cloudy, rainy, thunder
+  static const bool _testingIsDay = false;
+
   static const pageBackground = Color(0xFFFFFFFF);
-  static const topBarBackground = Color(0xFFFAFAFA);
   static const surface = Color(0xFFFFFFFF);
   static const sectionDivider = Color(0xFFF0F0F0);
   static const border = Color(0xFFE6E6E6);
@@ -62,8 +66,10 @@ class _HomeScreenState extends State<HomeScreen>
   final ValueNotifier<_QuickActionStatusData> _scanQrStatusNotifier =
       ValueNotifier(const _QuickActionStatusData(status: 'Closed', color: textMuted));
   Timer? _scanQrStatusTimer;
+  Timer? _weatherBackgroundTimer;
   late final AnimationController _shimmerController;
   late final Animation<double> _shimmerAnimation;
+  WeatherBackgroundData _weatherBackground = WeatherBackgroundData.fallback();
 
   @override
   void initState() {
@@ -77,7 +83,9 @@ class _HomeScreenState extends State<HomeScreen>
     );
     fetchUserData();
     fetchMessIdAndToken();
+    _loadWeatherBackground();
     _startScanQrStatusTicker();
+    _startWeatherBackgroundTicker();
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -93,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() {
     _scanQrStatusTimer?.cancel();
+    _weatherBackgroundTimer?.cancel();
     _scanQrStatusNotifier.dispose();
     _shimmerController.dispose();
     homeScreenRefreshNotifier.removeListener(_onRefreshRequested);
@@ -103,6 +112,7 @@ class _HomeScreenState extends State<HomeScreen>
     if (homeScreenRefreshNotifier.value) {
       fetchUserData();
       fetchMessIdAndToken();
+      _loadWeatherBackground();
       homeScreenRefreshNotifier.value = false;
     }
   }
@@ -129,6 +139,30 @@ class _HomeScreenState extends State<HomeScreen>
       userHostelId = hostelId;
     });
     await _loadScanQrStatus(messId);
+  }
+
+  Future<void> _loadWeatherBackground() async {
+    WeatherBackgroundData nextBackground;
+
+    if (_isWeatherBackgroundTesting) {
+      nextBackground = WeatherBackgroundData.testing(
+        group: _testingWeatherGroup,
+        isDay: _testingIsDay,
+      );
+    } else {
+      nextBackground = await WeatherBackgroundService().fetchBackground();
+    }
+
+    if (!mounted) return;
+    final hasChanged =
+        nextBackground.assetPath != _weatherBackground.assetPath ||
+        nextBackground.isDay != _weatherBackground.isDay ||
+        nextBackground.weatherGroup != _weatherBackground.weatherGroup;
+    if (!hasChanged) return;
+
+    setState(() {
+      _weatherBackground = nextBackground;
+    });
   }
 
   String getGreeting() {
@@ -241,6 +275,14 @@ class _HomeScreenState extends State<HomeScreen>
     _scanQrStatusTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted || currSubscribedMess.isEmpty) return;
       _loadScanQrStatus(currSubscribedMess);
+    });
+  }
+
+  void _startWeatherBackgroundTicker() {
+    _weatherBackgroundTimer?.cancel();
+    _weatherBackgroundTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+      if (!mounted) return;
+      _loadWeatherBackground();
     });
   }
 
@@ -757,54 +799,53 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildTopBar() {
+  Widget _buildTopBar({required bool onWeatherBackground}) {
     final displayName = name.isNotEmpty ? name : 'User';
-    return Container(
-      decoration: const BoxDecoration(
-        color: topBarBackground,
-        border: Border(bottom: BorderSide(color: border)),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-          child: Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'HABit',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w700,
-                        color: primary,
-                      ),
+    final titleColor = onWeatherBackground ? Colors.white : primary;
+    final subtitleColor = onWeatherBackground
+        ? Colors.white.withOpacity(0.92)
+        : textSecondary;
+
+    return SafeArea(
+      bottom: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'HABit',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
                     ),
-                    const SizedBox(height: 2),
-                    Row(
-                      children: [
-                        Flexible(
-                          child: Text(
-                            '${getGreeting()}, $displayName',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              height: 20 / 14,
-                              fontWeight: FontWeight.w500,
-                              color: textSecondary,
-                            ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          '${getGreeting()}, $displayName',
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 20 / 14,
+                            fontWeight: FontWeight.w500,
+                            color: subtitleColor,
                           ),
                         ),
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
-              _buildProfileAvatar(),
-            ],
-          ),
+            ),
+            _buildProfileAvatar(),
+          ],
         ),
       ),
     );
@@ -1231,41 +1272,79 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
+  Widget _buildWeatherHeroSection() {
+    return Column(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          width: double.infinity,
+          decoration: BoxDecoration(
+            image: DecorationImage(
+              image: AssetImage(_weatherBackground.assetPath),
+              fit: BoxFit.cover,
+              alignment: Alignment.topCenter,
+            ),
+          ),
+          child: Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  Color(0x2E000000),
+                  Color(0x12000000),
+                  Color(0x00FFFFFF),
+                  Color(0xFFFFFFFF),
+                ],
+                stops: [0.0, 0.34, 0.72, 1.0],
+              ),
+            ),
+            child: Column(
+              children: [
+                _buildTopBar(onWeatherBackground: true),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                  child: _buildAlertsSection(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          height: 20,
+          decoration: const BoxDecoration(
+            color: pageBackground,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: pageBackground,
-      body: Column(
-        children: [
-          _buildTopBar(),
-          Expanded(
-            child: SingleChildScrollView(
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
-                    child: _buildAlertsSection(),
-                  ),
-                  _buildSectionDivider(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-                    child: ValueListenableBuilder<List<String>>(
-                      valueListenable: HostelsNotifier.hostelNotifier,
-                      builder: (context, _, __) => _buildQuickActionsSection(),
-                    ),
-                  ),
-                  if (currSubscribedMess.isNotEmpty) ...[
-                    _buildSectionDivider(),
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
-                      child: _buildMessSection(),
-                    ),
-                  ],
-                ],
+      body: SingleChildScrollView(
+        child: Column(
+          children: [
+            _buildWeatherHeroSection(),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+              child: ValueListenableBuilder<List<String>>(
+                valueListenable: HostelsNotifier.hostelNotifier,
+                builder: (context, _, __) => _buildQuickActionsSection(),
               ),
             ),
-          ),
-        ],
+            if (currSubscribedMess.isNotEmpty) ...[
+              _buildSectionDivider(),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                child: _buildMessSection(),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
