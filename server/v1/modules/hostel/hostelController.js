@@ -126,7 +126,8 @@ const getAllHostels = async (req, res) => {
     try {
       if (redisClient) {
         const cachedHostels = await redisClient.get(cacheKey);
-        if (cachedHostels) return res.json({ hostels: JSON.parse(cachedHostels) });
+        if (cachedHostels)
+          return res.status(200).json(JSON.parse(cachedHostels));
       }
     } catch (redisErr) {
       console.error("Redis get error:", redisErr);
@@ -693,6 +694,99 @@ const getMessClosureDate = async (req, res) => {
   }
 };
 
+const getHMCMembers = async (req, res) => {
+  try {
+    let hostelId;
+    if (req.hostel) {
+      hostelId = req.hostel._id;
+    } else if (req.user && req.user.hostel) {
+      hostelId = req.user.hostel;
+    } else {
+      return res.status(400).json({ message: "Hostel not found" });
+    }
+
+    const cacheKey = `hostel_${hostelId}_hmc_members`;
+
+    try {
+      if (redisClient) {
+        const cachedData = await redisClient.get(cacheKey);
+        if (cachedData) return res.status(200).json(JSON.parse(cachedData));
+      }
+    } catch (redisErr) {
+      console.error("Redis error:", redisErr);
+    }
+
+    const hostel = await Hostel.findById(hostelId)
+      .populate("hmcMembers.user", "name email phoneNumber profilePictureUrl rollNumber roomNumber")
+      .lean();
+
+    if (!hostel) {
+      return res.status(404).json({ message: "Hostel not found" });
+    }
+
+    const responsePayload = {
+      count: hostel.hmcMembers?.length || 0,
+      hmcMembers: hostel.hmcMembers || [],
+    };
+
+    try {
+      if (redisClient) await redisClient.set(cacheKey, JSON.stringify(responsePayload), 'EX', 3600);
+    } catch (redisErr) {
+      console.error("Redis error:", redisErr);
+    }
+
+    return res.status(200).json(responsePayload);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Error fetching HMC members" });
+  }
+};
+
+const setHMCMembers = async (req, res) => {
+  try {
+    const hostelId = req.hostel._id;
+    const { hmcMembers } = req.body;
+
+    if (!Array.isArray(hmcMembers)) {
+      return res.status(400).json({ message: "hmcMembers must be an array" });
+    }
+
+    if (hmcMembers.length > 0) {
+      const userIds = hmcMembers.map((m) => m.user);
+      const users = await User.find({ _id: { $in: userIds } });
+
+      if (users.length !== userIds.length) {
+        return res.status(400).json({ message: "One or more user IDs are invalid" });
+      }
+
+      for (const user of users) {
+        if (!user.hostel || user.hostel.toString() !== hostelId.toString()) {
+          return res.status(403).json({
+            message: `User ${user.name || user._id} does not belong to this hostel`,
+          });
+        }
+      }
+    }
+
+    const hostel = await Hostel.findByIdAndUpdate(
+      hostelId,
+      { hmcMembers },
+      { new: true }
+    ).populate("hmcMembers.user", "name email phoneNumber profilePictureUrl rollNumber roomNumber");
+
+    await redisClient.del(`hostel_${hostelId}_hmc_members`);
+
+    return res.status(200).json({
+      message: "HMC members updated successfully",
+      count: hostel.hmcMembers?.length || 0,
+      hmcMembers: hostel.hmcMembers || [],
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Error updating HMC members" });
+  }
+};
+
 module.exports = {
   createHostel,
   getHostel,
@@ -710,4 +804,6 @@ module.exports = {
   finalizeMessClosure,
   getMessClosureDate,
   setHostelPassword,
+  getHMCMembers,
+  setHMCMembers,
 };

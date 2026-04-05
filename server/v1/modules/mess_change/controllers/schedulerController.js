@@ -7,7 +7,7 @@ const { processAllMessChangeRequests } = require("./processingController.js");
 /**
  * Enable mess change automatically (for scheduler)
  */
-const enableMessChangeAutomatic = async () => {
+const enableMessChangeAutomatic = async (closingTime = null) => {
   try {
     let settings = await MessChangeSettings.findOne();
 
@@ -15,10 +15,12 @@ const enableMessChangeAutomatic = async () => {
       settings = new MessChangeSettings({
         isEnabled: true,
         enabledAt: new Date(),
+        currentWindowClosingTime: closingTime,
       });
     } else {
       settings.isEnabled = true;
       settings.enabledAt = new Date();
+      settings.currentWindowClosingTime = closingTime;
       settings.disabledAt = null;
     }
 
@@ -28,8 +30,10 @@ const enableMessChangeAutomatic = async () => {
       "MESS CHANGE",
       "Mess Change is Enabled",
       "All_Hostels",
-      { redirectType: "mess_change", isAlert: "true" }
-    ).catch((err) => console.error("Mess change enabled notification failed:", err));
+      { redirectType: "mess_change", isAlert: "true" },
+    ).catch((err) =>
+      console.error("Mess change enabled notification failed:", err),
+    );
 
     console.log("✅ Mess change enabled automatically");
     return { success: true, settings };
@@ -53,7 +57,7 @@ const disableMessChangeAutomatic = async () => {
           json(payload) {
             console.log(
               `[messchange] processAllMessChangeRequests result: ${code}`,
-              payload && payload.message ? payload.message : payload
+              payload && payload.message ? payload.message : payload,
             );
             return payload;
           },

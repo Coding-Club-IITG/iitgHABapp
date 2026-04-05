@@ -6,7 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/laundry/laundry_screen.dart';
-import 'package:frontend2/screens/profile_screen.dart';
+import 'package:frontend2/screens/account_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
@@ -366,8 +366,10 @@ class _HomeScreenState extends State<HomeScreen> {
             hoverColor: Colors.transparent,
             splashColor: Colors.transparent,
             highlightColor: Colors.transparent,
-            onTap: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const ProfileScreen())),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => const AccountScreen()),
+            ),
             child: ValueListenableBuilder(
               valueListenable: ProfilePictureProvider.profilePictureString,
               builder: (context, value, child) {

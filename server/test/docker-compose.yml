@@ -1,0 +1,16 @@
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: test/Dockerfile
+    ports:
+      - "3000:3000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - ../.env
+    environment:
+      TZ: "Asia/Kolkata"
+      PORT: "3000"
+      MONGODB_URI: mongodb://host.docker.internal:27017/iitghabapp
+      REDIS_URL: redis://host.docker.internal:6379

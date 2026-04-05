@@ -1,5 +1,5 @@
 const url = require("url");
-const { WebSocketServer } = require("ws");
+const { Server: WebSocketServer } = require("ws");
 const { Hostel } = require("../hostel/hostelModel.js");
 
 // Connected gala manager clients per hostel

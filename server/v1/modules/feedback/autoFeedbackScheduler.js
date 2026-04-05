@@ -68,14 +68,19 @@ const scheduleFeedbackReminders = async () => {
           "MESS FEEDBACK",
           "Feedback Submission form will close in 12 hours",
           "All_Hostels",
-          { redirectType: "mess_screen", isAlert: "true" }
-        ).catch((err) => console.error("📢 12h feedback reminder send failed:", err));
+          { redirectType: "mess_screen", isAlert: "true" },
+        ).catch((err) =>
+          console.error("📢 12h feedback reminder send failed:", err),
+        );
         console.log("📢 Sent 12h feedback reminder");
       });
       console.log(
-        `📅 Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", {
-          timeZone: "Asia/Kolkata",
-        })}`
+        `📅 [FEEDBACK] Scheduled 12h reminder for ${reminder12h.toLocaleString(
+          "en-IN",
+          {
+            timeZone: "Asia/Kolkata",
+          },
+        )}`,
       );
     }
 
@@ -88,14 +93,19 @@ const scheduleFeedbackReminders = async () => {
           "MESS FEEDBACK",
           "Feedback Submission form will close in 2 hours",
           "All_Hostels",
-          { redirectType: "mess_screen", isAlert: "true" }
-        ).catch((err) => console.error("📢 2h feedback reminder send failed:", err));
-        console.log("📢 Sent 2h feedback reminder");
+          { redirectType: "mess_screen", isAlert: "true" },
+        ).catch((err) =>
+          console.error("📢 [FEEDBACK] 2h feedback reminder send failed:", err),
+        );
+        console.log("📢 [FEEDBACK] Sent 2h feedback reminder");
       });
       console.log(
-        `📅 Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", {
-          timeZone: "Asia/Kolkata",
-        })}`
+        `📅 [FEEDBACK] Scheduled 2h reminder for ${reminder2h.toLocaleString(
+          "en-IN",
+          {
+            timeZone: "Asia/Kolkata",
+          },
+        )}`,
       );
     }
   } catch (error) {
@@ -124,34 +134,25 @@ const initializeFeedbackAutoScheduler = () => {
     // Check if today is the start date
     if (day === startDay) {
       console.log(
-        `📅 Feedback start date detected: ${day}/${month + 1}/${year}`
+        `📅 Feedback start date detected: ${day}/${month + 1}/${year}`,
       );
       await enableFeedbackAutomatic();
       await scheduleFeedbackReminders();
     }
   });
 
-  // Schedule to disable at EOD - runs daily at 11:59 PM IST
-  schedule.scheduleJob("59 23 * * *", async () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const day = now.getDate();
-
-    let endDay;
-    if (month === 1) {
-      endDay = 25; // February
-    } else {
-      endDay = 27; // Other months
-    }
-
-    // Check if today is the end date
-    if (day === endDay) {
-      console.log(`📅 Feedback end date detected: ${day}/${month + 1}/${year}`);
+  // Schedule to close the window - runs daily at 12:01 AM IST
+  schedule.scheduleJob("1 0 * * *", async () => {
+    try {
       const settings = await FeedbackSettings.findOne();
-      if (settings?.isEnabled) {
-        await disableFeedbackAutomatic();
+      if (settings?.isEnabled && settings.currentWindowClosingTime) {
+        if (new Date() > new Date(settings.currentWindowClosingTime)) {
+          console.log(`📅 Feedback closing time reached, disabling now.`);
+          await disableFeedbackAutomatic();
+        }
       }
+    } catch (e) {
+      console.error("❌ Error in automatic feedback closing job:", e);
     }
   });
 

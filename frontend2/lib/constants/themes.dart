@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 class Themes {
   static const kYellow = Color.fromRGBO(254, 207, 111, 1);
+  static const kAccent = Color(0xFF4C4EDB);
+  static const kFont = "GeneralSans";
   static final theme = ThemeData(
     useMaterial3: true,
     primaryColor: kYellow,
