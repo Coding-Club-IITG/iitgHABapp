@@ -95,10 +95,7 @@ async function createOrganizationViewLink(token, itemId) {
 
 async function uploadToOnedrive(req, res, next) {
   try {
-    if(req.body.leaveType=="Medical" && !req.body.proofDocument){
-      console.log("Not uploading proof document");
-      return next();
-    }
+    //Check already present in applyForLeave. So not required here
       const file = req.file;
       // console.log("Trying to upload proof document");
     //console.log("File received by Onedrive Uploader");
