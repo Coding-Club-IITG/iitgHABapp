@@ -2,15 +2,24 @@
 const axios = require("axios");
 const qs = require("querystring");
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+const bcrypt = require("bcrypt");
 const AppError = require("../../utils/appError.js");
 const {
   getUserFromToken,
   User,
   findUserWithEmail,
   findUserWithAppleIdentifier,
+  findUserWithGuestIdentifier,
 } = require("../user/userModel.js");
+const { Hostel } = require("../hostel/hostelModel.js");
 const UserAllocHostel = require("../hostel/hostelAllocModel.js");
+const {
+  sendNotificationToUser,
+} = require("../notification/notificationController.js");
 require("dotenv").config();
+const redisClient = require("../../utils/redisClient.js");
+const Session = require("../session/session.model.js");
 
 const clientId = process.env.CLIENT_ID;
 const clientSecret = process.env.CLIENT_SECRET;
@@ -20,11 +29,23 @@ const redirectUri = process.env.REDIRECT_URI;
 const getHostelAlloc = async (rollno) => {
   try {
     const allocation = await UserAllocHostel.findOne({ rollno }).populate(
-      "hostel"
+      "hostel",
     );
     return allocation?.hostel || null;
   } catch (err) {
     console.error("Error fetching hostel allocation:", err);
+    return null;
+  }
+};
+
+const getCurrentSubscribedMess = async (rollno) => {
+  try {
+    const allocation = await UserAllocHostel.findOne({ rollno }).populate(
+      "current_subscribed_mess",
+    );
+    return allocation?.current_subscribed_mess || null;
+  } catch (err) {
+    console.error("Error fetching current subscribed mess:", err);
     return null;
   }
 };
@@ -52,11 +73,11 @@ const mobileRedirectHandler = async (req, res, next) => {
     const tokenResp = await axios.post(
       `https://login.microsoftonline.com/850aa78d-94e1-4bc6-9cf3-8c11b530701c/oauth2/v2.0/token`,
       data,
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
     );
 
-    const accessToken = tokenResp.data.access_token;
-    const userFromToken = await getUserFromToken(accessToken);
+    const microsoftAccessToken = tokenResp.data.access_token;
+    const userFromToken = await getUserFromToken(microsoftAccessToken);
     if (!userFromToken?.data) throw new AppError(401, "Access denied");
 
     const roll = userFromToken.data.surname;
@@ -66,13 +87,18 @@ const mobileRedirectHandler = async (req, res, next) => {
     if (!allocatedHostel)
       throw new AppError(
         401,
-        "Hostel allocation not found for this roll number"
+        "Hostel allocation not found for this roll number",
       );
 
+    const currentSubscribedMess = await getCurrentSubscribedMess(roll);
+    // currentSubscribedMess is optional - if not found, User model will default to hostel
+
     let existingUser = await findUserWithEmail(userFromToken.data.mail);
+    let isFirstLogin = false;
+    console.log("Existing user: ", existingUser);
 
     if (!existingUser) {
-      const user = new User({
+      const userData = {
         name: userFromToken.data.displayName,
         degree: userFromToken.data.jobTitle,
         rollNumber: roll,
@@ -80,8 +106,16 @@ const mobileRedirectHandler = async (req, res, next) => {
         hostel: allocatedHostel._id,
         authProvider: "microsoft",
         hasMicrosoftLinked: true, // Microsoft login = student account (surname exists)
-      });
+      };
+
+      // Only set curr_subscribed_mess if we have it, otherwise User model will default to hostel
+      if (currentSubscribedMess) {
+        userData.curr_subscribed_mess = currentSubscribedMess._id;
+      }
+
+      const user = new User(userData);
       existingUser = await user.save();
+      isFirstLogin = true;
     } else {
       // Microsoft login always means student account (surname exists), so always set hasMicrosoftLinked
       existingUser.email = userFromToken.data.mail; // Update email to Microsoft email
@@ -90,15 +124,37 @@ const mobileRedirectHandler = async (req, res, next) => {
       existingUser.hasMicrosoftLinked = true; // Always true for Microsoft login
       existingUser.authProvider =
         existingUser.authProvider === "apple" ? "both" : "microsoft";
+
+      // Update curr_subscribed_mess if we have it
+      if (currentSubscribedMess) {
+        existingUser.curr_subscribed_mess = currentSubscribedMess._id;
+      }
+
       await existingUser.save();
     }
 
-    const token = existingUser.generateJWT();
+    if (existingUser.isBanned) {
+      throw new AppError(403, "Your account has been banned");
+    }
+
+    const accessToken = existingUser.generateAccessToken();
+    const refreshToken = existingUser.generateRefreshToken();
+
+    await Session.create({
+      user: existingUser._id,
+      refreshToken: refreshToken,
+      userAgent: req.headers["user-agent"],
+      ipAddress: req.ip,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    // Welcome notification is now sent from frontend after FCM token registration
+    // This ensures the FCM token exists before sending the notification
 
     return res.redirect(
-      `iitghab://success?token=${token}&user=${encodeURIComponent(
-        existingUser.email
-      )}`
+      `iitghab://success?accessToken=${accessToken}&refreshToken=${refreshToken}&user=${encodeURIComponent(
+        existingUser.email,
+      )}`,
     );
   } catch (error) {
     console.error("Error in mobileRedirectHandler:", error);
@@ -106,8 +162,89 @@ const mobileRedirectHandler = async (req, res, next) => {
   }
 };
 
+// Refresh
+const refreshTokenHandler = async (req, res, next) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      console.log("Refresh token is missing");
+
+      return res.status(401).json({ message: "Refresh token is missing" });
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+    } catch (err) {
+      console.error("Error verifying refresh token:", err);
+      return res.status(401).json({ message: "Invalid or expired token" });
+    }
+
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(refreshToken)
+      .digest("hex");
+
+    const session = await Session.findOne({
+      refreshToken: hashedToken,
+      isRevoked: false,
+    });
+
+    if (!session) {
+      console.error("Session not found");
+      return res.status(401).json({ message: "Session not found" });
+    }
+
+    if (session.expiresAt < new Date()) {
+      console.error("Session expired");
+      return res.status(403).json({ message: "Session expired" });
+    }
+
+    const user = await User.findById(decoded.user);
+    if (!user) {
+      console.error("User not found");
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (user.isBanned) {
+      console.error("User is banned");
+      return res.status(403).json({ message: "User has been banned" });
+    }
+
+    const accessToken = user.generateAccessToken();
+    session.isRevoked = true;
+    await session.save();
+    /// TODO: Maybe delete old session to prevent useless DB entries
+
+    const newRefreshToken = user.generateRefreshToken();
+
+    await Session.create({
+      user: user._id,
+      refreshToken: newRefreshToken,
+      userAgent: req.headers["user-agent"],
+      ipAddress: req.ip,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+
+    return res.json({
+      accessToken,
+      refreshToken: newRefreshToken,
+    });
+  } catch (err) {
+    console.error("Error in refreshTokenHandler:", err);
+    next(new AppError(500, "Failed to refresh token"));
+  }
+};
+
 // Logout
-const logoutHandler = (req, res) => {
+const logoutHandler = async (req, res) => {
+  const token =
+    req.cookies?.token ||
+    (req.headers.authorization && req.headers.authorization.split(" ")[1]);
+  if (token)
+    await redisClient.set(`bl_${token}`, "true", "EX", 24 * 24 * 60 * 60);
+  res.clearCookie("token");
   res.status(200).json({ message: "Logged out" });
 };
 
@@ -135,7 +272,7 @@ const webLoginHandler = async (req, res, next) => {
     const tokenResp = await axios.post(
       `https://login.microsoftonline.com/850aa78d-94e1-4bc6-9cf3-8c11b530701c/oauth2/v2.0/token`,
       data,
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
     );
 
     const accessToken = tokenResp.data.access_token;
@@ -149,7 +286,11 @@ const webLoginHandler = async (req, res, next) => {
 
     if (loginType === "hab") {
       const HAB_EMAIL = process.env.HAB_EMAIL;
-      if (email.toLowerCase() !== HAB_EMAIL.toLowerCase())
+      const HAB_EMAIL2 = process.env.HAB_EMAIL2;
+      if (
+        email.toLowerCase() !== HAB_EMAIL.toLowerCase() &&
+        email.toLowerCase() !== HAB_EMAIL2?.toLowerCase()
+      )
         throw new AppError(403, "Unauthorized HAB login");
       token = jwt.sign({ hab: true, email }, process.env.ADMIN_JWT_SECRET, {
         expiresIn: "2h",
@@ -167,14 +308,23 @@ const webLoginHandler = async (req, res, next) => {
 
     if (loginType === "smc") {
       console.log("SMC login attempt for email:", email);
-      const existingUser = await findUserWithEmail(email);
-      if (!existingUser || !existingUser.isSMC)
-        throw new AppError(403, "Unauthorized SMC login");
-      token = existingUser.generateJWT();
+      const { Hostel } = require("../hostel/hostelModel.js");
+      const secretaryHostel = await Hostel.findOne({
+        secretary_email: email.toLowerCase(),
+      });
+
+      if (secretaryHostel) {
+        token = secretaryHostel.generateJWT();
+      } else {
+        const existingUser = await findUserWithEmail(email);
+        if (!existingUser || !existingUser.isSMC)
+          throw new AppError(403, "Unauthorized SMC login");
+        token = existingUser.generateJWT();
+      }
       baseUrl = process.env.SMC_FRONTEND_URL;
     }
     return res.redirect(
-      `${baseUrl}${redirectPath}?token=${encodeURIComponent(token)}`
+      `${baseUrl}${redirectPath}?token=${encodeURIComponent(token)}`,
     );
   } catch (err) {
     console.error("Error in webLoginHandler:", err);
@@ -194,7 +344,7 @@ const meHandler = async (req, res, next) => {
 
     // Try user
     try {
-      const user = await User.findByJWT(token);
+      const user = await User.findByAccessToken(token);
       if (user)
         return res
           .status(200)
@@ -204,7 +354,7 @@ const meHandler = async (req, res, next) => {
     // Try hostel
     try {
       const { Hostel } = require("../hostel/hostelModel.js");
-      const hostel = await Hostel.findByJWT(token);
+      const hostel = await Hostel.findByAccessToken(token);
       if (hostel)
         return res
           .status(200)
@@ -244,24 +394,39 @@ const appleLoginHandler = async (req, res, next) => {
     let existingUser = await findUserWithAppleIdentifier(userIdentifier);
 
     if (!existingUser) {
-      // Create new user without roll number and without email
-      // NOTE: Do NOT store Apple email in the email field - email field is only for Microsoft/Outlook emails
-      // Apple emails (like @icloud.com, @me.com) are NOT Microsoft emails
-      const user = new User({
-        name: name || "Apple User",
-        email: null, // Email field is ONLY for Microsoft/Outlook emails - set when Microsoft is linked
+      // Create new user with Apple name and email
+      // Store Apple email - it will be replaced with Microsoft email when account is linked
+      const userData = {
+        name: name || "User",
+        email: email || null, // Store Apple email if provided (will be replaced by Microsoft email when linked)
         appleUserIdentifier: userIdentifier,
-        rollNumber: null, // Will be set when Microsoft is linked
+        // Don't set rollNumber - leave it undefined to avoid MongoDB unique index issues with null
         authProvider: "apple",
         hasMicrosoftLinked: false,
-      });
+      };
+      const user = new User(userData);
       existingUser = await user.save();
     } else {
-      // If user exists, update name if provided
-      if (name && name !== existingUser.name) {
-        existingUser.name = name;
+      // If user exists, update name and email if provided and not already linked to Microsoft
+      // Once Microsoft is linked, don't overwrite with Apple data
+      if (!existingUser.hasMicrosoftLinked) {
+        if (name && name.trim() !== "") {
+          existingUser.name = name;
+        }
+        if (email && email.trim() !== "") {
+          existingUser.email = email;
+        }
+      } else {
+        // If Microsoft is already linked, only update name if it's not already set from Microsoft
+        if (name && name.trim() !== "" && !existingUser.name) {
+          existingUser.name = name;
+        }
       }
       await existingUser.save();
+    }
+
+    if (existingUser.isBanned) {
+      throw new AppError(403, "Your account has been banned");
     }
 
     const token = existingUser.generateJWT();
@@ -299,7 +464,7 @@ const linkMicrosoftAccount = async (req, res, next) => {
     const tokenResp = await axios.post(
       `https://login.microsoftonline.com/850aa78d-94e1-4bc6-9cf3-8c11b530701c/oauth2/v2.0/token`,
       data,
-      { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
     );
 
     const accessToken = tokenResp.data.access_token;
@@ -312,7 +477,7 @@ const linkMicrosoftAccount = async (req, res, next) => {
     if (!roll) {
       throw new AppError(
         400,
-        "Invalid Microsoft account - roll number not found"
+        "Invalid Microsoft account - roll number not found",
       );
     }
 
@@ -332,11 +497,12 @@ const linkMicrosoftAccount = async (req, res, next) => {
       existingUserWithEmail &&
       existingUserWithEmail._id.toString() !== userId.toString()
     ) {
-      // The Microsoft account already exists - merge Apple account into Microsoft account
-      // Preserve shared fields (profile picture, phone number, room number) from Apple account
+      // The Microsoft account already exists - merge Apple/Guest account into Microsoft account
+      // Preserve shared fields (profile picture, phone number, room number) from Apple/Guest account
       const appleUserIdentifier = currentUser.appleUserIdentifier;
+      const guestIdentifier = currentUser.guestIdentifier;
 
-      // Preserve profile picture from Apple account if Microsoft account doesn't have one
+      // Preserve profile picture from Apple/Guest account if Microsoft account doesn't have one
       if (
         currentUser.profilePictureUrl &&
         !existingUserWithEmail.profilePictureUrl
@@ -351,28 +517,31 @@ const linkMicrosoftAccount = async (req, res, next) => {
           currentUser.profilePictureItemId;
       }
 
-      // Preserve phone number from Apple account if Microsoft account doesn't have one
+      // Preserve phone number from Apple/Guest account if Microsoft account doesn't have one
       if (currentUser.phoneNumber && !existingUserWithEmail.phoneNumber) {
         existingUserWithEmail.phoneNumber = currentUser.phoneNumber;
       }
 
-      // Preserve room number from Apple account if Microsoft account doesn't have one
+      // Preserve room number from Apple/Guest account if Microsoft account doesn't have one
       if (currentUser.roomNumber && !existingUserWithEmail.roomNumber) {
         existingUserWithEmail.roomNumber = currentUser.roomNumber;
       }
 
-      // Preserve setup status (if Apple user completed setup but Microsoft didn't)
-      if (currentUser.isSetupDone && !existingUserWithEmail.isSetupDone) {
-        existingUserWithEmail.isSetupDone = currentUser.isSetupDone;
-      }
+      // Don't overwrite isSetupDone - persist Microsoft account's state
+      // Microsoft account's isSetupDone is already set correctly, don't change it
 
-      // Delete the duplicate Apple-only user to free up the appleUserIdentifier
+      // Delete the duplicate Apple/Guest-only user
       await User.findByIdAndDelete(userId);
 
-      // Then update the existing Microsoft user to include Apple identifier
-      existingUserWithEmail.appleUserIdentifier = appleUserIdentifier;
-      existingUserWithEmail.authProvider = "both";
-      // Keep Microsoft account's data (email, rollNumber, hostel, etc.)
+      // Then update the existing Microsoft user to include Apple identifier (if it was Apple)
+      if (appleUserIdentifier) {
+        existingUserWithEmail.appleUserIdentifier = appleUserIdentifier;
+        existingUserWithEmail.authProvider = "both";
+      } else {
+        // If it was a guest account, just keep Microsoft account as is
+        // guestIdentifier is not preserved (guest accounts are temporary)
+      }
+      // Keep Microsoft account's data (email, rollNumber, hostel, isSetupDone, etc.)
       await existingUserWithEmail.save();
 
       // Return token for the merged account
@@ -392,7 +561,7 @@ const linkMicrosoftAccount = async (req, res, next) => {
     ) {
       throw new AppError(
         400,
-        "This roll number is already linked to another account"
+        "This roll number is already linked to another account",
       );
     }
 
@@ -401,9 +570,12 @@ const linkMicrosoftAccount = async (req, res, next) => {
     if (!allocatedHostel) {
       throw new AppError(
         400,
-        "Hostel allocation not found for this roll number"
+        "Hostel allocation not found for this roll number",
       );
     }
+
+    // Get current subscribed mess if available, otherwise will default to hostel
+    const currentSubscribedMess = await getCurrentSubscribedMess(roll);
 
     // Update current user with Microsoft info
     currentUser.name = userFromToken.data.displayName || currentUser.name; // Update name from Microsoft account
@@ -411,10 +583,24 @@ const linkMicrosoftAccount = async (req, res, next) => {
     currentUser.email = microsoftEmail;
     currentUser.rollNumber = roll;
     currentUser.hostel = allocatedHostel._id;
-    currentUser.curr_subscribed_mess = allocatedHostel._id;
+    // Use current_subscribed_mess from allocation if available, otherwise default to hostel
+    currentUser.curr_subscribed_mess = currentSubscribedMess
+      ? currentSubscribedMess._id
+      : allocatedHostel._id;
     currentUser.hasMicrosoftLinked = true; // Microsoft account = student account (surname exists)
-    currentUser.authProvider =
-      currentUser.authProvider === "apple" ? "both" : "microsoft";
+
+    // Update authProvider based on current provider
+    if (currentUser.authProvider === "apple") {
+      currentUser.authProvider = "both";
+    } else if (currentUser.authProvider === "guest") {
+      // Guest account converted to Microsoft account
+      // Keep guestIdentifier for history, but mark as Microsoft account
+      currentUser.authProvider = "microsoft";
+      // Set isSetupDone to false when guest links Microsoft account (fresh start with student account)
+      currentUser.isSetupDone = false;
+    } else {
+      currentUser.authProvider = "microsoft";
+    }
 
     await currentUser.save();
 
@@ -429,39 +615,94 @@ const linkMicrosoftAccount = async (req, res, next) => {
 };
 
 // Guest login
+// Backward compatible: Accepts email/password from old app versions but ignores them
+// New app versions can send empty body and still login as guest
+// Each guest login creates a unique guest account identified by guestIdentifier (UUID)
 const guestLoginHandler = async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password)
-      return res.status(400).json({ message: "Email and password required" });
 
-    if (
-      email.toLowerCase() !== process.env.GUEST_EMAIL.toLowerCase() ||
-      password !== process.env.GUEST_EMAIL_PASSWORD
-    ) {
-      return res.status(401).json({ message: "Invalid credentials" });
-    }
+    // Backward compatibility: Old app versions send email/password, but we ignore them
+    // New app versions send nothing, which is also fine
 
-    let existingUser = await findUserWithEmail(email);
-    if (!existingUser) {
-      const GUEST_ROLL = process.env.GUEST_ROLL;
-      const allocatedHostel = await getHostelAlloc(GUEST_ROLL);
+    // Generate unique guest identifier (UUID) for this guest session
+    const guestIdentifier = crypto.randomUUID();
 
-      const user = new User({
-        name: "Guest User",
-        degree: "BTech",
-        rollNumber: GUEST_ROLL,
-        email,
-        hostel: allocatedHostel?._id,
-      });
-      existingUser = await user.save();
-    }
+    // Create new guest user for each login (don't reuse accounts)
+    // Similar to Apple Sign-In: each guest gets unique account identified by guestIdentifier
+    // Give guest users a unique rollNumber to avoid MongoDB sparse unique index conflicts with null
+    // Format: "GUEST-{UUID}" - this ensures uniqueness and identifies guest users
+    const userData = {
+      name: "Guest User",
+      guestIdentifier: guestIdentifier,
+      rollNumber: `GUEST-${guestIdentifier}`, // Unique rollNumber for guest users to avoid index conflicts
+      // Don't set email - leave it undefined (similar to Apple Sign-In when email not provided)
+      // Don't set hostel or curr_subscribed_mess
+      // This ensures guest users cannot access features requiring these fields
+      authProvider: "guest",
+      hasMicrosoftLinked: false,
+    };
+
+    // Create user using Mongoose (normal approach - rollNumber is explicitly set so no conflicts)
+    const existingUser = await User.create(userData);
 
     const token = existingUser.generateJWT();
-    return res.status(200).json({ token });
+    return res.status(200).json({
+      token,
+      hasMicrosoftLinked: false,
+    });
   } catch (err) {
     console.error("Error in guestLoginHandler:", err);
     next(new AppError(500, "Guest login failed"));
+  }
+};
+
+/**
+ * HABit HQ: Hostel manager login via password (no Microsoft OAuth).
+ * Body: { hostelName, password }
+ * Returns: { success, token, message? }
+ */
+const managerLoginHandler = async (req, res, next) => {
+  try {
+    const { hostelName, password } = req.body || {};
+
+    if (!hostelName || !password) {
+      return res.status(400).json({
+        success: false,
+        message: "hostelName and password are required",
+      });
+    }
+
+    const hostel = await Hostel.findOne({
+      hostel_name: hostelName,
+    }).select("+managerPasswordHash");
+
+    if (!hostel || !hostel.managerPasswordHash) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid hostel or password",
+      });
+    }
+
+    const ok = await bcrypt.compare(
+      String(password),
+      hostel.managerPasswordHash,
+    );
+    if (!ok) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid hostel or password",
+      });
+    }
+
+    const token = hostel.generateJWT();
+    return res.status(200).json({
+      success: true,
+      token,
+    });
+  } catch (err) {
+    console.error("Error in managerLoginHandler:", err);
+    next(new AppError(500, "Manager login failed"));
   }
 };
 
@@ -473,4 +714,6 @@ module.exports = {
   guestLoginHandler,
   appleLoginHandler,
   linkMicrosoftAccount,
+  managerLoginHandler,
+  refreshTokenHandler,
 };

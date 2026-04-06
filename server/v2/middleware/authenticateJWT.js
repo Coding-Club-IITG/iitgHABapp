@@ -1,6 +1,8 @@
 const { User } = require("../modules/user/userModel.js");
 const { Hostel } = require("../modules/hostel/hostelModel.js");
 const AppError = require("../utils/appError.js");
+const jwt = require("jsonwebtoken");
+const redisClient = require("../utils/redisClient.js");
 
 function auth(Schema, param) {
   return async function (req, res, next) {
@@ -27,10 +29,12 @@ function auth(Schema, param) {
     // If token is missing, send error response
     if (!token) return next(new AppError(403, "Invalid token"));
 
+    const isBlacklisted = await redisClient.get(`bl_${token}`);
+    if (isBlacklisted) return next(new AppError(401, "Token has been revoked"));
+
     try {
       // Validate the token and find the element
-
-      const found = await Schema.findByJWT(token);
+      const found = await Schema.findByAccessToken(token);
       //console.log("Found user/hostel:", found);
       if (!found) return next(new AppError(403, "Not Authenticated"));
 
@@ -38,6 +42,10 @@ function auth(Schema, param) {
       req[param] = found;
       return next();
     } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return next(new AppError(401, "Access token expired"));
+      }
+
       console.error("Error verifying token:", err);
       return next(new AppError(500, "Server error during authentication"));
     }
@@ -47,4 +55,121 @@ function auth(Schema, param) {
 const authenticateJWT = auth(User, "user");
 const authenticateAdminJWT = auth(Hostel, "hostel");
 
-module.exports = { authenticateJWT, authenticateAdminJWT };
+const authenticateUserOrAdminJWT = async (req, res, next) => {
+  let token = req.cookies?.token;
+
+  if (req.headers?.authorization) {
+    const authHeader = req.headers.authorization;
+    if (authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+  }
+
+  if (!token) return next(new AppError(403, "Invalid token"));
+
+  const isBlacklisted = await redisClient.get(`bl_${token}`);
+  if (isBlacklisted) return next(new AppError(401, "Token has been revoked"));
+
+  let lastError = null;
+
+  // First, try to treat the token as a normal user token
+  try {
+    const user = await User.findByAccessToken(token);
+    if (user) {
+      req.user = user;
+      return next();
+    }
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return next(new AppError(401, "Access token expired"));
+    }
+    // For non-expiry JWT errors (e.g. invalid signature), fall through to
+    // try hostel token verification instead of immediately returning 500.
+    lastError = err;
+  }
+
+  // If not a valid user token, try to treat it as a hostel (admin) token
+  try {
+    const hostel = await Hostel.findByAccessToken(token);
+    if (hostel) {
+      req.hostel = hostel;
+      return next();
+    }
+  } catch (err) {
+    if (err.name === "TokenExpiredError") {
+      return next(new AppError(401, "Access token expired"));
+    }
+    lastError = err;
+  }
+
+  if (lastError) {
+    console.error("Error verifying token:", lastError);
+  }
+
+  return next(new AppError(403, "Not Authenticated"));
+};
+
+const authenticateHabJWT = async (req, res, next) => {
+  let token = req.cookies?.token;
+
+  if (req.headers?.authorization) {
+    const authHeader = req.headers.authorization;
+    if (authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+  }
+
+  if (!token) return next(new AppError(403, "Invalid token"));
+
+  const isBlacklisted = await redisClient.get(`bl_${token}`);
+  if (isBlacklisted) return next(new AppError(401, "Token has been revoked"));
+
+  try {
+    const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
+    if (!decoded?.hab) return next(new AppError(403, "Not Authenticated"));
+
+    req.hab = decoded;
+    return next();
+  } catch (err) {
+    console.error("Error verifying HAB token:", err);
+    return next(new AppError(403, "Not Authenticated"));
+  }
+};
+
+// Dedicated middleware for HABit HQ / mess-manager app.
+// Validates a hostel JWT (same token as hostel frontend) and attaches
+// the hostel document as `req.managerHostel`.
+const authenticateMessManagerJWT = async (req, res, next) => {
+  let token;
+
+  if (req.headers?.authorization) {
+    const authHeader = req.headers.authorization;
+    if (authHeader.startsWith("Bearer ")) {
+      token = authHeader.split(" ")[1];
+    }
+  }
+
+  if (!token) return next(new AppError(403, "Invalid token"));
+
+  const isBlacklisted = await redisClient.get(`bl_${token}`);
+  if (isBlacklisted) return next(new AppError(401, "Token has been revoked"));
+
+  try {
+    const hostel = await Hostel.findByAccessToken(token);
+    if (!hostel) return next(new AppError(403, "Not Authenticated as manager"));
+
+    req.managerHostel = hostel;
+    return next();
+  } catch (err) {
+    console.error("Error verifying Mess Manager token:", err);
+    return next(new AppError(500, "Server error during authentication"));
+  }
+};
+
+module.exports = {
+  authenticateJWT,
+  authenticateAdminJWT,
+  authenticateUserOrAdminJWT,
+  authenticateHabJWT,
+  authenticateMessManagerJWT,
+};
