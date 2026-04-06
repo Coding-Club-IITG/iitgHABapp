@@ -375,7 +375,8 @@ class _LeaveApplicationListScreenState
                           "Casual",
                           "Short, unforeseen personal work or urgent errands.",
                           'assets/icon/notes.svg',
-                          () {
+                          () async {
+                            final result = await
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -385,6 +386,10 @@ class _LeaveApplicationListScreenState
                                 ),
                               ),
                             );
+
+                            if(result == true) {
+                              _fetchHistory();
+                            }
                           },
                         ),
                         const SizedBox(height: 16),
@@ -392,7 +397,8 @@ class _LeaveApplicationListScreenState
                           "Academic",
                           "Research, field trips, or attending conferences/competitions.",
                           'assets/icon/file-certificate.svg',
-                          () {
+                          () async {
+                            final result = await
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -402,6 +408,10 @@ class _LeaveApplicationListScreenState
                                 ),
                               ),
                             );
+
+                            if(result == true) {
+                              _fetchHistory();
+                            }
                           },
                         ),
                         const SizedBox(height: 16),
@@ -409,7 +419,8 @@ class _LeaveApplicationListScreenState
                           "Medical",
                           "Recovery from illness or injury.",
                           'assets/icon/report-medical.svg',
-                          () {
+                          () async {
+                            final result = await 
                             Navigator.push(
                               context,
                               MaterialPageRoute(
@@ -419,6 +430,10 @@ class _LeaveApplicationListScreenState
                                 ),
                               ),
                             );
+
+                            if(result == true) {
+                              _fetchHistory();
+                            }
                           },
                         ),
                         const SizedBox(height: 16),
@@ -621,7 +636,7 @@ class _LeaveApplicationListScreenState
                                       ? (canUpload
                                           ? daysLeftText
                                           : 'Waiting for approval')
-                                      : '';
+                                      : (status.toLowerCase()=='pending'? 'Waiting for approval' : '');
 
                                   statusColor = isMedical
                                       ? (canUpload

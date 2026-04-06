@@ -170,97 +170,143 @@ const uploadFilesToOnedrive = async (req, res, next) => {
 };
 
 async function uploadSingleToOnedrive(req, res, next) {
+
+  //Legacy code for uploading single document
+
+  //Streamlined everything using processUpload function
+  //Implemented everything using upload.fields and multi-upload using
+  //Modular functions processUpload and
+  //1) For multiple file upload -> uploadFilesToOnedrive()
+  //2) For single file upload(only proof document) -> uploadSingleToOnedrive()
+
+
+  // try {
+  //   //Check already present in applyForLeave. So not required here
+  //   const file = req.file;
+  //   // console.log("Trying to upload proof document");
+  //   //console.log("File received by Onedrive Uploader");
+  //   if (!file) return res.status(400).json({ message: "No file uploaded" });
+  //   if (!LEAVE_FOLDER_ID) {
+  //     return res
+  //       .status(400)
+  //       .json({ message: "ONEDRIVE_LEAVE_FOLDER_ID is not configured" });
+  //   }
+
+  //   const ext = extFromMime(file.mimetype);
+  //   const uniqueSuffix = Math.round(Math.random() * 1e9);
+
+  //   const timeStamp = Date.now();
+  // // Dynamic target name based on the prefix passed in
+  // const targetName = `leavedocument-${req.user._id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
+
+  //   // Delegated token required to use /me/drive
+  //   const token = await requireDelegatedToken();
+
+  //   // Sanity checks: who am I? which drive? does folder exist?
+  //   let me, drive, parentItem;
+  //   try {
+  //     me = await getMe(token);
+  //   } catch (e) {}
+
+  //   try {
+  //     drive = await getMyDrive(token);
+  //   } catch (e) {}
+
+  //   try {
+  //     parentItem = await getItemById(token, LEAVE_FOLDER_ID);
+  //     if (
+  //       drive?.id &&
+  //       parentItem?.parentReference?.driveId &&
+  //       drive.id !== parentItem.parentReference.driveId
+  //     ) {
+  //       return res.status(400).json({
+  //         message:
+  //           "Configured folder belongs to a different drive than the token user's drive.",
+  //       });
+  //     }
+  //   } catch (e) {
+  //     // Parent folder lookup failed
+  //     return res.status(400).json({
+  //       message:
+  //         "Configured ONEDRIVE_LEAVE_FOLDER_ID not found or not accessible for this account.",
+  //       hint: "Fetch it with GET /v1.0/me/drive/root:/HAB%20App/rebate-requests and use the returned id.",
+  //     });
+  //   }
+  //   console.log(
+  //     `Starting upload to onedrive to ${targetName} for user: ${req.user?.name}`,
+  //   );
+  //   // Upload new content to the parent folder with file name = roll.ext
+  //   const uploaded = await uploadToParentByName(
+  //     token,
+  //     LEAVE_FOLDER_ID,
+  //     targetName,
+  //     file.buffer,
+  //     file.mimetype,
+  //   );
+
+  //   //console.log("Uplaoding to onedrive successful.");
+  //   //console.log("Creating organization view link");
+
+  //   // Create org-scoped view link (tenant must allow it)
+  //   let publicUrl = null;
+  //   try {
+  //     publicUrl = await createOrganizationViewLink(token, uploaded.id);
+  //   } catch (e) {
+  //     return res.status(401).json({
+  //       message: "Error in creating public link. Please try again",
+  //     });
+  //   }
+
+  //   req.file.leaveId = uploaded.id;
+  //   if (publicUrl) req.file.leaveUrl = publicUrl;
+
+  //   console.log("Uploading to onedrive successful");
+  //   next();
+  // } catch (err) {
+  //   const status = err.response?.status;
+  //   const msg = err.response?.data?.error?.message || err.message;
+  //   return res.status(status === 403 ? 403 : 500).json({
+  //     message: "Failed to upload leave application",
+  //     error: msg,
+  //     status,
+  //   });
+  // }
+  
   try {
-    //Check already present in applyForLeave. So not required here
-    const file = req.file;
-    // console.log("Trying to upload proof document");
-    //console.log("File received by Onedrive Uploader");
-    if (!file) return res.status(400).json({ message: "No file uploaded" });
+    if (!req.files || Object.keys(req.files).length === 0) {
+      req.uploadedDocuments = {};
+      return next();
+    }
+
     if (!LEAVE_FOLDER_ID) {
       return res
         .status(400)
         .json({ message: "ONEDRIVE_LEAVE_FOLDER_ID is not configured" });
     }
 
-    const ext = extFromMime(file.mimetype);
-    const uniqueSuffix = Math.round(Math.random() * 1e9);
-
-    const timeStamp = Date.now();
-  // Dynamic target name based on the prefix passed in
-  const targetName = `leavedocument-${req.user._id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
-
-    // Delegated token required to use /me/drive
-    const token = await requireDelegatedToken();
-
-    // Sanity checks: who am I? which drive? does folder exist?
-    let me, drive, parentItem;
-    try {
-      me = await getMe(token);
-    } catch (e) {}
-
-    try {
-      drive = await getMyDrive(token);
-    } catch (e) {}
-
-    try {
-      parentItem = await getItemById(token, LEAVE_FOLDER_ID);
-      if (
-        drive?.id &&
-        parentItem?.parentReference?.driveId &&
-        drive.id !== parentItem.parentReference.driveId
-      ) {
-        return res.status(400).json({
-          message:
-            "Configured folder belongs to a different drive than the token user's drive.",
-        });
-      }
-    } catch (e) {
-      // Parent folder lookup failed
-      return res.status(400).json({
-        message:
-          "Configured ONEDRIVE_LEAVE_FOLDER_ID not found or not accessible for this account.",
-        hint: "Fetch it with GET /v1.0/me/drive/root:/HAB%20App/rebate-requests and use the returned id.",
-      });
-    }
+    req.uploadedDocuments = {};
     console.log(
-      `Starting upload to onedrive to ${targetName} for user: ${req.user?.name}`,
-    );
-    // Upload new content to the parent folder with file name = roll.ext
-    const uploaded = await uploadToParentByName(
-      token,
-      LEAVE_FOLDER_ID,
-      targetName,
-      file.buffer,
-      file.mimetype,
+      `Starting upload to onedrive for user: ${req.user?.name}`,
     );
 
-    //console.log("Uplaoding to onedrive successful.");
-    //console.log("Creating organization view link");
-
-    // Create org-scoped view link (tenant must allow it)
-    let publicUrl = null;
-    try {
-      publicUrl = await createOrganizationViewLink(token, uploaded.id);
-    } catch (e) {
-      return res.status(401).json({
-        message: "Error in creating public link. Please try again",
-      });
-    }
-
-    req.file.leaveId = uploaded.id;
-    if (publicUrl) req.file.leaveUrl = publicUrl;
-
-    console.log("Uploading to onedrive successful");
+    req.uploadedDocuments.proofDocument = await processUpload(req.user._id, req.files['proofDocument'], 'proofdocument');
+    
+    console.log("OneDrive uploads successful",req.uploadedDocuments);
     next();
+
   } catch (err) {
-    const status = err.response?.status;
+    console.error("Addition of medical certificate failed:", err);
+    const status = err.response?.status || 500;
     const msg = err.response?.data?.error?.message || err.message;
-    return res.status(status === 403 ? 403 : 500).json({
-      message: "Failed to upload leave application",
-      error: msg,
-      status,
-    });
+    return res
+      .status(status === 403 ? 403 : 500)
+      .json({
+        message: "Failed to upload medical documents",
+        error: msg,
+        status,
+      });
   }
+
 }
 
 const sendDocument = async (req, res) => {

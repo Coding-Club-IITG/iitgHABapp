@@ -469,8 +469,8 @@ const validateUploadDoc = async (req, res, next) => {
 const uploadDocForMedicalLeave = async (req, res) => {
   try {
     const { id } = req.params;
-    const query = { proofDocumentUrl: req.file.leaveUrl };
-    query.proofDocumentFilename = req.file.originalname;
+    const query = { proofDocumentUrl: req.uploadedDocuments.proofDocument?.url };
+    query.proofDocumentFilename = req.uploadedDocuments.proofDocument?.filename;
 
     const updatedDoc = await Leave.findByIdAndUpdate(id, query, {
       new: true,
@@ -645,7 +645,7 @@ const approveApplication = async (req, res) => {
         await sendNotificationToUser(
           updatedDoc.user._id,
           "Leave Approved! ✅",
-          `Your leave request for ${updatedDoc.startDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} to ${updatedDoc.endDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} has been approved.`,
+          `Your rebate request for ${updatedDoc.startDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} to ${updatedDoc.endDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} has been approved.`,
         );
       } catch (e) {
         console.error("Error in sending notification", e);
