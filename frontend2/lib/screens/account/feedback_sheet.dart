@@ -29,6 +29,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
   final TextEditingController _descController = TextEditingController();
   bool _submitting = false;
   String? _titleError;
+  String? _descError;
   final List<File> _screenshots = [];
 
   @override
@@ -59,8 +60,13 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
       setState(() => _titleError = 'Please enter a title');
       return;
     }
+    if (desc.isEmpty) {
+      setState(() => _descError = 'Please enter a description');
+      return;
+    }
     setState(() {
       _titleError = null;
+      _descError = null;
       _submitting = true;
     });
     try {
@@ -315,6 +321,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
               const SizedBox(height: 6),
               TextField(
                 controller: _descController,
+                onChanged: (_) => setState(() => _descError = null),
                 maxLines: 5,
                 decoration: InputDecoration(
                   hintText: 'Context',
@@ -338,6 +345,16 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                 ),
               ),
+              if (_descError != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  _descError!,
+                  style: const TextStyle(
+                      fontFamily: Themes.kFont,
+                      color: Colors.red,
+                      fontSize: 12),
+                ),
+              ],
 
               const SizedBox(height: 16),
 

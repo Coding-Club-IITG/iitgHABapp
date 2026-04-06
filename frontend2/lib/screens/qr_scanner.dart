@@ -7,7 +7,7 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
 import 'package:vibration/vibration.dart';
-import 'package:frontend2/widgets/common/cornerQR.dart';
+import 'package:frontend2/widgets/common/squareQR.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
@@ -481,11 +481,11 @@ class _QrScanState extends State<QrScan> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: Colors.white,
         appBar: AppBar(
-          title: const Text('Mess Scanner'),
-          backgroundColor: Colors.black,
-          foregroundColor: Colors.white,
+          title: const Text('Scan QR'),
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
@@ -611,39 +611,44 @@ class _QrScanState extends State<QrScan> {
       children: [
         const SizedBox(height: 80),
         const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 40),
-          child: Column(
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    'Ready to Eat?',
-                    style: TextStyle(
-                      color: Color.fromRGBO(255, 255, 255, 0.7),
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
+        padding: EdgeInsets.symmetric(horizontal: 24),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // 👇 FIRST LINE (same row)
+                Row(
+                  children: [
+                    Text(
+                      'Ready to Eat? ',
+                      style: TextStyle(
+                        color: Colors.white70,
+                        fontSize: 30,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                  Text(
-                    ' Scan',
-                    style: TextStyle(
-                      color: Color(0xFF4C4EDB),
-                      fontSize: 24,
-                      fontWeight: FontWeight.w600,
+                    Text(
+                      'Scan to',
+                      style: TextStyle(
+                        color: Color(0xFF4C4EDB),
+                        fontSize: 30,
+                        fontWeight: FontWeight.w500,
+                      ),
                     ),
-                  ),
-                ],
-              ),
-              Text(
-                'to Enter',
-                style: TextStyle(
-                  color: Color(0xFF4C4EDB),
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
+                  ],
                 ),
-              ),
-            ],
+                SizedBox(height: 4),
+                Text(
+                  'Enter',
+                  style: TextStyle(
+                    color: Color(0xFF4C4EDB),
+                    fontSize: 30,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 40),
@@ -653,15 +658,15 @@ class _QrScanState extends State<QrScan> {
             height: 250,
             child: CustomPaint(
               size: const Size(250, 250),
-              painter: CornerPainter(),
+              painter: SquarePainter(),
             ),
           ),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 10),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 40),
           child: Text(
-            'Hold your QR code steady within the frame',
+            'Hold your QR code\nsteady within the frame',
             style: TextStyle(
               color: Colors.white,
               fontSize: 16,
