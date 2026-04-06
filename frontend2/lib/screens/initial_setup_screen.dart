@@ -67,12 +67,26 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
     final h = prefs.getString('hostel') ?? '';
     final m = prefs.getString('currMess') ?? '';
 
+    var hName = "";
+    var messName = "";
+
+    if (h.isEmpty || m.isEmpty) {
+      // This should never happen - it means the user got to this screen without proper login flow
+      // Handle gracefully by showing Unknown and allowing user to proceed
+      hName = 'Unknown';
+      messName = 'Unknown';
+    } else {
+      // Normal flow - fetch names from cache or database
+      hName = await calculateHostelAsync(h);
+      messName = await calculateHostelAsync(m);
+    }
+
     setState(() {
       email = prefs.getString('email') ?? '';
       hostel = h;
       currMess = m;
-      hostelName = h.isEmpty ? '-' : calculateHostel(h);
-      currMessName = m.isEmpty ? '-' : calculateHostel(m);
+      hostelName = hName;
+      currMessName = messName;
       hasMicrosoftLinked = prefs.getBool('hasMicrosoftLinked') ?? false;
       _roomController.text = prefs.getString('roomNumber') ?? '';
       _phoneController.text = prefs.getString('phoneNumber') ?? '';
