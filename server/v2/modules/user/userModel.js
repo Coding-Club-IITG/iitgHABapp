@@ -3,7 +3,8 @@ const mongoose = require("mongoose");
 const jwt = require("jsonwebtoken");
 require("dotenv").config();
 
-const JWT_SECRET_KEY = process.env.JWT_SECRET;
+const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET;
+const REFRESH_TOKEN_SECRET = process.env.REFRESH_SECRET;
 
 /**
  * @swagger
@@ -48,10 +49,6 @@ const JWT_SECRET_KEY = process.env.JWT_SECRET;
  *         curr_subscribed_mess:
  *           type: string
  *           description: Currently subscribed mess (hostel reference)
- *           example: "64a1b2c3d4e5f6789012346"
- *         next_mess:
- *           type: string
- *           description: Next mess subscription (hostel reference)
  *           example: "64a1b2c3d4e5f6789012346"
  *         applied_hostel_string:
  *           type: string
@@ -131,19 +128,32 @@ const userSchema = new mongoose.Schema({
     unique: true,
     sparse: true, // Allow multiple null values
   },
+  guestIdentifier: {
+    type: String,
+    required: false,
+    unique: true,
+    sparse: true, // Allow multiple null values
+  },
   year: {
     type: Number,
   },
   hostel: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Hostel",
+    index: true,
   },
   curr_subscribed_mess: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Hostel",
+    index: true,
     default: function () {
       return this.hostel;
     },
+  },
+  next_mess: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Hostel",
+    index: true,
   },
   next_mess1: {
     type: mongoose.Schema.Types.ObjectId,
@@ -187,6 +197,7 @@ const userSchema = new mongoose.Schema({
   isSMC: {
     type: Boolean,
     default: false,
+    index: true,
   },
   isSetupDone: {
     type: Boolean,
@@ -202,35 +213,64 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  scannerPermission: {
+    type: Boolean,
+    default: true,
+  },
   hasMicrosoftLinked: {
     type: Boolean,
     default: false,
   },
   authProvider: {
     type: String,
-    enum: ["apple", "microsoft", "both"],
+    enum: ["apple", "microsoft", "both", "guest"],
     default: "microsoft", // Default for backward compatibility
+  },
+  lastLaundryUsed: {
+    type: Date,
+    default: null,
+  },
+  isBanned: {
+    type: Boolean,
+    default: false,
   },
 });
 
+// Generic JWT helper kept for backward compatibility.
+// It simply reuses the existing access-token format so that any
+// existing `generateJWT()` call sites behave exactly like
+// `generateAccessToken()`.
 userSchema.methods.generateJWT = function () {
+  return this.generateAccessToken();
+};
+
+userSchema.methods.generateAccessToken = function () {
   var user = this;
-  var token = jwt.sign({ user: user._id }, JWT_SECRET_KEY, {
-    expiresIn: "24d",
+  var token = jwt.sign({ user: user._id }, ACCESS_TOKEN_SECRET, {
+    expiresIn: "1d",
   });
   return token;
 };
 
-userSchema.statics.findByJWT = async function (token) {
+userSchema.methods.generateRefreshToken = function () {
+  var user = this;
+  var token = jwt.sign({ user: user._id }, REFRESH_TOKEN_SECRET, {
+    expiresIn: "60d",
+  });
+  return token;
+};
+
+userSchema.statics.findByAccessToken = async function (token) {
   try {
     var user = this;
-    var decoded = jwt.verify(token, JWT_SECRET_KEY);
+    var decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
     const id = decoded.user;
     const fetchedUser = await user.findOne({ _id: id });
     if (!fetchedUser) return false;
+    if (fetchedUser.isBanned) return false;
     return fetchedUser;
   } catch (error) {
-    return false;
+    throw error;
   }
 };
 
@@ -270,9 +310,16 @@ const findUserWithAppleIdentifier = async function (appleUserIdentifier) {
   return user;
 };
 
+const findUserWithGuestIdentifier = async function (guestIdentifier) {
+  const user = await User.findOne({ guestIdentifier: guestIdentifier });
+  if (!user) return false;
+  return user;
+};
+
 module.exports = {
   getUserFromToken,
   User,
   findUserWithEmail,
   findUserWithAppleIdentifier,
+  findUserWithGuestIdentifier,
 };

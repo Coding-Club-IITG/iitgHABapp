@@ -41,5 +41,8 @@ const scanLogsSchema = new mongoose.Schema({
   },
 });
 
+scanLogsSchema.index({ userId: 1, messId: 1, date: 1 });
+scanLogsSchema.index({ date: 1, messId: 1 });
+
 const ScanLogs = mongoose.model("ScanLogs", scanLogsSchema);
 module.exports = { ScanLogs };

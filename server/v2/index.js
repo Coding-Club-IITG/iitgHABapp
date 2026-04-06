@@ -4,7 +4,6 @@
 require("dotenv").config({ path: "../.env" });
 const { installProcessHandlers } = require("../processHandlers.js");
 installProcessHandlers();
-console.log("MONGODB_URI from env:", process.env.MONGODB_URI);
 const authRoutes = require("./modules/auth/auth.routes.js");
 const express = require("express");
 const mongoose = require("mongoose");
@@ -14,25 +13,40 @@ const feedbackRoute = require("./modules/feedback/feedbackRoute.js");
 const hostelRoute = require("./modules/hostel/hostelRoute.js");
 const notificationRoute = require("./modules/notification/notificationRoute.js");
 const messRoute = require("./modules/mess/messRoute.js");
+const leaveRoute = require("./modules/leave/leaveRoute.js");
 const logsRoute = require("./modules/mess/ScanLogsRoute.js");
+const bugReportRoute = require("./modules/bug_report/bugReportRoute.js");
+const roomCleaningRoute = require("./modules/room_cleaning/roomCleaningRoute.js");
+const laundryRoute = require("./modules/laundry/laundryRoute.js");
+
+const compression = require("compression");
+
 const cors = require("cors");
 const bodyParser = require("body-parser");
+const winston = require("winston");
+const expressWinston = require("express-winston");
+const storeLogs = require("./middleware/logger.js");
+const { randomUUID } = require("crypto");
+const { Worker } = require("worker_threads");
+const path = require("path");
 const {
   setDelegatedTokens,
   tokenFilePath,
+  initDelegatedGraphRedis,
 } = require("./utils/delegatedGraphAuth.js");
 
 // New: build delegated auth URLs for starting consent
 const onedrive = require("./config/onedrive.js");
 function buildAuthorizeUrl() {
+  // For delegated token flow, use a dedicated callback endpoint
+  // Use PUBLIC_BASE_URL if available, otherwise try to construct from request
+  const baseUrl = process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in";
+  const delegatedRedirectUri = `${baseUrl}/api/_debug/graph/callback`;
+
   const params = new URLSearchParams({
     client_id: onedrive.clientId,
     response_type: "code",
-    redirect_uri:
-      onedrive.redirectUri ||
-      `${
-        process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in"
-      }/api/_debug/graph/callback`,
+    redirect_uri: delegatedRedirectUri,
     scope:
       (onedrive.graphUserScopes || []).join(" ") || "offline_access User.Read",
     prompt: "consent",
@@ -45,24 +59,44 @@ const swaggerUi = require("swagger-ui-express");
 const swaggerJsdoc = require("swagger-jsdoc");
 
 const {
-  wednesdayScheduler,
-  sundayScheduler,
-} = require("./modules/hostel/hostelScheduler.js");
-const {
   initializeFeedbackAutoScheduler,
 } = require("./modules/feedback/autoFeedbackScheduler.js");
 
 const {
   initializeMessChangeAutoScheduler,
 } = require("./modules/mess_change/autoMessChangeScheduler.js");
+const {
+  initializeGuestCleanupScheduler,
+} = require("./modules/auth/autoGuestCleanupScheduler.js");
+const {
+  initializeMessRebateAutoScheduler,
+} = require("./modules/leave/autoMessRebateScheduler.js");
+const {
+  initializeMessAllotmentScheduler,
+} = require("./modules/mess_change/allotmentScheduler.js");
+// Note: anonymized user initializer is only run in v1.
+// const {
+//   initializeAnonymizedUser,
+// } = require("./modules/user/anonymizedUserInit.js");
+
+const {
+  initializeRoomCleaningAutoResolveScheduler,
+} = require("./modules/room_cleaning/autoRoomCleaningResolveScheduler.js");
 const messChangeRouter = require("./modules/mess_change/messchangeRoute.js");
+const galaRoute = require("./modules/gala/galaRoute.js");
 require("dotenv").config();
 
 const app = express();
 app.use(bodyParser.json({ limit: "1mb" }));
+app.use(
+  compression({
+    level: 6,
+    threshold: 100,
+  }),
+);
 
 const MONGOdb_uri = process.env.MONGODB_URI;
-const PORT = process.env.PORT_V2 || 3002;
+const PORT = process.env.PORT || 3001;
 
 const swaggerOptions = {
   definition: {
@@ -101,6 +135,80 @@ const swaggerOptions = {
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
+// Middleware to assign a unique request ID for better log correlation
+app.use((req, res, next) => {
+  req.headers["x-request-id"] = req.headers["x-request-id"] || randomUUID();
+  next();
+});
+
+// Custom Winston transport to handle log storage (e.g., database, file)
+class CustomTransport extends winston.Transport {
+  log(info, callback) {
+    setImmediate(() => {
+      this.emit("logged", info);
+    });
+
+    // Send full log object somewhere
+    console.log(info.message);
+    storeLogs(info);
+    callback();
+  }
+}
+
+// Example function to handle log data
+app.use(
+  expressWinston.logger({
+    transports: [new CustomTransport()],
+
+    format: winston.format.combine(
+      winston.format.timestamp(),
+      winston.format.json(),
+    ),
+
+    meta: true,
+    msg: "[{{req.headers['x-request-id']}}] HTTP {{req.method}} {{req.url}} {{res.statusCode}}",
+    expressFormat: true,
+    colorize: false,
+
+    // Use status code to determine log level (500=error, 400=warn, etc.)
+    statusLevels: true,
+
+    // IMPORTANT: By default, headers and body are NOT logged.
+    // You must whitelist them here:
+    requestWhitelist: ["url", "method", "query", "body"],
+    responseWhitelist: ["statusCode", "body"],
+
+    // ADDED: Crucial metadata for debugging at scale
+    dynamicMeta: (req, res) => {
+      return {
+        correlationId: req.headers["x-request-id"],
+        user: req.body?.username || "anonymous",
+        ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress,
+        userAgent: req.get("User-Agent") || "unknown",
+        env: process.env.NODE_ENV || "development",
+      };
+    },
+    // This replaces the value of 'password' with '*****' in the logs
+    bodyBlacklist: ["password", "secret", "token"],
+  }),
+);
+
+function startWorker() {
+  const worker = new Worker(
+    path.resolve(__dirname, "./workers/loggerWorker.js"),
+    { execArgv: process.execArgv },
+  );
+
+  worker.on("error", (err) => console.error("Worker Error:", err));
+  worker.on("exit", (code) => {
+    if (code !== 0) console.error(`Worker stopped with exit code ${code}`);
+  });
+}
+
+// In v2 (legacy API), we do not start the log-flushing worker.
+// v1 runs the worker and flushes logs from the shared Redis queue.
+// startWorker();
+
 app.use(
   "/api/docs",
   swaggerUi.serve,
@@ -137,18 +245,17 @@ app.use(express.urlencoded({ extended: true }));
 
 // MongoDB connection
 mongoose
-  .connect(MONGOdb_uri)
+  .connect(process.env.MONGODB_URI)
   .then(() => {
-    console.log("MongoDB connected");
+    console.log(
+      "MongoDB connected (v2 legacy API) - all cron schedulers are disabled here.",
+    );
 
-    // wednesdayScheduler();
+    // NOTE: All cron-like schedulers (feedback, mess change, guest cleanup,
+    // mess rebate, room cleaning auto-resolve, mess allotment) are intentionally
+    // disabled in v2. They should run only in v1 to avoid duplicate jobs.
 
-    // sundayScheduler();
-
-    // // Initialize automatic schedulers for feedback and mess change
-    // initializeFeedbackAutoScheduler();
-    // initializeMessChangeAutoScheduler();
-    console.log("⚠️ V2 Schedulers DISABLED (Running on V1 only)");
+    // Anonymized user initialization is handled in v1 only.
   })
   .catch((err) => console.log(err));
 
@@ -200,6 +307,11 @@ app.use("/api/notification", notificationRoute);
 // Mess route
 app.use("/api/mess", messRoute);
 
+// Gala Dinner route
+app.use("/api/gala", galaRoute);
+// Mess rebate route
+app.use("/api/leave", leaveRoute);
+
 //mess change route
 app.use("/api/mess-change", messChangeRouter);
 
@@ -209,6 +321,15 @@ app.use("/api/profile", profileRouter);
 
 //scanlogs route
 app.use("/api/logs", logsRoute);
+
+// Bug report route
+app.use("/api/bug-report", bugReportRoute);
+
+// Room cleaning availability route
+app.use("/api/room-cleaning", roomCleaningRoute);
+
+// Laundry service route
+app.use("/api/laundry", laundryRoute);
 
 // Debug route: accept delegated tokens and save to disk for server use
 // WARNING: Protect this route in production (e.g., require admin auth, restrict IPs)
@@ -255,13 +376,10 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
       params.append("client_secret", onedrive.clientSecret);
     params.append("grant_type", "authorization_code");
     params.append("code", code);
-    params.append(
-      "redirect_uri",
-      onedrive.redirectUri ||
-        `${
-          process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in"
-        }/api/_debug/graph/callback`,
-    );
+    // Use the same redirect URI that was used in the authorization request
+    const baseUrl = process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in";
+    const delegatedRedirectUri = `${baseUrl}/api/_debug/graph/callback`;
+    params.append("redirect_uri", delegatedRedirectUri);
     params.append(
       "scope",
       (onedrive.graphUserScopes || []).join(" ") || "offline_access User.Read",
@@ -290,11 +408,30 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
 // Global error handler (must be after all routes). Catches errors passed to next(err).
 app.use((err, req, res, next) => {
   console.error("[Express error]", err);
-  res.status(500).json({ message: "Internal server error" });
+
+  const statusCode = err.status || 500;
+
+  res.status(statusCode).json({
+    message: err.message || "Internal server error",
+  });
 });
 
-app.listen(PORT, () => {
+const { initMessManagerWs } = require("./modules/mess/messManagerWs.js");
+const { initGalaManagerWs } = require("./modules/gala/galaManagerWs.js");
+
+const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
+// Initialize WebSocket servers for manager live scan logs
+initMessManagerWs(server);
+initGalaManagerWs(server);
+
+// Subscribe to Redis scan events so all cluster instances can broadcast to their local WS clients
+const { initScanBroadcast } = require("./utils/scanBroadcast.js");
+initScanBroadcast();
+
+// Connect to Redis and backfill delegated Graph token from disk so first request can use Redis
+initDelegatedGraphRedis();
 
 module.exports = app;

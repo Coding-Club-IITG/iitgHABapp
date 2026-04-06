@@ -1,4 +1,4 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 
 const UserAllocHostelSchema = new mongoose.Schema({
   rollno: {
@@ -8,10 +8,17 @@ const UserAllocHostelSchema = new mongoose.Schema({
   },
   hostel: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Hostel',
+    ref: "Hostel",
+  },
+  current_subscribed_mess: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Hostel",
   },
 });
 
-const UserAllocHostel = mongoose.model('UserAllocHostel', UserAllocHostelSchema);
+const UserAllocHostel = mongoose.model(
+  "UserAllocHostel",
+  UserAllocHostelSchema
+);
 
 module.exports = UserAllocHostel;
