@@ -100,10 +100,10 @@ const processUpload = async (id, fileArray, prefix) => {
   const uniqueSuffix = Math.round(Math.random() * 1e9);
 
   const ext = extFromMime(file.mimetype);
-    const timeStamp = Date.now();
+  const timeStamp = Date.now();
 
-    // Delegated token required to use /me/drive
-    const token = await requireDelegatedToken();
+  // Delegated token required to use /me/drive
+  const token = await requireDelegatedToken();
 
   // Dynamic target name based on the prefix passed in
   const targetName = `${prefix}-${id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
@@ -134,38 +134,63 @@ const processUpload = async (id, fileArray, prefix) => {
 const uploadFilesToOnedrive = async (req, res, next) => {
   try {
     if (!req.files || Object.keys(req.files).length === 0) {
+      console.log(
+        "[OneDrive][uploadFilesToOnedrive] No files on request; skipping upload",
+      );
       req.uploadedDocuments = {};
       return next();
     }
 
     if (!LEAVE_FOLDER_ID) {
+      console.error(
+        "[OneDrive][uploadFilesToOnedrive] LEAVE_FOLDER_ID not configured; cannot upload",
+      );
       return res
         .status(400)
         .json({ message: "ONEDRIVE_LEAVE_FOLDER_ID is not configured" });
     }
 
     req.uploadedDocuments = {};
-    console.log(
-      `Starting upload to onedrive for user: ${req.user?.name}`,
+    console.log("[OneDrive][uploadFilesToOnedrive] Starting upload", {
+      userId: req.user?._id,
+      userName: req.user?.name,
+      fileFields: Object.keys(req.files),
+      proofCount: req.files["proofDocument"]
+        ? req.files["proofDocument"].length
+        : 0,
+      leaveDocCount: req.files["leaveDocument"]
+        ? req.files["leaveDocument"].length
+        : 0,
+    });
+
+    req.uploadedDocuments.proofDocument = await processUpload(
+      req.user._id,
+      req.files["proofDocument"],
+      "proofdocument",
+    );
+    req.uploadedDocuments.leaveDocument = await processUpload(
+      req.user._id,
+      req.files["leaveDocument"],
+      "leavedocument",
     );
 
-    req.uploadedDocuments.proofDocument = await processUpload(req.user._id, req.files['proofDocument'], 'proofdocument');
-    req.uploadedDocuments.leaveDocument = await processUpload(req.user._id, req.files['leaveDocument'], 'leavedocument');
-    
-    console.log("OneDrive uploads successful",req.uploadedDocuments);
+    console.log("[OneDrive][uploadFilesToOnedrive] Uploads successful", {
+      proofDocumentUrl: req.uploadedDocuments.proofDocument?.url,
+      leaveDocumentUrl: req.uploadedDocuments.leaveDocument?.url,
+    });
     next();
-
   } catch (err) {
-    console.error("OneDrive upload failed:", err);
+    console.error(
+      "[OneDrive][uploadFilesToOnedrive] OneDrive upload failed",
+      err,
+    );
     const status = err.response?.status || 500;
     const msg = err.response?.data?.error?.message || err.message;
-    return res
-      .status(status === 403 ? 403 : 500)
-      .json({
-        message: "Failed to upload verification documents",
-        error: msg,
-        status,
-      });
+    return res.status(status === 403 ? 403 : 500).json({
+      message: "Failed to upload verification documents",
+      error: msg,
+      status,
+    });
   }
 };
 
@@ -186,8 +211,8 @@ async function uploadSingleToOnedrive(req, res, next) {
     const uniqueSuffix = Math.round(Math.random() * 1e9);
 
     const timeStamp = Date.now();
-  // Dynamic target name based on the prefix passed in
-  const targetName = `leavedocument-${req.user._id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
+    // Dynamic target name based on the prefix passed in
+    const targetName = `leavedocument-${req.user._id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
 
     // Delegated token required to use /me/drive
     const token = await requireDelegatedToken();
@@ -342,4 +367,8 @@ const sendDocument = async (req, res) => {
   }
 };
 
-module.exports = { uploadSingleToOnedrive, sendDocument ,uploadFilesToOnedrive};
+module.exports = {
+  uploadSingleToOnedrive,
+  sendDocument,
+  uploadFilesToOnedrive,
+};
