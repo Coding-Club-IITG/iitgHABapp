@@ -250,7 +250,7 @@ class _HomeScreenState extends State<HomeScreen> {
         },
       ),
       _quickCard(
-        iconPath: 'assets/icon/rebateicon.svg',
+        iconPath: 'assets/icon/messicon.svg',
         label: 'Mess Rebate',
         onTap: () async {
           if (!await _checkMicrosoft('Mess Rebate')) return;
