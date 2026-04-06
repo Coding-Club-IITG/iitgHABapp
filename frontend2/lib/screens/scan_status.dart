@@ -157,7 +157,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
           ),
         ),
 
-        Expanded(child: Container()),
+        const SizedBox(height: 10),
 
 // ✅ Bottom Grey Panel
 Container(
@@ -228,26 +228,36 @@ Widget _buildFailedScreen(BuildContext context, Map<String, dynamic> data) {
           ),
         ),
 
-        const SizedBox(height: 10),
+        const Spacer(),
 
         // ✅ Optional message (small)
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 40),
-          child: Text(
-            data['message']?.toString() ?? '',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: Colors.grey,
-              fontSize: 14,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          child: SizedBox(
+            width: double.infinity,
+            child: Container(
+              padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
+              decoration: BoxDecoration(
+                color: const Color.fromARGB(255, 248, 226, 226), // light red/pink background
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                data['message']?.toString() ?? 'Something went wrong',
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Color(0xFFC62828), // red text
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
             ),
           ),
         ),
 
-        const Spacer(),
+        const SizedBox(height: 10),
 
         // ✅ Buttons row
-        Expanded(child: Container()),
-
+      
 Container(
   width: double.infinity,
   padding: const EdgeInsets.all(20),
