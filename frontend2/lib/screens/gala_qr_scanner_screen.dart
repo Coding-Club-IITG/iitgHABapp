@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/screens/gala_scan_status_page.dart';
-import 'package:frontend2/widgets/common/cornerQR.dart';
+import 'package:frontend2/widgets/common/squareQR.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:dio/dio.dart';
@@ -363,14 +363,14 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
             width: 250,
             height: 250,
             child: CustomPaint(
-                size: const Size(250, 250), painter: CornerPainter()),
+                size: const Size(250, 250), painter: SquarePainter()),
           ),
         ),
         const SizedBox(height: 40),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 40),
           child: Text(
-            'Hold the QR code steady within the frame',
+            'Hold the QR code\nsteady within the frame',
             style: TextStyle(color: Colors.white, fontSize: 16),
             textAlign: TextAlign.center,
           ),

@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthProvider";
 import { API_BASE_URL } from "../apis";
 import axios from "axios";
+import { Select } from "antd";
 import {
   Users,
   FileText,
@@ -49,6 +50,25 @@ const Dashboard = () => {
 
   const [smcSearch, setSmcSearch] = useState("");
 
+  const [hmcMembers, setHmcMembers] = useState([]);
+  const [pendingHmcMembers, setPendingHmcMembers] = useState([]);
+  const [hmcSearch, setHmcSearch] = useState("");
+  const [hmcSelectedType, setHmcSelectedType] = useState("");
+  const [hmcSelectedUser, setHmcSelectedUser] = useState("");
+  const [hmcSaving, setHmcSaving] = useState(false);
+
+  const HMC_TYPES = [
+    "General Secretary",
+    "Associate General Secretary",
+    "Literary Secretary",
+    "Cultural Secretary",
+    "Technical Secretary",
+    "Sports Secretary",
+    "Welfare Secretary",
+    "Maintenance Secretary",
+    "Service Secretary",
+  ];
+
   const [laundryDashboard, setLaundryDashboard] = useState(null);
   const [laundryLoading, setLaundryLoading] = useState(false);
   const [laundryError, setLaundryError] = useState("");
@@ -72,7 +92,7 @@ const Dashboard = () => {
     try {
       setLoading(true);
       const response = await axios.get(
-        `${API_BASE_URL}/hostel/mess-subscribers`
+        `${API_BASE_URL}/hostel/mess-subscribers`,
       );
       setMessSubscribers(response.data.subscribers || []);
     } catch (err) {
@@ -100,13 +120,13 @@ const Dashboard = () => {
     try {
       setLoading(true);
       const response = await axios.get(
-        `${API_BASE_URL}/room-cleaning/rc/cleaners`
+        `${API_BASE_URL}/room-cleaning/rc/cleaners`,
       );
       setCleaners(response.data.cleaners || []);
     } catch (err) {
       setError(
         "Failed to fetch room cleaners: " +
-          (err.response?.data?.message || err.message)
+          (err.response?.data?.message || err.message),
       );
     } finally {
       setLoading(false);
@@ -126,7 +146,7 @@ const Dashboard = () => {
           {
             name: newCleanerName.trim(),
             slots: newCleanerSlots,
-          }
+          },
         );
       } else {
         await axios.post(`${API_BASE_URL}/room-cleaning/rc/cleaners`, {
@@ -139,7 +159,7 @@ const Dashboard = () => {
     } catch (err) {
       alert(
         `Failed to ${editingCleanerId ? "update" : "create"} cleaner: ` +
-          (err.response?.data?.message || err.message)
+          (err.response?.data?.message || err.message),
       );
     } finally {
       setLoading(false);
@@ -148,7 +168,7 @@ const Dashboard = () => {
 
   const toggleNewCleanerSlot = (slot) => {
     setNewCleanerSlots((prev) =>
-      prev.includes(slot) ? prev.filter((s) => s !== slot) : [...prev, slot]
+      prev.includes(slot) ? prev.filter((s) => s !== slot) : [...prev, slot],
     );
   };
 
@@ -190,7 +210,7 @@ const Dashboard = () => {
       }
     } catch (err) {
       setLaundryError(
-        err.response?.data?.message || "Failed to load laundry dashboard"
+        err.response?.data?.message || "Failed to load laundry dashboard",
       );
       setLaundryDashboard(null);
     } finally {
@@ -202,14 +222,17 @@ const Dashboard = () => {
     try {
       setRcBookingsError("");
       setRcBookingsLoading(true);
-      const resp = await axios.get(`${API_BASE_URL}/room-cleaning/rc/tomorrow`, {
-        params: { date: dateStr },
-      });
+      const resp = await axios.get(
+        `${API_BASE_URL}/room-cleaning/rc/tomorrow`,
+        {
+          params: { date: dateStr },
+        },
+      );
       setRcBookings(resp.data?.bookings || []);
     } catch (err) {
       setRcBookingsError(
         "Failed to fetch room-cleaning bookings: " +
-          (err.response?.data?.message || err.message)
+          (err.response?.data?.message || err.message),
       );
       setRcBookings([]);
     } finally {
@@ -228,7 +251,7 @@ const Dashboard = () => {
     } catch (err) {
       alert(
         "Failed to delete cleaner: " +
-          (err.response?.data?.message || err.message)
+          (err.response?.data?.message || err.message),
       );
     } finally {
       setLoading(false);
@@ -250,7 +273,7 @@ const Dashboard = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
       await fetchSMCMembers();
       await fetchBoarders();
@@ -258,7 +281,7 @@ const Dashboard = () => {
       console.error("Error marking as SMC:", err);
       alert(
         "Failed to mark user as SMC: " +
-          (err.response?.data?.message || err.message)
+          (err.response?.data?.message || err.message),
       );
     }
   };
@@ -278,7 +301,7 @@ const Dashboard = () => {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
       await fetchSMCMembers();
       await fetchBoarders();
@@ -286,9 +309,104 @@ const Dashboard = () => {
       console.error("Error unmarking as SMC:", err);
       alert(
         "Failed to unmark user as SMC: " +
-          (err.response?.data?.message || err.message)
+          (err.response?.data?.message || err.message),
       );
     }
+  };
+
+  // Fetch HMC members
+  const fetchHMCMembers = async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+      const response = await axios.get(`${API_BASE_URL}/hostel/hmc-members`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const members = response.data.hmcMembers || [];
+      console.log(members);
+
+      setHmcMembers(members);
+      setPendingHmcMembers(
+        members.map((m) => ({
+          type: m.type,
+          user: m.user._id,
+          userData: m.user,
+        })),
+      );
+    } catch (err) {
+      setError(
+        "Failed to fetch HMC members: " +
+          (err.response?.data?.message || err.message),
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Save HMC members
+  const saveHMCMembers = async () => {
+    try {
+      setHmcSaving(true);
+      const token = localStorage.getItem("token");
+      if (!token) {
+        alert("Not authenticated. Please login again.");
+        return;
+      }
+      await axios.post(
+        `${API_BASE_URL}/hostel/hmc-members`,
+        { hmcMembers: pendingHmcMembers },
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      await fetchHMCMembers();
+      alert("HMC members saved successfully");
+    } catch (err) {
+      console.error("Error saving HMC members:", err);
+      alert(
+        "Failed to save HMC members: " +
+          (err.response?.data?.message || err.message),
+      );
+    } finally {
+      setHmcSaving(false);
+    }
+  };
+
+  // Add HMC member to pending list
+  const addHmcMember = () => {
+    if (!hmcSelectedType || !hmcSelectedUser) {
+      alert("Please select both a secretary type and a user.");
+      return;
+    }
+    const userData = boarders.find((b) => b._id === hmcSelectedUser);
+    if (!userData) {
+      alert("Invalid user selected.");
+      return;
+    }
+    const newMember = {
+      type: hmcSelectedType,
+      user: hmcSelectedUser,
+      userData: userData,
+    };
+    setPendingHmcMembers([...pendingHmcMembers, newMember]);
+    setHmcSelectedType("");
+    setHmcSelectedUser("");
+  };
+
+  // Remove HMC member from pending list
+  const removeHmcMember = (index) => {
+    setPendingHmcMembers(pendingHmcMembers.filter((_, i) => i !== index));
+  };
+
+  // Discard changes
+  const discardHmcChanges = () => {
+    setPendingHmcMembers(
+      hmcMembers.map((m) => ({
+        type: m.type,
+        user: m.user._id,
+        userData: m.user,
+      })),
+    );
   };
 
   useEffect(() => {
@@ -303,6 +421,8 @@ const Dashboard = () => {
       fetchBookingsForDate(bookingsDate);
     } else if (activeTab === "laundry") {
       fetchLaundryDashboard();
+    } else if (activeTab === "hmc") {
+      fetchHMCMembers();
     }
   }, [activeTab]);
 
@@ -348,6 +468,7 @@ const Dashboard = () => {
     { label: "Boarders", value: "boarders", icon: Users },
     { label: "Mess Subscribers", value: "subscribers", icon: Building2 },
     { label: "SMC Management", value: "smc", icon: UserCheck },
+    { label: "HMC Management", value: "hmc", icon: UserCheck },
     { label: "Room Cleaners", value: "cleaners", icon: Users },
     { label: "Laundry", value: "laundry", icon: Shirt },
   ];
@@ -365,25 +486,21 @@ const Dashboard = () => {
             }}
             className={`bg-white border border-gray-100 rounded-lg shadow-sm p-3 transition-all duration-200 ${
               sidebarOpen ? "w-72" : "w-16"
-            }`}
-          >
+            }`}>
             <div
               className={`flex items-center ${
                 sidebarOpen ? "justify-between" : "justify-center"
-              } mb-6`}
-            >
+              } mb-6`}>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setSidebarOpen((v) => !v)}
-                  className="p-2 rounded-md hover:bg-gray-100"
-                  title={sidebarOpen ? "Collapse" : "Expand"}
-                >
+                  className="sidebar-menu-btn p-2 rounded-md hover:bg-gray-100"
+                  title={sidebarOpen ? "Collapse" : "Expand"}>
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
                     className="w-5 h-5 text-gray-700"
                     viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
+                    fill="currentColor">
                     <path
                       fillRule="evenodd"
                       d="M3 5h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2z"
@@ -409,7 +526,7 @@ const Dashboard = () => {
                   <button
                     key={tab.value}
                     onClick={() => setActiveTab(tab.value)}
-                    className={`flex items-center ${
+                    className={`sidebar-tab-btn flex items-center ${
                       sidebarOpen
                         ? "gap-3 px-3 mx-1"
                         : "justify-center px-0 mx-0"
@@ -417,8 +534,7 @@ const Dashboard = () => {
                       activeTab === tab.value
                         ? "bg-blue-50 text-blue-600"
                         : "text-gray-600 hover:bg-gray-50"
-                    }`}
-                  >
+                    }`}>
                     <Icon className="w-5 h-5" />
                     {sidebarOpen && <span>{tab.label}</span>}
                   </button>
@@ -430,16 +546,14 @@ const Dashboard = () => {
                 sidebarOpen
                   ? "mt-auto px-2 pt-4 border-t border-gray-100"
                   : "mt-auto flex justify-center pt-4 border-t border-gray-100"
-              }
-            >
+              }>
               <button
                 onClick={() => logout()}
-                className={
+                className={`sidebar-logout-btn ${
                   sidebarOpen
                     ? "w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-100 rounded-md py-2 text-sm transition-colors"
                     : "w-10 h-10 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
-                }
-              >
+                }`}>
                 <LogOut className="w-5 h-5" />
                 {sidebarOpen && <span>Logout</span>}
               </button>
@@ -510,9 +624,9 @@ const Dashboard = () => {
                                               `<td>${String(c || "")
                                                 .replace(/&/g, "&amp;")
                                                 .replace(/</g, "&lt;")
-                                                .replace(/>/g, "&gt;")}</td>`
+                                                .replace(/>/g, "&gt;")}</td>`,
                                           )
-                                          .join("")}</tr>`
+                                          .join("")}</tr>`,
                                     )
                                     .join("")}
                                 </tbody>
@@ -524,8 +638,7 @@ const Dashboard = () => {
                         win.focus();
                         win.print();
                       }}
-                      className="px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-                    >
+                      className="px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">
                       Download PDF
                     </button>
                   )}
@@ -643,9 +756,9 @@ const Dashboard = () => {
                                               `<td>${String(c || "")
                                                 .replace(/&/g, "&amp;")
                                                 .replace(/</g, "&lt;")
-                                                .replace(/>/g, "&gt;")}</td>`
+                                                .replace(/>/g, "&gt;")}</td>`,
                                           )
-                                          .join("")}</tr>`
+                                          .join("")}</tr>`,
                                     )
                                     .join("")}
                                 </tbody>
@@ -657,8 +770,7 @@ const Dashboard = () => {
                         win.focus();
                         win.print();
                       }}
-                      className="px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50"
-                    >
+                      className="px-3 py-1.5 text-sm rounded-md border border-gray-300 text-gray-700 hover:bg-gray-50">
                       Download PDF
                     </button>
                   )}
@@ -729,8 +841,7 @@ const Dashboard = () => {
                               key={sub._id}
                               className={
                                 sub.isDifferentHostel ? "bg-yellow-50" : ""
-                              }
-                            >
+                              }>
                               <td className="border border-gray-300 px-4 py-2">
                                 {sub.name}
                               </td>
@@ -777,13 +888,14 @@ const Dashboard = () => {
                     <div className="border border-gray-200 rounded-lg p-4 space-y-4 bg-gray-50">
                       <div className="flex items-center justify-between">
                         <h3 className="text-sm font-semibold text-gray-700">
-                          {editingCleanerId ? "Edit Cleaner" : "Add New Cleaner"}
+                          {editingCleanerId
+                            ? "Edit Cleaner"
+                            : "Add New Cleaner"}
                         </h3>
                         <button
                           onClick={closeCleanerForm}
                           className="p-2 rounded-md hover:bg-gray-100"
-                          title="Close"
-                        >
+                          title="Close">
                           <X className="w-4 h-4 text-gray-600" />
                         </button>
                       </div>
@@ -810,8 +922,7 @@ const Dashboard = () => {
                             {["A", "B", "C", "D"].map((slot) => (
                               <label
                                 key={slot}
-                                className="flex items-center gap-2 text-sm text-gray-700"
-                              >
+                                className="flex items-center gap-2 text-sm text-gray-700">
                                 <input
                                   type="checkbox"
                                   className="h-4 w-4"
@@ -828,16 +939,16 @@ const Dashboard = () => {
                           <Button
                             onClick={handleSubmitCleaner}
                             disabled={loading}
-                            className="w-full md:w-auto"
-                          >
-                            {editingCleanerId ? "Save Cleaner" : "Create Cleaner"}
+                            className="w-full md:w-auto">
+                            {editingCleanerId
+                              ? "Save Cleaner"
+                              : "Create Cleaner"}
                           </Button>
                           <Button
                             variant="outline"
                             onClick={closeCleanerForm}
                             disabled={loading}
-                            className="w-full md:w-auto"
-                          >
+                            className="w-full md:w-auto">
                             Cancel
                           </Button>
                         </div>
@@ -864,8 +975,9 @@ const Dashboard = () => {
                           <select
                             className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
                             value={selectedCleanerId}
-                            onChange={(e) => setSelectedCleanerId(e.target.value)}
-                          >
+                            onChange={(e) =>
+                              setSelectedCleanerId(e.target.value)
+                            }>
                             {cleaners.map((c) => (
                               <option key={c._id} value={c._id}>
                                 {c.name}
@@ -897,19 +1009,21 @@ const Dashboard = () => {
                               <Button
                                 variant="outline"
                                 size="sm"
-                                onClick={() => openEditCleanerForm(selectedCleaner)}
+                                onClick={() =>
+                                  openEditCleanerForm(selectedCleaner)
+                                }
                                 disabled={loading}
-                                className="gap-2"
-                              >
+                                className="gap-2">
                                 <Pencil className="w-4 h-4" />
                                 Edit
                               </Button>
                               <Button
                                 variant="destructive"
                                 size="sm"
-                                onClick={() => handleDeleteCleaner(selectedCleaner._id)}
-                                disabled={loading}
-                              >
+                                onClick={() =>
+                                  handleDeleteCleaner(selectedCleaner._id)
+                                }
+                                disabled={loading}>
                                 Delete
                               </Button>
                             </div>
@@ -924,7 +1038,8 @@ const Dashboard = () => {
                               Assigned bookings
                             </div>
                             <div className="text-xs text-gray-600">
-                              Shows bookings assigned to the selected cleaner for the chosen date.
+                              Shows bookings assigned to the selected cleaner
+                              for the chosen date.
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
@@ -934,8 +1049,7 @@ const Dashboard = () => {
                             <select
                               className="border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
                               value={bookingsDate}
-                              onChange={(e) => setBookingsDate(e.target.value)}
-                            >
+                              onChange={(e) => setBookingsDate(e.target.value)}>
                               {dateOptions.map((o) => (
                                 <option key={o.value} value={o.value}>
                                   {o.label}
@@ -950,14 +1064,17 @@ const Dashboard = () => {
                             <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-blue-600" />
                           </div>
                         ) : rcBookingsError ? (
-                          <p className="text-sm text-red-600">{rcBookingsError}</p>
+                          <p className="text-sm text-red-600">
+                            {rcBookingsError}
+                          </p>
                         ) : !selectedCleanerId ? (
                           <p className="text-sm text-gray-600">
                             Select a cleaner to view bookings.
                           </p>
                         ) : bookingsForCleaner.length === 0 ? (
                           <p className="text-sm text-gray-600">
-                            No bookings assigned to this cleaner for {bookingsDate}.
+                            No bookings assigned to this cleaner for{" "}
+                            {bookingsDate}.
                           </p>
                         ) : (
                           <div className="overflow-x-auto">
@@ -1027,7 +1144,8 @@ const Dashboard = () => {
                             Scan QR at laundry
                           </h3>
                           <p className="text-xs text-gray-500 mb-3">
-                            Students scan this QR in the app to avail free laundry (1 per 2 weeks).
+                            Students scan this QR in the app to avail free
+                            laundry (1 per 2 weeks).
                           </p>
                           {laundryDashboard.qrPayload && (
                             <div className="inline-block p-3 bg-white border border-gray-200 rounded-lg">
@@ -1051,11 +1169,16 @@ const Dashboard = () => {
                               <select
                                 className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
                                 value={laundrySelectedMonth}
-                                onChange={(e) => setLaundrySelectedMonth(e.target.value)}
-                              >
+                                onChange={(e) =>
+                                  setLaundrySelectedMonth(e.target.value)
+                                }>
                                 {laundryDashboard.stats.byMonth.map((m) => (
                                   <option key={m.yearMonth} value={m.yearMonth}>
-                                    {new Date(m.year, m.month - 1, 1).toLocaleString("default", {
+                                    {new Date(
+                                      m.year,
+                                      m.month - 1,
+                                      1,
+                                    ).toLocaleString("default", {
                                       month: "long",
                                       year: "numeric",
                                     })}
@@ -1063,16 +1186,20 @@ const Dashboard = () => {
                                 ))}
                               </select>
                               <div className="flex justify-between text-sm pt-1">
-                                <span className="text-gray-600">Total monthly usage</span>
+                                <span className="text-gray-600">
+                                  Total monthly usage
+                                </span>
                                 <span className="font-semibold text-gray-900">
                                   {laundryDashboard.stats.byMonth.find(
-                                    (m) => m.yearMonth === laundrySelectedMonth
+                                    (m) => m.yearMonth === laundrySelectedMonth,
                                   )?.count ?? 0}
                                 </span>
                               </div>
                             </div>
                           ) : (
-                            <p className="text-sm text-gray-500">No laundry scans yet.</p>
+                            <p className="text-sm text-gray-500">
+                              No laundry scans yet.
+                            </p>
                           )}
                         </div>
                       </div>
@@ -1081,7 +1208,9 @@ const Dashboard = () => {
                           Recent laundry logs
                         </h3>
                         {!laundryDashboard.logs?.length ? (
-                          <p className="text-sm text-gray-500">No laundry usage yet.</p>
+                          <p className="text-sm text-gray-500">
+                            No laundry usage yet.
+                          </p>
                         ) : (
                           <div className="overflow-x-auto">
                             <table className="min-w-full border border-gray-200 text-sm">
@@ -1176,25 +1305,24 @@ const Dashboard = () => {
                                 );
                               })
                               .map((member) => (
-                              <tr key={member._id}>
-                                <td className="border border-gray-300 px-4 py-2">
-                                  {member.name}
-                                </td>
-                                <td className="border border-gray-300 px-4 py-2">
-                                  {member.rollNumber}
-                                </td>
-                                <td className="border border-gray-300 px-4 py-2">
-                                  {member.roomNumber}
-                                </td>
-                                <td className="border border-gray-300 px-4 py-2">
-                                  <Button
-                                    onClick={() => unmarkAsSMC(member._id)}
-                                    className="bg-red-500 hover:bg-red-600"
-                                  >
-                                    Remove SMC
-                                  </Button>
-                                </td>
-                              </tr>
+                                <tr key={member._id}>
+                                  <td className="border border-gray-300 px-4 py-2">
+                                    {member.name}
+                                  </td>
+                                  <td className="border border-gray-300 px-4 py-2">
+                                    {member.rollNumber}
+                                  </td>
+                                  <td className="border border-gray-300 px-4 py-2">
+                                    {member.roomNumber}
+                                  </td>
+                                  <td className="border border-gray-300 px-4 py-2">
+                                    <Button
+                                      onClick={() => unmarkAsSMC(member._id)}
+                                      className="bg-red-500 hover:bg-red-600">
+                                      Remove SMC
+                                    </Button>
+                                  </td>
+                                </tr>
                               ))}
                           </tbody>
                         </table>
@@ -1226,7 +1354,7 @@ const Dashboard = () => {
                             {boarders
                               .filter((b) => {
                                 const notSmc = !smcMembers.find(
-                                  (smc) => smc._id === b._id
+                                  (smc) => smc._id === b._id,
                                 );
                                 if (!notSmc) return false;
                                 if (!smcSearch.trim()) return true;
@@ -1250,8 +1378,7 @@ const Dashboard = () => {
                                   <td className="border border-gray-300 px-4 py-2">
                                     <Button
                                       onClick={() => markAsSMC(boarder._id)}
-                                      className="bg-blue-500 hover:bg-blue-600"
-                                    >
+                                      className="bg-blue-500 hover:bg-blue-600">
                                       Mark as SMC
                                     </Button>
                                   </td>
@@ -1263,6 +1390,210 @@ const Dashboard = () => {
                     </div>
                   </div>
                 )}
+              </Card>
+            )}
+
+            {activeTab === "hmc" && (
+              <Card>
+                <div className="p-6 space-y-6">
+                  <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold">HMC Management</h2>
+                    <input
+                      type="text"
+                      value={hmcSearch}
+                      onChange={(e) => setHmcSearch(e.target.value)}
+                      placeholder="Search by name or roll..."
+                      className="w-64 px-3 py-1.5 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+
+                  {loading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3">
+                          Add New HMC Member
+                        </h3>
+                        <div className="flex flex-wrap items-end gap-4 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                          <div className="flex-1 min-w-[200px]">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Secretary Type
+                            </label>
+                            <select
+                              value={hmcSelectedType}
+                              onChange={(e) =>
+                                setHmcSelectedType(e.target.value)
+                              }
+                              className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm bg-white">
+                              <option value="">Select type...</option>
+                              {HMC_TYPES.map((type) => (
+                                <option key={type} value={type}>
+                                  {type}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div className="flex-1 min-w-[200px]">
+                            <label className="block text-xs font-medium text-gray-600 mb-1">
+                              Select User (Boarder)
+                            </label>
+                            <div className="ant-select-wrapper">
+                              <Select
+                                showSearch
+                                optionFilterProp="label"
+                                placeholder="Search by name or roll..."
+                                value={hmcSelectedUser || undefined}
+                                onChange={(value) => setHmcSelectedUser(value)}
+                                className="w-full"
+                                options={boarders.map((b) => ({
+                                  value: b._id,
+                                  label: `${b.name} (${b.rollNumber})`,
+                                }))}
+                                filterOption={(input, option) =>
+                                  option.label.toLowerCase().includes(input.toLowerCase())
+                                }
+                                popupMatchSelectWidth={false}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Button
+                              onClick={addHmcMember}
+                              className="bg-blue-500 hover:bg-blue-600"
+                              disabled={!hmcSelectedType || !hmcSelectedUser}>
+                              Add Member
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div>
+                        <h3 className="text-lg font-semibold mb-3">
+                          Current HMC Members ({pendingHmcMembers.length})
+                        </h3>
+                        {pendingHmcMembers.length === 0 ? (
+                          <p className="text-gray-500 text-sm p-4 border border-gray-200 rounded-lg">
+                            No HMC members configured yet. Add members using the form above.
+                          </p>
+                        ) : (
+                          <div className="overflow-x-auto">
+                            <table className="min-w-full border border-gray-300">
+                              <thead className="bg-gray-100">
+                                <tr>
+                                  <th className="border border-gray-300 px-4 py-2 text-left">
+                                    Type
+                                  </th>
+                                  <th className="border border-gray-300 px-4 py-2 text-left">
+                                    Name
+                                  </th>
+                                  <th className="border border-gray-300 px-4 py-2 text-left">
+                                    Roll Number
+                                  </th>
+                                  <th className="border border-gray-300 px-4 py-2 text-left">
+                                    Room
+                                  </th>
+                                  <th className="border border-gray-300 px-4 py-2 text-left">
+                                    Email
+                                  </th>
+                                  <th className="border border-gray-300 px-4 py-2 text-left">
+                                    Phone
+                                  </th>
+                                  <th className="border border-gray-300 px-4 py-2 text-left">
+                                    Photo
+                                  </th>
+                                  <th className="border border-gray-300 px-4 py-2 text-left">
+                                    Actions
+                                  </th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {pendingHmcMembers.map((member, index) => (
+                                  <tr key={`${member.user}-${index}`}>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      {member.type}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      {member.userData?.name || "N/A"}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      {member.userData?.rollNumber || "N/A"}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      {member.userData?.roomNumber || "N/A"}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      {member.userData?.email || "N/A"}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      {member.userData?.phoneNumber || "N/A"}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      {member.userData?.profilePictureUrl ? (
+                                        <img
+                                          src={member.userData.profilePictureUrl}
+                                          alt={member.userData?.name}
+                                          className="w-10 h-10 rounded-full object-cover"
+                                        />
+                                      ) : (
+                                        <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500">
+                                          No img
+                                        </div>
+                                      )}
+                                    </td>
+                                    <td className="border border-gray-300 px-4 py-2">
+                                      <Button
+                                        onClick={() => removeHmcMember(index)}
+                                        className="bg-red-500 hover:bg-red-600 text-sm"
+                                      >
+                                        Remove
+                                      </Button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-4 border-t border-gray-200">
+                        <p className="text-sm text-gray-500">
+                          {JSON.stringify(pendingHmcMembers) !==
+                          JSON.stringify(
+                            hmcMembers.map((m) => ({
+                              type: m.type,
+                              user: m.user._id,
+                              userData: m.user,
+                            })),
+                          ) ? (
+                            <span className="text-amber-600">
+                              You have unsaved changes
+                            </span>
+                          ) : (
+                            "No unsaved changes"
+                          )}
+                        </p>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={discardHmcChanges}
+                            disabled={hmcSaving}>
+                            Discard Changes
+                          </Button>
+                          <Button
+                            onClick={saveHMCMembers}
+                            disabled={hmcSaving}
+                            className="bg-green-600 hover:bg-green-700">
+                            {hmcSaving ? "Saving..." : "Save Changes"}
+                          </Button>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
               </Card>
             )}
           </main>

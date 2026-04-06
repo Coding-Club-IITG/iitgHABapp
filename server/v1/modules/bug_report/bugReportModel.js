@@ -46,6 +46,11 @@ const bugReportSchema = new mongoose.Schema(
       type: String,
       enum: ["always", "sometimes", "once"],
     },
+    type: {
+      type: String,
+      enum: ["bug", "suggestion"],
+      required: true,
+    },
   },
   {
     timestamps: true,

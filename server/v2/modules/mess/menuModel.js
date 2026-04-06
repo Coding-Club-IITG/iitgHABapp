@@ -44,6 +44,8 @@ const menuSchema = new mongoose.Schema({
   ],
 });
 
+menuSchema.index({ messId: 1, day: 1, type: 1 });
+
 const Menu = mongoose.model("Menu", menuSchema);
 
 module.exports = { Menu };
