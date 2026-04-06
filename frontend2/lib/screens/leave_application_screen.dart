@@ -1098,7 +1098,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     if (context.mounted) {
       // 1. Pop the upload dialog first
       if (isSuccess) {
-        Navigator.pop(context); 
+        //Required to refresh my-appications page
+        Navigator.pop(context,true); 
       }
 
       // 2. Show the Success SnackBar
