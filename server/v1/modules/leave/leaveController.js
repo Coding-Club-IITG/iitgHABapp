@@ -181,9 +181,9 @@ const applyForLeave = async (req, res) => {
 
     //numberofdays business logic
 
-    if (numberOfDays < 4) {
+    if (numberOfDays < 3) {
       return res.status(400).json({
-        message: "Number of days must be greater than 4",
+        message: "Number of days must be greater than or equal to 3",
       });
     }
 
@@ -195,7 +195,7 @@ const applyForLeave = async (req, res) => {
 
     let eligibleDays = 0;
     //Calculation of eligible days
-    if (numberOfDays >= 4) {
+    if (numberOfDays >= 3) {
       eligibleDays = numberOfDays;
     }
 
