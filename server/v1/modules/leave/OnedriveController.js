@@ -150,7 +150,7 @@ const uploadFilesToOnedrive = async (req, res, next) => {
     );
 
     req.uploadedDocuments.proofDocument = await processUpload(req.user._id, req.files['proofDocument'], 'proofdocument');
-    req.uploadedDocuments.hostelLeaveDocument = await processUpload(req.user._id, req.files['hostelLeaveForm'], 'hostelleaveform');
+    req.uploadedDocuments.leaveDocument = await processUpload(req.user._id, req.files['leaveDocument'], 'leavedocument');
     
     console.log("OneDrive uploads successful",req.uploadedDocuments);
     next();
@@ -183,8 +183,11 @@ async function uploadSingleToOnedrive(req, res, next) {
     }
 
     const ext = extFromMime(file.mimetype);
+    const uniqueSuffix = Math.round(Math.random() * 1e9);
+
     const timeStamp = Date.now();
-    const targetName = `leave-${req.user._id}-${timeStamp}-${file.originalname}`;
+  // Dynamic target name based on the prefix passed in
+  const targetName = `leavedocument-${req.user._id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
 
     // Delegated token required to use /me/drive
     const token = await requireDelegatedToken();

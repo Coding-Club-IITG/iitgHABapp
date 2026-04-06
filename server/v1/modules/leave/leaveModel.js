@@ -46,7 +46,7 @@ const leaveSchema = new mongoose.Schema({
         type: String,
         required: false,
     },
-    leaveFormUrl: {
+    leaveDocumentUrl: {
         type: String,
         required: true,
     },
