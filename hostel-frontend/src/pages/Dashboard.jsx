@@ -14,6 +14,7 @@ import MessBillCalculator from "../components/MessBillCalculator";
 import BoardersTab from "../components/dashboard/BoardersTab";
 import SubscribersTab from "../components/dashboard/SubscribersTab";
 import SMCTab from "../components/dashboard/SMCTab";
+import HMCTab from "../components/dashboard/HMCTab";
 import CleanersTab from "../components/dashboard/CleanersTab";
 import LaundryTab from "../components/dashboard/LaundryTab";
 import MessWorkersTab from "../components/dashboard/MessWorkersTab";
@@ -27,6 +28,7 @@ const Dashboard = () => {
     { label: "Boarders", value: "boarders", icon: Users },
     { label: "Mess Subscribers", value: "subscribers", icon: Building2 },
     { label: "SMC Management", value: "smc", icon: UserCheck },
+    { label: "HMC Management", value: "hmc", icon: UserCheck },
     { label: "Room Cleaners", value: "cleaners", icon: Users },
     { label: "Laundry", value: "laundry", icon: Shirt },
     { label: "Bill", value: "bill", icon: Receipt },
@@ -41,6 +43,8 @@ const Dashboard = () => {
         return <SubscribersTab user={user} />;
       case "smc":
         return <SMCTab />;
+      case "hmc":
+        return <HMCTab />;
       case "cleaners":
         return <CleanersTab />;
       case "laundry":
@@ -72,13 +76,11 @@ const Dashboard = () => {
             }}
             className={`bg-white border border-gray-100 rounded-lg shadow-sm p-3 transition-all duration-200 flex flex-col overflow-hidden ${
               sidebarOpen ? "w-72" : "w-16"
-            }`}
-          >
+            }`}>
             <div
               className={`flex items-center ${
                 sidebarOpen ? "justify-between" : "justify-center"
-              } mb-6`}
-            >
+              } mb-6`}>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => setSidebarOpen((v) => !v)}
@@ -89,8 +91,7 @@ const Dashboard = () => {
                     xmlns="http://www.w3.org/2000/svg"
                     className="w-5 h-5 text-gray-700"
                     viewBox="0 0 20 20"
-                    fill="currentColor"
-                  >
+                    fill="currentColor">
                     <path
                       fillRule="evenodd"
                       d="M3 5h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2zm0 4h14a1 1 0 010 2H3a1 1 0 010-2z"
@@ -116,7 +117,7 @@ const Dashboard = () => {
                   <button
                     key={tab.value}
                     onClick={() => setActiveTab(tab.value)}
-                    className={`flex items-center ${
+                    className={`sidebar-tab-btn flex items-center ${
                       sidebarOpen
                         ? "gap-3 px-3"
                         : "justify-center px-0 mx-0"
@@ -139,11 +140,11 @@ const Dashboard = () => {
             >
               <button
                 onClick={() => logout()}
-                className={
+                className={`sidebar-logout-btn ${
                   sidebarOpen
                     ? "w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-100 rounded-md py-2 text-sm transition-colors"
                     : "w-10 h-10 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors shrink-0"
-                }
+                }`}
                 title="Logout"
               >
                 <LogOut className="w-5 h-5 shrink-0" />

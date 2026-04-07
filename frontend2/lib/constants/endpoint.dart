@@ -29,6 +29,10 @@ class HostelEndpoint {
   static const String getitem = '$baseUrl/hostel/';
 }
 
+class HmcEndpoints {
+  static const String getHmcMembers = '$baseUrl/hostel/hmc-members';
+}
+
 class AuthEndpoints {
   // For initial Microsoft login - redirects through backend
   static String get getAccess =>

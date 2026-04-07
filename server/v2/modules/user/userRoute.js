@@ -1,116 +1,62 @@
 const express = require("express");
-const { authenticateJWT } = require("../../middleware/authenticateJWT.js");
+const {
+  authenticateJWT,
+  authenticateHabJWT,
+  authenticateUserOrAdminJWT,
+  authenticateMessManagerJWT,
+} = require("../../middleware/authenticateJWT.js");
 
 const {
   getUserData,
-  createUser,
-  // deleteUser,
-  // updateUser,
   saveUserProfile,
-  // getUserComplaints,
-  // getEmailsOfHABUsers,
-  // getEmailsOfSecyUsers,
-  getUserByRoll,
   getAllUsers,
-  getUsersByHostelForMess,
+  getUserCount,
+  deleteUserAccount,
+  getUserForManager,
 } = require("./userController.js");
 
 const userRouter = express.Router();
 
-/**
- * @swagger
- * /api/users:
- *   post:
- *     summary: "Create a new user"
- *     tags: ["User"]
- *     description: "Creates a new user in the system and returns JWT token"
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - name
- *               - rollNumber
- *               - email
- *             properties:
- *               name:
- *                 type: string
- *                 example: "John Doe"
- *               rollNumber:
- *                 type: string
- *                 example: "210101001"
- *               email:
- *                 type: string
- *                 format: email
- *                 example: "john.doe@iitg.ac.in"
- *               degree:
- *                 type: string
- *                 example: "B.Tech"
- *               year:
- *                 type: number
- *                 example: 3
- *               phoneNumber:
- *                 type: string
- *                 example: "+91 9876543210"
- *               roomNumber:
- *                 type: string
- *                 example: "A-101"
- *     responses:
- *       201:
- *         description: "User created successfully"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "User created successfully"
- *                 token:
- *                   type: string
- *                   description: "JWT token for authentication"
- *                   example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
- *                 user:
- *                   $ref: '#/components/schemas/User'
- *       400:
- *         description: "User already exists"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "User already exists"
- *       500:
- *         description: "Server error"
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 message:
- *                   type: string
- *                   example: "Error creating user"
- *                 error:
- *                   type: object
- *                   description: "Error details"
- */
-userRouter.post("/", createUser);
-//
-// userRouter.get('/roll/:roll', getUserByRoll);
-
-userRouter.get("/", authenticateJWT, getUserData);
-
-// userRouter.delete("/:outlook", authenticateJWT, deleteUser);
-
-// userRouter.put("/:outlook", authenticateJWT, updateUser);
+userRouter.get("/", authenticateUserOrAdminJWT, getUserData);
 
 userRouter.post("/save", authenticateJWT, saveUserProfile);
 
-userRouter.get("/roll/:qr", getUserByRoll); //removed authenticateJWT from here
+userRouter.get("/count", getUserCount);
+
+/**
+ * @swagger
+ * /api/users/account:
+ *   delete:
+ *     summary: "Delete user account"
+ *     tags: ["User"]
+ *     description: "Deletes the authenticated user's account. Anonymizes historical data and removes user completely."
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "Account deleted successfully"
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Account deleted successfully"
+ *                 note:
+ *                   type: string
+ *                   example: "Your account has been deleted. Historical data has been anonymized for institutional records."
+ *       400:
+ *         description: "Cannot delete account (pending mess change)"
+ *       403:
+ *         description: "Cannot delete account (SMC member)"
+ *       500:
+ *         description: "Server error"
+ */
+userRouter.delete("/account", authenticateJWT, deleteUserAccount);
 
 /**
  * @swagger
@@ -170,13 +116,13 @@ userRouter.get("/roll/:qr", getUserByRoll); //removed authenticateJWT from here
  *                   type: string
  *                   example: "Error fetching users"
  */
-userRouter.get("/all", getAllUsers);
+userRouter.get("/all/hab", authenticateHabJWT, getAllUsers);
 
-// Get users by hostel for mess subscription
-userRouter.get("/mess-subscribers/:hostelId", getUsersByHostelForMess);
-
-// userRouter.get('/complaints/:outlook', getUserComplaints);
-// userRouter.get('/habmails', getEmailsOfHABUsers);
-// userRouter.get('/welfaresecymails', getEmailsOfSecyUsers);
+// Mess-manager (HABit HQ): fetch user profile by ID
+userRouter.get(
+  "/manager/:userId",
+  authenticateMessManagerJWT,
+  getUserForManager,
+);
 
 module.exports = userRouter;
