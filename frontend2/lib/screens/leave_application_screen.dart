@@ -135,26 +135,86 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'png'],
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['pdf', 'jpg', 'png'],
+  );
+
+  if (result == null) return;
+
+  final pickedFile = result.files.first;
+  const int maxSizeBytes = 5 * 1024 * 1024; // 5 MB
+
+  if (pickedFile.size > maxSizeBytes) {
+    // 1. Show the error
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('File size must be less than 5 MB'),
+        duration: Duration(seconds: 3),
+      ),
     );
-    if (result != null) {
-      setState(() => _pickedFile = result.files.first);
-    }
+    
+    // 2. Clear the selection (Optional: ensure UI resets if a valid file was there before)
+    setState(() => _pickedFile = null);
+    return; 
   }
+
+  // 3. Only update state if the file is valid
+  setState(() => _pickedFile = pickedFile);
+}
 
   Future<void> _pickFileLeaveForm() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'png'],
     );
-    if (result != null) {
-      setState(() => _pickedFileLeaveForm = result.files.first);
+    if (result == null) return;
+
+    final pickedFile = result.files.first;
+  const int maxSizeBytes = 5 * 1024 * 1024; // 5 MB
+
+  if (pickedFile.size > maxSizeBytes) {
+    // 1. Show the error
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('File size must be less than 5 MB'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+    
+    // 2. Clear the selection (Optional: ensure UI resets if a valid file was there before)
+    setState(() => _pickedFile = null);
+    return; 
+  }
+
+    setState(() => _pickedFileLeaveForm = pickedFile);
+
+  }
+
+
+  Future<bool> _sendRequest() async {
+
+    if ( _pickedFileLeaveForm == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please select both the Proof Document and the Leave Form'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+    return false; // Exit early
+  }
+  else if(_pickedFile == null ) {
+    if(_selectedValue == 1 || _selectedValue == 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please select both the Proof Document and the Leave Form'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+    return false; // Exit early
     }
   }
 
-  Future<bool> _sendRequest() async {
     final accessToken = await getAccessToken();
     final dio = DioClient().dio;
 

@@ -201,8 +201,20 @@ class _LeaveApplicationListScreenState
       allowedExtensions: ['pdf', 'jpg', 'png'],
     );
     if (result == null) return;
+
+    
     final pickedFile = result.files.first;
     if (pickedFile.path == null) return;
+
+    const int maxSizeBytes = 5 * 1024 * 1024; // 5 MB
+    if (pickedFile.size > maxSizeBytes) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('File size must be less than 5 MB'), // Optional: makes the error stand out
+        ),
+      );
+      return; // Stop the execution
+    }
 
     final accessToken = await getAccessToken();
     if (accessToken == 'error') {
@@ -1143,10 +1155,10 @@ class _LeaveApplicationListScreenState
                                                     const Text(
                                                       "Maximum file size: 5 MB",
                                                       style: TextStyle(
-                                                        fontSize: 13,
+                                                        fontSize: 16,
                                                         color: Color(0xFF4C4EDB),
                                                         fontWeight:
-                                                            FontWeight.w400,
+                                                            FontWeight.w500,
                                                       ),
                                                     ),
                                                   ],
