@@ -14,7 +14,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 class LeaveApplicationScreen extends StatefulWidget {
   const LeaveApplicationScreen({super.key, required this.leaveType});
   final int? leaveType;
-  
+
   @override
   State<LeaveApplicationScreen> createState() => _LeaveApplicationScreenState();
 }
@@ -28,6 +28,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   static const Color _greyBg = Color(0xFFF5F5F5);
   static const Color _greyText = Color(0xFF939393);
   final FocusNode _reasonFocusNode = FocusNode();
+  static const double _rebatePerDay = 119.0;
 
   // State variables
   int? _selectedValue; // 1: Casual, 2: Academic, 3:Medical
@@ -219,6 +220,11 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         1;
   }
 
+  double _calculateTotalRebate() {
+    int days = _calculateLeaveDays();
+    return days*_rebatePerDay;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -340,7 +346,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     },
                     decoration: InputDecoration(
                       hintText: "e.g. Trip to home",
-                      hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+                      hintStyle:
+                          const TextStyle(color: _greyText, fontSize: 14),
                       filled: true,
                       fillColor: fillColor,
                       suffixIcon: suffixIcon,
@@ -357,8 +364,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                         borderSide:
                             const BorderSide(color: _primaryColor, width: 2),
                       ),
-                      contentPadding:
-                          const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 14),
                     ),
                   );
                 },
@@ -451,6 +458,16 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                             ],
                           ),
                         ),
+                ),
+              ),
+
+              const SizedBox(height: 4), // Small spacing
+              const Text(
+                "Maximum file size: 5 MB",
+                style: TextStyle(
+                  fontSize: 13,
+                  color: _primaryColor,
+                  fontWeight: FontWeight.w400,
                 ),
               ),
 
@@ -559,7 +576,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
-                      "You will receive a rebate of ₹XXXX per day on approved mess leave.",
+                      "You will receive a rebate of ₹${_rebatePerDay.toStringAsFixed(0)} per day on approved mess leave.",
                       style: TextStyle(
                         fontSize: 12,
                         color: Colors.grey[600],
@@ -608,275 +625,286 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     int leaveDays = _calculateLeaveDays();
 
     return Stack(
-      children:[
+      children: [
         Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          _buildProgressHeader(2),
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Info Box
-                Container(
-                  decoration: BoxDecoration(
-                    color: _successBgColor,
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        "Leave days taken: $leaveDays",
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.black,
-                        ),
-                      ),
-                      const Text(
-                        "500 Rupee",
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: _successColor,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                const SizedBox(height: 24),
-
-                const Text(
-                "Upload Leave Form",
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 4),
-              const Text(
-                "Proof can be travel ticket or parents consent with signature or medical certificate depending on the type of leave.",
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF535353),
-                ),
-              ),
-              const SizedBox(height: 8),
-              GestureDetector(
-                onTap: _pickFileLeaveForm,
-                child: Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: _borderColor),
-                    borderRadius: BorderRadius.circular(12),
-                    color: Colors.white,
-                  ),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-                  child: _pickedFileLeaveForm == null
-                      ? Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SvgPicture.asset(
-                              'assets/icon/download-2-line.svg',
-                              color: _primaryColor,
-                              width: 20,
-                              height: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              "Upload a PDF",
-                              style: TextStyle(
-                                fontSize: 14,
-                                fontWeight: FontWeight.w500,
-                                color: _primaryColor,
-                              ),
-                            ),
-                          ],
-                        )
-                      : Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: Colors.grey.shade300),
-                          ),
-                          child: Row(
-                            children: [
-                              SvgPicture.asset(
-                                'assets/icon/file-upload.svg',
-                                color: _primaryColor,
-                                width: 20,
-                                height: 20,
-                              ),
-                              const SizedBox(width: 10),
-
-                              /// File name
-                              Expanded(
-                                child: Text(
-                                  _pickedFileLeaveForm!.name,
-                                  style: const TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-
-                              /// Green check
-                              SvgPicture.asset(
-                                'assets/icon/check.svg',
-                                color: Colors.green,
-                              ),
-                            ],
-                          ),
-                        ),
-                ),
-              ),
-
-                // Bank Details
-                const SizedBox(height: 24),
-                const Text(
-                "Add receiver's bank details.",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.black,
-                  ),
-                ),
-                const SizedBox(height: 24),
-                _buildBankField("Bank Holder Name", _accountHolderController,
-                    "e.g. Raj Kumar"),
-                const SizedBox(height: 16),
-                _buildBankField(
-                    "Bank Name", _bankNameController, "e.g. Raj Kumar"),
-                const SizedBox(height: 16),
-                _buildBankField("Bank Account Number", _accountNumberController,
-                    "eg. 123542332"),
-                const SizedBox(height: 16),
-                _buildBankField("IFSC Code", _ifscController, "e.g. UTIB0000000"),
-      
-                // Save Details link
-                const SizedBox(height: 24),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: InkWell(
-                    onTap: _saveBankDetails,
-                    borderRadius: BorderRadius.circular(8),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildProgressHeader(2),
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Info Box
+                  Container(
+                    decoration: BoxDecoration(
+                      color: _successBgColor,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 12),
                     child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(
-                          _isBankSaved ? Icons.bookmark : Icons.bookmark_border,
-                          color: _primaryColor,
-                          size: 22,
-                        ),
-                        const SizedBox(width: 6),
                         Text(
-                          _isBankSaved ? "Saved" : "Save details",
+                          "Leave days taken: $leaveDays",
                           style: const TextStyle(
-                            color: _primaryColor,
-                            fontWeight: FontWeight.w500,
+                            fontSize: 12,
+                            color: Colors.black,
+                          ),
+                        ),
+                        Text(
+                          "₹${_calculateTotalRebate().toStringAsFixed(0)}",
+                          style: TextStyle(
                             fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                            color: _successColor,
                           ),
                         ),
                       ],
                     ),
                   ),
-                ),
-      
-                // Checkbox
-                const SizedBox(height: 16),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Checkbox(
-                      value: _agreeToTerms,
-                      onChanged: (val) =>
-                          setState(() => _agreeToTerms = val ?? false),
+
+                  const SizedBox(height: 24),
+
+                  const Text(
+                    "Upload Leave Form",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
                     ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text(
-                          "I am aware, If I take a mess rebate, I won't be able to eat in mess during those days.",
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[700],
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    "Proof can be travel ticket or parents consent with signature or medical certificate depending on the type of leave.",
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Color(0xFF535353),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  GestureDetector(
+                    onTap: _pickFileLeaveForm,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: _borderColor),
+                        borderRadius: BorderRadius.circular(12),
+                        color: Colors.white,
+                      ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 20),
+                      child: _pickedFileLeaveForm == null
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                SvgPicture.asset(
+                                  'assets/icon/download-2-line.svg',
+                                  color: _primaryColor,
+                                  width: 20,
+                                  height: 20,
+                                ),
+                                const SizedBox(width: 8),
+                                const Text(
+                                  "Upload a PDF",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: _primaryColor,
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 14),
+                              decoration: BoxDecoration(
+                                color: Colors.grey.shade100,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: Colors.grey.shade300),
+                              ),
+                              child: Row(
+                                children: [
+                                  SvgPicture.asset(
+                                    'assets/icon/file-upload.svg',
+                                    color: _primaryColor,
+                                    width: 20,
+                                    height: 20,
+                                  ),
+                                  const SizedBox(width: 10),
+
+                                  /// File name
+                                  Expanded(
+                                    child: Text(
+                                      _pickedFileLeaveForm!.name,
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+
+                                  /// Green check
+                                  SvgPicture.asset(
+                                    'assets/icon/check.svg',
+                                    color: Colors.green,
+                                  ),
+                                ],
+                              ),
+                            ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 4), // Small spacing
+                  const Text(
+                    "Maximum file size: 5 MB",
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: _primaryColor,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+
+                  // Bank Details
+                  const SizedBox(height: 24),
+                  const Text(
+                    "Add receiver's bank details.",
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w500,
+                      color: Colors.black,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  _buildBankField("Bank Holder Name", _accountHolderController,
+                      "e.g. Raj Kumar"),
+                  const SizedBox(height: 16),
+                  _buildBankField(
+                      "Bank Name", _bankNameController, "e.g. Raj Kumar"),
+                  const SizedBox(height: 16),
+                  _buildBankField("Bank Account Number",
+                      _accountNumberController, "eg. 123542332"),
+                  const SizedBox(height: 16),
+                  _buildBankField(
+                      "IFSC Code", _ifscController, "e.g. UTIB0000000"),
+
+                  // Save Details link
+                  const SizedBox(height: 24),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: InkWell(
+                      onTap: _saveBankDetails,
+                      borderRadius: BorderRadius.circular(8),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isBankSaved
+                                ? Icons.bookmark
+                                : Icons.bookmark_border,
+                            color: _primaryColor,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            _isBankSaved ? "Saved" : "Save details",
+                            style: const TextStyle(
+                              color: _primaryColor,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Checkbox
+                  const SizedBox(height: 16),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Checkbox(
+                        value: _agreeToTerms,
+                        onChanged: (val) =>
+                            setState(() => _agreeToTerms = val ?? false),
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8),
+                          child: Text(
+                            "I am aware, If I take a mess rebate, I won't be able to eat in mess during those days.",
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey[700],
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                  ],
-                ),
-      
-                const SizedBox(height: 40),
+                    ],
+                  ),
 
-              ],
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
-          ),
-          _buildBottomButtons(
-            onNext: () async {
-              final now = DateTime.now();
-              if (_lastSubmitTime != null &&
-                  now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
-                return;
-              }
-              _lastSubmitTime = now;
-                
-              if (_isSubmitting) return;
-              if (!_validateStep2()) return;
-              setState(() {
-                _isSubmitting = true;
-              });
-                
-               bool success = false;
-                
-              try {
-                success = await _sendRequest();
-              } catch (e) {
-                success = false;
-              }
-                
-              if (mounted) {
+            _buildBottomButtons(
+              onNext: () async {
+                final now = DateTime.now();
+                if (_lastSubmitTime != null &&
+                    now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
+                  return;
+                }
+                _lastSubmitTime = now;
+
+                if (_isSubmitting) return;
+                if (!_validateStep2()) return;
                 setState(() {
-                  _isSubmitting = false;
+                  _isSubmitting = true;
                 });
-                _showStatusDialog(
-                  isSuccess: success,
-                  title: success ? "Success" : "Failure",
-                  message: success
-                      ? "Application sent successfully!"
-                      : "Something went wrong. Please check your connection and try again.",
-                );
-              }
-          },
-            showBack: true,
-            nextLabel: "Submit",
-          ),
-        ],
-      ),
-      if (_isSubmitting)
-        Positioned.fill(
-          child: AbsorbPointer(
-            absorbing: true, // blocks all touches
-            child: Container(
-              color: Colors.black.withOpacity(0.5),
-              child: Center(
-                child: CircularProgressIndicator(
-                  color: _primaryColor,
+
+                bool success = false;
+
+                try {
+                  success = await _sendRequest();
+                } catch (e) {
+                  success = false;
+                }
+
+                if (mounted) {
+                  setState(() {
+                    _isSubmitting = false;
+                  });
+                  _showStatusDialog(
+                    isSuccess: success,
+                    title: success ? "Success" : "Failure",
+                    message: success
+                        ? "Application sent successfully!"
+                        : "Something went wrong. Please check your connection and try again.",
+                  );
+                }
+              },
+              showBack: true,
+              nextLabel: "Submit",
+            ),
+          ],
+        ),
+        if (_isSubmitting)
+          Positioned.fill(
+            child: AbsorbPointer(
+              absorbing: true, // blocks all touches
+              child: Container(
+                color: Colors.black.withOpacity(0.5),
+                child: Center(
+                  child: CircularProgressIndicator(
+                    color: _primaryColor,
+                  ),
                 ),
               ),
             ),
           ),
-        ),
-
       ],
     );
   }
@@ -928,82 +956,82 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   Widget _buildBankField(
-  String label,
-  TextEditingController controller,
-  String hint,
-) {
-  final focusNode = FocusNode();
+    String label,
+    TextEditingController controller,
+    String hint,
+  ) {
+    final focusNode = FocusNode();
 
-  return StatefulBuilder(
-    builder: (context, setState) {
-      bool isFocused = focusNode.hasFocus;
-      bool isFilled = controller.text.isNotEmpty;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        bool isFocused = focusNode.hasFocus;
+        bool isFilled = controller.text.isNotEmpty;
 
-      Color borderColor = _borderColor;
-      Color fillColor = _greyBg;
-      Widget? suffixIcon;
+        Color borderColor = _borderColor;
+        Color fillColor = _greyBg;
+        Widget? suffixIcon;
 
-      if (isFocused) {
-        // Focused state
-        borderColor = _primaryColor;
-        fillColor = _primaryColor.withOpacity(0.08);
-      } else if (isFilled) {
-        //Completed state
-        borderColor = _borderColor;
-        fillColor = _greyBg;
-        suffixIcon = const Icon(Icons.check, color: Colors.green);
-      }
+        if (isFocused) {
+          // Focused state
+          borderColor = _primaryColor;
+          fillColor = _primaryColor.withOpacity(0.08);
+        } else if (isFilled) {
+          //Completed state
+          borderColor = _borderColor;
+          fillColor = _greyBg;
+          suffixIcon = const Icon(Icons.check, color: Colors.green);
+        }
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.black,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: controller,
-            focusNode: focusNode,
-            onChanged: (_) {
-              setState(() {});
-              _onFieldChanged();
-            },
-            onSubmitted: (_) {
-              FocusScope.of(context).unfocus(); // simulate "enter"
-              setState(() {});
-            },
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: const TextStyle(color: _greyText, fontSize: 14),
-              filled: true,
-              fillColor: fillColor,
-              suffixIcon: suffixIcon,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: borderColor, width: 1),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              focusNode: focusNode,
+              onChanged: (_) {
+                setState(() {});
+                _onFieldChanged();
+              },
+              onSubmitted: (_) {
+                FocusScope.of(context).unfocus(); // simulate "enter"
+                setState(() {});
+              },
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+                filled: true,
+                fillColor: fillColor,
+                suffixIcon: suffixIcon,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: borderColor, width: 1),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: borderColor, width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: _primaryColor, width: 2),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: borderColor, width: 1),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _primaryColor, width: 2),
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
-          ),
-        ],
-      );
-    },
-  );
-}
+          ],
+        );
+      },
+    );
+  }
 
   Widget _buildBottomButtons({
     required VoidCallback onNext,
@@ -1044,7 +1072,11 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             child: ElevatedButton(
               onPressed: onNext,
               style: ElevatedButton.styleFrom(
-                backgroundColor: (_currentStep==1) ? _primaryColor : (_agreeToTerms ? _primaryColor : Color.fromARGB(80, 76, 78, 219)),
+                backgroundColor: (_currentStep == 1)
+                    ? _primaryColor
+                    : (_agreeToTerms
+                        ? _primaryColor
+                        : Color.fromARGB(80, 76, 78, 219)),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
@@ -1099,7 +1131,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       // 1. Pop the upload dialog first
       if (isSuccess) {
         //Required to refresh my-appications page
-        Navigator.pop(context,true); 
+        Navigator.pop(context, true);
       }
 
       // 2. Show the Success SnackBar
@@ -1123,7 +1155,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         ),
       );
     }
-    
+
 //   showDialog(
 //     context: context,
 //     builder: (BuildContext context) {
@@ -1153,7 +1185,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 //                 ),
 //               ),
 //               const SizedBox(height: 24),
-              
+
 //               // Text Content
 //               Text(
 //                 title,
@@ -1176,7 +1208,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 //                 ),
 //               ),
 //               const SizedBox(height: 32),
-              
+
 //               // Minimalist Primary Button
 //               SizedBox(
 //                 width: double.infinity,
