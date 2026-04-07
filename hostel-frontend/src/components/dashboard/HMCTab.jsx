@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { Select } from "antd";
-import { API_BASE_URL } from "../../apis";
+import { API_BASE_URL } from "../../apis/client";
 import { getBoarders as apiGetBoarders } from "../../apis/hostelApi";
 import Card from "../ui/Card";
 import Button from "../ui/Button";

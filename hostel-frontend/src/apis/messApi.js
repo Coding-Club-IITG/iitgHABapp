@@ -26,3 +26,10 @@ export const fetchMessBill = async (hostelId, month, year) => {
   });
   return response.data;
 };
+
+export const getRebateSummary = async (month, year) => {
+  const response = await apiClient.get('/leave/hostel/rebate-summary', {
+    params: { month, year }
+  });
+  return response.data;
+};

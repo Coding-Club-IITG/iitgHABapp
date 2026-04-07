@@ -3,7 +3,7 @@ import { message } from "antd";
 import Swal from "sweetalert2";
 import withReactContent from "sweetalert2-react-content";
 import { getMessSubscribers } from "../apis/hostelApi";
-import { getMessWorkers, generateMessBill, fetchMessBill } from "../apis/messApi";
+import { getMessWorkers, generateMessBill, fetchMessBill, getRebateSummary } from "../apis/messApi";
 
 const MySwal = withReactContent(Swal);
 
@@ -120,6 +120,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
           operatingDays: existingBill.operatingDays ?? prev.operatingDays,
           shutdownDate: existingBill.shutdownDate ?? prev.shutdownDate,
           totalSubscribersOffset: existingBill.totalSubscribersOffset ?? 0,
+          rebateDays: existingBill.rebateDays ?? prev.rebateDays,
           rebateDaysOffset: existingBill.rebateDaysOffset ?? 0,
           miscDeduction: existingBill.miscDeduction ?? 0,
         }));
@@ -165,9 +166,16 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
     try {
       setLoading(true);
       setError("");
-      const [subscribersData, workersData] = await Promise.all([
+      const fetchMonth = selectedMonth + 1;
+      const fetchYear = selectedYear;
+
+      const [subscribersData, workersData, rebateData] = await Promise.all([
         getMessSubscribers(),
         getMessWorkers(),
+        getRebateSummary(fetchMonth, fetchYear).catch(err => {
+          console.error("Failed to fetch rebate summary:", err);
+          return { rebateSummary: { totalRebateDays: 0 } };
+        })
       ]);
 
       const initialAttendances = {};
@@ -180,6 +188,7 @@ const MessBillCalculator = ({ hostelId, hostelName }) => {
       setBillData((prev) => ({
         ...prev,
         totalSubscribers: subscribersData.length || 0,
+        rebateDays: rebateData?.rebateSummary?.totalRebateDays || 0,
       }));
 
       await checkBillStatus();
