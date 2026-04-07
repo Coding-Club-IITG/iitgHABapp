@@ -1,15 +1,7 @@
-const { Mess } = require("./messModel");
 const { Menu } = require("./menuModel");
 const { MenuItem } = require("./menuItemModel");
-const { User } = require("../user/userModel");
-const { Hostel } = require("../hostel/hostelModel");
-const { ScanLogs } = require("./ScanLogsModel.js");
-const mongoose = require("mongoose");
-const {
-  getCurrentDate,
-  getCurrentTime,
-  getCurrentDay,
-} = require("../../utils/date.js");
+
+const redisClient = require("../../utils/redisClient.js");
 
 const getMessMenuByDayForAdmin = async (req, res) => {
   try {
@@ -18,30 +10,52 @@ const getMessMenuByDayForAdmin = async (req, res) => {
     if (!messId || !day) {
       return res.status(400).json({ message: "Mess ID and day are required" });
     }
-    const allMenus = await Menu.find({});
-    const menu = await Menu.find({ messId: messId, day: day }); //FIX THIS! PUT MESS ID AS WELL
-    if (!menu || menu.length === 0) {
-      return res.status(200).json("DoesntExist");
-    }
 
-    const populatedMenus = [];
+    const cacheKey = `menu_${messId}_${day}`;
+    let populatedMenus = await redisClient.get(cacheKey);
+    if (populatedMenus) populatedMenus = JSON.parse(populatedMenus);
 
-    for (let i = 0; i < menu.length; i++) {
-      const menuObj = menu[i].toObject();
-      const menuItems = menuObj.items;
-      const menuItemDetails = await MenuItem.find({ _id: { $in: menuItems } });
-
-      const updatedMenuItems = menuItemDetails.map((item) => {
-        const itemObj = item.toObject();
-        //itemObj.isLiked = item.likes.includes(userId);
-        return itemObj;
+    if (!populatedMenus) {
+      const menu = await Menu.find({ messId: messId, day: day }).sort({
+        startTime: 1,
       });
+      if (!menu || menu.length === 0) {
+        return res.status(200).json("DoesntExist");
+      }
 
-      menuObj.items = updatedMenuItems;
-      populatedMenus.push(menuObj);
+      populatedMenus = await Promise.all(
+        menu.map(async (m) => {
+          const menuObj = m.toObject();
+          const menuItems = menuObj.items;
+          const menuItemDetails = await MenuItem.find({
+            _id: { $in: menuItems },
+          }).lean();
+
+          menuObj.items = menuItemDetails;
+          return menuObj;
+        }),
+      );
+      await redisClient.set(
+        cacheKey,
+        JSON.stringify(populatedMenus),
+        "EX",
+        86400,
+      );
     }
 
-    return res.status(200).json(populatedMenus);
+    const specificMenus = populatedMenus.map((m) => {
+      const mClone = { ...m };
+      mClone.items = m.items.map((item) => {
+        return {
+          ...item,
+          likesCount: item.likes ? item.likes.length : 0,
+          likes: undefined,
+        };
+      });
+      return mClone;
+    });
+
+    return res.status(200).json(specificMenus);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -63,6 +77,10 @@ const modifyMenuItem = async (req, res) => {
     menuItem.name = name || menuItem.name;
 
     await menuItem.save();
+    const menu = await Menu.findOne({ items: _Id });
+    if (menu) {
+      await redisClient.del(`menu_${menu.messId}_${menu.day}`);
+    }
 
     return res
       .status(200)
@@ -114,6 +132,7 @@ const updateTime = async (req, res) => {
     menu.endTime = end;
 
     await menu.save();
+    await redisClient.del(`menu_${messId}_${day}`);
 
     return res
       .status(200)
@@ -128,7 +147,8 @@ const updateTime = async (req, res) => {
 const updateTimeSMC = async (req, res) => {
   try {
     const user = req.user;
-    if (!user?.isSMC) {
+    const isAuthorized = (user && user.isSMC) || !!req.hostel;
+    if (!isAuthorized) {
       return res
         .status(403)
         .json({ message: "Unauthorized: User is not an SMC member" });
@@ -172,6 +192,7 @@ const updateTimeSMC = async (req, res) => {
     menu.startTime = start;
     menu.endTime = end;
     await menu.save();
+    await redisClient.del(`menu_${messId}_${day}`);
 
     return res
       .status(200)
@@ -194,34 +215,58 @@ const getMessMenuByDayForSMC = async (req, res) => {
     }
 
     // Verify user is SMC
-    if (!user.isSMC) {
+    const isAuthorized = (user && user.isSMC) || !!req.hostel;
+    if (!isAuthorized) {
       return res.status(403).json({
         message: "Unauthorized: User is not an SMC member",
       });
     }
 
-    const menu = await Menu.find({ messId: messId, day: day });
-    if (!menu || menu.length === 0) {
-      return res.status(200).json("DoesntExist");
-    }
+    const cacheKey = `menu_${messId}_${day}`;
+    let populatedMenus = await redisClient.get(cacheKey);
+    if (populatedMenus) populatedMenus = JSON.parse(populatedMenus);
 
-    const populatedMenus = [];
-
-    for (let i = 0; i < menu.length; i++) {
-      const menuObj = menu[i].toObject();
-      const menuItems = menuObj.items;
-      const menuItemDetails = await MenuItem.find({ _id: { $in: menuItems } });
-
-      const updatedMenuItems = menuItemDetails.map((item) => {
-        const itemObj = item.toObject();
-        return itemObj;
+    if (!populatedMenus) {
+      const menu = await Menu.find({ messId: messId, day: day }).sort({
+        startTime: 1,
       });
+      if (!menu || menu.length === 0) {
+        return res.status(200).json("DoesntExist");
+      }
 
-      menuObj.items = updatedMenuItems;
-      populatedMenus.push(menuObj);
+      populatedMenus = await Promise.all(
+        menu.map(async (m) => {
+          const menuObj = m.toObject();
+          const menuItems = menuObj.items;
+          const menuItemDetails = await MenuItem.find({
+            _id: { $in: menuItems },
+          }).lean();
+
+          menuObj.items = menuItemDetails;
+          return menuObj;
+        }),
+      );
+      await redisClient.set(
+        cacheKey,
+        JSON.stringify(populatedMenus),
+        "EX",
+        86400,
+      );
     }
 
-    return res.status(200).json(populatedMenus);
+    const specificMenus = populatedMenus.map((m) => {
+      const mClone = { ...m };
+      mClone.items = m.items.map((item) => {
+        return {
+          ...item,
+          likesCount: item.likes ? item.likes.length : 0,
+          likes: undefined,
+        };
+      });
+      return mClone;
+    });
+
+    return res.status(200).json(specificMenus);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -236,7 +281,8 @@ const modifyMenuItemSMC = async (req, res) => {
     const user = req.user; // From authenticateJWT
 
     // Verify user is SMC
-    if (!user.isSMC) {
+    const isAuthorized = (user && user.isSMC) || !!req.hostel;
+    if (!isAuthorized) {
       return res.status(403).json({
         message: "Unauthorized: User is not an SMC member",
       });
@@ -249,6 +295,10 @@ const modifyMenuItemSMC = async (req, res) => {
     menuItem.name = name || menuItem.name;
 
     await menuItem.save();
+    const menu = await Menu.findOne({ items: _Id });
+    if (menu) {
+      await redisClient.del(`menu_${menu.messId}_${menu.day}`);
+    }
 
     return res
       .status(200)

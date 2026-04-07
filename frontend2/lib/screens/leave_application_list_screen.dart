@@ -8,7 +8,6 @@ import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/constants/themes.dart';
 import 'package:frontend2/screens/leave_application_screen.dart';
 import 'package:intl/intl.dart';
-import 'package:frontend2/screens/home_screen.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
 class LeaveApplicationListScreen extends StatefulWidget {
@@ -353,11 +352,8 @@ class _LeaveApplicationListScreenState
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            Navigator.push(
+            Navigator.pop(
               context,
-              MaterialPageRoute(
-                builder: (context) => const HomeScreen(),
-              ),
             );
           },
         ),

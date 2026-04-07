@@ -29,7 +29,7 @@ async function enablePhotoChange(req, res) {
       "Profile Pic change is available",
       "All_Hostels",
       { redirectType: "profile", isAlert: "true" }
-    );
+    ).catch((err) => console.error("Profile update notification failed:", err));
     // Reset setup status for all users who completed it earlier
     const result = await User.updateMany(
       { isSetupDone: true },
@@ -60,7 +60,7 @@ async function disablePhotoChange(req, res) {
       "Profile Pic change is no longer available",
       "All_Hostels",
       { redirectType: "profile" }
-    );
+    ).catch((err) => console.error("Profile update notification failed:", err));
     return res
       .status(200)
       .json({ message: "Disabled", allowProfilePhotoChange: false });

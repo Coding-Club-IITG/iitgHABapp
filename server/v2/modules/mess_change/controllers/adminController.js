@@ -12,16 +12,13 @@ const getAllMessChangeRequestsForAllHostels = async (req, res) => {
     const messChangeRequests = await User.find({
       applied_for_mess_changed: true,
     }).select(
-      "name rollNumber curr_subscribed_mess hostel applied_hostel_string applied_hostel_timestamp"
+      "name rollNumber curr_subscribed_mess hostel next_mess1 next_mess2 next_mess3 applied_hostel_string applied_hostel_timestamp",
     );
 
-    if (!messChangeRequests || messChangeRequests.length === 0) {
-      return res.status(404).json({ message: "No mess change requests found" });
-    }
-
+    // Return empty array instead of 404 when no requests found
     return res.status(200).json({
       message: "Mess change requests fetched successfully",
-      data: messChangeRequests,
+      data: messChangeRequests || [],
     });
   } catch (err) {
     console.error(err);
@@ -80,8 +77,8 @@ const enableMessChange = async (req, res) => {
       "MESS CHANGE",
       "Mess Change for this month has been enabled",
       "All_Hostels",
-      { redirectType: "mess_change", isAlert: "true" }
-    );
+      { redirectType: "mess_change", isAlert: "true" },
+    ).catch((err) => console.error("Mess change enabled notification failed:", err));
 
     return res.status(200).json({
       message: "Mess change enabled successfully",

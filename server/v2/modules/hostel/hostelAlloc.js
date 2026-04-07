@@ -36,10 +36,17 @@ async function uploadData(req, res) {
             row["hostelName"] ||
             row["hostel"] ||
             row["HOSTEL"];
+          const currentSubscribedMessRaw =
+            row["Current Subscribed Mess"] ||
+            row["currentSubscribedMess"] ||
+            row["current_subscribed_mess"] ||
+            row["CURRENT_SUBSCRIBED_MESS"];
 
           const rollno = rollRaw ? String(rollRaw).trim() : "";
           const hostelName = hostelRaw ? String(hostelRaw).trim() : "";
-
+          const currentSubscribedMessName = currentSubscribedMessRaw
+            ? String(currentSubscribedMessRaw).trim()
+            : "";
           if (!rollno || !hostelName) {
             errors++;
             continue;
@@ -47,15 +54,28 @@ async function uploadData(req, res) {
 
           try {
             const hostel = await Hostel.findOne({ hostel_name: hostelName });
+            const currentSubscribedMess = await Hostel.findOne({
+              hostel_name: currentSubscribedMessName,
+            });
             if (!hostel) {
               // skip if hostel unknown
               errors++;
               continue;
             }
 
+            const updateData = {
+              rollno: rollno,
+              hostel: hostel._id,
+            };
+
+            // Only set current_subscribed_mess if it was found
+            if (currentSubscribedMess) {
+              updateData.current_subscribed_mess = currentSubscribedMess._id;
+            }
+
             await UserAllocHostel.findOneAndUpdate(
               { rollno: rollno },
-              { rollno: rollno, hostel: hostel._id },
+              updateData,
               { upsert: true, new: true, runValidators: true }
             );
 
