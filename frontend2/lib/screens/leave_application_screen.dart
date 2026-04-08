@@ -326,12 +326,12 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           onPressed: () {
             if (_currentStep == 2) {
               setState(() => _currentStep = 1);
+            } 
+            else if (_currentStep == 3) {
+              setState(() => _currentStep = 2);
             } else {
-              Navigator.push(
+              Navigator.pop(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const LeaveApplicationListScreen(),
-                ),
               );
             }
           },
