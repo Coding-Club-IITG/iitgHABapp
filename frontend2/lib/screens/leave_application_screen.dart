@@ -743,6 +743,16 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                               ),
                       ),
                     ),
+
+                    const SizedBox(height: 4), // Small spacing
+                    const Text(
+                      "Maximum file size: 5 MB",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _primaryColor,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
                 
                 
                     // Upload Valid Proof
