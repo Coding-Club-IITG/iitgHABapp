@@ -20,7 +20,7 @@ Future<void> _launchUrl(String url) async {
 class LeaveApplicationScreen extends StatefulWidget {
   const LeaveApplicationScreen({super.key, required this.leaveType});
   final int? leaveType;
-  
+
   @override
   State<LeaveApplicationScreen> createState() => _LeaveApplicationScreenState();
 }
@@ -34,6 +34,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   static const Color _greyBg = Color(0xFFF5F5F5);
   static const Color _greyText = Color(0xFF939393);
   final FocusNode _reasonFocusNode = FocusNode();
+  static const double _rebatePerDay = 119.0;
 
   // State variables
   int? _selectedValue; // 1: Casual, 2: Academic, 3:Medical
@@ -140,26 +141,86 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   Future<void> _pickFile() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'png'],
+  final result = await FilePicker.platform.pickFiles(
+    type: FileType.custom,
+    allowedExtensions: ['pdf', 'jpg', 'png'],
+  );
+
+  if (result == null) return;
+
+  final pickedFile = result.files.first;
+  const int maxSizeBytes = 5 * 1024 * 1024; // 5 MB
+
+  if (pickedFile.size > maxSizeBytes) {
+    // 1. Show the error
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('File size must be less than 5 MB'),
+        duration: Duration(seconds: 3),
+      ),
     );
-    if (result != null) {
-      setState(() => _pickedFile = result.files.first);
-    }
+    
+    // 2. Clear the selection (Optional: ensure UI resets if a valid file was there before)
+    setState(() => _pickedFile = null);
+    return; 
   }
+
+  // 3. Only update state if the file is valid
+  setState(() => _pickedFile = pickedFile);
+}
 
   Future<void> _pickFileLeaveForm() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'png'],
     );
-    if (result != null) {
-      setState(() => _pickedFileLeaveForm = result.files.first);
+    if (result == null) return;
+
+    final pickedFile = result.files.first;
+  const int maxSizeBytes = 5 * 1024 * 1024; // 5 MB
+
+  if (pickedFile.size > maxSizeBytes) {
+    // 1. Show the error
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('File size must be less than 5 MB'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+    
+    // 2. Clear the selection (Optional: ensure UI resets if a valid file was there before)
+    setState(() => _pickedFile = null);
+    return; 
+  }
+
+    setState(() => _pickedFileLeaveForm = pickedFile);
+
+  }
+
+
+  Future<bool> _sendRequest() async {
+
+    if ( _pickedFileLeaveForm == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please select both the Proof Document and the Leave Form'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+    return false; // Exit early
+  }
+  else if(_pickedFile == null ) {
+    if(_selectedValue == 1 || _selectedValue == 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Please select both the Proof Document and the Leave Form'),
+        duration: Duration(seconds: 3),
+      ),
+    );
+    return false; // Exit early
     }
   }
 
-  Future<bool> _sendRequest() async {
     final accessToken = await getAccessToken();
     final dio = DioClient().dio;
 
@@ -225,6 +286,11 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         1;
   }
 
+  double _calculateTotalRebate() {
+    int days = _calculateLeaveDays();
+    return days*_rebatePerDay;
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -260,12 +326,12 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           onPressed: () {
             if (_currentStep == 2) {
               setState(() => _currentStep = 1);
+            } 
+            else if (_currentStep == 3) {
+              setState(() => _currentStep = 2);
             } else {
-              Navigator.push(
+              Navigator.pop(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const LeaveApplicationListScreen(),
-                ),
               );
             }
           },
@@ -469,7 +535,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            "You will receive a rebate of ₹XXXX per day on approved mess leave.",
+                            "You will receive a rebate of ₹${_rebatePerDay.toStringAsFixed(0)} per day on approved mess leave.",
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey[600],
@@ -570,7 +636,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                       // ),
                 
                       // const SizedBox(height: 24),
-                
+                    
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -677,6 +743,16 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                               ),
                       ),
                     ),
+
+                    const SizedBox(height: 4), // Small spacing
+                    const Text(
+                      "Maximum file size: 5 MB",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _primaryColor,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
                 
                 
                     // Upload Valid Proof
@@ -769,7 +845,17 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                               ),
                       ),
                     ),
-                
+                    
+                    const SizedBox(height: 4), // Small spacing
+                    const Text(
+                      "Maximum file size: 5 MB",
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: _primaryColor,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+
                     const SizedBox(height: 40),
                 
                     ],
@@ -842,9 +928,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                                 color: Colors.black,
                               ),
                             ),
-                            const Text(
-                              "500 Rupee",
-                              style: TextStyle(
+                            Text(
+                              "₹${_calculateTotalRebate().toStringAsFixed(0)}",
+                              style: const TextStyle(
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
                                 color: _successColor,
@@ -1063,82 +1149,82 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   Widget _buildBankField(
-  String label,
-  TextEditingController controller,
-  String hint,
-) {
-  final focusNode = FocusNode();
+    String label,
+    TextEditingController controller,
+    String hint,
+  ) {
+    final focusNode = FocusNode();
 
-  return StatefulBuilder(
-    builder: (context, setState) {
-      bool isFocused = focusNode.hasFocus;
-      bool isFilled = controller.text.isNotEmpty;
+    return StatefulBuilder(
+      builder: (context, setState) {
+        bool isFocused = focusNode.hasFocus;
+        bool isFilled = controller.text.isNotEmpty;
 
-      Color borderColor = _borderColor;
-      Color fillColor = _greyBg;
-      Widget? suffixIcon;
+        Color borderColor = _borderColor;
+        Color fillColor = _greyBg;
+        Widget? suffixIcon;
 
-      if (isFocused) {
-        // Focused state
-        borderColor = _primaryColor;
-        fillColor = _primaryColor.withOpacity(0.08);
-      } else if (isFilled) {
-        //Completed state
-        borderColor = _borderColor;
-        fillColor = _greyBg;
-        suffixIcon = const Icon(Icons.check, color: Colors.green);
-      }
+        if (isFocused) {
+          // Focused state
+          borderColor = _primaryColor;
+          fillColor = _primaryColor.withOpacity(0.08);
+        } else if (isFilled) {
+          //Completed state
+          borderColor = _borderColor;
+          fillColor = _greyBg;
+          suffixIcon = const Icon(Icons.check, color: Colors.green);
+        }
 
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: Colors.black,
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: Colors.black,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: controller,
-            focusNode: focusNode,
-            onChanged: (_) {
-              setState(() {});
-              _onFieldChanged();
-            },
-            onSubmitted: (_) {
-              FocusScope.of(context).unfocus(); // simulate "enter"
-              setState(() {});
-            },
-            decoration: InputDecoration(
-              hintText: hint,
-              hintStyle: const TextStyle(color: _greyText, fontSize: 14),
-              filled: true,
-              fillColor: fillColor,
-              suffixIcon: suffixIcon,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: borderColor, width: 1),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              focusNode: focusNode,
+              onChanged: (_) {
+                setState(() {});
+                _onFieldChanged();
+              },
+              onSubmitted: (_) {
+                FocusScope.of(context).unfocus(); // simulate "enter"
+                setState(() {});
+              },
+              decoration: InputDecoration(
+                hintText: hint,
+                hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+                filled: true,
+                fillColor: fillColor,
+                suffixIcon: suffixIcon,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: borderColor, width: 1),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: borderColor, width: 1),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: _primaryColor, width: 2),
+                ),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               ),
-              enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: borderColor, width: 1),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: _primaryColor, width: 2),
-              ),
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             ),
-          ),
-        ],
-      );
-    },
-  );
-}
+          ],
+        );
+      },
+    );
+  }
 
   Widget _buildBottomButtons({
     required VoidCallback onNext,
@@ -1234,7 +1320,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       // 1. Pop the upload dialog first
       if (isSuccess) {
         //Required to refresh my-appications page
-        Navigator.pop(context,true); 
+        Navigator.pop(context, true);
       }
 
       // 2. Show the Success SnackBar
@@ -1258,7 +1344,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         ),
       );
     }
-    
+
 //   showDialog(
 //     context: context,
 //     builder: (BuildContext context) {
@@ -1288,7 +1374,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 //                 ),
 //               ),
 //               const SizedBox(height: 24),
-              
+
 //               // Text Content
 //               Text(
 //                 title,
@@ -1311,7 +1397,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 //                 ),
 //               ),
 //               const SizedBox(height: 32),
-              
+
 //               // Minimalist Primary Button
 //               SizedBox(
 //                 width: double.infinity,
