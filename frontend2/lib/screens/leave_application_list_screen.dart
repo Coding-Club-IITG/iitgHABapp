@@ -93,7 +93,7 @@ class _LeaveApplicationListScreenState
   bool isUploading = false;
   bool isLoading = true;
   String selectedTab = 'All';
-  final List<String> filterTabs = ['All', 'Approved', 'Decline', 'Deleted'];
+  final List<String> filterTabs = ['All', 'Approved', 'Decline', 'Cancelled'];
 
   @override
   void initState() {
@@ -162,7 +162,7 @@ class _LeaveApplicationListScreenState
       final accessToken = await getAccessToken();
       if (accessToken == 'error') {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error deleting application')),
+          const SnackBar(content: Text('Error cancelling application')),
         );
         return false;
       }
@@ -176,13 +176,13 @@ class _LeaveApplicationListScreenState
           myApplications.removeWhere((app) => app['_id'] == applicationId);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Application deleted successfully')),
+          const SnackBar(content: Text('Application cancelled successfully')),
         );
         await _fetchHistory();
         return true;
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to delete application')),
+          const SnackBar(content: Text('Failed to cancel application')),
         );
         return false;
       }
@@ -299,7 +299,7 @@ class _LeaveApplicationListScreenState
       return myApplications
           .where((app) => app['status']?.toLowerCase() == 'rejected')
           .toList();
-    } else if (selectedTab == 'Deleted') {
+    } else if (selectedTab == 'Cancelled') {
       return myApplications
           .where((app) => app['status']?.toLowerCase() == 'cancelled')
           .toList();
@@ -320,7 +320,7 @@ class _LeaveApplicationListScreenState
       return myApplications
           .where((app) => app['status']?.toLowerCase() == 'rejected')
           .length;
-    } else if (tab == 'Deleted') {
+    } else if (tab == 'Cancelled') {
       return myApplications
           .where((app) => app['status']?.toLowerCase() == 'cancelled')
           .length;
@@ -1223,7 +1223,7 @@ class _LeaveApplicationListScreenState
                 Container(
                   alignment: Alignment.centerLeft,
                   child: const Text(
-                    'Do you want to delete?',
+                    'Do you want to cancel?',
                     style: TextStyle(
                       color: Color(0xFF676767), // Grey-1
                       fontSize: 16,
