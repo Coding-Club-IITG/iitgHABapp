@@ -13,6 +13,12 @@ const {
   getOrdinalSuffix,
 } = require("../../utils/windowDates.js");
 
+const {
+  generateOpiReport,
+  saveOpiReportBackup,
+} = require("./opiReportGenerator");
+const { uploadReportToOnedrive } = require("../leave/OnedriveController");
+
 const ratingMap = {
   "Very Poor": 1,
   Poor: 2,
@@ -570,7 +576,7 @@ const getAllFeedback = async (req, res) => {
 // Enable / Disable Feedback Window
 // ==========================================
 // Helper to enable feedback automatically so schedulers can call it
-const enableFeedbackAutomatic = async () => {
+const enableFeedbackAutomatic = async (endDate = null) => {
   try {
     let s = await FeedbackSettings.findOne();
     if (!s) {
@@ -587,12 +593,9 @@ const enableFeedbackAutomatic = async () => {
     s.isEnabled = true;
     s.enabledAt = new Date();
     s.disabledAt = null;
-
-    // Set closing time to the scheduled window end date
-    const { endDate } = getFeedbackWindowDates();
     s.currentWindowClosingTime = endDate;
-
     await s.save();
+
     sendNotificationMessage(
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
@@ -610,17 +613,148 @@ const enableFeedbackAutomatic = async () => {
   }
 };
 
+// Generate Mess OPI Report
+const buildOpiReportData = async (windowNumber) => {
+  const rawFeedbacks = await Feedback.find({
+    feedbackWindowNumber: windowNumber,
+    caterer: { $ne: null },
+  })
+    .populate("user", "name rollNumber isSMC")
+    .populate({
+      path: "caterer",
+      select: "name hostelId",
+      populate: { path: "hostelId", select: "hostel_name" },
+    })
+    .sort({ date: -1 })
+    .lean();
+
+  const seen = new Set();
+  const feedbacks = [];
+  for (const fb of rawFeedbacks) {
+    const key = String(fb.user?._id || fb._id);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    feedbacks.push({ ...fb, catererName: fb.caterer?.name || "" });
+  }
+
+  // Fetch all allocations
+  const allAllocs = await UserAllocHostel.find({})
+    .populate("hostel", "hostel_name")
+    .populate("current_subscribed_mess", "hostel_name")
+    .lean();
+
+  // Cross-reference with users collection to determine app installation
+  const allRollNos = allAllocs.map((a) => a.rollno).filter(Boolean);
+  const appUsers = await User.find({
+    rollNumber: { $in: allRollNos },
+    authProvider: { $ne: "guest" },
+  })
+    .select("rollNumber name")
+    .lean();
+
+  const appRollSet = new Set();
+  const appNameMap = new Map();
+  for (const u of appUsers) {
+    appRollSet.add(String(u.rollNumber));
+    appNameMap.set(String(u.rollNumber), u.name || null);
+  }
+
+  const mapAlloc = (alloc, hasApp) => ({
+    rollno: alloc.rollno,
+    name: hasApp ? appNameMap.get(String(alloc.rollno)) || null : null,
+    hasApp,
+    hostelName: alloc.hostel?.hostel_name || String(alloc.hostel || ""),
+    subscribedMessName:
+      alloc.current_subscribed_mess?.hostel_name ||
+      alloc.hostel?.hostel_name ||
+      "",
+    messChanged:
+      String(
+        alloc.current_subscribed_mess?._id ||
+          alloc.current_subscribed_mess ||
+          "",
+      ) !== String(alloc.hostel?._id || alloc.hostel || ""),
+  });
+
+  const subscribers = allAllocs.map((a) =>
+    mapAlloc(a, appRollSet.has(String(a.rollno))),
+  );
+
+  const allMesses = await Mess.find({})
+    .populate("hostelId", "hostel_name")
+    .lean();
+  const messes = allMesses
+    .filter((m) => m.hostelId)
+    .map((m) => ({
+      name: m.name,
+      hostelName: m.hostelId.hostel_name,
+      hostelId: m.hostelId._id,
+    }))
+    .sort((a, b) => a.hostelName.localeCompare(b.hostelName));
+
+  return { feedbacks, subscribers, messes };
+};
+
 // Helper to disable feedback automatically
 const disableFeedbackAutomatic = async () => {
   try {
     let s = await FeedbackSettings.findOne();
     if (!s) return { success: false, error: "Settings not found" };
 
+    const windowNumber = s.currentWindowNumber;
+
+    // Disable feedback window
     s.isEnabled = false;
     s.disabledAt = new Date();
     await s.save();
-    if (typeof s.currentWindowNumber === "number") {
-      await updateAllMessRatingsAndRankings(s.currentWindowNumber);
+
+    // Recalculate all mess OPI ratings and rankings
+    if (typeof windowNumber === "number") {
+      await updateAllMessRatingsAndRankings(windowNumber);
+    }
+
+    // Generate OPI Excel report
+    console.log(`[OPI] Generating OPI report for window ${windowNumber}`);
+    try {
+      const { feedbacks, subscribers, messes } =
+        await buildOpiReportData(windowNumber);
+
+      const now = new Date();
+      const monthName = now.toLocaleString("en-IN", {
+        month: "long",
+        timeZone: "Asia/Kolkata",
+      });
+      const year = now.getFullYear();
+      const windowLabel = `${monthName} ${year}`;
+
+      const reportBuffer = await generateOpiReport({
+        windowNumber,
+        windowLabel,
+        feedbacks,
+        subscribers,
+        messes,
+      });
+
+      const reportFilename = `OPI_Report_Window${windowNumber}_${Date.now()}.xlsx`;
+
+      // Save copy to backup
+      await saveOpiReportBackup(reportBuffer, reportFilename);
+
+      // Upload to OneDrive Reports folder
+      const url = await uploadReportToOnedrive(reportBuffer, reportFilename);
+      if (url) {
+        console.log(`[OPI] Report uploaded to OneDrive: ${url}`);
+      } else {
+        console.warn(
+          "[OPI] OneDrive upload skipped or failed (check ONEDRIVE_REPORTS_FOLDER_ID).",
+        );
+      }
+    } catch (reportErr) {
+      // Report generation failure must not abort the disable flow
+      console.error(
+        "❌ [OPI] Failed to generate/upload OPI report:",
+        reportErr,
+      );
     }
 
     console.log("✅ Feedback disabled automatically");
@@ -1356,4 +1490,5 @@ module.exports = {
   getFeedbacksByCaterer,
   getDetailedFeedbackByWindow,
   updateAllMessRatingsAndRankings,
+  buildOpiReportData,
 };

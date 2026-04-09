@@ -102,19 +102,13 @@ const initializeMessChangeAutoScheduler = () => {
     const month = now.getMonth();
     const day = now.getDate();
 
-    let startDay;
-    if (month === 1) {
-      startDay = 26; // February
-    } else {
-      startDay = 28; // Other months
-    }
+    const { startDate, endDate } = getMessChangeWindowDates(month, year);
 
     // Check if today is the start date
-    if (day === startDay) {
+    if (day === startDate.getDate()) {
       console.log(
         `📅 Mess change start date detected: ${day}/${month + 1}/${year}`,
       );
-      const { endDate } = getMessChangeWindowDates(month, year);
       await enableMessChangeAutomatic(endDate);
       await scheduleMessChangeReminders();
     }

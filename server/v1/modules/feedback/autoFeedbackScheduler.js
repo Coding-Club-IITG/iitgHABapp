@@ -96,19 +96,14 @@ const initializeFeedbackAutoScheduler = () => {
     const month = now.getMonth();
     const day = now.getDate();
 
-    let startDay;
-    if (month === 1) {
-      startDay = 23; // February
-    } else {
-      startDay = 25; // Other months
-    }
+    const { startDate, endDate } = getFeedbackWindowDates(month, year);
 
     // Check if today is the start date
-    if (day === startDay) {
+    if (day === startDate.getDate()) {
       console.log(
         `📅 Feedback start date detected: ${day}/${month + 1}/${year}`,
       );
-      await enableFeedbackAutomatic();
+      await enableFeedbackAutomatic(endDate);
       await scheduleFeedbackReminders();
     }
   });

@@ -1,7 +1,7 @@
 const xlsx = require("xlsx");
 const fs = require("fs");
 const path = require("path");
-const backupDir = path.join(__dirname, "../../../../backups");
+const backupDir = path.join(__dirname, "../../../../backup");
 
 const { User } = require("../../user/userModel.js");
 const { Hostel } = require("../../hostel/hostelModel.js");
@@ -339,7 +339,7 @@ const generateAndUploadReport = async (
       fs.mkdirSync(backupDir, { recursive: true });
     }
     xlsx.writeFile(wb, path.join(backupDir, filename), { bookType: "xlsx" });
-    console.log(`Saved report locally to backups folder as ${filename}`);
+    console.log(`Saved report locally to backup folder as ${filename}`);
 
     const url = await uploadReportToOnedrive(buffer, filename);
     if (url) {
@@ -369,6 +369,14 @@ const processAllMessChangeRequests = async (req, res) => {
       capacityTracker,
     );
 
+    await generateAndUploadReport(
+      users,
+      acceptedUsers,
+      rejectedUsers,
+      capacityTracker,
+      hostels,
+    );
+
     await updateAcceptedUsers(acceptedUsers, users, hostels);
     await updateRejectedUsers(rejectedUsers, users);
     await updateLastProcessedTimestamp();
@@ -380,14 +388,6 @@ const processAllMessChangeRequests = async (req, res) => {
       { redirectType: "mess_change", isAlert: "true" },
     ).catch((err) =>
       console.error("Mess change disabled notification failed:", err),
-    );
-
-    await generateAndUploadReport(
-      users,
-      acceptedUsers,
-      rejectedUsers,
-      capacityTracker,
-      hostels,
     );
 
     if (res) {
