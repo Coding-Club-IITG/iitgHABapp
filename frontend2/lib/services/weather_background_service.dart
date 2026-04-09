@@ -7,48 +7,65 @@ class WeatherBackgroundData {
   final String assetPath;
   final bool isDay;
   final String weatherGroup;
+  final String backgroundVariant;
+  final int? sunriseUnix;
+  final int? sunsetUnix;
 
   const WeatherBackgroundData({
     required this.assetPath,
     required this.isDay,
     required this.weatherGroup,
+    required this.backgroundVariant,
+    this.sunriseUnix,
+    this.sunsetUnix,
   });
 
   factory WeatherBackgroundData.fallback() {
-    final isDay = _isLocalDaytime();
+    final now = DateTime.now();
+    final isDay = _isLocalDaytime(now);
+    final backgroundVariant =
+        WeatherBackgroundService._backgroundVariantForClear(now);
     return WeatherBackgroundData(
       assetPath: WeatherBackgroundService._assetFor(
         group: 'clear',
-        isDay: isDay,
+        backgroundVariant: backgroundVariant,
       ),
       isDay: isDay,
       weatherGroup: 'clear',
+      backgroundVariant: backgroundVariant,
+      sunriseUnix: null,
+      sunsetUnix: null,
     );
   }
 
   factory WeatherBackgroundData.testing({
     required String group,
     required bool isDay,
+    String? backgroundVariant,
   }) {
+    final resolvedVariant = backgroundVariant ?? (isDay ? 'afternoon' : 'evening');
     return WeatherBackgroundData(
       assetPath: WeatherBackgroundService._assetFor(
         group: group,
-        isDay: isDay,
+        backgroundVariant: resolvedVariant,
       ),
       isDay: isDay,
       weatherGroup: group,
+      backgroundVariant: resolvedVariant,
+      sunriseUnix: null,
+      sunsetUnix: null,
     );
   }
 
-  static bool _isLocalDaytime() {
-    final hour = DateTime.now().hour;
+  static bool _isLocalDaytime(DateTime now) {
+    final hour = now.hour;
     return hour >= 6 && hour < 18;
   }
 }
 
 class WeatherBackgroundService {
   static const String _apiKey =
-      String.fromEnvironment('OPENWEATHER_API_KEY', defaultValue: '');
+      "fac972ed26c46021158fe8e71bf560e1";    // TODO: remove before pushing 🙏
 
   Future<WeatherBackgroundData> fetchBackground() async {
     try {
@@ -105,11 +122,22 @@ class WeatherBackgroundService {
         sunsetUnix: sunset,
       );
       final weatherGroup = _groupForCondition(conditionId);
+      final backgroundVariant = _backgroundVariantFor(
+        group: weatherGroup,
+        now: DateTime.now(),
+        isDay: isDay,
+      );
 
       return WeatherBackgroundData(
-        assetPath: _assetFor(group: weatherGroup, isDay: isDay),
+        assetPath: _assetFor(
+          group: weatherGroup,
+          backgroundVariant: backgroundVariant,
+        ),
         isDay: isDay,
         weatherGroup: weatherGroup,
+        backgroundVariant: backgroundVariant,
+        sunriseUnix: sunrise,
+        sunsetUnix: sunset,
       );
     } catch (_) {
       return WeatherBackgroundData.fallback();
@@ -128,23 +156,65 @@ class WeatherBackgroundService {
   }
 
   String _groupForCondition(int conditionId) {
-    if (conditionId >= 200 && conditionId < 300) return 'thunder';
-    if (conditionId >= 300 && conditionId < 600) return 'rainy';
-    if (conditionId == 800) return 'clear';
-    return 'cloudy';
+    if (conditionId >= 200 && conditionId < 600) return 'rainy';
+    return 'clear';
+  }
+
+  static String _backgroundVariantFor({
+    required String group,
+    required DateTime now,
+    required bool isDay,
+  }) {
+    if (group == 'rainy') {
+      return 'rainy';
+    }
+
+    if (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday) {
+      return 'weekend';
+    }
+
+    return _timeOfDayVariant(now, isDay: isDay);
+  }
+
+  static String _backgroundVariantForClear(DateTime now) {
+    if (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday) {
+      return 'weekend';
+    }
+    return _timeOfDayVariant(
+      now,
+      isDay: WeatherBackgroundData._isLocalDaytime(now),
+    );
+  }
+
+  static String _timeOfDayVariant(DateTime now, {required bool isDay}) {
+    final hour = now.hour;
+    if (hour < 12) {
+      return 'morning';
+    }
+    if (isDay && hour < 17) {
+      return 'afternoon';
+    }
+    return 'evening';
   }
 
   static String _assetFor({
     required String group,
-    required bool isDay,
+    required String backgroundVariant,
   }) {
-    if (group == 'thunder') {
-      return isDay
-          ? 'assets/images/thuder_day.png'
-          : 'assets/images/thunder_night.png';
+    if (group == 'rainy') {
+      return 'assets/images/Raining.png';
     }
 
-    final suffix = isDay ? 'day' : 'night';
-    return 'assets/images/${group}_$suffix.png';
+    switch (backgroundVariant) {
+      case 'weekend':
+        return 'assets/images/weekend.png';
+      case 'morning':
+        return 'assets/images/Morning.png';
+      case 'afternoon':
+        return 'assets/images/Afternoon.png';
+      case 'evening':
+      default:
+        return 'assets/images/Evening.png';
+    }
   }
 }

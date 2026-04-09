@@ -39,7 +39,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   static const bool _isWeatherBackgroundTesting = false;
   static const String _testingWeatherGroup =
-      'cloudy'; // clear, cloudy, rainy, thunder
+      'clear'; // clear, rainy
   static const bool _testingIsDay = false;
 
   static const pageBackground = Color(0xFFFFFFFF);
@@ -57,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen>
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
+  static const generalSans = 'GeneralSans';
   static const bool _showDummyImportantMessages = false;
 
   String name = '';
@@ -166,10 +167,32 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String getGreeting() {
+    final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final sunriseUnix = _weatherBackground.sunriseUnix;
+    final sunsetUnix = _weatherBackground.sunsetUnix;
+
+    if (sunriseUnix != null && sunsetUnix != null && sunriseUnix < sunsetUnix) {
+      final solarNoonUnix = sunriseUnix + ((sunsetUnix - sunriseUnix) ~/ 2);
+      final eveningEndUnix = sunsetUnix + const Duration(hours: 2).inSeconds;
+
+      if (nowUnix < sunriseUnix || nowUnix >= eveningEndUnix) {
+        return 'Good Night';
+      }
+      if (nowUnix < solarNoonUnix) {
+        return 'Good Morning';
+      }
+      if (nowUnix < sunsetUnix) {
+        return 'Good Afternoon';
+      }
+      return 'Good Evening';
+    }
+
     final hour = DateTime.now().hour;
+    if (hour < 5) return 'Good Night';
     if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
+    if (hour < 17) return 'Good Afternoon';
+    if (hour < 21) return 'Good Evening';
+    return 'Good Night';
   }
 
   String getTodayDay() {
@@ -416,8 +439,8 @@ class _HomeScreenState extends State<HomeScreen>
       boxShadow: const [
         BoxShadow(
           color: shadow,
-          blurRadius: 6,
-          offset: Offset(0, 4),
+          blurRadius: 16,
+          offset: Offset.zero,
         ),
       ],
     );
@@ -785,6 +808,10 @@ class _HomeScreenState extends State<HomeScreen>
             decoration: BoxDecoration(
               color: const Color(0xFFC9D4DE),
               borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.92),
+                width: 3,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: value.isNotEmpty
@@ -799,52 +826,115 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildTopBar({required bool onWeatherBackground}) {
+  String _weatherHeroGreeting() {
+    final greeting = getGreeting();
+    return greeting.isEmpty
+        ? greeting
+        : '${greeting[0]}${greeting.substring(1).toLowerCase()}';
+  }
+
+  Widget _buildWeatherHeroHeader({required int unreadCount}) {
     final displayName = name.isNotEmpty ? name : 'User';
-    final titleColor = onWeatherBackground ? Colors.white : primary;
-    final subtitleColor = onWeatherBackground
-        ? Colors.white.withOpacity(0.92)
-        : textSecondary;
+    final greeting = _weatherHeroGreeting();
+    final subtitleText = unreadCount == 1
+        ? '1 notification today'
+        : '$unreadCount notifications today';
 
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'HABit',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Flexible(
+                      // SizedBox(width: 6),
+                      Text(
+                        'HABit',
+                        style: TextStyle(
+                          fontFamily: generalSans,
+                          fontSize: 28,
+                          height: 30.4 / 28,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFFEDEDFB),
+                        ),
+                      ),
+                      SizedBox(width: 6),
+                      Padding(
+                        padding: EdgeInsets.only(bottom: 5),
                         child: Text(
-                          '${getGreeting()}, $displayName',
-                          overflow: TextOverflow.ellipsis,
+                          'BETA V2',
                           style: TextStyle(
-                            fontSize: 14,
-                            height: 20 / 14,
+                            fontFamily: generalSans,
+                            fontSize: 12,
+                            height: 16 / 12,
                             fontWeight: FontWeight.w500,
-                            color: subtitleColor,
+                            color: Color(0xFFEDEDFB),
+                            letterSpacing: 0.3,
                           ),
                         ),
                       ),
                     ],
                   ),
-                ],
+                ),
+                _buildProfileAvatar(),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(right: 5),
+                  child: Icon(
+                    Icons.wb_sunny_rounded,
+                    size: 20,
+                    color: Color(0xFFFFC83D),
+                  ),
+                ),
+                Flexible(
+                  child: RichText(
+                    overflow: TextOverflow.ellipsis,
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontFamily: generalSans,
+                        fontSize: 24,
+                        height: 32 / 24,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.white,
+                      ),
+                      children: [
+                        TextSpan(text: greeting),
+                        const TextSpan(text: ' '),
+                        TextSpan(
+                          text: displayName,
+                          style: const TextStyle(color: Color(0xFFEDEDFB)),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.only(left: 5),
+              child: Text(
+                subtitleText,
+                style: const TextStyle(
+                  fontFamily: generalSans,
+                  fontSize: 12,
+                  height: 16 / 12,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.white,
+                ),
               ),
             ),
-            _buildProfileAvatar(),
           ],
         ),
       ),
@@ -946,6 +1036,7 @@ class _HomeScreenState extends State<HomeScreen>
             Text(
               '$unreadCount Updates',
               style: const TextStyle(
+                fontFamily: generalSans,
                 fontSize: 14,
                 height: 20 / 14,
                 fontWeight: FontWeight.w500,
@@ -1001,12 +1092,22 @@ class _HomeScreenState extends State<HomeScreen>
                   : const <NotificationModel>[]);
 
         return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            _buildWeatherHeroHeader(unreadCount: unreadCount),
+            const SizedBox(height: 36),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: _buildUpdatesCard(unreadCount),
+            ),
             if (displayedAlerts.isNotEmpty) ...[
-              _buildImportantMessagesCard(displayedAlerts),
               const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildImportantMessagesCard(displayedAlerts),
+              ),
             ],
-            _buildUpdatesCard(unreadCount),
+            const SizedBox(height: 2),
           ],
         );
       },
@@ -1146,7 +1247,7 @@ class _HomeScreenState extends State<HomeScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Quick Actions', style: _sectionTitleStyle()),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         Row(
           children: [
             _buildQuickActionCard(featured[0]),
@@ -1278,6 +1379,7 @@ class _HomeScreenState extends State<HomeScreen>
         AnimatedContainer(
           duration: const Duration(milliseconds: 400),
           width: double.infinity,
+          constraints: const BoxConstraints(minHeight: 328),
           decoration: BoxDecoration(
             image: DecorationImage(
               image: AssetImage(_weatherBackground.assetPath),
@@ -1291,32 +1393,24 @@ class _HomeScreenState extends State<HomeScreen>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0x2E000000),
-                  Color(0x12000000),
-                  Color(0x00FFFFFF),
+                  Color(0x2A000000),
+                  Color(0x10000000),
+                  Color(0x04FFFFFF),
                   Color(0xFFFFFFFF),
                 ],
-                stops: [0.0, 0.34, 0.72, 1.0],
+                stops: [0.0, 0.48, 0.88, 1.0],
               ),
             ),
-            child: Column(
-              children: [
-                _buildTopBar(onWeatherBackground: true),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                  child: _buildAlertsSection(),
-                ),
-              ],
-            ),
+            child: _buildAlertsSection(),
           ),
         ),
-        Container(
-          height: 20,
-          decoration: const BoxDecoration(
-            color: pageBackground,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-        ),
+        // Container(
+        //   height: 12,
+        //   decoration: const BoxDecoration(
+        //     color: pageBackground,
+        //     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        //   ),
+        // ),
       ],
     );
   }
@@ -1329,8 +1423,9 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           children: [
             _buildWeatherHeroSection(),
+            _buildSectionDivider(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
               child: ValueListenableBuilder<List<String>>(
                 valueListenable: HostelsNotifier.hostelNotifier,
                 builder: (context, _, __) => _buildQuickActionsSection(),
@@ -1339,7 +1434,7 @@ class _HomeScreenState extends State<HomeScreen>
             if (currSubscribedMess.isNotEmpty) ...[
               _buildSectionDivider(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
                 child: _buildMessSection(),
               ),
             ],
