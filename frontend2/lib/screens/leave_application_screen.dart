@@ -41,7 +41,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   // State variables
   int? _selectedValue; // 1: Casual, 2: Academic, 3:Medical
   int _currentStep = 1; // 1 or 2
-  DateTimeRange? _selectedDateRange;
+  DateTime? _selectedStartDate;
+  DateTime? _selectedEndDate;
   PlatformFile? _pickedFile;
   PlatformFile? _pickedFileLeaveForm;
   bool _agreeToTerms = false;
@@ -91,22 +92,47 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     super.dispose();
   }
 
-  Future<void> _selectDateRange() async {
+  Future<void> _selectDate({bool isStartDate = true}) async {
     DateTime today = DateTime.now();
     DateTime baseDate = DateTime(today.year, today.month, today.day);
-    final DateTimeRange? picked = await showDateRangePicker(
+    
+    DateTime initialDate;
+    DateTime firstDate = (_selectedValue == 1)
+        ? baseDate.add(const Duration(days: 2))
+        : baseDate.add(const Duration(days: 1));
+    DateTime lastDate = DateTime(2027);
+    
+    if (isStartDate) {
+      initialDate = _selectedStartDate ?? firstDate;
+      // Start date cannot be after end date
+      if (_selectedEndDate != null) {
+        lastDate = _selectedEndDate!;
+      }
+    } else {
+      initialDate = _selectedEndDate ?? firstDate;
+      // End date cannot be before start date
+      if (_selectedStartDate != null) {
+        firstDate = _selectedStartDate!;
+      }
+    }
+    
+    final DateTime? picked = await showDatePicker(
       context: context,
-      initialDateRange: _selectedDateRange,
-      firstDate: (_selectedValue == 3)
-          ? baseDate.add(const Duration(days: 1))
-          : baseDate.add(const Duration(days: 4)),
-      lastDate: DateTime(2027),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
       builder: (context, child) {
         return Theme(data: ThemeData.light(), child: child!);
       },
     );
     if (picked != null) {
-      setState(() => _selectedDateRange = picked);
+      setState(() {
+        if (isStartDate) {
+          _selectedStartDate = picked;
+        } else {
+          _selectedEndDate = picked;
+        }
+      });
     }
   }
 
@@ -255,8 +281,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             : (_selectedValue == 2)
                 ? 'Academic'
                 : 'Medical',
-        "startDate": DateFormat("yyyy-MM-dd").format(_selectedDateRange!.start),
-        "endDate": DateFormat("yyyy-MM-dd").format(_selectedDateRange!.end),
+        "startDate": DateFormat("yyyy-MM-dd").format(_selectedStartDate!),
+        "endDate": DateFormat("yyyy-MM-dd").format(_selectedEndDate!),
         "bankAccountNumber": _accountNumberController.text,
         "bankIFSCCode": _ifscController.text,
         "bankName": _bankNameController.text,
@@ -303,9 +329,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   int _calculateLeaveDays() {
-    if (_selectedDateRange == null) return 0;
-    return _selectedDateRange!.end
-            .difference(_selectedDateRange!.start)
+    if (_selectedStartDate == null || _selectedEndDate == null) return 0;
+    return _selectedEndDate!
+            .difference(_selectedStartDate!)
             .inDays +
         1;
   }
@@ -492,7 +518,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
-                      onTap: _selectDateRange,
+                      onTap: () => _selectDate(isStartDate: true),
                       child: Container(
                         decoration: BoxDecoration(
                           border: Border.all(color: _borderColor),
@@ -509,19 +535,19 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              _selectedDateRange == null
+                              _selectedStartDate == null
                                   ? "DD/MM/YY"
                                   : DateFormat("dd/MM/yy")
-                                      .format(_selectedDateRange!.start),
+                                      .format(_selectedStartDate!),
                               style: TextStyle(
                                 fontSize: 14,
-                                color: _selectedDateRange == null
+                                color: _selectedStartDate == null
                                     ? _greyText
                                     : Colors.black,
                               ),
                             ),
                             const Spacer(),
-                            _selectedDateRange == null ? const SizedBox() : const Icon(Icons.check, color: Colors.green)
+                            _selectedStartDate == null ? const SizedBox() : const Icon(Icons.check, color: Colors.green)
                           ],
                         ),
                       ),
@@ -537,7 +563,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     ),
                     const SizedBox(height: 8),
                     GestureDetector(
-                      onTap: _selectDateRange,
+                      onTap: () => _selectDate(isStartDate: false),
                       child: Container(
                         decoration: BoxDecoration(
                           border: Border.all(color: _borderColor),
@@ -554,19 +580,19 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                             ),
                             const SizedBox(width: 12),
                             Text(
-                              _selectedDateRange == null
+                              _selectedEndDate == null
                                   ? "DD/MM/YY"
                                   : DateFormat("dd/MM/yy")
-                                      .format(_selectedDateRange!.end),
+                                      .format(_selectedEndDate!),
                               style: TextStyle(
                                 fontSize: 14,
-                                color: _selectedDateRange == null
+                                color: _selectedEndDate == null
                                     ? _greyText
                                     : Colors.black,
                               ),
                             ),
                             const Spacer(),
-                            _selectedDateRange == null ? const SizedBox() : const Icon(Icons.check, color: Colors.green)
+                            _selectedEndDate == null ? const SizedBox() : const Icon(Icons.check, color: Colors.green)
                           ],
                         ),
                       ),
@@ -604,18 +630,18 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               // 2. This transparent Spacer "eats" the extra white space
               const Spacer(),
               _buildBottomButtons(
-                canNext: () => (_reasonController.text.isNotEmpty) && (!(_selectedDateRange == null)) && (!(_selectedDateRange!.end.difference(_selectedDateRange!.start).inDays + 1 < 4)),
+                canNext: () => (_reasonController.text.isNotEmpty) && (!(_selectedStartDate == null || _selectedEndDate == null)) && (!(_selectedEndDate!.difference(_selectedStartDate!).inDays + 1 < 4)),
                 onNext: () {
                   if (_reasonController.text.isEmpty) {
                     _showSnackBar("Please enter reason for leave");
                     return;
                   }
-                  if (_selectedDateRange == null) {
+                  if (_selectedStartDate == null || _selectedEndDate == null) {
                     _showSnackBar("Please select dates");
                     return;
                   }
-                  if (_selectedDateRange!.end
-                              .difference(_selectedDateRange!.start)
+                  if (_selectedEndDate!
+                              .difference(_selectedStartDate!)
                               .inDays +
                           1 <
                       4) {

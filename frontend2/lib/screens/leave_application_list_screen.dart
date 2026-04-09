@@ -236,7 +236,7 @@ class _LeaveApplicationListScreenState
         options: Options(
           headers: {
             'Authorization': 'Bearer $accessToken',
-            // "Content-Type": "multipart/form-data"
+            "Content-Type": "multipart/form-data"
           },
         ),
       );
@@ -456,7 +456,7 @@ class _LeaveApplicationListScreenState
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
-                                  "Mess rebate requires applying at least 4 days in advance.",
+                                  "Mess rebate requires applying at least 2 days in advance for casual leave and 1 day in advance for other types of leave.",
                                   style: const TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
