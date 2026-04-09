@@ -45,8 +45,9 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   static const bool _isWeatherBackgroundTesting = false;
   static const String _testingWeatherGroup =
-      'cloudy'; // clear, cloudy, rainy, thunder
+      'clear'; // clear, rainy
   static const bool _testingIsDay = false;
+  static const bool _isTestingNotifications = false;
 
   static const pageBackground = Color(0xFFFFFFFF);
   static const surface = Color(0xFFFFFFFF);
@@ -63,7 +64,7 @@ class _HomeScreenState extends State<HomeScreen>
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
-  // static const bool _showDummyImportantMessages = false;
+  static const generalSans = 'GeneralSans';
 
   String name = '';
   String currSubscribedMess = '';
@@ -95,6 +96,32 @@ class _HomeScreenState extends State<HomeScreen>
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      
+      // Add dummy alerts for testing extended background
+      if (_isTestingNotifications) {
+        final dummyAlerts = [
+          AlertModel(
+            id: 'dummy-1',
+            title: 'Important Messages',
+            body: 'Mess will be closed on 29 May, Sunday',
+            hasCountdown: false,
+            expiresAt: DateTime.now().add(const Duration(days: 1)).millisecondsSinceEpoch ~/ 1000,
+            targetType: 'global',
+            isRead: false,
+          ),
+          AlertModel(
+            id: 'dummy-2',
+            title: 'Important Messages',
+            body: 'Use the scanning feature for filling the complaints',
+            hasCountdown: false,
+            expiresAt: DateTime.now().add(const Duration(days: 1)).millisecondsSinceEpoch ~/ 1000,
+            targetType: 'global',
+            isRead: false,
+          ),
+        ];
+        AlertsManager.activeAlertsNotifier.value = dummyAlerts;
+      }
+      
       final roomCleaningProvider = context.read<RoomCleaningProvider>();
       if (!roomCleaningProvider.isBookingsLoading &&
           roomCleaningProvider.myBookings.isEmpty &&
@@ -172,10 +199,63 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String getGreeting() {
+    // Check if it's raining first
+    if (_weatherBackground.weatherGroup == 'rainy') {
+      return 'Happy Raining';
+    }
+
+    // Check if we're in weekend period (7PM Friday to 10PM Sunday)
+    if (_isWeekendPeriod()) {
+      return 'Happy Weekend';
+    }
+
+    final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    final sunriseUnix = _weatherBackground.sunriseUnix;
+    final sunsetUnix = _weatherBackground.sunsetUnix;
+
+    if (sunriseUnix != null && sunsetUnix != null && sunriseUnix < sunsetUnix) {
+      final noonUnix = sunriseUnix + ((sunsetUnix - sunriseUnix) ~/ 2);
+
+      // morning: sunrise to 12PM (solar noon)
+      if (nowUnix >= sunriseUnix && nowUnix < noonUnix) {
+        return 'Good Morning';
+      }
+      // afternoon: 12PM to sunset
+      if (nowUnix >= noonUnix && nowUnix < sunsetUnix) {
+        return 'Good Afternoon';
+      }
+      // evening: sunset to sunrise
+      return 'Good Evening';
+    }
+
+    // Fallback to hour-based logic
     final hour = DateTime.now().hour;
+    if (hour < 6 || hour >= 18) return 'Good Evening';
     if (hour < 12) return 'Good Morning';
-    if (hour < 18) return 'Good Afternoon';
-    return 'Good Evening';
+    return 'Good Afternoon';
+  }
+
+  bool _isWeekendPeriod() {
+    final now = DateTime.now();
+    final hour = now.hour;
+    
+    // Friday (5): 7PM (19:00) onwards
+    if (now.weekday == DateTime.friday && hour >= 19) {
+      return true;
+    }
+    // Saturday (6): entire day
+    if (now.weekday == DateTime.saturday) {
+      return true;
+    }
+    // Sunday (7): up to 10PM (22:00)
+    if (now.weekday == DateTime.sunday && hour < 22) {
+      return true;
+    }
+    return false;
+  }
+
+  String _weatherHeroGreeting() {
+    return getGreeting();
   }
 
   String getTodayDay() {
@@ -422,8 +502,8 @@ class _HomeScreenState extends State<HomeScreen>
       boxShadow: const [
         BoxShadow(
           color: shadow,
-          blurRadius: 6,
-          offset: Offset(0, 4),
+          blurRadius: 16,
+          offset: Offset.zero,
         ),
       ],
     );
@@ -791,6 +871,10 @@ class _HomeScreenState extends State<HomeScreen>
             decoration: BoxDecoration(
               color: const Color(0xFFC9D4DE),
               borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: Colors.white.withOpacity(0.92),
+                width: 3,
+              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: value.isNotEmpty
@@ -805,52 +889,149 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildTopBar({required bool onWeatherBackground}) {
+  String _getBackgroundAssetPath(String basePath) {
+    // Check if there are important messages
+    final activeAlerts = AlertsManager.activeAlertsNotifier.value;
+    if (activeAlerts.isNotEmpty) {
+      // Use extended version when there are important messages
+      if (basePath.contains('.png')) {
+        return basePath.replaceAll('.png', '_ext.png');
+      }
+    }
+    return basePath;
+  }
+
+  Color _getTitleColor() {
+    final variant = _weatherBackground.backgroundVariant;
+    final group = _weatherBackground.weatherGroup;
+
+    // For morning, afternoon, and weekend use dark color
+    if (variant == 'morning' || variant == 'afternoon' || variant == 'weekend') {
+      return const Color(0xFF4C4EDB); // #4C4EDB
+    }
+
+    // For evening and raining use light color
+    return const Color(0xFFEDEDFB);
+  }
+
+  Color _getTextColor() {
+    final variant = _weatherBackground.backgroundVariant;
+    final group = _weatherBackground.weatherGroup;
+
+    // For morning, afternoon, and weekend use dark/black color
+    if (variant == 'morning' || variant == 'afternoon' || variant == 'weekend') {
+      return const Color(0xFF2E2F31); // Dark text
+    }
+
+    // For evening and raining use white/light color
+    return Colors.white;
+  }
+
+  Widget _buildWeatherHeroHeader({
+    required int unreadCount,
+    required bool hasImportantMessages,
+  }) {
     final displayName = name.isNotEmpty ? name : 'User';
-    final titleColor = onWeatherBackground ? Colors.white : primary;
-    final subtitleColor = onWeatherBackground
-        ? Colors.white.withOpacity(0.92)
-        : textSecondary;
+    final greeting = _weatherHeroGreeting();
+    final subtitleText = unreadCount == 1
+        ? '1 notification today'
+        : '$unreadCount notifications today';
+
+    final titleColor = _getTitleColor();
+    final textColor = _getTextColor();
 
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
-        child: Row(
+        padding: const EdgeInsets.fromLTRB(16, 32, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'HABit',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      color: titleColor,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Flexible(
+                      Text(
+                        'HABit',
+                        style: TextStyle(
+                          fontFamily: generalSans,
+                          fontSize: 28,
+                          height: 30.4 / 28,
+                          fontWeight: FontWeight.w700,
+                          color: titleColor,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 5),
                         child: Text(
-                          '${getGreeting()}, $displayName',
-                          overflow: TextOverflow.ellipsis,
+                          'BETA V2',
                           style: TextStyle(
-                            fontSize: 14,
-                            height: 20 / 14,
+                            fontFamily: generalSans,
+                            fontSize: 12,
+                            height: 16 / 12,
                             fontWeight: FontWeight.w500,
-                            color: subtitleColor,
+                            color: titleColor,
+                            letterSpacing: 0.3,
                           ),
                         ),
                       ),
                     ],
                   ),
+                ),
+                _buildProfileAvatar(),
+              ],
+            ),
+            SizedBox(height: hasImportantMessages ? 0 : 8),
+            Transform.translate(
+              offset: Offset(0, hasImportantMessages ? -8 : 0),
+              child: Row(
+                children: [
+                  Flexible(
+                    child: RichText(
+                      overflow: TextOverflow.ellipsis,
+                      text: TextSpan(
+                        style: TextStyle(
+                          fontFamily: generalSans,
+                          fontSize: hasImportantMessages ? 16 : 24,
+                          height: hasImportantMessages ? 20 / 16 : 32 / 24,
+                          fontWeight: FontWeight.w500,
+                          color: textColor,
+                        ),
+                        children: [
+                          TextSpan(text: greeting),
+                          const TextSpan(text: ' '),
+                          TextSpan(
+                            text: displayName,
+                            style: TextStyle(color: textColor),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),
-            _buildProfileAvatar(),
+            if (!hasImportantMessages) ...[
+              const SizedBox(height: 16),
+              Padding(
+                padding: const EdgeInsets.only(left: 5),
+                child: Text(
+                  subtitleText,
+                  style: TextStyle(
+                    fontFamily: generalSans,
+                    fontSize: 12,
+                    height: 16 / 12,
+                    fontWeight: FontWeight.w500,
+                    color: textColor,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
           ],
         ),
       ),
@@ -887,7 +1068,7 @@ class _HomeScreenState extends State<HomeScreen>
                 backgroundColor: yellowSoft,
                 child: Icon(
                   Icons.warning_amber_rounded,
-                  size: 20, // slightly smaller to fit perfectly
+                  size: 25,
                   color: yellow,
                 ),
               ),
@@ -897,17 +1078,16 @@ class _HomeScreenState extends State<HomeScreen>
                 style: TextStyle(
                   fontSize: 14,
                   height: 20 / 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   color: yellow,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4), // Space between header and alerts
           for (final alert in alerts)
             Container(
               width: double.infinity,
-              margin: const EdgeInsets.only(top: 12),
+              margin: const EdgeInsets.only(top: 8),
               padding: const EdgeInsets.only(left: 10),
               decoration: const BoxDecoration(
                 border: Border(left: BorderSide(color: yellow, width: 2)),
@@ -915,19 +1095,7 @@ class _HomeScreenState extends State<HomeScreen>
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Title
-                  // Text(
-                  //   alert.title,
-                  //   style: const TextStyle(
-                  //     fontSize: 14,
-                  //     height: 20 / 14,
-                  //     fontWeight: FontWeight.w600,
-                  //     color: textPrimary,
-                  //   ),
-                  // ),
-                  // Body (if exists)
                   if (alert.body.isNotEmpty) ...[
-                    const SizedBox(height: 2),
                     Text(
                       alert.body,
                       style: const TextStyle(
@@ -938,13 +1106,7 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                     ),
                   ],
-                  // Invisible trigger to auto-deletes the alert!
                   SilentAlertExpirer(expiresAt: alert.expiresAt),
-                  // Countdown (if hasCountdown is true)
-                  // if (alert.hasCountdown) ...[
-                  //   const SizedBox(height: 6),
-                  //   CountdownText(expiresAt: alert.expiresAt),
-                  // ],
                 ],
               ),
             ),
@@ -981,6 +1143,7 @@ class _HomeScreenState extends State<HomeScreen>
             Text(
               '$unreadCount Updates',
               style: const TextStyle(
+                fontFamily: generalSans,
                 fontSize: 14,
                 height: 20 / 14,
                 fontWeight: FontWeight.w500,
@@ -996,33 +1159,43 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildAlertsSection() {
-    // 1. Listen to the REAL active alerts from AlertsManager
     return ValueListenableBuilder<List<AlertModel>>(
       valueListenable: AlertsManager.activeAlertsNotifier,
       builder: (context, activeAlerts, child) {
-        
-        // 2. Also listen to NotificationHistory just for the unread count on the white button
         return ValueListenableBuilder<List<dynamic>>(
           valueListenable: NotificationProvider.notificationProvider,
           builder: (context, storedNotifications, child) {
-            
-            // Convert everything safely
             final notifications = storedNotifications.map((item) {
               if (item is NotificationModel) return item;
               return NotificationModel.fromLegacyString(item.toString());
             }).toList();
 
-            final unreadNotifCount = notifications.where((n) => !n.isRead).length;
-            final unreadAlertsCount = activeAlerts.where((a) => !a.isRead).length;
+            final unreadNotifCount =
+                notifications.where((n) => !n.isRead).length;
+            final unreadAlertsCount =
+                activeAlerts.where((a) => !a.isRead).length;
             final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
 
             return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                _buildWeatherHeroHeader(
+                  unreadCount: totalUnreadCount,
+                  hasImportantMessages: activeAlerts.isNotEmpty,
+                ),
+                const SizedBox(height: 16),
                 if (activeAlerts.isNotEmpty) ...[
-                  _buildImportantMessagesCard(activeAlerts),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    child: _buildImportantMessagesCard(activeAlerts),
+                  ),
                   const SizedBox(height: 16),
                 ],
-                _buildUpdatesCard(totalUnreadCount),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: _buildUpdatesCard(totalUnreadCount),
+                ),
+                const SizedBox(height: 31),
               ],
             );
           },
@@ -1164,7 +1337,7 @@ class _HomeScreenState extends State<HomeScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Quick Actions', style: _sectionTitleStyle()),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
         Row(
           children: [
             _buildQuickActionCard(featured[0]),
@@ -1291,51 +1464,45 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildWeatherHeroSection() {
-    return Column(
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 400),
-          width: double.infinity,
-          decoration: BoxDecoration(
-            image: DecorationImage(
-              image: AssetImage(_weatherBackground.assetPath),
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-            ),
-          ),
-          child: Container(
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  Color(0x2E000000),
-                  Color(0x12000000),
-                  Color(0x00FFFFFF),
-                  Color(0xFFFFFFFF),
-                ],
-                stops: [0.0, 0.34, 0.72, 1.0],
+    return ValueListenableBuilder<List<AlertModel>>(
+      valueListenable: AlertsManager.activeAlertsNotifier,
+      builder: (context, activeAlerts, child) {
+        // Keep consistent min height regardless of alerts
+        const minHeight = 328.0;
+        
+        return Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              width: double.infinity,
+              constraints: const BoxConstraints(minHeight: minHeight),
+              decoration: BoxDecoration(
+                image: DecorationImage(
+                  image: AssetImage(_getBackgroundAssetPath(_weatherBackground.assetPath)),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.topCenter,
+                ),
+              ),
+              child: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0x2A000000),
+                      Color(0x10000000),
+                      Color(0x04FFFFFF),
+                      Color(0xFFFFFFFF),
+                    ],
+                    stops: [0.0, 0.48, 0.88, 1.0],
+                  ),
+                ),
+                child: _buildAlertsSection(),
               ),
             ),
-            child: Column(
-              children: [
-                _buildTopBar(onWeatherBackground: true),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                  child: _buildAlertsSection(),
-                ),
-              ],
-            ),
-          ),
-        ),
-        Container(
-          height: 20,
-          decoration: const BoxDecoration(
-            color: pageBackground,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 
@@ -1347,8 +1514,9 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           children: [
             _buildWeatherHeroSection(),
+            _buildSectionDivider(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
               child: ValueListenableBuilder<List<String>>(
                 valueListenable: HostelsNotifier.hostelNotifier,
                 builder: (context, _, __) => _buildQuickActionsSection(),
@@ -1357,7 +1525,7 @@ class _HomeScreenState extends State<HomeScreen>
             if (currSubscribedMess.isNotEmpty) ...[
               _buildSectionDivider(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
                 child: _buildMessSection(),
               ),
             ],
