@@ -1,10 +1,13 @@
 const { User } = require("../user/userModel");
 const { Hostel } = require("../hostel/hostelModel");
+const { Mess } = require("../mess/messModel");
+const UserAllocHostel = require("../hostel/hostelAllocModel");
 const Feedback = require("./feedbackModel");
 const { FeedbackSettings } = require("./feedbackSettingsModel");
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
+const redisClient = require("../../utils/redisClient.js");
 
 const ratingMap = {
   "Very Poor": 1,
@@ -12,6 +15,145 @@ const ratingMap = {
   Average: 3,
   Good: 4,
   "Very Good": 5,
+};
+
+const getFeedbackUserKey = (fb) => {
+  if (!fb?.user) return `anonymous:${String(fb?._id || "")}`;
+  if (typeof fb.user === "object") {
+    return String(fb.user._id || fb.user.id || "");
+  }
+  return String(fb.user);
+};
+
+// Keep latest response for each user (input should be date-desc sorted)
+const dedupeByLatestUserFeedback = (feedbacks = []) => {
+  const seen = new Set();
+  const result = [];
+  for (const fb of feedbacks) {
+    const key = getFeedbackUserKey(fb);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(fb);
+  }
+  return result;
+};
+
+// Keep latest feedback for each logical user submission key.
+// For all-time leaderboard, include window in key so same user across months is retained.
+const dedupeFeedbacksForAggregation = (
+  feedbacks = [],
+  { includeWindowInKey = false } = {},
+) => {
+  const seen = new Set();
+  const result = [];
+  for (const fb of feedbacks) {
+    const userKey = getFeedbackUserKey(fb);
+    const catererKey = String(fb?.caterer?._id || fb?.caterer || "");
+    const windowKey = includeWindowInKey
+      ? String(fb?.feedbackWindowNumber || "")
+      : "";
+    const key = `${catererKey}:${windowKey}:${userKey}`;
+    if (!catererKey || !userKey || seen.has(key)) continue;
+    seen.add(key);
+    result.push(fb);
+  }
+  return result;
+};
+
+const computeOverallOpi = ({
+  breakfastAvg = 0,
+  lunchAvg = 0,
+  dinnerAvg = 0,
+  uniformAvg = 0,
+  cleanlinessAvg = 0,
+  wasteAvg = 0,
+  qualityAvg = 0,
+}) => {
+  return (
+    (10 * breakfastAvg +
+      10 * lunchAvg +
+      10 * dinnerAvg +
+      2 * uniformAvg +
+      4 * cleanlinessAvg +
+      1 * wasteAvg +
+      3 * qualityAvg) /
+    40
+  );
+};
+
+const computeMealOpi = ({
+  mealSum = 0,
+  responseCount = 0,
+  subscriberCount = 0,
+}) => {
+  const responses = Number(responseCount) || 0;
+  const subscribers = Math.max(Number(subscriberCount) || 0, responses);
+  if (subscribers <= 0) return 0;
+  return (Number(mealSum) + 4 * (subscribers - responses)) / subscribers;
+};
+
+const getSubscriberCountByCatererIds = async (catererIds) => {
+  if (!Array.isArray(catererIds) || catererIds.length === 0) {
+    return new Map();
+  }
+
+  const uniqueCatererIds = [...new Set(catererIds.map((id) => String(id)))];
+
+  const messes = await Mess.find(
+    { _id: { $in: uniqueCatererIds } },
+    { _id: 1, hostelId: 1 },
+  ).lean();
+
+  const hostelByCaterer = new Map();
+  const hostelIds = [];
+  for (const mess of messes) {
+    if (!mess?.hostelId) continue;
+    const catererId = String(mess._id);
+    const hostelId = mess.hostelId;
+    hostelByCaterer.set(catererId, hostelId);
+    hostelIds.push(hostelId);
+  }
+
+  if (hostelIds.length === 0) {
+    return new Map(uniqueCatererIds.map((id) => [id, 0]));
+  }
+
+  const subscriberRows = await UserAllocHostel.aggregate([
+    {
+      $match: {
+        $or: [
+          { current_subscribed_mess: { $in: hostelIds } },
+          { hostel: { $in: hostelIds } },
+        ],
+      },
+    },
+    {
+      $project: {
+        subscribedHostel: {
+          $ifNull: ["$current_subscribed_mess", "$hostel"],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: "$subscribedHostel",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+
+  const subscriberByHostel = new Map(
+    subscriberRows.map((row) => [String(row._id), row.count]),
+  );
+
+  const subscriberByCaterer = new Map();
+  for (const catererId of uniqueCatererIds) {
+    const hostelId = hostelByCaterer.get(catererId);
+    const count = hostelId ? subscriberByHostel.get(String(hostelId)) || 0 : 0;
+    subscriberByCaterer.set(catererId, count);
+  }
+
+  return subscriberByCaterer;
 };
 
 // ==========================================
@@ -35,15 +177,13 @@ const getFeedbacksByCaterer = async (req, res) => {
       query.feedbackWindowNumber = parseInt(windowNumber, 10);
     }
 
-    const [total, items] = await Promise.all([
-      Feedback.countDocuments(query),
-      Feedback.find(query)
-        .populate("user", "name")
-        .sort({ date: -1 })
-        .skip((p - 1) * size)
-        .limit(size)
-        .lean(),
-    ]);
+    const rawItems = await Feedback.find(query)
+      .populate("user", "name")
+      .sort({ date: -1 })
+      .lean();
+    const dedupedItems = dedupeByLatestUserFeedback(rawItems);
+    const total = dedupedItems.length;
+    const items = dedupedItems.slice((p - 1) * size, p * size);
 
     const mapped = items.map((fb) => ({
       id: String(fb._id),
@@ -61,10 +201,14 @@ const getFeedbacksByCaterer = async (req, res) => {
       };
       if (windowNumber)
         fbQuery.feedbackWindowNumber = parseInt(windowNumber, 10);
-      const all = await Feedback.find(fbQuery)
+      const allRaw = await Feedback.find(fbQuery)
         .populate("user", "isSMC")
         .populate("caterer", "name")
+        .sort({ date: -1 })
         .lean();
+      const all = dedupeFeedbacksForAggregation(allRaw, {
+        includeWindowInKey: !windowNumber,
+      });
 
       const groups = new Map();
       const toScore = (label) => ratingMap[label] ?? null;
@@ -101,19 +245,48 @@ const getFeedbacksByCaterer = async (req, res) => {
         }
       }
 
+      const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
+        Array.from(groups.keys()),
+      );
+
       const rows = [];
       for (const [key, g] of groups) {
-        const nonSmcAvg = g.totalUsers
-          ? (g.breakfastSum + g.lunchSum + g.dinnerSum) / (3 * g.totalUsers)
+        const subscriberCount = subscriberCountByCaterer.get(String(key)) || 0;
+        const avgBreakfast = computeMealOpi({
+          mealSum: g.breakfastSum,
+          responseCount: g.totalUsers,
+          subscriberCount,
+        });
+        const avgLunch = computeMealOpi({
+          mealSum: g.lunchSum,
+          responseCount: g.totalUsers,
+          subscriberCount,
+        });
+        const avgDinner = computeMealOpi({
+          mealSum: g.dinnerSum,
+          responseCount: g.totalUsers,
+          subscriberCount,
+        });
+        const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : 0;
+        const avgWasteDisposal = g.smc.count
+          ? g.smc.wasteDisposalSum / g.smc.count
           : 0;
-        const smcAvg = g.smc.count
-          ? (g.smc.hygieneSum +
-              g.smc.wasteDisposalSum +
-              g.smc.qualitySum +
-              g.smc.uniformSum) /
-            (4 * g.smc.count)
+        const avgQualityOfIngredients = g.smc.count
+          ? g.smc.qualitySum / g.smc.count
           : 0;
-        const overall = nonSmcAvg * 0.6 + smcAvg * 0.4;
+        const avgUniformAndPunctuality = g.smc.count
+          ? g.smc.uniformSum / g.smc.count
+          : 0;
+
+        const overall = computeOverallOpi({
+          breakfastAvg: avgBreakfast,
+          lunchAvg: avgLunch,
+          dinnerAvg: avgDinner,
+          uniformAvg: avgUniformAndPunctuality,
+          cleanlinessAvg: avgHygiene,
+          wasteAvg: avgWasteDisposal,
+          qualityAvg: avgQualityOfIngredients,
+        });
         rows.push({ catererId: key, overall });
       }
       rows.sort((a, b) => b.overall - a.overall);
@@ -144,6 +317,70 @@ const getFeedbacksByCaterer = async (req, res) => {
 };
 
 // ==========================================
+// Detailed feedback rows for a specific window (HAB/Admin)
+// Query params: windowNumber (required)
+// Response: [{ userName, rollNumber, breakfast, lunch, dinner, smcFields, comment, catererName, date }]
+// ==========================================
+const getDetailedFeedbackByWindow = async (req, res) => {
+  try {
+    const { windowNumber } = req.query;
+    const parsedWindow = parseInt(windowNumber, 10);
+
+    if (!parsedWindow || Number.isNaN(parsedWindow)) {
+      return res
+        .status(400)
+        .json({ message: "Valid windowNumber is required" });
+    }
+
+    const feedbacks = await Feedback.find({
+      caterer: { $ne: null },
+      feedbackWindowNumber: parsedWindow,
+    })
+      .populate("user", "name rollNumber isSMC")
+      .populate({
+        path: "caterer",
+        select: "name hostelId",
+        populate: { path: "hostelId", select: "hostel_name" },
+      })
+      .sort({ date: -1 })
+      .lean();
+
+    const dedupedFeedbacks = dedupeByLatestUserFeedback(feedbacks);
+    const rows = dedupedFeedbacks.map((fb) => {
+      const isSMC = !!fb.user?.isSMC;
+      return {
+        userName: fb.user?.name || "Anonymous User",
+        rollNumber: fb.user?.rollNumber || "-",
+        breakfast: fb.breakfast || "-",
+        lunch: fb.lunch || "-",
+        dinner: fb.dinner || "-",
+        smcFields: isSMC
+          ? {
+              cleanliness: fb.smcFields?.hygiene || "-",
+              wasteDisposal: fb.smcFields?.wasteDisposal || "-",
+              qualityOfIngredients: fb.smcFields?.qualityOfIngredients || "-",
+              uniformAndPunctuality: fb.smcFields?.uniformAndPunctuality || "-",
+            }
+          : null,
+        comment: fb.comment || "",
+        catererName: fb.caterer?.name || "-",
+        hostelName: fb.caterer?.hostelId?.hostel_name || "-",
+        isSMC,
+        date: fb.date,
+      };
+    });
+
+    return res.status(200).json(rows);
+  } catch (e) {
+    console.error("getDetailedFeedbackByWindow error:", e);
+    return res.status(500).json({
+      message: "Failed to fetch detailed feedback by window",
+      error: String(e.message || e),
+    });
+  }
+};
+
+// ==========================================
 // Submit feedback
 // ==========================================
 const submitFeedback = async (req, res) => {
@@ -165,9 +402,8 @@ const submitFeedback = async (req, res) => {
       const expiresAt = new Date(settings.currentWindowClosingTime);
       const now = new Date();
       if (now > expiresAt) {
-        settings.isEnabled = false;
-        settings.disabledAt = now;
-        await settings.save();
+        // Don't silently disable here — let the scheduler handle it
+        // so that updateAllMessRatingsAndRankings is properly called.
         return res.status(403).send("Mess feedback window has ended.");
       }
     }
@@ -210,6 +446,18 @@ const submitFeedback = async (req, res) => {
       feedbackData.smcFields = smcFields;
     }
 
+    const existingFeedback = await Feedback.findOne({
+      user: user._id,
+      feedbackWindowNumber: settings.currentWindowNumber,
+    }).lean();
+    if (existingFeedback) {
+      if (!user.isFeedbackSubmitted) {
+        user.isFeedbackSubmitted = true;
+        await user.save();
+      }
+      return res.status(400).send("Feedback already submitted for this window");
+    }
+
     const feedback = new Feedback(feedbackData);
     await feedback.save();
 
@@ -219,6 +467,9 @@ const submitFeedback = async (req, res) => {
 
     res.status(200).send("Feedback submitted successfully");
   } catch (err) {
+    if (err?.code === 11000) {
+      return res.status(400).send("Feedback already submitted for this window");
+    }
     console.error(err);
     res.status(500).send("Error saving feedback");
   }
@@ -324,8 +575,11 @@ const enableFeedback = async (req, res) => {
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
       "All_Hostels",
-      { redirectType: "mess_screen", isAlert: "true" }
+      { redirectType: "mess_screen", isAlert: "true" },
+    ).catch((err) =>
+      console.error("Feedback enabled notification failed:", err),
     );
+    await redisClient.del("feedback_settings");
     return res.status(200).json({ message: "Feedback enabled", data: s });
   } catch (e) {
     return res
@@ -341,12 +595,40 @@ const disableFeedback = async (req, res) => {
     s.isEnabled = false;
     s.disabledAt = new Date();
     await s.save();
+    // Call updateAllMessRatingsAndRankings with the just-closed window number
+    if (typeof s.currentWindowNumber === "number") {
+      await updateAllMessRatingsAndRankings(s.currentWindowNumber);
+    }
+    await redisClient.del("feedback_settings");
     return res.status(200).json({ message: "Feedback disabled", data: s });
   } catch (e) {
     return res
       .status(500)
       .json({ message: "Failed to disable", error: String(e.message || e) });
   }
+};
+
+// Helper to get feedback window dates for a given month
+// Duplicated from autoFeedbackScheduler to avoid circular dependency
+const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
+  const now = new Date();
+  const year = targetYear || now.getFullYear();
+  const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
+
+  let startDay, endDay;
+  if (month === 1) {
+    // February
+    startDay = 23;
+    endDay = 25;
+  } else {
+    // All other months
+    startDay = 25;
+    endDay = 27;
+  }
+
+  const startDate = new Date(year, month, startDay, 9, 0, 0);
+  const endDate = new Date(year, month, endDay, 23, 59, 59);
+  return { startDate, endDate };
 };
 
 // Helper to enable feedback automatically (non-Express) so schedulers can call it
@@ -368,20 +650,21 @@ const enableFeedbackAutomatic = async () => {
     s.enabledAt = new Date();
     s.disabledAt = null;
 
-    // Set closing time (2 days from now, end of day)
-    const closingDate = new Date(s.enabledAt);
-    closingDate.setDate(closingDate.getDate() + 2);
-    closingDate.setHours(23, 59, 59, 999);
-    s.currentWindowClosingTime = closingDate;
+    // Set closing time to the scheduled window end date
+    const { endDate } = getFeedbackWindowDates();
+    s.currentWindowClosingTime = endDate;
 
     await s.save();
     sendNotificationMessage(
       "MESS FEEDBACK",
       "Mess Feedback for this month is enabled",
       "All_Hostels",
-      { redirectType: "mess_screen", isAlert: "true" }
+      { redirectType: "mess_screen", isAlert: "true" },
+    ).catch((err) =>
+      console.error("Feedback enabled notification failed:", err),
     );
     console.log("✅ Feedback enabled automatically");
+    await redisClient.del("feedback_settings");
     return { success: true, settings: s };
   } catch (e) {
     console.error("❌ Error enabling feedback automatically:", e);
@@ -398,8 +681,13 @@ const disableFeedbackAutomatic = async () => {
     s.isEnabled = false;
     s.disabledAt = new Date();
     await s.save();
+    // Call updateAllMessRatingsAndRankings with the just-closed window number
+    if (typeof s.currentWindowNumber === "number") {
+      await updateAllMessRatingsAndRankings(s.currentWindowNumber);
+    }
 
     console.log("✅ Feedback disabled automatically");
+    await redisClient.del("feedback_settings");
     return { success: true, settings: s };
   } catch (e) {
     console.error("❌ Error disabling feedback automatically:", e);
@@ -412,23 +700,39 @@ const disableFeedbackAutomatic = async () => {
 // ==========================================
 const getFeedbackSettings = async (req, res) => {
   try {
+    const cachedSettings = await redisClient.get("feedback_settings");
+    if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
+
     let s = await FeedbackSettings.findOne();
+    // Check if window has expired and report accordingly, but don't
+    // persist the disable — let the scheduler handle it so
+    // updateAllMessRatingsAndRankings is properly called.
+    let responseData;
     if (s?.isEnabled && s.currentWindowClosingTime) {
       const expiresAt = new Date(s.currentWindowClosingTime);
       if (new Date() > expiresAt) {
-        s.isEnabled = false;
-        s.disabledAt = new Date();
-        await s.save();
+        // Return as disabled to the client without persisting
+        responseData = s.toObject();
+        responseData.isEnabled = false;
       }
     }
-    return res.status(200).json(
-      s || {
+
+    if (!responseData) {
+      responseData = s || {
         isEnabled: false,
         enabledAt: null,
         disabledAt: null,
         currentWindowNumber: 1,
-      }
+      };
+    }
+
+    await redisClient.set(
+      "feedback_settings",
+      JSON.stringify(responseData),
+      "EX",
+      60,
     );
+    return res.status(200).json(responseData);
   } catch (e) {
     return res.status(500).json({
       message: "Failed to fetch settings",
@@ -442,23 +746,36 @@ const getFeedbackSettings = async (req, res) => {
 // ==========================================
 const getFeedbackSettingsPublic = async (req, res) => {
   try {
+    const cachedSettings = await redisClient.get("feedback_settings");
+    if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
+
     let s = await FeedbackSettings.findOne();
+    // Same as getFeedbackSettings: report expired state without persisting
+    let responseData;
     if (s?.isEnabled && s.currentWindowClosingTime) {
       const expiresAt = new Date(s.currentWindowClosingTime);
       if (new Date() > expiresAt) {
-        s.isEnabled = false;
-        s.disabledAt = new Date();
-        await s.save();
+        responseData = s.toObject();
+        responseData.isEnabled = false;
       }
     }
-    return res.status(200).json(
-      s || {
+
+    if (!responseData) {
+      responseData = s || {
         isEnabled: false,
         enabledAt: null,
         disabledAt: null,
         currentWindowNumber: 1,
-      }
+      };
+    }
+
+    await redisClient.set(
+      "feedback_settings",
+      JSON.stringify(responseData),
+      "EX",
+      60,
     );
+    return res.status(200).json(responseData);
   } catch (e) {
     return res.status(500).json({
       message: "Failed to fetch settings",
@@ -472,10 +789,14 @@ const getFeedbackSettingsPublic = async (req, res) => {
 // ==========================================
 const getFeedbackLeaderboard = async (req, res) => {
   try {
-    const feedbacks = await Feedback.find({ caterer: { $ne: null } })
+    const feedbacksRaw = await Feedback.find({ caterer: { $ne: null } })
       .populate("user", "isSMC")
       .populate("caterer", "name")
+      .sort({ date: -1 })
       .lean();
+    const feedbacks = dedupeFeedbacksForAggregation(feedbacksRaw, {
+      includeWindowInKey: true,
+    });
 
     const toScore = (label) => ratingMap[label] ?? null;
     const groups = new Map();
@@ -518,42 +839,62 @@ const getFeedbackLeaderboard = async (req, res) => {
       }
     }
 
+    const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
+      Array.from(groups.keys()),
+    );
+
     const rows = [];
     for (const [, g] of groups) {
-      const nonSmcAvg =
-        g.totalUsers > 0
-          ? (g.breakfastSum + g.lunchSum + g.dinnerSum) / (3 * g.totalUsers)
-          : 0;
+      const subscriberCount =
+        subscriberCountByCaterer.get(String(g.catererId)) || 0;
+      const avgBreakfast = computeMealOpi({
+        mealSum: g.breakfastSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgLunch = computeMealOpi({
+        mealSum: g.lunchSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgDinner = computeMealOpi({
+        mealSum: g.dinnerSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
+      const avgWasteDisposal = g.smc.count
+        ? g.smc.wasteDisposalSum / g.smc.count
+        : null;
+      const avgQualityOfIngredients = g.smc.count
+        ? g.smc.qualitySum / g.smc.count
+        : null;
+      const avgUniformAndPunctuality = g.smc.count
+        ? g.smc.uniformSum / g.smc.count
+        : null;
 
-      const smcAvg =
-        g.smc.count > 0
-          ? (g.smc.hygieneSum +
-              g.smc.wasteDisposalSum +
-              g.smc.qualitySum +
-              g.smc.uniformSum) /
-            (4 * g.smc.count)
-          : 0;
-
-      const overall = nonSmcAvg * 0.6 + smcAvg * 0.4;
+      const overall = computeOverallOpi({
+        breakfastAvg: avgBreakfast,
+        lunchAvg: avgLunch,
+        dinnerAvg: avgDinner,
+        uniformAvg: avgUniformAndPunctuality ?? 0,
+        cleanlinessAvg: avgHygiene ?? 0,
+        wasteAvg: avgWasteDisposal ?? 0,
+        qualityAvg: avgQualityOfIngredients ?? 0,
+      });
 
       rows.push({
         catererId: g.catererId,
         catererName: g.catererName,
         totalUsers: g.totalUsers,
         smcUsers: g.smcUsers,
-        avgBreakfast: g.totalUsers ? g.breakfastSum / g.totalUsers : 0,
-        avgLunch: g.totalUsers ? g.lunchSum / g.totalUsers : 0,
-        avgDinner: g.totalUsers ? g.dinnerSum / g.totalUsers : 0,
-        avgHygiene: g.smc.count ? g.smc.hygieneSum / g.smc.count : null,
-        avgWasteDisposal: g.smc.count
-          ? g.smc.wasteDisposalSum / g.smc.count
-          : null,
-        avgQualityOfIngredients: g.smc.count
-          ? g.smc.qualitySum / g.smc.count
-          : null,
-        avgUniformAndPunctuality: g.smc.count
-          ? g.smc.uniformSum / g.smc.count
-          : null,
+        avgBreakfast,
+        avgLunch,
+        avgDinner,
+        avgHygiene,
+        avgWasteDisposal,
+        avgQualityOfIngredients,
+        avgUniformAndPunctuality,
         overall,
       });
     }
@@ -576,20 +917,9 @@ const getFeedbackLeaderboard = async (req, res) => {
 // ==========================================
 const getAvailableWindows = async (req, res) => {
   try {
-    const feedbacks = await Feedback.find(
-      {},
-      { feedbackWindowNumber: 1 }
-    ).lean();
-
-    const windowsSet = new Set();
-    feedbacks.forEach((fb) => {
-      if (fb.feedbackWindowNumber) {
-        windowsSet.add(fb.feedbackWindowNumber);
-      }
-    });
-
-    const windows = Array.from(windowsSet).sort((a, b) => b - a); // Sort descending (newest first)
-    return res.status(200).json(windows);
+    const windows = await Feedback.distinct("feedbackWindowNumber");
+    const sorted = windows.filter(Boolean).sort((a, b) => b - a); // Sort descending (newest first)
+    return res.status(200).json(sorted);
   } catch (e) {
     console.error("getAvailableWindows error:", e);
     return res.status(500).json({ message: "Failed to fetch windows" });
@@ -607,13 +937,15 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
       return res.status(400).json({ message: "Window number required" });
     }
 
-    const feedbacks = await Feedback.find({
+    const feedbacksRaw = await Feedback.find({
       caterer: { $ne: null },
       feedbackWindowNumber: parseInt(windowNumber),
     })
       .populate("user", "isSMC")
       .populate("caterer", "name")
+      .sort({ date: -1 })
       .lean();
+    const feedbacks = dedupeFeedbacksForAggregation(feedbacksRaw);
 
     const toScore = (label) => ratingMap[label] ?? null;
     const groups = new Map();
@@ -656,42 +988,62 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
       }
     }
 
+    const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
+      Array.from(groups.keys()),
+    );
+
     const rows = [];
     for (const [, g] of groups) {
-      const nonSmcAvg =
-        g.totalUsers > 0
-          ? (g.breakfastSum + g.lunchSum + g.dinnerSum) / (3 * g.totalUsers)
-          : 0;
+      const subscriberCount =
+        subscriberCountByCaterer.get(String(g.catererId)) || 0;
+      const avgBreakfast = computeMealOpi({
+        mealSum: g.breakfastSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgLunch = computeMealOpi({
+        mealSum: g.lunchSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgDinner = computeMealOpi({
+        mealSum: g.dinnerSum,
+        responseCount: g.totalUsers,
+        subscriberCount,
+      });
+      const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
+      const avgWasteDisposal = g.smc.count
+        ? g.smc.wasteDisposalSum / g.smc.count
+        : null;
+      const avgQualityOfIngredients = g.smc.count
+        ? g.smc.qualitySum / g.smc.count
+        : null;
+      const avgUniformAndPunctuality = g.smc.count
+        ? g.smc.uniformSum / g.smc.count
+        : null;
 
-      const smcAvg =
-        g.smc.count > 0
-          ? (g.smc.hygieneSum +
-              g.smc.wasteDisposalSum +
-              g.smc.qualitySum +
-              g.smc.uniformSum) /
-            (4 * g.smc.count)
-          : 0;
-
-      const overall = nonSmcAvg * 0.6 + smcAvg * 0.4;
+      const overall = computeOverallOpi({
+        breakfastAvg: avgBreakfast,
+        lunchAvg: avgLunch,
+        dinnerAvg: avgDinner,
+        uniformAvg: avgUniformAndPunctuality ?? 0,
+        cleanlinessAvg: avgHygiene ?? 0,
+        wasteAvg: avgWasteDisposal ?? 0,
+        qualityAvg: avgQualityOfIngredients ?? 0,
+      });
 
       rows.push({
         catererId: g.catererId,
         catererName: g.catererName,
         totalUsers: g.totalUsers,
         smcUsers: g.smcUsers,
-        avgBreakfast: g.totalUsers ? g.breakfastSum / g.totalUsers : 0,
-        avgLunch: g.totalUsers ? g.lunchSum / g.totalUsers : 0,
-        avgDinner: g.totalUsers ? g.dinnerSum / g.totalUsers : 0,
-        avgHygiene: g.smc.count ? g.smc.hygieneSum / g.smc.count : null,
-        avgWasteDisposal: g.smc.count
-          ? g.smc.wasteDisposalSum / g.smc.count
-          : null,
-        avgQualityOfIngredients: g.smc.count
-          ? g.smc.qualitySum / g.smc.count
-          : null,
-        avgUniformAndPunctuality: g.smc.count
-          ? g.smc.uniformSum / g.smc.count
-          : null,
+        avgBreakfast,
+        avgLunch,
+        avgDinner,
+        avgHygiene,
+        avgWasteDisposal,
+        avgQualityOfIngredients,
+        avgUniformAndPunctuality,
         overall,
       });
     }
@@ -755,7 +1107,7 @@ const getFeedbackWindowTimeLeft = async (req, res) => {
     const totalHours = Math.floor(diffMs / (60 * 60000));
     const days = Math.floor(diffMs / (24 * 60 * 60 * 1000));
     const hours = Math.floor(
-      (diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000)
+      (diffMs % (24 * 60 * 60 * 1000)) / (60 * 60 * 1000),
     );
     const minutes = Math.floor((diffMs % (60 * 60 * 1000)) / (60 * 1000));
 
@@ -792,6 +1144,207 @@ const getFeedbackWindowTimeLeft = async (req, res) => {
   }
 };
 
+const updateAllMessRatingsAndRankings = async (windowNumber) => {
+  if (typeof windowNumber !== "number") return;
+
+  const startTime = Date.now();
+  console.log(`⏱️ Starting mess ratings update for window ${windowNumber}...`);
+
+  // Get all messes and hostels
+  const messes = await Mess.find({}, { _id: 1, hostelId: 1 }).lean();
+  if (!messes.length) return;
+
+  const hostels = await Hostel.find({}, { _id: 1, messId: 1 }).lean();
+  const hostelByMess = new Map();
+  for (const hostel of hostels) {
+    if (hostel.messId) hostelByMess.set(String(hostel.messId), hostel._id);
+  }
+
+  // Get subscriber counts per hostel
+  const relevantHostelIds = Array.from(hostelByMess.values());
+  const subscriberRows = await UserAllocHostel.aggregate([
+    {
+      $match: {
+        $or: [
+          { current_subscribed_mess: { $in: relevantHostelIds } },
+          { hostel: { $in: relevantHostelIds } },
+        ],
+      },
+    },
+    {
+      $project: {
+        subscribedHostel: { $ifNull: ["$current_subscribed_mess", "$hostel"] },
+      },
+    },
+    {
+      $group: {
+        _id: "$subscribedHostel",
+        count: { $sum: 1 },
+      },
+    },
+  ]);
+  const subscriberByHostel = new Map(
+    subscriberRows.map((row) => [String(row._id), row.count]),
+  );
+
+  // Aggregate feedbacks server-side
+  const ratingSwitch = (field) => ({
+    $switch: {
+      branches: [
+        { case: { $eq: [field, "Very Poor"] }, then: 1 },
+        { case: { $eq: [field, "Poor"] }, then: 2 },
+        { case: { $eq: [field, "Average"] }, then: 3 },
+        { case: { $eq: [field, "Good"] }, then: 4 },
+        { case: { $eq: [field, "Very Good"] }, then: 5 },
+      ],
+      default: 0,
+    },
+  });
+
+  const feedbackAgg = await Feedback.aggregate([
+    { $match: { feedbackWindowNumber: windowNumber, caterer: { $ne: null } } },
+    {
+      $lookup: {
+        from: "users",
+        localField: "user",
+        foreignField: "_id",
+        pipeline: [{ $project: { isSMC: 1 } }],
+        as: "userData",
+      },
+    },
+    { $unwind: { path: "$userData", preserveNullAndEmptyArrays: true } },
+    {
+      $addFields: {
+        isSMC: { $ifNull: ["$userData.isSMC", false] },
+      },
+    },
+    {
+      $group: {
+        _id: "$caterer",
+        totalUsers: { $sum: 1 },
+        breakfastSum: { $sum: ratingSwitch("$breakfast") },
+        lunchSum: { $sum: ratingSwitch("$lunch") },
+        dinnerSum: { $sum: ratingSwitch("$dinner") },
+        hygieneSum: {
+          $sum: {
+            $cond: ["$isSMC", ratingSwitch("$smcFields.hygiene"), 0],
+          },
+        },
+        wasteDisposalSum: {
+          $sum: {
+            $cond: ["$isSMC", ratingSwitch("$smcFields.wasteDisposal"), 0],
+          },
+        },
+        qualitySum: {
+          $sum: {
+            $cond: [
+              "$isSMC",
+              ratingSwitch("$smcFields.qualityOfIngredients"),
+              0,
+            ],
+          },
+        },
+        uniformSum: {
+          $sum: {
+            $cond: [
+              "$isSMC",
+              ratingSwitch("$smcFields.uniformAndPunctuality"),
+              0,
+            ],
+          },
+        },
+        smcCount: { $sum: { $cond: ["$isSMC", 1, 0] } },
+      },
+    },
+  ]);
+
+  // Build lookup from aggregation results
+  const aggByMess = new Map();
+  for (const row of feedbackAgg) {
+    aggByMess.set(String(row._id), row);
+  }
+
+  // Compute OPI for all messes (including zero-feedback ones)
+  const rows = [];
+  for (const mess of messes) {
+    const messId = String(mess._id);
+    const agg = aggByMess.get(messId) || {
+      totalUsers: 0,
+      breakfastSum: 0,
+      lunchSum: 0,
+      dinnerSum: 0,
+      hygieneSum: 0,
+      wasteDisposalSum: 0,
+      qualitySum: 0,
+      uniformSum: 0,
+      smcCount: 0,
+    };
+
+    const hostelId = hostelByMess.get(messId);
+    const subscriberCount = hostelId
+      ? subscriberByHostel.get(String(hostelId)) || 0
+      : 0;
+
+    const avgBreakfast = computeMealOpi({
+      mealSum: agg.breakfastSum,
+      responseCount: agg.totalUsers,
+      subscriberCount,
+    });
+    const avgLunch = computeMealOpi({
+      mealSum: agg.lunchSum,
+      responseCount: agg.totalUsers,
+      subscriberCount,
+    });
+    const avgDinner = computeMealOpi({
+      mealSum: agg.dinnerSum,
+      responseCount: agg.totalUsers,
+      subscriberCount,
+    });
+    const avgHygiene = agg.smcCount ? agg.hygieneSum / agg.smcCount : null;
+    const avgWasteDisposal = agg.smcCount
+      ? agg.wasteDisposalSum / agg.smcCount
+      : null;
+    const avgQualityOfIngredients = agg.smcCount
+      ? agg.qualitySum / agg.smcCount
+      : null;
+    const avgUniformAndPunctuality = agg.smcCount
+      ? agg.uniformSum / agg.smcCount
+      : null;
+
+    let overall = computeOverallOpi({
+      breakfastAvg: avgBreakfast,
+      lunchAvg: avgLunch,
+      dinnerAvg: avgDinner,
+      uniformAvg: avgUniformAndPunctuality ?? 0,
+      cleanlinessAvg: avgHygiene ?? 0,
+      wasteAvg: avgWasteDisposal ?? 0,
+      qualityAvg: avgQualityOfIngredients ?? 0,
+    });
+    // Round to two decimal places before storing
+    overall = Math.round(overall * 100) / 100;
+
+    rows.push({ messId, overall });
+  }
+
+  rows.sort((a, b) => b.overall - a.overall);
+  rows.forEach((r, i) => (r.rank = i + 1));
+
+  // Single bulk write instead of individual findByIdAndUpdate calls
+  if (rows.length > 0) {
+    const bulkOps = rows.map((r) => ({
+      updateOne: {
+        filter: { _id: r.messId },
+        update: { $set: { rating: r.overall, ranking: r.rank } },
+      },
+    }));
+    await Mess.bulkWrite(bulkOps);
+  }
+
+  console.log(
+    `✅ Mess ratings updated for ${rows.length} messes in ${Date.now() - startTime}ms`,
+  );
+};
+
 module.exports = {
   submitFeedback,
   removeFeedback,
@@ -808,4 +1361,6 @@ module.exports = {
   checkFeedbackSubmitted,
   getFeedbackWindowTimeLeft,
   getFeedbacksByCaterer,
+  getDetailedFeedbackByWindow,
+  updateAllMessRatingsAndRankings,
 };

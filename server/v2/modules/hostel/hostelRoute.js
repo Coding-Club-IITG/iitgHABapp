@@ -1,6 +1,8 @@
 const express = require("express");
 const {
   authenticateJWT,
+  authenticateUserOrAdminJWT,
+  authenticateHabJWT,
   authenticateAdminJWT,
 } = require("../../middleware/authenticateJWT.js");
 
@@ -18,8 +20,6 @@ const {
   markAsSMC,
   unmarkAsSMC,
   getSMCMembers,
-  // finalizeMessClosure,
-  // getMessClosureDate
 } = require("./hostelController.js");
 const { uploadData } = require("./hostelAlloc.js");
 const multer = require("multer");
@@ -89,9 +89,7 @@ const hostelRouter = express.Router();
  *                   type: string
  *                   example: "Error occurred"
  */
-hostelRouter.post("/", createHostel);
-
-// hostelRouter.post("/all/:hostelId", getHostelbyId);
+hostelRouter.post("/", authenticateHabJWT, createHostel);
 
 /**
  * @swagger
@@ -142,7 +140,8 @@ hostelRouter.post("/", createHostel);
  *                   type: string
  *                   example: "Error occurred"
  */
-hostelRouter.get("/all/:hostelId", getHostelbyId);
+hostelRouter.get("/all/smc/:hostelId", authenticateUserOrAdminJWT, getHostelbyId);
+hostelRouter.get("/all/hab/:hostelId", authenticateHabJWT, getHostelbyId);
 hostelRouter.get("/get", authenticateAdminJWT, getHostel);
 
 /**
@@ -185,26 +184,38 @@ hostelRouter.get("/get", authenticateAdminJWT, getHostel);
  */
 hostelRouter.get("/all", getAllHostels);
 
-hostelRouter.get("/allhostel", getAllHostelsWithMess);
-
-// hostelRouter.get("/allocate", getHostelAlloc);
+hostelRouter.get("/allhostel", authenticateHabJWT, getAllHostelsWithMess);
 
 //Route to get only hostel and caterer information
-hostelRouter.post("/gethnc", getAllHostelNameAndCaterer);
+hostelRouter.post("/gethnc", authenticateHabJWT, getAllHostelNameAndCaterer);
 
 // Allocation upload endpoint
-hostelRouter.post("/alloc/upload", upload.single("file"), uploadData);
+hostelRouter.post(
+  "/alloc/upload",
+  authenticateHabJWT,
+  upload.single("file"),
+  uploadData,
+);
 
 // Hostel-side routes (requires authentication)
 hostelRouter.get("/caterer-info", authenticateAdminJWT, getCatererInfo);
 hostelRouter.get("/boarders", authenticateAdminJWT, getBoarders);
 hostelRouter.get("/mess-subscribers", authenticateAdminJWT, getMessSubscribers);
-// Public endpoint to get mess subscribers for a given hostel ID
-hostelRouter.get("/mess-subscribers/:hostelId", getMessSubscribersByHostelId);
+// HAB endpoint to get mess subscribers for a given hostel ID
+hostelRouter.get(
+  "/mess-subscribers/:hostelId",
+  authenticateHabJWT,
+  getMessSubscribersByHostelId,
+);
 hostelRouter.get("/smc-members", authenticateAdminJWT, getSMCMembers);
 hostelRouter.post("/mark-smc", authenticateAdminJWT, markAsSMC);
 hostelRouter.post("/unmark-smc", authenticateAdminJWT, unmarkAsSMC);
 
-// hostelRouter.post("/finalize-closure", authenticateAdminJWT, finalizeMessClosure);
-// hostelRouter.get("/closure-date", authenticateAdminJWT, getMessClosureDate);
+// HAB-only: set or update encrypted hostel password
+const { setHostelPassword } = require("./hostelController.js");
+hostelRouter.post(
+  "/set-password",
+  authenticateHabJWT,
+  setHostelPassword,
+);
 module.exports = hostelRouter;

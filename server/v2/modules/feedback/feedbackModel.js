@@ -57,6 +57,9 @@ const feedbackSchema = new mongoose.Schema({
   },
 });
 
+feedbackSchema.index({ user: 1, feedbackWindowNumber: 1 }, { unique: true });
+feedbackSchema.index({ feedbackWindowNumber: 1, caterer: 1 });
+
 const Feedback = mongoose.model("Feedback", feedbackSchema);
 
 module.exports = Feedback;

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 class Themes {
   static const kYellow = Color.fromRGBO(254, 207, 111, 1);
+  static const kAccent = Color(0xFF4C4EDB);
+  static const kFont = "GeneralSans";
   static final theme = ThemeData(
     useMaterial3: true,
     primaryColor: kYellow,
@@ -89,6 +91,9 @@ class Themes {
     ),
   );
   static const feedbackColor = Color.fromRGBO(46, 47, 49, 1);
+
+  static const shimmerBase = Color(0xFFF2F2F2);
+  static const shimmerHighlight = Color(0xFFF9F9F9);
 }
 
 List<Color> colors = const [

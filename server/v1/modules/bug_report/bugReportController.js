@@ -42,11 +42,17 @@ const uploadMiddleware = upload.array("screenshots", 5); // Max 5 screenshots
 
 const createBugReport = async (req, res) => {
   try {
-    const { title, description, email, deviceInfo, frequency } = req.body;
+    const { title, description, email, deviceInfo, frequency, type } = req.body;
 
     if (!title || !description) {
       return res.status(400).json({
         message: "Title and description are required",
+      });
+    }
+
+    if (!type || !["bug", "suggestion"].includes(type)) {
+      return res.status(400).json({
+        message: "Type must be either 'bug' or 'suggestion'",
       });
     }
 
@@ -70,6 +76,7 @@ const createBugReport = async (req, res) => {
       screenshots,
       deviceInfo: deviceInfo ? JSON.parse(deviceInfo) : null,
       frequency: frequency || null,
+      type,
     });
 
     await bugReport.save();
