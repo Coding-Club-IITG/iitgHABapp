@@ -543,71 +543,8 @@ const getAllFeedback = async (req, res) => {
 };
 
 // ==========================================
-// Enable / Disable Feedback Window
+// Enable / Disable Feedback Window automatically
 // ==========================================
-const enableFeedback = async (req, res) => {
-  try {
-    let s = await FeedbackSettings.findOne();
-    if (!s) {
-      s = new FeedbackSettings();
-      s.currentWindowNumber = 1;
-    }
-
-    // If enabling a new window, increment window number and reset user submission flags
-    if (!s.isEnabled) {
-      s.currentWindowNumber += 1;
-      // Reset all users' feedback submission flags for the new window
-      await User.updateMany({}, { $set: { isFeedbackSubmitted: false } });
-    }
-
-    s.isEnabled = true;
-    s.enabledAt = new Date();
-    s.disabledAt = null;
-
-    // Set closing time (2 days from now, end of day)
-    const closingDate = new Date(s.enabledAt);
-    closingDate.setDate(closingDate.getDate() + 2);
-    closingDate.setHours(23, 59, 59, 999);
-    s.currentWindowClosingTime = closingDate;
-
-    await s.save();
-    sendNotificationMessage(
-      "MESS FEEDBACK",
-      "Mess Feedback for this month is enabled",
-      "All_Hostels",
-      { redirectType: "mess_screen", isAlert: "true" },
-    ).catch((err) =>
-      console.error("Feedback enabled notification failed:", err),
-    );
-    await redisClient.del("feedback_settings");
-    return res.status(200).json({ message: "Feedback enabled", data: s });
-  } catch (e) {
-    return res
-      .status(500)
-      .json({ message: "Failed to enable", error: String(e.message || e) });
-  }
-};
-
-const disableFeedback = async (req, res) => {
-  try {
-    let s = await FeedbackSettings.findOne();
-    if (!s) return res.status(404).json({ message: "Settings not found" });
-    s.isEnabled = false;
-    s.disabledAt = new Date();
-    await s.save();
-    // Call updateAllMessRatingsAndRankings with the just-closed window number
-    if (typeof s.currentWindowNumber === "number") {
-      await updateAllMessRatingsAndRankings(s.currentWindowNumber);
-    }
-    await redisClient.del("feedback_settings");
-    return res.status(200).json({ message: "Feedback disabled", data: s });
-  } catch (e) {
-    return res
-      .status(500)
-      .json({ message: "Failed to disable", error: String(e.message || e) });
-  }
-};
-
 // Helper to get feedback window dates for a given month
 // Duplicated from autoFeedbackScheduler to avoid circular dependency
 const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
@@ -631,7 +568,7 @@ const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
   return { startDate, endDate };
 };
 
-// Helper to enable feedback automatically (non-Express) so schedulers can call it
+// Helper to enable feedback automatically so schedulers can call it
 const enableFeedbackAutomatic = async () => {
   try {
     let s = await FeedbackSettings.findOne();
@@ -672,7 +609,7 @@ const enableFeedbackAutomatic = async () => {
   }
 };
 
-// Helper to disable feedback automatically (non-Express)
+// Helper to disable feedback automatically
 const disableFeedbackAutomatic = async () => {
   try {
     let s = await FeedbackSettings.findOne();
@@ -681,7 +618,6 @@ const disableFeedbackAutomatic = async () => {
     s.isEnabled = false;
     s.disabledAt = new Date();
     await s.save();
-    // Call updateAllMessRatingsAndRankings with the just-closed window number
     if (typeof s.currentWindowNumber === "number") {
       await updateAllMessRatingsAndRankings(s.currentWindowNumber);
     }
@@ -1349,8 +1285,6 @@ module.exports = {
   submitFeedback,
   removeFeedback,
   getAllFeedback,
-  enableFeedback,
-  disableFeedback,
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
   getFeedbackSettings,

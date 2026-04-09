@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Users, Zap, Play, Info, XCircle, Square } from "lucide-react";
+import { Users, Info } from "lucide-react";
 import { BACKEND_URL } from "../apis/server";
 
 const MessChangePage = () => {
@@ -12,8 +12,6 @@ const MessChangePage = () => {
 
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [processing, setProcessing] = useState(false);
-  const [rejecting, setRejecting] = useState(false);
   const [messChangeSettings, setMessChangeSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [hostels, setHostels] = useState([]);
@@ -142,116 +140,6 @@ const MessChangePage = () => {
     }
   };
 
-  const enableMessChange = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/mess-change/enable`, {
-        method: "POST",
-        headers: {
-          ...authHeaders,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      await response.json();
-      alert("Mess change enabled successfully!");
-      await fetchMessChangeSettings();
-    } catch (error) {
-      console.error("Error enabling mess change:", error);
-      alert("Failed to enable mess change. Please try again.");
-    }
-  };
-
-  const disableMessChange = async () => {
-    try {
-      setSettingsLoading(true);
-      const response = await fetch(`${BACKEND_URL}/mess-change/disable`, {
-        method: "POST",
-        headers: {
-          ...authHeaders,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      await response.json();
-      alert("Mess change disabled successfully!");
-      await fetchMessChangeSettings();
-    } catch (error) {
-      console.error("Error disabling mess change:", error);
-      alert("Failed to disable mess change. Please try again.");
-    } finally {
-      setSettingsLoading(false);
-    }
-  };
-
-  const processAllRequests = async () => {
-    try {
-      setProcessing(true);
-      const response = await fetch(`${BACKEND_URL}/mess-change/process-all`, {
-        method: "POST",
-        headers: {
-          ...authHeaders,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
-      alert(
-        `Processing Complete!\nAccepted: ${data.acceptedUsers.length}\nRejected: ${data.rejectedUsers.length}\n\n${data.message}`,
-      );
-
-      // Refresh the requests and settings
-      await fetchRequests();
-      await fetchMessChangeSettings();
-    } catch (error) {
-      console.error("Error processing requests:", error);
-      alert("Failed to process requests. Please try again.");
-    } finally {
-      setProcessing(false);
-    }
-  };
-
-  const rejectAllRequests = async () => {
-    if (!confirm("Are you sure you want to reject all pending requests?")) {
-      return;
-    }
-    try {
-      setRejecting(true);
-      const response = await fetch(`${BACKEND_URL}/mess-change/reject-all`, {
-        method: "POST",
-        headers: {
-          ...authHeaders,
-          "Content-Type": "application/json",
-        },
-      });
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      const data = await response.json();
-      alert(data.message || "All pending requests rejected");
-      await fetchRequests();
-      await fetchMessChangeSettings();
-      // Ensure UI reflects disabled state immediately
-      window.location.reload();
-    } catch (error) {
-      console.error("Error rejecting all requests:", error);
-      alert("Failed to reject requests. Please try again.");
-    } finally {
-      setRejecting(false);
-    }
-  };
-
   useEffect(() => {
     (async () => {
       const list = await fetchHostels();
@@ -321,50 +209,6 @@ const MessChangePage = () => {
             </div>
           </div>
         )}
-
-        <div className="flex flex-wrap gap-3">
-          {!messChangeSettings?.isEnabled ? (
-            <button
-              onClick={enableMessChange}
-              disabled={settingsLoading}
-              className="bg-green-600 hover:bg-green-700 disabled:bg-green-300 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors duration-200"
-            >
-              <Play className="w-4 h-4" />
-              Enable Mess Change
-            </button>
-          ) : requests.length === 0 ? (
-            <button
-              onClick={disableMessChange}
-              disabled={settingsLoading}
-              className="bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors duration-200"
-            >
-              <Square className="w-4 h-4" />
-              Disable
-            </button>
-          ) : (
-            <>
-              <button
-                onClick={processAllRequests}
-                disabled={processing || requests.length === 0}
-                className="bg-purple-600 hover:bg-purple-700 disabled:bg-purple-300 text-white px-6 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors duration-200"
-              >
-                <Zap className="w-4 h-4" />
-                {processing
-                  ? "Processing..."
-                  : `Process All Requests (${requests.length})`}
-              </button>
-
-              <button
-                onClick={rejectAllRequests}
-                disabled={rejecting || requests.length === 0}
-                className="bg-red-600 hover:bg-red-700 disabled:bg-red-300 text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-colors duration-200"
-              >
-                <XCircle className="w-4 h-4" />
-                {rejecting ? "Rejecting..." : "Reject All Requests"}
-              </button>
-            </>
-          )}
-        </div>
       </div>
       {/* Automatic Schedule Information */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-sm p-6 mb-6">

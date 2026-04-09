@@ -2,8 +2,6 @@ const express = require("express");
 const feedbackRouter = express.Router();
 const {
   submitFeedback,
-  enableFeedback,
-  disableFeedback,
   getFeedbackSettings,
   getFeedbackLeaderboardByWindow,
   getAvailableWindows,
@@ -38,8 +36,6 @@ feedbackRouter.get(
 feedbackRouter.get("/settings", getFeedbackSettings);
 
 // HAB routes
-feedbackRouter.post("/enable", authenticateHabJWT, enableFeedback);
-feedbackRouter.post("/disable", authenticateHabJWT, disableFeedback);
 feedbackRouter.get(
   "/leaderboard-by-window",
   authenticateHabJWT,

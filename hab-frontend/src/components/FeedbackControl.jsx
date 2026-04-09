@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   Card,
-  Button,
   Tag,
   Alert,
   Space,
@@ -17,7 +16,6 @@ export default function FeedbackControl() {
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState(null);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
   const token =
     localStorage.getItem("admin_token") || localStorage.getItem("token");
@@ -40,32 +38,6 @@ export default function FeedbackControl() {
     }
   }, [token]);
 
-  async function updateState(endpoint, successMsg) {
-    try {
-      setLoading(true);
-      setError("");
-      setSuccess("");
-
-      const res = await fetch(`${BACKEND_URL}/feedback/${endpoint}`, {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (!res.ok)
-        throw new Error(`${endpoint.toUpperCase()} failed (${res.status})`);
-
-      setSuccess(successMsg);
-      fetchSettings();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
     token ? fetchSettings() : setError("Not authenticated as HAB admin.");
   }, [token, fetchSettings]);
@@ -87,16 +59,6 @@ export default function FeedbackControl() {
             type="error"
             message="Error"
             description={error}
-            showIcon={false}
-            style={{ borderRadius: 6 }}
-          />
-        )}
-
-        {success && (
-          <Alert
-            type="success"
-            message="Success"
-            description={success}
             showIcon={false}
             style={{ borderRadius: 6 }}
           />
@@ -169,36 +131,13 @@ export default function FeedbackControl() {
               <Text type="secondary" style={{ fontSize: 12 }}>
                 Feedback automatically opens on{" "}
                 <b>25th of each month at 9 AM IST</b>. It auto-closes after 48
-                hours unless manually controlled.
+                hours.
               </Text>
             </>
           ) : (
             <Text>No settings found.</Text>
           )}
         </Card>
-
-        {/* Buttons */}
-        <Space size="middle">
-          <Button
-            type="primary"
-            onClick={() =>
-              updateState("enable", "Feedback window enabled successfully.")
-            }
-            disabled={loading || settings?.isEnabled}
-          >
-            Enable
-          </Button>
-
-          <Button
-            danger
-            onClick={() =>
-              updateState("disable", "Feedback window disabled successfully.")
-            }
-            disabled={loading || !settings?.isEnabled}
-          >
-            Disable
-          </Button>
-        </Space>
       </Space>
     </Card>
   );

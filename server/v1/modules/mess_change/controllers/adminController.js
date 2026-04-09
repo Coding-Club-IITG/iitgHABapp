@@ -1,8 +1,5 @@
 const { User } = require("../../user/userModel.js");
 const { MessChangeSettings } = require("../messChangeSettingsModel.js");
-const {
-  sendNotificationMessage,
-} = require("../../notification/notificationController.js");
 
 /**
  * Get all mess change requests for all hostels
@@ -54,71 +51,6 @@ const messChangeStatusForAdmin = async (req, res) => {
 };
 
 /**
- * Enable mess change
- */
-const enableMessChange = async (req, res) => {
-  try {
-    let settings = await MessChangeSettings.findOne();
-
-    if (!settings) {
-      settings = new MessChangeSettings({
-        isEnabled: true,
-        enabledAt: new Date(),
-      });
-    } else {
-      settings.isEnabled = true;
-      settings.enabledAt = new Date();
-      settings.disabledAt = null;
-    }
-
-    await settings.save();
-
-    sendNotificationMessage(
-      "MESS CHANGE",
-      "Mess Change for this month has been enabled",
-      "All_Hostels",
-      { redirectType: "mess_change", isAlert: "true" },
-    ).catch((err) => console.error("Mess change enabled notification failed:", err));
-
-    return res.status(200).json({
-      message: "Mess change enabled successfully",
-      data: settings,
-    });
-  } catch (error) {
-    console.error("Error enabling mess change:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-/**
- * Disable mess change
- */
-const disableMessChange = async (req, res) => {
-  try {
-    let settings = await MessChangeSettings.findOne();
-
-    if (!settings) {
-      return res
-        .status(404)
-        .json({ message: "Mess change settings not found" });
-    }
-
-    settings.isEnabled = false;
-    settings.disabledAt = new Date();
-
-    await settings.save();
-
-    return res.status(200).json({
-      message: "Mess change disabled successfully",
-      data: settings,
-    });
-  } catch (error) {
-    console.error("Error disabling mess change:", error);
-    return res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-/**
  * Get mess change schedule information
  */
 const getMessChangeScheduleInfo = async (req, res) => {
@@ -160,7 +92,5 @@ const getMessChangeScheduleInfo = async (req, res) => {
 module.exports = {
   getAllMessChangeRequestsForAllHostels,
   messChangeStatusForAdmin,
-  enableMessChange,
-  disableMessChange,
   getMessChangeScheduleInfo,
 };

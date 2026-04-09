@@ -7,15 +7,8 @@ const {
 } = require("./controllers/requestController.js");
 
 const {
-  processAllMessChangeRequests,
-  rejectAllMessChangeRequests,
-} = require("./controllers/processingController.js");
-
-const {
   getAllMessChangeRequestsForAllHostels,
   messChangeStatusForAdmin,
-  enableMessChange,
-  disableMessChange,
   getMessChangeScheduleInfo,
 } = require("./controllers/adminController.js");
 
@@ -49,23 +42,11 @@ messChangeRouter.get(
   authenticateHabJWT,
   getAllMessChangeRequestsForAllHostels,
 );
-messChangeRouter.post(
-  "/process-all",
-  authenticateHabJWT,
-  processAllMessChangeRequests,
-);
-messChangeRouter.post(
-  "/reject-all",
-  authenticateHabJWT,
-  rejectAllMessChangeRequests,
-);
 messChangeRouter.get("/settings", authenticateHabJWT, messChangeStatusForAdmin);
 messChangeRouter.get(
   "/schedule",
   authenticateHabJWT,
   getMessChangeScheduleInfo,
 );
-messChangeRouter.post("/enable", authenticateHabJWT, enableMessChange);
-messChangeRouter.post("/disable", authenticateHabJWT, disableMessChange);
 
 module.exports = messChangeRouter;

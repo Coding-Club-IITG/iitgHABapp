@@ -1,7 +1,7 @@
 // server/v1/index.js
 
-const PORT = process.env.PORT_V1 || 3001;
 require("dotenv").config({ path: "../.env" });
+const PORT = process.env.PORT_V1 || 3001;
 
 const { installProcessHandlers } = require("../processHandlers.js");
 installProcessHandlers();
@@ -246,13 +246,13 @@ mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => {
     console.log("MongoDB connected");
+    console.log(`[DEBUG] Current Time: ${new Date().toLocaleString()}`);
 
     // Only run schedulers on the primary PM2 instance
     if (
       process.env.NODE_APP_INSTANCE === "0" ||
       typeof process.env.NODE_APP_INSTANCE === "undefined"
     ) {
-      console.log(`[CHECK] Current Time: ${new Date().toLocaleString()}`);
       console.log("Primary instance detected. Starting schedulers...");
       initializeFeedbackAutoScheduler();
       initializeMessChangeAutoScheduler();
