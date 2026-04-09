@@ -1,14 +1,27 @@
 // server/v1/index.js
-//import authRoutes from "./modules/auth/auth.routes.js";
 
+const PORT = process.env.PORT_V1 || 3001;
 require("dotenv").config({ path: "../.env" });
+
 const { installProcessHandlers } = require("../processHandlers.js");
 installProcessHandlers();
-const authRoutes = require("./modules/auth/auth.routes.js");
+
+const path = require("path");
 const express = require("express");
+const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
-const userRoute = require("./modules/user/userRoute.js");
+const cors = require("cors");
 const cookieParser = require("cookie-parser");
+const compression = require("compression");
+const winston = require("winston");
+const expressWinston = require("express-winston");
+const { randomUUID } = require("crypto");
+const { Worker } = require("worker_threads");
+const swaggerUi = require("swagger-ui-express");
+const swaggerJsdoc = require("swagger-jsdoc");
+
+const authRoutes = require("./modules/auth/auth.routes.js");
+const userRoute = require("./modules/user/userRoute.js");
 const feedbackRoute = require("./modules/feedback/feedbackRoute.js");
 const hostelRoute = require("./modules/hostel/hostelRoute.js");
 const notificationRoute = require("./modules/notification/notificationRoute.js");
@@ -18,24 +31,45 @@ const logsRoute = require("./modules/mess/ScanLogsRoute.js");
 const bugReportRoute = require("./modules/bug_report/bugReportRoute.js");
 const roomCleaningRoute = require("./modules/room_cleaning/roomCleaningRoute.js");
 const laundryRoute = require("./modules/laundry/laundryRoute.js");
+const galaRoute = require("./modules/gala/galaRoute.js");
+const messChangeRoute = require("./modules/mess_change/messchangeRoute.js");
+const profileRoute = require("./modules/profile/profileRoute.js");
 
-const compression = require("compression");
+const {
+  initializeFeedbackAutoScheduler,
+} = require("./modules/feedback/autoFeedbackScheduler.js");
+const {
+  initializeMessChangeAutoScheduler,
+} = require("./modules/mess_change/autoMessChangeScheduler.js");
+const {
+  initializeMessAllotmentScheduler,
+} = require("./modules/mess_change/allotmentScheduler.js");
+const {
+  initializeAnonymizedUser,
+} = require("./modules/user/anonymizedUserInit.js");
+const {
+  initializeGuestCleanupScheduler,
+} = require("./modules/auth/autoGuestCleanupScheduler.js");
+const {
+  initializeMessRebateAutoScheduler,
+} = require("./modules/leave/autoMessRebateScheduler.js");
+const {
+  initializeRoomCleaningAutoResolveScheduler,
+} = require("./modules/room_cleaning/autoRoomCleaningResolveScheduler.js");
 
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const winston = require("winston");
-const expressWinston = require("express-winston");
+const { initMessManagerWs } = require("./modules/mess/messManagerWs.js");
+const { initGalaManagerWs } = require("./modules/gala/galaManagerWs.js");
+const { initScanBroadcast } = require("./utils/scanBroadcast.js");
+
 const storeLogs = require("./middleware/logger.js");
-const { randomUUID } = require("crypto");
-const { Worker } = require("worker_threads");
-const path = require("path");
+
 const {
   setDelegatedTokens,
   tokenFilePath,
   initDelegatedGraphRedis,
 } = require("./utils/delegatedGraphAuth.js");
 
-// New: build delegated auth URLs for starting consent
+// Build delegated auth URLs for starting consent
 const onedrive = require("./config/onedrive.js");
 function buildAuthorizeUrl() {
   // For delegated token flow, use a dedicated callback endpoint
@@ -55,36 +89,6 @@ function buildAuthorizeUrl() {
   return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
 }
 
-const swaggerUi = require("swagger-ui-express");
-const swaggerJsdoc = require("swagger-jsdoc");
-
-const {
-  initializeFeedbackAutoScheduler,
-} = require("./modules/feedback/autoFeedbackScheduler.js");
-
-const {
-  initializeMessChangeAutoScheduler,
-} = require("./modules/mess_change/autoMessChangeScheduler.js");
-const {
-  initializeGuestCleanupScheduler,
-} = require("./modules/auth/autoGuestCleanupScheduler.js");
-const {
-  initializeMessRebateAutoScheduler,
-} = require("./modules/leave/autoMessRebateScheduler.js");
-const {
-  initializeMessAllotmentScheduler,
-} = require("./modules/mess_change/allotmentScheduler.js");
-const {
-  initializeAnonymizedUser,
-} = require("./modules/user/anonymizedUserInit.js");
-
-const {
-  initializeRoomCleaningAutoResolveScheduler,
-} = require("./modules/room_cleaning/autoRoomCleaningResolveScheduler.js");
-const messChangeRouter = require("./modules/mess_change/messchangeRoute.js");
-const galaRoute = require("./modules/gala/galaRoute.js");
-require("dotenv").config();
-
 const app = express();
 app.use(bodyParser.json({ limit: "1mb" }));
 app.use(
@@ -93,8 +97,6 @@ app.use(
     threshold: 100,
   }),
 );
-
-const PORT = process.env.PORT || 3001;
 
 const swaggerOptions = {
   definition: {
@@ -254,10 +256,10 @@ mongoose
       console.log("Primary instance detected. Starting schedulers...");
       initializeFeedbackAutoScheduler();
       initializeMessChangeAutoScheduler();
-      initializeGuestCleanupScheduler();
+      initializeMessAllotmentScheduler();
       initializeMessRebateAutoScheduler();
       initializeRoomCleaningAutoResolveScheduler();
-      initializeMessAllotmentScheduler();
+      initializeGuestCleanupScheduler();
     } else {
       console.log(
         `Worker instance ${process.env.NODE_APP_INSTANCE} started. Schedulers disabled here.`,
@@ -297,7 +299,7 @@ app.get("/hello", (req, res) => {
   res.send("Hello from server");
 });
 
-// user route
+// User route
 app.use("/api/users", userRoute);
 
 // app.use("/api/complaints", complaintRoute);
@@ -305,13 +307,13 @@ app.use("/api/users", userRoute);
 // Feedback route
 app.use("/api/feedback", feedbackRoute);
 
-//auth route
+// Auth route
 app.use("/api/auth", authRoutes);
 
-//hostel route
+// Hostel route
 app.use("/api/hostel", hostelRoute);
 
-//notification route
+// Notification route
 app.use("/api/notification", notificationRoute);
 
 // Mess route
@@ -319,17 +321,17 @@ app.use("/api/mess", messRoute);
 
 // Gala Dinner route
 app.use("/api/gala", galaRoute);
-// Mess rebate route
+
+// Mess Rebate route
 app.use("/api/leave", leaveRoute);
 
-//mess change route
-app.use("/api/mess-change", messChangeRouter);
+// Mess Change route
+app.use("/api/mess-change", messChangeRoute);
 
-// profile route
-const profileRouter = require("./modules/profile/profileRoute.js");
-app.use("/api/profile", profileRouter);
+// Rrofile route
+app.use("/api/profile", profileRoute);
 
-//scanlogs route
+// Scan logs route
 app.use("/api/logs", logsRoute);
 
 // Bug report route
@@ -426,9 +428,6 @@ app.use((err, req, res, next) => {
   });
 });
 
-const { initMessManagerWs } = require("./modules/mess/messManagerWs.js");
-const { initGalaManagerWs } = require("./modules/gala/galaManagerWs.js");
-
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
@@ -438,7 +437,6 @@ initMessManagerWs(server);
 initGalaManagerWs(server);
 
 // Subscribe to Redis scan events so all cluster instances can broadcast to their local WS clients
-const { initScanBroadcast } = require("./utils/scanBroadcast.js");
 initScanBroadcast();
 
 // Connect to Redis and backfill delegated Graph token from disk so first request can use Redis
