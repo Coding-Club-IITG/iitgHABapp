@@ -9,6 +9,7 @@ const {
   getFeedbackWindowTimeLeft,
   getFeedbacksByCaterer,
   getDetailedFeedbackByWindow,
+  getFeedbackScheduleInfo,
 } = require("./feedbackController");
 const {
   authenticateJWT,
@@ -36,6 +37,7 @@ feedbackRouter.get(
 feedbackRouter.get("/settings", getFeedbackSettings);
 
 // HAB routes
+feedbackRouter.get("/schedule", authenticateHabJWT, getFeedbackScheduleInfo);
 feedbackRouter.get(
   "/leaderboard-by-window",
   authenticateHabJWT,

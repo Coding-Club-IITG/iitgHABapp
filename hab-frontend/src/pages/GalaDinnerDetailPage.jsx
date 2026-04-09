@@ -1,7 +1,17 @@
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { BACKEND_URL } from "../apis/server";
-import { Typography, Select, Card, Row, Col, Statistic, Spin, Button } from "antd";
+import {
+  Typography,
+  Select,
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Spin,
+  Button,
+  Space,
+} from "antd";
 import { ArrowLeftOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 
@@ -25,7 +35,7 @@ export default function GalaDinnerDetailPage() {
     localStorage.getItem("admin_token") || localStorage.getItem("token");
   const authHeaders = useMemo(
     () => (token ? { Authorization: `Bearer ${token}` } : {}),
-    [token]
+    [token],
   );
 
   const [hostels, setHostels] = useState([]);
@@ -43,9 +53,12 @@ export default function GalaDinnerDetailPage() {
         });
         if (!response.ok) throw new Error("Fetch failed");
         const data = await response.json();
-        setHostels(Array.isArray(data) ? data : []);
-        if (data?.length > 0 && !selectedHostelId) {
-          setSelectedHostelId(data[0]._id);
+        const list = Array.isArray(data)
+          ? data
+          : data?.hostels || data?.data || [];
+        setHostels(list);
+        if (list?.length > 0 && !selectedHostelId) {
+          setSelectedHostelId(list[0]._id);
         }
       } catch (err) {
         console.error("Failed to fetch hostels:", err);
@@ -55,7 +68,7 @@ export default function GalaDinnerDetailPage() {
       }
     };
     fetchHostels();
-  }, [token]);
+  }, [authHeaders, selectedHostelId]);
 
   useEffect(() => {
     if (!galaDinnerId || !selectedHostelId) {
@@ -67,7 +80,7 @@ export default function GalaDinnerDetailPage() {
         setDetailLoading(true);
         const response = await fetch(
           `${BACKEND_URL}/gala/${galaDinnerId}/detail?hostelId=${selectedHostelId}`,
-          { headers: { ...authHeaders } }
+          { headers: { ...authHeaders } },
         );
         if (!response.ok) throw new Error("Fetch failed");
         const data = await response.json();
@@ -80,7 +93,7 @@ export default function GalaDinnerDetailPage() {
       }
     };
     fetchDetail();
-  }, [galaDinnerId, selectedHostelId, token]);
+  }, [galaDinnerId, selectedHostelId, authHeaders]);
 
   const hostelOptions = hostels.map((h) => ({
     value: h._id,
@@ -88,117 +101,194 @@ export default function GalaDinnerDetailPage() {
   }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Button
-          type="text"
-          icon={<ArrowLeftOutlined />}
-          onClick={() => navigate("/gala-dinner")}
+    <div
+      style={{
+        padding: "24px",
+        backgroundColor: "#f5f5f5",
+        minHeight: "100vh",
+      }}
+    >
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        {/* Header */}
+        <div
+          style={{
+            marginBottom: "24px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#fff",
+            padding: "16px 24px",
+            borderRadius: "8px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          }}
         >
-          Back
-        </Button>
-      </div>
-
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <Title level={4} className="!mb-0">
-          Gala Dinner Details
-        </Title>
-        <div className="flex items-center gap-2">
-          <Text type="secondary">Hostel:</Text>
-          <Select
-            style={{ minWidth: 200 }}
-            placeholder="Select hostel"
-            value={selectedHostelId}
-            onChange={setSelectedHostelId}
-            options={hostelOptions}
-            loading={hostelsLoading}
-          />
-        </div>
-      </div>
-
-      {detail?.galaDinner && (
-        <Card>
-          <div className="space-y-1">
-            <div>
-              <Text strong>Date: </Text>
-              <Text>{dayjs(detail.galaDinner.date).format("DD MMM YYYY")}</Text>
-            </div>
-            {(detail.galaDinner.startersServingStartTime || detail.galaDinner.dinnerServingStartTime) && (
-              <div>
-                <Text strong>Serving times: </Text>
-                <Text>
-                  {detail.galaDinner.startersServingStartTime
-                    ? `Starters at ${formatTimeDisplay(detail.galaDinner.startersServingStartTime)}`
-                    : ""}
-                  {detail.galaDinner.startersServingStartTime && detail.galaDinner.dinnerServingStartTime ? ", " : ""}
-                  {detail.galaDinner.dinnerServingStartTime
-                    ? `Dinner at ${formatTimeDisplay(detail.galaDinner.dinnerServingStartTime)}`
-                    : ""}
-                </Text>
-              </div>
-            )}
+          <Button
+            icon={<ArrowLeftOutlined />}
+            onClick={() => navigate("/gala-dinner")}
+            type="text"
+          >
+            Back
+          </Button>
+          <div style={{ textAlign: "center", flex: 1 }}>
+            <Title level={2} style={{ margin: 0 }}>
+              Gala Dinner Details
+            </Title>
+            <Text type="secondary">
+              View scan counts and menus for specific hostels
+            </Text>
           </div>
-        </Card>
-      )}
-
-      {detailLoading ? (
-        <div className="flex justify-center py-12">
-          <Spin size="large" />
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <Text type="secondary" strong>
+              Hostel:
+            </Text>
+            <Select
+              style={{ minWidth: 200 }}
+              placeholder="Select hostel"
+              value={selectedHostelId}
+              onChange={setSelectedHostelId}
+              options={hostelOptions}
+              loading={hostelsLoading}
+              size="large"
+            />
+          </div>
         </div>
-      ) : detail ? (
-        <>
-          <Card title="Scan counts (this hostel)">
-            <Row gutter={24}>
-              <Col span={8}>
-                <Statistic
-                  title="Starters"
-                  value={detail.scanStats?.startersCount ?? 0}
-                />
-              </Col>
-              <Col span={8}>
-                <Statistic
-                  title="Main Course"
-                  value={detail.scanStats?.mainCourseCount ?? 0}
-                />
-              </Col>
-              <Col span={8}>
-                <Statistic
-                  title="Desserts"
-                  value={detail.scanStats?.dessertsCount ?? 0}
-                />
-              </Col>
-            </Row>
-          </Card>
 
-          <Row gutter={[16, 16]}>
-            {(detail.menus || []).map((menu) => (
-              <Col xs={24} md={8} key={menu._id}>
-                <Card title={menu.category} size="small">
-                  <ul className="list-disc pl-4 space-y-1">
-                    {(menu.items || []).map((item) => (
-                      <li key={item._id}>
-                        {item.name}
-                        {item.type && (
-                          <Text type="secondary" className="ml-1">
-                            ({item.type})
-                          </Text>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {(!menu.items || menu.items.length === 0) && (
-                    <Text type="secondary">No items</Text>
-                  )}
-                </Card>
-              </Col>
-            ))}
-          </Row>
-        </>
-      ) : selectedHostelId && !detailLoading ? (
-        <Card>
-          <Text type="secondary">No detail found for this gala dinner.</Text>
-        </Card>
-      ) : null}
+        <Space direction="vertical" size="large" style={{ width: "100%" }}>
+          {detail?.galaDinner && (
+            <Card
+              style={{
+                borderRadius: 8,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              }}
+            >
+              <Row gutter={[24, 24]} align="middle">
+                <Col>
+                  <Text strong style={{ fontSize: 16 }}>
+                    Date:{" "}
+                  </Text>
+                  <Text style={{ fontSize: 16 }}>
+                    {dayjs(detail.galaDinner.date).format("DD MMM YYYY")}
+                  </Text>
+                </Col>
+                {(detail.galaDinner.startersServingStartTime ||
+                  detail.galaDinner.dinnerServingStartTime) && (
+                  <Col>
+                    <Text strong style={{ fontSize: 16 }}>
+                      Serving times:{" "}
+                    </Text>
+                    <Text style={{ fontSize: 16 }}>
+                      {detail.galaDinner.startersServingStartTime
+                        ? `Starters at ${formatTimeDisplay(detail.galaDinner.startersServingStartTime)}`
+                        : ""}
+                      {detail.galaDinner.startersServingStartTime &&
+                      detail.galaDinner.dinnerServingStartTime
+                        ? " | "
+                        : ""}
+                      {detail.galaDinner.dinnerServingStartTime
+                        ? `Dinner at ${formatTimeDisplay(detail.galaDinner.dinnerServingStartTime)}`
+                        : ""}
+                    </Text>
+                  </Col>
+                )}
+              </Row>
+            </Card>
+          )}
+
+          {detailLoading ? (
+            <div style={{ textAlign: "center", padding: "48px 0" }}>
+              <Spin size="large" tip="Loading details..." />
+            </div>
+          ) : detail ? (
+            <>
+              <Card
+                title={
+                  <Title level={4} style={{ margin: 0 }}>
+                    Scan counts
+                  </Title>
+                }
+                style={{
+                  borderRadius: 8,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                }}
+              >
+                <Row gutter={[24, 24]}>
+                  <Col xs={24} sm={8}>
+                    <Statistic
+                      title="Starters"
+                      value={detail.scanStats?.startersCount ?? 0}
+                      valueStyle={{ color: "#1890ff", fontWeight: "bold" }}
+                    />
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <Statistic
+                      title="Main Course"
+                      value={detail.scanStats?.mainCourseCount ?? 0}
+                      valueStyle={{ color: "#52c41a", fontWeight: "bold" }}
+                    />
+                  </Col>
+                  <Col xs={24} sm={8}>
+                    <Statistic
+                      title="Desserts"
+                      value={detail.scanStats?.dessertsCount ?? 0}
+                      valueStyle={{ color: "#722ed1", fontWeight: "bold" }}
+                    />
+                  </Col>
+                </Row>
+              </Card>
+
+              <Row gutter={[24, 24]}>
+                {(detail.menus || []).map((menu) => (
+                  <Col xs={24} md={8} key={menu._id}>
+                    <Card
+                      title={menu.category}
+                      style={{
+                        borderRadius: 8,
+                        boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                        height: "100%",
+                      }}
+                    >
+                      <ul
+                        style={{ paddingLeft: 20, margin: 0, lineHeight: 1.8 }}
+                      >
+                        {(menu.items || []).map((item) => (
+                          <li key={item._id}>
+                            <Text>{item.name}</Text>
+                            {item.type && (
+                              <Text
+                                type="secondary"
+                                style={{ marginLeft: 6, fontSize: 12 }}
+                              >
+                                ({item.type})
+                              </Text>
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                      {(!menu.items || menu.items.length === 0) && (
+                        <Text type="secondary">
+                          No items added to this menu yet.
+                        </Text>
+                      )}
+                    </Card>
+                  </Col>
+                ))}
+              </Row>
+            </>
+          ) : selectedHostelId && !detailLoading ? (
+            <Card
+              style={{
+                borderRadius: 8,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                textAlign: "center",
+              }}
+            >
+              <Text type="secondary">
+                No detail found for this gala dinner.
+              </Text>
+            </Card>
+          ) : null}
+        </Space>
+      </div>
     </div>
   );
 }

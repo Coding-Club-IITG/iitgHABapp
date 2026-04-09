@@ -1,6 +1,29 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { Users, Info } from "lucide-react";
+import { useState, useEffect, useMemo } from "react";
+import {
+  Typography,
+  Card,
+  Row,
+  Col,
+  Statistic,
+  Table,
+  Tag,
+  Input,
+  Space,
+  Divider,
+} from "antd";
+import {
+  InfoCircleOutlined,
+  TeamOutlined,
+  BankOutlined,
+  SwapOutlined,
+  CheckCircleOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import { BACKEND_URL } from "../apis/server";
+import SchedulePanel from "../components/SchedulePanel";
+
+const { Title, Text } = Typography;
+const { Search } = Input;
 
 const MessChangePage = () => {
   const token =
@@ -15,9 +38,9 @@ const MessChangePage = () => {
   const [messChangeSettings, setMessChangeSettings] = useState(null);
   const [settingsLoading, setSettingsLoading] = useState(false);
   const [hostels, setHostels] = useState([]);
-  const [hostelsLoading, setHostelsLoading] = useState(false);
   const [scheduleInfo, setScheduleInfo] = useState(null);
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const buildHostelMap = (list) => {
     const map = {};
@@ -97,7 +120,6 @@ const MessChangePage = () => {
 
   const fetchHostels = async () => {
     try {
-      setHostelsLoading(true);
       const response = await fetch(`${BACKEND_URL}/hostel/all`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -112,8 +134,6 @@ const MessChangePage = () => {
       console.error("Error fetching hostels:", error);
       setHostels([]);
       return [];
-    } finally {
-      setHostelsLoading(false);
     }
   };
 
@@ -151,220 +171,349 @@ const MessChangePage = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authHeaders]);
 
+  const stats = useMemo(() => {
+    if (!requests || requests.length === 0) return null;
+
+    const uniqueHostels = new Set();
+    const prefCounts = {};
+
+    requests.forEach((req) => {
+      if (req.userHostelName && req.userHostelName !== "Unknown") {
+        uniqueHostels.add(req.userHostelName);
+      }
+
+      const pref1 = req.preference1Name;
+      if (pref1 && pref1 !== "-") {
+        prefCounts[pref1] = (prefCounts[pref1] || 0) + 1;
+      }
+    });
+
+    let mostRequested = "-";
+    let maxCount = 0;
+    Object.entries(prefCounts).forEach(([mess, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        mostRequested = mess;
+      }
+    });
+
+    return {
+      totalRequests: requests.length,
+      uniqueHostelsCount: uniqueHostels.size,
+      mostRequestedMess: mostRequested,
+      mostRequestedCount: maxCount,
+    };
+  }, [requests]);
+
+  const filteredRequests = useMemo(() => {
+    if (!searchQuery.trim()) return requests;
+    const query = searchQuery.toLowerCase();
+    return requests.filter(
+      (req) =>
+        (req.name || "").toLowerCase().includes(query) ||
+        (req.rollNumber || "").toLowerCase().includes(query) ||
+        (req.userHostelName || "").toLowerCase().includes(query),
+    );
+  }, [requests, searchQuery]);
+
+  const columns = [
+    {
+      title: "Sl. No",
+      key: "index",
+      render: (text, record, index) => index + 1,
+      width: 70,
+    },
+    {
+      title: "Name",
+      dataIndex: "name",
+      key: "name",
+      sorter: (a, b) => (a.name || "").localeCompare(b.name || ""),
+    },
+    {
+      title: "Roll Number",
+      dataIndex: "rollNumber",
+      key: "rollNumber",
+      sorter: (a, b) => (a.rollNumber || "").localeCompare(b.rollNumber || ""),
+    },
+    {
+      title: "Current Hostel",
+      dataIndex: "userHostelName",
+      key: "userHostelName",
+      sorter: (a, b) =>
+        (a.userHostelName || "").localeCompare(b.userHostelName || ""),
+    },
+    {
+      title: "Preference 1",
+      dataIndex: "preference1Name",
+      key: "preference1Name",
+      render: (text) => <Tag color="blue">{text}</Tag>,
+    },
+    {
+      title: "Preference 2",
+      dataIndex: "preference2Name",
+      key: "preference2Name",
+      render: (text) =>
+        text !== "-" ? (
+          <Tag color="cyan">{text}</Tag>
+        ) : (
+          <Text type="secondary">-</Text>
+        ),
+    },
+    {
+      title: "Preference 3",
+      dataIndex: "preference3Name",
+      key: "preference3Name",
+      render: (text) =>
+        text !== "-" ? (
+          <Tag color="geekblue">{text}</Tag>
+        ) : (
+          <Text type="secondary">-</Text>
+        ),
+    },
+    {
+      title: "Applied At",
+      dataIndex: "applied_hostel_timestamp",
+      key: "appliedAt",
+      render: (text) =>
+        text
+          ? new Date(text).toLocaleString("en-IN", {
+              year: "numeric",
+              month: "short",
+              day: "numeric",
+              hour: "2-digit",
+              minute: "2-digit",
+            })
+          : "N/A",
+      sorter: (a, b) =>
+        new Date(a.applied_hostel_timestamp || 0) -
+        new Date(b.applied_hostel_timestamp || 0),
+    },
+  ];
+
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          Mess Change Management
-        </h1>
-        <p className="text-gray-600">
-          Control mess change functionality and process requests for all hostels
-        </p>
-      </div>
-      {/* Mess Change Control Panel */}
-      <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-            <Info className="w-5 h-5 text-blue-600" />
-            Mess Change Control
-          </h2>
-          {settingsLoading && (
-            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-          )}
-        </div>
-
-        {messChangeSettings && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm font-medium text-gray-700 mb-1">Status</p>
-              <div className="flex items-center gap-2">
-                <div
-                  className={`w-3 h-3 rounded-full ${
-                    messChangeSettings.isEnabled ? "bg-green-500" : "bg-red-500"
-                  }`}
-                ></div>
-                <span
-                  className={`font-semibold ${
-                    messChangeSettings.isEnabled
-                      ? "text-green-700"
-                      : "text-red-700"
-                  }`}
-                >
-                  {messChangeSettings.isEnabled ? "Enabled" : "Disabled"}
-                </span>
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm font-medium text-gray-700 mb-1">
-                Last Processed
-              </p>
-              <p className="text-sm text-gray-600">
-                {messChangeSettings.lastProcessedAt
-                  ? new Date(messChangeSettings.lastProcessedAt).toLocaleString(
-                      "en-IN",
-                    )
-                  : "Never"}
-              </p>
-            </div>
+    <div
+      style={{
+        padding: "24px",
+        backgroundColor: "#f5f5f5",
+        minHeight: "100vh",
+      }}
+    >
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        {/* Header */}
+        <div
+          style={{
+            marginBottom: "24px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#fff",
+            padding: "16px 24px",
+            borderRadius: "8px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          }}
+        >
+          <div>
+            <Title level={2} style={{ margin: 0 }}>
+              Mess Change
+            </Title>
           </div>
-        )}
-      </div>
-      {/* Automatic Schedule Information */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg shadow-sm p-6 mb-6">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-blue-900 flex items-center gap-2">
-            <Info className="w-5 h-5 text-blue-600" />
-            Automatic Schedule
-          </h2>
-          {scheduleLoading && (
-            <div className="inline-block animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-          )}
         </div>
 
-        {scheduleInfo && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="bg-white p-4 rounded-lg border border-blue-200">
-              <h3 className="font-semibold text-blue-800 mb-2">
-                🔄 Auto Enable
-              </h3>
-              <p className="text-sm text-blue-700 mb-1">
-                {scheduleInfo.schedule.enablePattern}
-              </p>
-              <p className="text-xs text-blue-600">
-                Next: {scheduleInfo.schedule.nextEnableDateIST}
-              </p>
-            </div>
-
-            <div className="bg-white p-4 rounded-lg border border-blue-200">
-              <h3 className="font-semibold text-blue-800 mb-2">
-                ⏹️ Auto Disable
-              </h3>
-              <p className="text-sm text-blue-700 mb-1">
-                {scheduleInfo.schedule.disablePattern}
-              </p>
-              <p className="text-xs text-blue-600">
-                Next: {scheduleInfo.schedule.nextDisableDateIST}
-              </p>
-            </div>
-          </div>
-        )}
-
-        <div className="mt-4 p-3 bg-blue-100 rounded-lg">
-          <p className="text-sm text-blue-800">
-            <strong>Note:</strong> Mess change is automatically managed by the
-            system. Manual enable/disable buttons are provided for
-            administrative overrides only.
-          </p>
-          {scheduleInfo && (
-            <p className="text-xs text-blue-600 mt-1">
-              Current IST time: {scheduleInfo.currentTimeIST}
-            </p>
-          )}
-        </div>
-      </div>
-      {/* Pending Requests Table - Only show when mess change is enabled */}
-      {messChangeSettings?.isEnabled && (
-        <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-6 mb-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Pending Requests
-          </h2>
-
-          {loading && (
-            <div className="text-center py-8">
-              <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-              <p className="text-gray-500 mt-2">Loading requests...</p>
-            </div>
-          )}
-
-          {!loading && requests.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-500 text-lg">
-                No pending mess change requests found
-              </p>
-            </div>
-          ) : (
-            !loading && (
-              <div className="overflow-x-auto">
-                <table className="w-full table-fixed bg-white border border-gray-200 rounded-lg shadow-sm text-xs">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200">
-                      <th className="w-12 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                        Sl. No
-                      </th>
-                      <th className="w-28 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                        Name
-                      </th>
-                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                        Roll Number
-                      </th>
-                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                        Hostel
-                      </th>
-                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                        Preference 1
-                      </th>
-                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                        Preference 2
-                      </th>
-                      <th className="w-24 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                        Preference 3
-                      </th>
-                      <th className="w-32 px-3 py-2 text-left font-medium text-gray-500 uppercase tracking-wider">
-                        Applied At
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {requests.map((request, index) => (
-                      <tr
-                        key={request._id}
-                        className="hover:bg-gray-50 transition-colors duration-200"
+        <Row gutter={[24, 24]}>
+          {/* Settings & Schedule Panel */}
+          <Col xs={24} lg={8}>
+            <Space direction="vertical" size="large" style={{ width: "100%" }}>
+              <Card
+                title={
+                  <>
+                    <InfoCircleOutlined
+                      style={{ color: "#1890ff", marginRight: 8 }}
+                    />{" "}
+                    Mess Change Control
+                  </>
+                }
+                style={{
+                  borderRadius: 8,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                }}
+                loading={settingsLoading}
+              >
+                {messChangeSettings ? (
+                  <Space direction="vertical" style={{ width: "100%" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      <Text strong>Status:</Text>
+                      {messChangeSettings.isEnabled ? (
+                        <Tag color="success" icon={<CheckCircleOutlined />}>
+                          Enabled
+                        </Tag>
+                      ) : (
+                        <Tag color="error" icon={<StopOutlined />}>
+                          Disabled
+                        </Tag>
+                      )}
+                    </div>
+                    <Divider style={{ margin: "12px 0" }} />
+                    <div>
+                      <Text
+                        strong
+                        style={{ display: "block", marginBottom: 4 }}
                       >
-                        <td className="px-3 py-2 text-gray-900 align-top">
-                          {index + 1}
-                        </td>
-                        <td className="px-3 py-2 text-gray-900 align-top break-words">
-                          {request.name}
-                        </td>
-                        <td className="px-3 py-2 text-gray-900 align-top break-words">
-                          {request.rollNumber}
-                        </td>
-                        <td className="px-3 py-2 text-gray-900 align-top break-words">
-                          {request.userHostelName}
-                        </td>
-                        <td className="px-3 py-2 text-gray-900 align-top break-words">
-                          {request.preference1Name}
-                        </td>
-                        <td className="px-3 py-2 text-gray-900 align-top break-words">
-                          {request.preference2Name}
-                        </td>
-                        <td className="px-3 py-2 text-gray-900 align-top break-words">
-                          {request.preference3Name}
-                        </td>
-                        <td className="px-3 py-2 text-gray-500 align-top break-words">
-                          {request.applied_hostel_timestamp
-                            ? new Date(
-                                request.applied_hostel_timestamp,
-                              ).toLocaleString("en-IN", {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })
-                            : "N/A"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )
-          )}
-        </div>
-      )}
+                        Last Processed:
+                      </Text>
+                      <Text type="secondary">
+                        {messChangeSettings.lastProcessedAt
+                          ? new Date(
+                              messChangeSettings.lastProcessedAt,
+                            ).toLocaleString("en-IN")
+                          : "Never"}
+                      </Text>
+                    </div>
+                  </Space>
+                ) : (
+                  <Text type="secondary">Unable to load settings</Text>
+                )}
+              </Card>
+
+              <SchedulePanel
+                scheduleInfo={scheduleInfo}
+                loading={scheduleLoading}
+              />
+            </Space>
+          </Col>
+
+          {/* Statistics and Data Table */}
+          <Col xs={24} lg={16}>
+            {messChangeSettings?.isEnabled && (
+              <>
+                {/* Stats Row */}
+                {stats && (
+                  <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+                    <Col xs={24} sm={8}>
+                      <Card
+                        style={{
+                          borderRadius: 8,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                        }}
+                        bodyStyle={{ padding: "16px 20px" }}
+                      >
+                        <Statistic
+                          title="Total Responses"
+                          value={stats.totalRequests}
+                          prefix={<TeamOutlined style={{ color: "#1890ff" }} />}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={8}>
+                      <Card
+                        style={{
+                          borderRadius: 8,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                        }}
+                        bodyStyle={{ padding: "16px 20px" }}
+                      >
+                        <Statistic
+                          title="Unique Hostels"
+                          value={stats.uniqueHostelsCount}
+                          prefix={<BankOutlined style={{ color: "#52c41a" }} />}
+                        />
+                      </Card>
+                    </Col>
+                    <Col xs={24} sm={8}>
+                      <Card
+                        style={{
+                          borderRadius: 8,
+                          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                        }}
+                        bodyStyle={{ padding: "16px 20px" }}
+                      >
+                        <Statistic
+                          title="Most Requested"
+                          value={stats.mostRequestedMess}
+                          prefix={<SwapOutlined style={{ color: "#722ed1" }} />}
+                          valueStyle={{ fontSize: 18 }}
+                          suffix={
+                            stats.mostRequestedCount > 0 ? (
+                              <span
+                                style={{
+                                  fontSize: 12,
+                                  color: "#8c8c8c",
+                                  marginLeft: 4,
+                                }}
+                              >
+                                ({stats.mostRequestedCount})
+                              </span>
+                            ) : null
+                          }
+                        />
+                      </Card>
+                    </Col>
+                  </Row>
+                )}
+
+                {/* Table Card */}
+                <Card
+                  title="Pending Requests"
+                  extra={
+                    <Search
+                      placeholder="Search name, roll or hostel"
+                      allowClear
+                      onSearch={setSearchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      style={{ width: 250 }}
+                    />
+                  }
+                  style={{
+                    borderRadius: 8,
+                    boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                  }}
+                >
+                  <Table
+                    columns={columns}
+                    dataSource={filteredRequests}
+                    rowKey="_id"
+                    loading={loading}
+                    pagination={{
+                      pageSize: 10,
+                      showSizeChanger: true,
+                      showTotal: (total) => `Total ${total} requests`,
+                    }}
+                    scroll={{ x: 800 }}
+                    size="middle"
+                  />
+                </Card>
+              </>
+            )}
+
+            {!messChangeSettings?.isEnabled && (
+              <Card
+                style={{
+                  borderRadius: 8,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                  textAlign: "center",
+                  padding: "40px 20px",
+                }}
+              >
+                <SwapOutlined
+                  style={{ fontSize: 48, color: "#d9d9d9", marginBottom: 16 }}
+                />
+                <Title level={4} style={{ color: "#595959" }}>
+                  Mess Change is Currently Disabled
+                </Title>
+                <Text type="secondary">
+                  Requests can only be viewed when the mess change window is
+                  active.
+                </Text>
+              </Card>
+            )}
+          </Col>
+        </Row>
+      </div>
     </div>
   );
 };

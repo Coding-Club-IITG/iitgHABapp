@@ -1,18 +1,31 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { Tabs } from "antd";
 import {
-  ArrowLeft,
-  QrCode,
-  Download,
-  AlertCircle,
-  Star,
-  Trophy,
-  FileText,
-} from "lucide-react";
+  Tabs,
+  Typography,
+  Card,
+  Row,
+  Col,
+  Button,
+  Spin,
+  Alert,
+  Select,
+  Space,
+  Tag,
+} from "antd";
+import {
+  ArrowLeftOutlined,
+  QrcodeOutlined,
+  DownloadOutlined,
+  StarOutlined,
+  TrophyOutlined,
+  FileTextOutlined,
+} from "@ant-design/icons";
 import { getMessById, getMessMenuByDay } from "../apis/mess";
 import { BACKEND_URL } from "../apis/server";
 import FeedbackList from "./FeedbackList";
+
+const { Title, Text } = Typography;
 
 export default function MessDetails() {
   const { id } = useParams();
@@ -46,8 +59,6 @@ export default function MessDetails() {
 
     fetchMess();
   }, [id]);
-
-  // Deletion of mess is disabled in the UI per new requirement.
 
   const handleGoBack = () => {
     navigate("/caterers/");
@@ -87,7 +98,7 @@ export default function MessDetails() {
   const passedFeedbacks = Array.isArray(location.state?.feedbacks)
     ? location.state.feedbacks
     : null;
-  // Simplified: no separate loading/error states for feedback fetch
+
   const [fbPage, setFbPage] = useState(1);
   const [fbPageSize] = useState(10);
   const [fbTotal, setFbTotal] = useState(0);
@@ -215,165 +226,233 @@ export default function MessDetails() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading mess details...</p>
-        </div>
+      <div
+        style={{
+          minHeight: "100vh",
+          backgroundColor: "#f5f5f5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <Spin size="large" tip="Loading mess details..." />
       </div>
     );
   }
+
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded border border-gray-300 p-8 max-w-md w-full">
-          <div className="flex items-center gap-3 mb-4">
-            <AlertCircle className="text-red-600" size={24} />
-            <h2 className="text-lg font-semibold text-gray-900">Error</h2>
-          </div>
-          <p className="text-gray-600 mb-6">{error}</p>
-          <div className="flex gap-3">
-            <button
-              onClick={() => window.location.reload()}
-              className="flex-1 px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors"
-            >
+      <div
+        style={{
+          minHeight: "100vh",
+          backgroundColor: "#f5f5f5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <Card
+          style={{
+            maxWidth: 500,
+            width: "100%",
+            borderRadius: 8,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          }}
+        >
+          <Alert
+            message="Error"
+            description={error}
+            type="error"
+            showIcon
+            style={{ marginBottom: 24 }}
+          />
+          <Space style={{ width: "100%", justifyContent: "space-between" }}>
+            <Button onClick={() => window.location.reload()} type="primary">
               Try Again
-            </button>
-            <button
-              onClick={handleGoBack}
-              className="flex-1 px-4 py-2 bg-white text-gray-900 border border-gray-300 rounded hover:bg-gray-50 transition-colors"
-            >
-              Go Back
-            </button>
-          </div>
-        </div>
+            </Button>
+            <Button onClick={handleGoBack}>Go Back</Button>
+          </Space>
+        </Card>
       </div>
     );
   }
+
   if (!mess) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="bg-white rounded border border-gray-300 p-8 max-w-md w-full text-center">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">
-            Mess Not Found
-          </h2>
-          <p className="text-gray-600 mb-6">
+      <div
+        style={{
+          minHeight: "100vh",
+          backgroundColor: "#f5f5f5",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: 24,
+        }}
+      >
+        <Card
+          style={{
+            maxWidth: 500,
+            width: "100%",
+            borderRadius: 8,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+            textAlign: "center",
+          }}
+        >
+          <Title level={4}>Mess Not Found</Title>
+          <Text type="secondary" style={{ display: "block", marginBottom: 24 }}>
             The requested mess could not be found.
-          </p>
-          <button
-            onClick={handleGoBack}
-            className="px-4 py-2 bg-gray-900 text-white rounded hover:bg-gray-800 transition-colors"
-          >
+          </Text>
+          <Button onClick={handleGoBack} type="primary">
             Go Back to Caterers
-          </button>
-        </div>
+          </Button>
+        </Card>
       </div>
     );
   }
 
   const infoTab = (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-white border border-gray-300 rounded p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Star size={18} className="text-gray-700" />
-              <span className="text-sm font-medium text-gray-700">
-                OPI Rating
-              </span>
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <Row gutter={[16, 16]}>
+        <Col xs={24} sm={8}>
+          <Card
+            style={{ borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Space>
+                <StarOutlined style={{ color: "#faad14", fontSize: 18 }} />
+                <Text strong>OPI Rating</Text>
+              </Space>
+              {selectedWindow && <Tag>Window {selectedWindow}</Tag>}
             </div>
-            {selectedWindow && (
-              <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded border border-gray-300">
-                Window {selectedWindow}
-              </span>
-            )}
-          </div>
-          <div className="text-3xl font-semibold text-gray-900">
-            {fbOpi != null ? fbOpi.toFixed(2) : mess?.rating || "N/A"}
-            <span className="text-base text-gray-500 font-normal ml-2">
-              / 5.0
-            </span>
-          </div>
-        </div>
-        <div className="bg-white border border-gray-300 rounded p-6">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Trophy size={18} className="text-gray-700" />
-              <span className="text-sm font-medium text-gray-700">Rank</span>
-            </div>
-            {selectedWindow && (
-              <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded border border-gray-300">
-                Window {selectedWindow}
-              </span>
-            )}
-          </div>
-          <div className="text-3xl font-semibold text-gray-900">
-            {fbRank != null ? fbRank : mess?.ranking || "N/A"}
-          </div>
-        </div>
-        <div className="bg-white border border-gray-300 rounded p-6">
-          <div className="flex items-center gap-2 mb-4">
-            <FileText size={18} className="text-gray-700" />
-            <span className="text-sm font-medium text-gray-700">Feedbacks</span>
-          </div>
-          <div className="text-3xl font-semibold text-gray-900">
-            {fbItems.length > 0 ? fbTotal : feedbackList.length}
-          </div>
-        </div>
-      </div>
-      <div className="bg-white border border-gray-300 rounded">
-        <div className="border-b border-gray-300 px-6 py-4">
-          <h3 className="text-base font-semibold text-gray-900 flex items-center gap-2">
-            <QrCode size={18} className="text-gray-700" /> QR Code
-          </h3>
-        </div>
-        <div className="p-6">
-          <div className="flex flex-col md:flex-row md:items-start gap-8">
-            <div className="flex-shrink-0">
-              <div className="p-4 bg-white border border-gray-300 rounded w-48 h-48 flex items-center justify-center">
-                <img
-                  src={mess?.qr_img}
-                  alt="QR Code"
-                  className="w-full h-full object-contain"
-                />
-              </div>
-            </div>
-            <div className="flex-1 space-y-4">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-2">
-                  Access Information
-                </h4>
-                <p className="text-sm text-gray-600 leading-relaxed">
-                  Scan this QR code to access caterer services, menu
-                  information, and provide feedback. Share this code with
-                  students and staff for easy access.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={handleDownloadQrCode}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 hover:bg-gray-800 text-white rounded text-sm font-medium transition-colors"
+            <div style={{ fontSize: 32, fontWeight: 600 }}>
+              {fbOpi != null ? fbOpi.toFixed(2) : mess?.rating || "N/A"}
+              <Text
+                type="secondary"
+                style={{ fontSize: 16, marginLeft: 8, fontWeight: 400 }}
               >
-                <Download size={16} /> Download QR Code
-              </button>
+                / 5.0
+              </Text>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card
+            style={{ borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Space>
+                <TrophyOutlined style={{ color: "#1890ff", fontSize: 18 }} />
+                <Text strong>Rank</Text>
+              </Space>
+              {selectedWindow && <Tag>Window {selectedWindow}</Tag>}
+            </div>
+            <div style={{ fontSize: 32, fontWeight: 600 }}>
+              {fbRank != null ? fbRank : mess?.ranking || "N/A"}
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={8}>
+          <Card
+            style={{ borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <Space>
+                <FileTextOutlined style={{ color: "#722ed1", fontSize: 18 }} />
+                <Text strong>Feedbacks</Text>
+              </Space>
+            </div>
+            <div style={{ fontSize: 32, fontWeight: 600 }}>
+              {fbItems.length > 0 ? fbTotal : feedbackList.length}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      <Card
+        title={
+          <>
+            <QrcodeOutlined style={{ marginRight: 8 }} /> QR Code
+          </>
+        }
+        style={{ borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
+      >
+        <Row gutter={[32, 32]} align="middle">
+          <Col>
+            <div
+              style={{
+                padding: 16,
+                border: "1px solid #f0f0f0",
+                borderRadius: 8,
+                display: "inline-block",
+              }}
+            >
+              <img
+                src={mess?.qr_img}
+                alt="QR Code"
+                style={{ width: 150, height: 150, objectFit: "contain" }}
+              />
+            </div>
+          </Col>
+          <Col flex="auto">
+            <Title level={5}>Access Information</Title>
+            <Text
+              type="secondary"
+              style={{ display: "block", marginBottom: 16, maxWidth: 500 }}
+            >
+              Scan this QR code to access caterer services, menu information,
+              and provide feedback. Share this code with students and staff for
+              easy access.
+            </Text>
+            <Button
+              type="primary"
+              icon={<DownloadOutlined />}
+              onClick={handleDownloadQrCode}
+            >
+              Download QR Code
+            </Button>
+          </Col>
+        </Row>
+      </Card>
+    </Space>
   );
 
   const menuTab = (
-    <div className="space-y-6">
-      <div className="flex items-center justify-end">
-        <div className="flex items-center gap-2">
-          <label className="text-sm text-gray-600">Day:</label>
-          <select
+    <Space direction="vertical" size="large" style={{ width: "100%" }}>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          alignItems: "center",
+        }}
+      >
+        <Space>
+          <Text>Day:</Text>
+          <Select
             value={menuDay}
-            onChange={(e) => setMenuDay(e.target.value)}
-            className="border border-gray-300 rounded px-3 py-1.5 text-sm bg-white focus:outline-none focus:ring-1 focus:ring-gray-300"
-          >
-            {[
+            onChange={(val) => setMenuDay(val)}
+            style={{ width: 150 }}
+            options={[
               "Monday",
               "Tuesday",
               "Wednesday",
@@ -381,37 +460,34 @@ export default function MessDetails() {
               "Friday",
               "Saturday",
               "Sunday",
-            ].map((d) => (
-              <option key={d} value={d}>
-                {d}
-              </option>
-            ))}
-          </select>
-        </div>
+            ].map((d) => ({ label: d, value: d }))}
+          />
+        </Space>
       </div>
+
       {menuLoading && (
-        <div className="text-sm text-gray-500">Loading menu...</div>
+        <Spin style={{ display: "block", margin: "40px auto" }} />
       )}
-      {!menuLoading && menuError && (
-        <div className="text-sm text-red-600">{menuError}</div>
-      )}
+      {!menuLoading && menuError && <Alert type="error" message={menuError} />}
       {!menuLoading && !menuError && menuItems.length === 0 && (
-        <div className="text-sm text-gray-500">
-          No menu items for {menuDay}.
-        </div>
+        <Alert type="info" message={`No menu items for ${menuDay}.`} />
       )}
+
       {!menuLoading && !menuError && menuItems.length > 0 && (
-        <div className="space-y-3">
+        <Space direction="vertical" size="middle" style={{ width: "100%" }}>
           {menuItems.map((entry) => (
-            <div
+            <Card
               key={entry._id || `${entry.day}-${entry.type}`}
-              className="border border-gray-300 rounded p-4 bg-white"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-2xl text-gray-800">
+              title={
+                <Title level={4} style={{ margin: 0 }}>
                   {entry.type}
-                </span>
-              </div>
+                </Title>
+              }
+              style={{
+                borderRadius: 8,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+              }}
+            >
               {(() => {
                 const raw = Array.isArray(entry.items) ? entry.items : [];
                 const norm = raw.map((it) =>
@@ -424,6 +500,7 @@ export default function MessDetails() {
                 const dish = byType("Dish");
                 const breads = byType("Breads and Rice");
                 const others = byType("Others");
+
                 const ItemRow = ({ item }) => {
                   const name = item?.name;
                   if (!name) return null;
@@ -431,47 +508,69 @@ export default function MessDetails() {
                     ? item.likes.length
                     : 0;
                   return (
-                    <div className="flex items-center gap-2 rounded px-2 py-1 bg-gray-50 hover:bg-gray-100 transition text-sm">
-                      {/* Bullet dot for visual scan */}
-                      <span className="w-1.5 h-1.5 rounded-full bg-gray-400 inline-block flex-shrink-0"></span>
-                      <span className="text-gray-800 leading-none">{name}</span>
-                      <span className="text-[10px] leading-none px-1.5 py-0.5 bg-white border border-gray-300 rounded text-gray-600 font-medium shadow-sm">
-                        {likes}
-                      </span>
-                    </div>
+                    <Tag
+                      style={{
+                        padding: "4px 8px",
+                        fontSize: 14,
+                        margin: "4px 8px 4px 0",
+                      }}
+                    >
+                      {name}{" "}
+                      <Text
+                        type="secondary"
+                        style={{ fontSize: 12, marginLeft: 4 }}
+                      >
+                        ({likes})
+                      </Text>
+                    </Tag>
                   );
                 };
+
                 const Section = ({ title, items }) => (
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-semibold tracking-wide text-gray-500">
+                  <div style={{ marginBottom: 16 }}>
+                    <Text
+                      type="secondary"
+                      strong
+                      style={{
+                        display: "block",
+                        marginBottom: 8,
+                        fontSize: 12,
+                        textTransform: "uppercase",
+                      }}
+                    >
                       {title}
-                    </div>
+                    </Text>
                     {items.length > 0 ? (
-                      <div className="flex flex-wrap gap-2">
+                      <div style={{ display: "flex", flexWrap: "wrap" }}>
                         {items.map((i) => (
                           <ItemRow key={i?._id || i.name} item={i} />
                         ))}
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-400 font-medium">-</div>
+                      <Text type="secondary">-</Text>
                     )}
                   </div>
                 );
+
                 return (
-                  <div className="space-y-5">
+                  <div>
                     <Section title="DISH" items={dish} />
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      <Section title="BREADS & RICE" items={breads} />
-                      <Section title="OTHERS" items={others} />
-                    </div>
+                    <Row gutter={24}>
+                      <Col span={12}>
+                        <Section title="BREADS & RICE" items={breads} />
+                      </Col>
+                      <Col span={12}>
+                        <Section title="OTHERS" items={others} />
+                      </Col>
+                    </Row>
                   </div>
                 );
               })()}
-            </div>
+            </Card>
           ))}
-        </div>
+        </Space>
       )}
-    </div>
+    </Space>
   );
 
   const feedbackTab = (
@@ -485,32 +584,68 @@ export default function MessDetails() {
   );
 
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <div className="max-w-6xl mx-auto">
-        <div className="bg-white rounded border border-gray-300 p-6 mb-6 flex items-center justify-between">
-          <button
+    <div
+      style={{
+        padding: "24px",
+        backgroundColor: "#f5f5f5",
+        minHeight: "100vh",
+      }}
+    >
+      <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+        {/* Header */}
+        <div
+          style={{
+            marginBottom: "24px",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "#fff",
+            padding: "16px 24px",
+            borderRadius: "8px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+          }}
+        >
+          <Button
+            icon={<ArrowLeftOutlined />}
             onClick={handleGoBack}
-            className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors"
+            type="text"
           >
-            <ArrowLeft size={18} />
-            <span className="font-medium">Back</span>
-          </button>
-          <div className="text-center">
-            <h1 className="text-2xl font-semibold text-gray-900">
+            Back
+          </Button>
+          <div style={{ textAlign: "center", flex: 1 }}>
+            <Title level={2} style={{ margin: 0 }}>
               {mess.name}
-            </h1>
-            <p className="text-gray-500 text-sm">Caterer Dashboard</p>
+            </Title>
+            <Text type="secondary">Caterer Dashboard</Text>
           </div>
-          {/* Delete action removed intentionally */}
+          <div style={{ width: 70 }} /> {/* Spacer for centering */}
         </div>
-        <Tabs
-          defaultActiveKey="info"
-          items={[
-            { key: "info", label: "Caterer Info", children: infoTab },
-            { key: "menu", label: "Menu", children: menuTab },
-            { key: "feedbacks", label: "Feedbacks", children: feedbackTab },
-          ]}
-        />
+
+        <Card
+          style={{ borderRadius: 8, boxShadow: "0 2px 8px rgba(0,0,0,0.05)" }}
+          bodyStyle={{ padding: "0 24px 24px" }}
+        >
+          <Tabs
+            defaultActiveKey="info"
+            items={[
+              {
+                key: "info",
+                label: "Caterer Info",
+                children: <div style={{ paddingTop: 16 }}>{infoTab}</div>,
+              },
+              {
+                key: "menu",
+                label: "Menu",
+                children: <div style={{ paddingTop: 16 }}>{menuTab}</div>,
+              },
+              {
+                key: "feedbacks",
+                label: "Feedbacks",
+                children: <div style={{ paddingTop: 16 }}>{feedbackTab}</div>,
+              },
+            ]}
+          />
+        </Card>
       </div>
     </div>
   );

@@ -1,31 +1,36 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { Card, Tag, Alert, Space, Typography, Divider, Row, Col } from "antd";
 import {
-  Card,
-  Tag,
-  Alert,
-  Space,
-  Typography,
-  Divider,
-  Spin,
-} from "antd";
+  InfoCircleOutlined,
+  CheckCircleOutlined,
+  StopOutlined,
+} from "@ant-design/icons";
 import { BACKEND_URL } from "../apis/server";
+import SchedulePanel from "./SchedulePanel";
 
 const { Text } = Typography;
 
 export default function FeedbackControl() {
-  const [loading, setLoading] = useState(false);
+  const [settingsLoading, setSettingsLoading] = useState(false);
   const [settings, setSettings] = useState(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleInfo, setScheduleInfo] = useState(null);
   const [error, setError] = useState("");
 
   const token =
     localStorage.getItem("admin_token") || localStorage.getItem("token");
 
+  const authHeaders = useMemo(
+    () => (token ? { Authorization: `Bearer ${token}` } : {}),
+    [token],
+  );
+
   const fetchSettings = useCallback(async () => {
     try {
-      setLoading(true);
+      setSettingsLoading(true);
       setError("");
       const res = await fetch(`${BACKEND_URL}/feedback/settings`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: authHeaders,
       });
       if (!res.ok) throw new Error(`Failed to fetch settings (${res.status})`);
       const data = await res.json();
@@ -34,111 +39,133 @@ export default function FeedbackControl() {
       setError(err.message);
       setSettings(null);
     } finally {
-      setLoading(false);
+      setSettingsLoading(false);
     }
-  }, [token]);
+  }, [authHeaders]);
+
+  const fetchScheduleInfo = useCallback(async () => {
+    try {
+      setScheduleLoading(true);
+      const response = await fetch(`${BACKEND_URL}/feedback/schedule`, {
+        headers: authHeaders,
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setScheduleInfo(data.data);
+    } catch (err) {
+      console.error("Error fetching schedule info:", err);
+      setScheduleInfo(null);
+    } finally {
+      setScheduleLoading(false);
+    }
+  }, [authHeaders]);
 
   useEffect(() => {
-    token ? fetchSettings() : setError("Not authenticated as HAB admin.");
-  }, [token, fetchSettings]);
+    if (token) {
+      fetchSettings();
+      fetchScheduleInfo();
+    } else {
+      setError("Not authenticated as HAB admin.");
+    }
+  }, [token, fetchSettings, fetchScheduleInfo]);
 
   return (
-    <Card
-      title="Feedback Control"
-      style={{
-        marginTop: 32,
-        borderRadius: 8,
-        border: "1px solid #e5e7eb",
-      }}
-      headStyle={{ fontSize: 18, fontWeight: 600 }}
-    >
-      <Space direction="vertical" style={{ width: "100%" }} size="large">
-        {/* Alerts */}
-        {error && (
-          <Alert
-            type="error"
-            message="Error"
-            description={error}
-            showIcon={false}
-            style={{ borderRadius: 6 }}
-          />
-        )}
+    <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
+      {error && (
+        <Col span={24}>
+          <Alert type="error" message="Error" description={error} showIcon />
+        </Col>
+      )}
 
+      {/* Feedback Settings Panel */}
+      <Col xs={24} lg={12}>
         <Card
-          bordered
-          style={{
-            background: "#fafafa",
-            borderColor: "#e5e7eb",
-            borderRadius: 6,
-          }}
-        >
-          {loading ? (
-            <Spin tip="Loading settings..." />
-          ) : settings ? (
+          title={
             <>
-              {/* Status Grid */}
+              <InfoCircleOutlined
+                style={{ color: "#1890ff", marginRight: 8 }}
+              />{" "}
+              Feedback Control
+            </>
+          }
+          style={{
+            borderRadius: 8,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+            height: "100%",
+          }}
+          loading={settingsLoading}
+        >
+          {settings ? (
+            <Space direction="vertical" style={{ width: "100%" }}>
               <div
                 style={{
-                  display: "grid",
-                  gridTemplateColumns: "repeat(2, 1fr)",
-                  rowGap: 12,
-                  columnGap: 32,
-                  fontSize: 14,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
                 }}
               >
-                <div>
-                  <Text strong>Status:</Text>
-                  <span style={{ marginLeft: 8 }}>
-                    <Tag
-                      color={settings.isEnabled ? "blue" : "default"}
-                      style={{ borderRadius: 4 }}
-                    >
-                      {settings.isEnabled ? "Open" : "Closed"}
-                    </Tag>
-                  </span>
-                </div>
-
-                <div>
-                  <Text strong>Current Window:</Text>
-                  <span style={{ marginLeft: 8 }}>
-                    <Tag color="default" style={{ borderRadius: 4 }}>
-                      #{settings.currentWindowNumber}
-                    </Tag>
-                  </span>
-                </div>
-
-                <div>
-                  <Text strong>Enabled At:</Text>
-                  <span style={{ marginLeft: 8 }}>
+                <Text strong>Status:</Text>
+                {settings.isEnabled ? (
+                  <Tag color="success" icon={<CheckCircleOutlined />}>
+                    Open
+                  </Tag>
+                ) : (
+                  <Tag color="default" icon={<StopOutlined />}>
+                    Closed
+                  </Tag>
+                )}
+              </div>
+              <Divider style={{ margin: "12px 0" }} />
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
+              >
+                <Text strong style={{ display: "block", marginBottom: 4 }}>
+                  Current Window:
+                </Text>
+                <Tag color="blue">#{settings.currentWindowNumber || 1}</Tag>
+              </div>
+              <Divider style={{ margin: "12px 0" }} />
+              <Row gutter={16}>
+                <Col span={12}>
+                  <Text strong style={{ display: "block", marginBottom: 4 }}>
+                    Enabled At:
+                  </Text>
+                  <Text type="secondary">
                     {settings.enabledAt
                       ? new Date(settings.enabledAt).toLocaleString("en-IN")
                       : "-"}
-                  </span>
-                </div>
-
-                <div>
-                  <Text strong>Disabled At:</Text>
-                  <span style={{ marginLeft: 8 }}>
+                  </Text>
+                </Col>
+                <Col span={12}>
+                  <Text strong style={{ display: "block", marginBottom: 4 }}>
+                    Disabled At:
+                  </Text>
+                  <Text type="secondary">
                     {settings.disabledAt
                       ? new Date(settings.disabledAt).toLocaleString("en-IN")
                       : "-"}
-                  </span>
-                </div>
-              </div>
-
-              <Divider />
-
-              <Text type="secondary" style={{ fontSize: 12 }}>
-                Feedback automatically opens on{" "}
-                <b>25th of each month at 9 AM IST</b>. It auto-closes after 48
-                hours.
-              </Text>
-            </>
+                  </Text>
+                </Col>
+              </Row>
+            </Space>
           ) : (
-            <Text>No settings found.</Text>
+            <Text type="secondary">Unable to load settings</Text>
           )}
         </Card>
-      </Space>
-    </Card>
+      </Col>
+
+      {/* Automatic Schedule Panel */}
+      <Col xs={24} lg={12}>
+        <SchedulePanel scheduleInfo={scheduleInfo} loading={scheduleLoading} />
+      </Col>
+    </Row>
   );
 }

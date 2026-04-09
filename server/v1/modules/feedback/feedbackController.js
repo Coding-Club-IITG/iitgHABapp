@@ -8,6 +8,10 @@ const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
 const redisClient = require("../../utils/redisClient.js");
+const {
+  getFeedbackWindowDates,
+  getOrdinalSuffix,
+} = require("../../utils/windowDates.js");
 
 const ratingMap = {
   "Very Poor": 1,
@@ -543,31 +547,8 @@ const getAllFeedback = async (req, res) => {
 };
 
 // ==========================================
-// Enable / Disable Feedback Window automatically
+// Enable / Disable Feedback Window
 // ==========================================
-// Helper to get feedback window dates for a given month
-// Duplicated from autoFeedbackScheduler to avoid circular dependency
-const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
-  const now = new Date();
-  const year = targetYear || now.getFullYear();
-  const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
-
-  let startDay, endDay;
-  if (month === 1) {
-    // February
-    startDay = 23;
-    endDay = 25;
-  } else {
-    // All other months
-    startDay = 25;
-    endDay = 27;
-  }
-
-  const startDate = new Date(year, month, startDay, 9, 0, 0);
-  const endDate = new Date(year, month, endDay, 23, 59, 59);
-  return { startDate, endDate };
-};
-
 // Helper to enable feedback automatically so schedulers can call it
 const enableFeedbackAutomatic = async () => {
   try {
@@ -717,6 +698,63 @@ const getFeedbackSettingsPublic = async (req, res) => {
       message: "Failed to fetch settings",
       error: String(e.message || e),
     });
+  }
+};
+
+// ==========================================
+// Get feedback schedule info (HAB)
+// ==========================================
+const getFeedbackScheduleInfo = async (req, res) => {
+  try {
+    const settings = await FeedbackSettings.findOne();
+
+    const now = new Date();
+    let month = now.getMonth();
+    let year = now.getFullYear();
+
+    let { startDate, endDate, startDay, endDay } = getFeedbackWindowDates(
+      month,
+      year,
+    );
+
+    // If we've already passed this month's window, show next month's window
+    if (now > endDate) {
+      if (month === 11) {
+        month = 0;
+        year += 1;
+      } else {
+        month += 1;
+      }
+      ({ startDate, endDate, startDay, endDay } = getFeedbackWindowDates(
+        month,
+        year,
+      ));
+    }
+
+    return res.status(200).json({
+      message: "Feedback schedule information",
+      data: {
+        currentSettings: settings,
+        schedule: {
+          enablePattern: `${getOrdinalSuffix(startDay)}-${getOrdinalSuffix(endDay)} at 9:00 AM IST`,
+          disablePattern: `End of day on ${getOrdinalSuffix(endDay)} IST`,
+          nextEnableDate: startDate.toISOString(),
+          nextDisableDate: endDate.toISOString(),
+          nextEnableDateIST: startDate.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+          }),
+          nextDisableDateIST: endDate.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+          }),
+        },
+        currentTimeIST: new Date().toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+        }),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching feedback schedule info:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -1289,6 +1327,7 @@ module.exports = {
   disableFeedbackAutomatic,
   getFeedbackSettings,
   getFeedbackSettingsPublic,
+  getFeedbackScheduleInfo,
   getFeedbackLeaderboard,
   getFeedbackLeaderboardByWindow,
   getAvailableWindows,

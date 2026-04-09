@@ -1,5 +1,9 @@
 const { User } = require("../../user/userModel.js");
 const { MessChangeSettings } = require("../messChangeSettingsModel.js");
+const {
+  getMessChangeWindowDates,
+  getOrdinalSuffix,
+} = require("../../../utils/windowDates.js");
 
 /**
  * Get all mess change requests for all hostels
@@ -57,26 +61,44 @@ const getMessChangeScheduleInfo = async (req, res) => {
   try {
     const settings = await MessChangeSettings.findOne();
 
-    // FOR TESTING: Fixed test dates
-    const testEnableDate = new Date("2025-09-07T02:48:00+05:30");
-    const testDisableDate = new Date("2025-09-07T04:30:00+05:30");
+    const now = new Date();
+    let month = now.getMonth();
+    let year = now.getFullYear();
+
+    let { startDate, endDate, startDay, endDay } = getMessChangeWindowDates(
+      month,
+      year,
+    );
+
+    // If we've already passed this month's window, show next month's window
+    if (now > endDate) {
+      if (month === 11) {
+        month = 0;
+        year += 1;
+      } else {
+        month += 1;
+      }
+      ({ startDate, endDate, startDay, endDay } = getMessChangeWindowDates(
+        month,
+        year,
+      ));
+    }
 
     return res.status(200).json({
-      message: "Mess change schedule information (TEST MODE)",
+      message: "Mess change schedule information",
       data: {
         currentSettings: settings,
         schedule: {
-          enablePattern: "TEST: 7 Sept 2025 at 2:15 AM IST",
-          disablePattern: "TEST: 7 Sept 2025 at 2:30 AM IST",
-          nextEnableDate: testEnableDate.toISOString(),
-          nextDisableDate: testDisableDate.toISOString(),
-          nextEnableDateIST: testEnableDate.toLocaleString("en-IN", {
+          enablePattern: `${getOrdinalSuffix(startDay)}-${getOrdinalSuffix(endDay)} at 9:00 AM IST`,
+          disablePattern: `End of day on ${getOrdinalSuffix(endDay)} IST`,
+          nextEnableDate: startDate.toISOString(),
+          nextDisableDate: endDate.toISOString(),
+          nextEnableDateIST: startDate.toLocaleString("en-IN", {
             timeZone: "Asia/Kolkata",
           }),
-          nextDisableDateIST: testDisableDate.toLocaleString("en-IN", {
+          nextDisableDateIST: endDate.toLocaleString("en-IN", {
             timeZone: "Asia/Kolkata",
           }),
-          isTestMode: true,
         },
         currentTimeIST: new Date().toLocaleString("en-IN", {
           timeZone: "Asia/Kolkata",

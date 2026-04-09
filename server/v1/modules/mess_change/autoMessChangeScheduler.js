@@ -7,37 +7,7 @@ const {
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
-
-// Helper to get mess change window dates for a given month
-// Server is already in IST timezone, so we use local time
-const getMessChangeWindowDates = (targetMonth = null, targetYear = null) => {
-  const now = new Date();
-  const year = targetYear || now.getFullYear();
-  const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
-
-  let startDay, endDay;
-
-  if (month === 1) {
-    // February
-    startDay = 26;
-    endDay = 28;
-  } else {
-    // All other months
-    startDay = 28;
-    endDay = 30;
-  }
-
-  // Create dates in local time (IST)
-  // Start: 9 AM IST
-  const startDate = new Date(year, month, startDay, 9, 0, 0);
-  // End: 23:59:59 IST (end of day)
-  const endDate = new Date(year, month, endDay, 23, 59, 59);
-
-  return { startDate, endDate };
-};
-
-// Use controller implementations for enable/disable so the scheduler
-// doesn't duplicate business logic. They are imported below.
+const { getMessChangeWindowDates } = require("../../utils/windowDates.js");
 
 // Schedule reminder notifications
 const scheduleMessChangeReminders = async () => {
