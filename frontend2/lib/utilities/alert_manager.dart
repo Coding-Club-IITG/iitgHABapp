@@ -63,28 +63,51 @@ class AlertsManager {
     await prefs.remove('alerts'); // Wipe the local cache
   }
 
-  /// Core logic: Drop expired -> Deduplicate -> Sort -> Notify UI -> Persist
-  static Future<void> _updateAndFilterAlerts(List<AlertModel> alerts) async {
+  /// Core logic: Drop expired -> Deduplicate -> Preserve Read Status -> Sort -> Notify UI
+  static Future<void> _updateAndFilterAlerts(List<AlertModel> incomingAlerts) async {
     final now = DateTime.now().millisecondsSinceEpoch;
     
-    // Drop expired (Manual Filter Logic)
-    final activeAlerts = alerts.where((a) => a.expiresAt > now).toList();
+    // 1. Grab local alerts first so we remember what was already read
+    final prefs = await SharedPreferences.getInstance();
+    final alertsString = prefs.getString('alerts');
+    final Map<String, bool> readStatusMap = {};
     
-    // Deduplicate using Announcement ID as Primary Key
+    if (alertsString != null) {
+      final List<dynamic> decoded = jsonDecode(alertsString);
+      for (var e in decoded) {
+        final localAlert = AlertModel.fromJson(e);
+        readStatusMap[localAlert.id] = localAlert.isRead;
+      }
+    }
+
+    // 2. Drop expired
+    final activeAlerts = incomingAlerts.where((a) => a.expiresAt > now).toList();
+    
+    // 3. Deduplicate using ID and apply preserved read status
     final Map<String, AlertModel> uniqueAlerts = {};
     for (var a in activeAlerts) {
-      uniqueAlerts[a.id] = a;
+      final previouslyRead = readStatusMap[a.id] ?? a.isRead;
+      uniqueAlerts[a.id] = a.copyWith(isRead: previouslyRead);
     }
     
-    // Sort (Ending soonest first)
+    // 4. Sort (Ending soonest first)
     final finalAlerts = uniqueAlerts.values.toList()
       ..sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
 
-    // Update UI instantly
+    // Update UI instantly and persist
     activeAlertsNotifier.value = finalAlerts;
-    
-    // Persist to SharedPreferences
-    final prefs = await SharedPreferences.getInstance();
     await prefs.setString('alerts', jsonEncode(finalAlerts.map((e) => e.toJson()).toList()));
+  }
+
+  /// Called when the Updates card is tapped!
+  static Future<void> markAllAlertsAsRead() async {
+    final currentAlerts = activeAlertsNotifier.value;
+    if (currentAlerts.isEmpty) return;
+
+    final updatedAlerts = currentAlerts.map((a) => a.copyWith(isRead: true)).toList();
+    activeAlertsNotifier.value = updatedAlerts;
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('alerts', jsonEncode(updatedAlerts.map((e) => e.toJson()).toList()));
   }
 }

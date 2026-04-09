@@ -7,6 +7,7 @@ class AlertModel {
   final bool hasCountdown;
   final int expiresAt;
   final String targetType;
+  final bool isRead;
 
   AlertModel({
     required this.id,
@@ -15,6 +16,7 @@ class AlertModel {
     required this.hasCountdown,
     required this.expiresAt,
     required this.targetType,
+    this.isRead = false,
   });
 
   factory AlertModel.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class AlertModel {
       // Handle string ints from FCM payloads
       expiresAt: int.tryParse(json['expiresAt'].toString()) ?? 0,
       targetType: json['targetType'] ?? 'global',
+      isRead: json['isRead'] ?? false,
     );
   }
 
@@ -38,6 +41,19 @@ class AlertModel {
       'hasCountdown': hasCountdown ? "true" : "false",
       'expiresAt': expiresAt.toString(),
       'targetType': targetType,
+      'isRead': isRead,
     };
+  }
+
+  AlertModel copyWith({bool? isRead}) {
+    return AlertModel(
+      id: id,
+      title: title,
+      body: body,
+      hasCountdown: hasCountdown,
+      expiresAt: expiresAt,
+      targetType: targetType,
+      isRead: isRead ?? this.isRead,
+    );
   }
 }
