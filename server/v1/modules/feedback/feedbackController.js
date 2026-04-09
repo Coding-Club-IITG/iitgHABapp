@@ -8,6 +8,10 @@ const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
 const redisClient = require("../../utils/redisClient.js");
+const {
+  getFeedbackWindowDates,
+  getOrdinalSuffix,
+} = require("../../utils/windowDates.js");
 
 const ratingMap = {
   "Very Poor": 1,
@@ -158,13 +162,18 @@ const getSubscriberCountByCatererIds = async (catererIds) => {
 
 // ==========================================
 // Get feedback texts for a caterer (with user names) - paginated
-// Query params: catererId (required), page (default 1), pageSize (default 10), windowNumber (optional)
 // Auth: HAB/Admin
-// Response: { items: [{ id, userName, message, createdAt }], page, pageSize, total, totalPages }
 // ==========================================
 const getFeedbacksByCaterer = async (req, res) => {
   try {
-    const { catererId, page = "1", pageSize = "10", windowNumber } = req.query;
+    const {
+      catererId,
+      page = "1",
+      pageSize = "10",
+      windowNumber,
+      showOnlySMC,
+      hideEmptyMessages,
+    } = req.query;
     if (!catererId) {
       return res.status(400).json({ message: "catererId is required" });
     }
@@ -177,10 +186,21 @@ const getFeedbacksByCaterer = async (req, res) => {
       query.feedbackWindowNumber = parseInt(windowNumber, 10);
     }
 
-    const rawItems = await Feedback.find(query)
+    let rawItems = await Feedback.find(query)
       .populate("user", "name")
       .sort({ date: -1 })
       .lean();
+
+    if (showOnlySMC === "true") {
+      rawItems = rawItems.filter((fb) => fb.user?.isSMC || fb.smcFields);
+    }
+
+    if (hideEmptyMessages === "true") {
+      rawItems = rawItems.filter(
+        (fb) => fb.comment && fb.comment.trim() !== "",
+      );
+    }
+
     const dedupedItems = dedupeByLatestUserFeedback(rawItems);
     const total = dedupedItems.length;
     const items = dedupedItems.slice((p - 1) * size, p * size);
@@ -190,6 +210,10 @@ const getFeedbacksByCaterer = async (req, res) => {
       userName: fb.user?.name || "Anonymous User",
       message: fb.comment || "",
       createdAt: fb.date,
+      breakfast: fb.breakfast,
+      lunch: fb.lunch,
+      dinner: fb.dinner,
+      smcFields: fb.smcFields,
     }));
 
     // Compute OPI and Rank context for this caterer (window-scoped if provided, otherwise all-time)
@@ -545,93 +569,7 @@ const getAllFeedback = async (req, res) => {
 // ==========================================
 // Enable / Disable Feedback Window
 // ==========================================
-const enableFeedback = async (req, res) => {
-  try {
-    let s = await FeedbackSettings.findOne();
-    if (!s) {
-      s = new FeedbackSettings();
-      s.currentWindowNumber = 1;
-    }
-
-    // If enabling a new window, increment window number and reset user submission flags
-    if (!s.isEnabled) {
-      s.currentWindowNumber += 1;
-      // Reset all users' feedback submission flags for the new window
-      await User.updateMany({}, { $set: { isFeedbackSubmitted: false } });
-    }
-
-    s.isEnabled = true;
-    s.enabledAt = new Date();
-    s.disabledAt = null;
-
-    // Set closing time (2 days from now, end of day)
-    const closingDate = new Date(s.enabledAt);
-    closingDate.setDate(closingDate.getDate() + 2);
-    closingDate.setHours(23, 59, 59, 999);
-    s.currentWindowClosingTime = closingDate;
-
-    await s.save();
-    sendNotificationMessage(
-      "MESS FEEDBACK",
-      "Mess Feedback for this month is enabled",
-      "All_Hostels",
-      { redirectType: "mess_screen", isAlert: "true" },
-    ).catch((err) =>
-      console.error("Feedback enabled notification failed:", err),
-    );
-    await redisClient.del("feedback_settings");
-    return res.status(200).json({ message: "Feedback enabled", data: s });
-  } catch (e) {
-    return res
-      .status(500)
-      .json({ message: "Failed to enable", error: String(e.message || e) });
-  }
-};
-
-const disableFeedback = async (req, res) => {
-  try {
-    let s = await FeedbackSettings.findOne();
-    if (!s) return res.status(404).json({ message: "Settings not found" });
-    s.isEnabled = false;
-    s.disabledAt = new Date();
-    await s.save();
-    // Call updateAllMessRatingsAndRankings with the just-closed window number
-    if (typeof s.currentWindowNumber === "number") {
-      await updateAllMessRatingsAndRankings(s.currentWindowNumber);
-    }
-    await redisClient.del("feedback_settings");
-    return res.status(200).json({ message: "Feedback disabled", data: s });
-  } catch (e) {
-    return res
-      .status(500)
-      .json({ message: "Failed to disable", error: String(e.message || e) });
-  }
-};
-
-// Helper to get feedback window dates for a given month
-// Duplicated from autoFeedbackScheduler to avoid circular dependency
-const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
-  const now = new Date();
-  const year = targetYear || now.getFullYear();
-  const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
-
-  let startDay, endDay;
-  if (month === 1) {
-    // February
-    startDay = 23;
-    endDay = 25;
-  } else {
-    // All other months
-    startDay = 25;
-    endDay = 27;
-  }
-
-  const startDate = new Date(year, month, startDay, 9, 0, 0);
-  const endDate = new Date(year, month, endDay, 23, 59, 59);
-  return { startDate, endDate };
-};
-
-// Helper to enable feedback automatically (non-Express) so schedulers can call it
+// Helper to enable feedback automatically so schedulers can call it
 const enableFeedbackAutomatic = async () => {
   try {
     let s = await FeedbackSettings.findOne();
@@ -672,7 +610,7 @@ const enableFeedbackAutomatic = async () => {
   }
 };
 
-// Helper to disable feedback automatically (non-Express)
+// Helper to disable feedback automatically
 const disableFeedbackAutomatic = async () => {
   try {
     let s = await FeedbackSettings.findOne();
@@ -681,7 +619,6 @@ const disableFeedbackAutomatic = async () => {
     s.isEnabled = false;
     s.disabledAt = new Date();
     await s.save();
-    // Call updateAllMessRatingsAndRankings with the just-closed window number
     if (typeof s.currentWindowNumber === "number") {
       await updateAllMessRatingsAndRankings(s.currentWindowNumber);
     }
@@ -781,6 +718,63 @@ const getFeedbackSettingsPublic = async (req, res) => {
       message: "Failed to fetch settings",
       error: String(e.message || e),
     });
+  }
+};
+
+// ==========================================
+// Get feedback schedule info (HAB)
+// ==========================================
+const getFeedbackScheduleInfo = async (req, res) => {
+  try {
+    const settings = await FeedbackSettings.findOne();
+
+    const now = new Date();
+    let month = now.getMonth();
+    let year = now.getFullYear();
+
+    let { startDate, endDate, startDay, endDay } = getFeedbackWindowDates(
+      month,
+      year,
+    );
+
+    // If we've already passed this month's window, show next month's window
+    if (now > endDate) {
+      if (month === 11) {
+        month = 0;
+        year += 1;
+      } else {
+        month += 1;
+      }
+      ({ startDate, endDate, startDay, endDay } = getFeedbackWindowDates(
+        month,
+        year,
+      ));
+    }
+
+    return res.status(200).json({
+      message: "Feedback schedule information",
+      data: {
+        currentSettings: settings,
+        schedule: {
+          enablePattern: `${getOrdinalSuffix(startDay)}-${getOrdinalSuffix(endDay)} at 9:00 AM IST`,
+          disablePattern: `End of day on ${getOrdinalSuffix(endDay)} IST`,
+          nextEnableDate: startDate.toISOString(),
+          nextDisableDate: endDate.toISOString(),
+          nextEnableDateIST: startDate.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+          }),
+          nextDisableDateIST: endDate.toLocaleString("en-IN", {
+            timeZone: "Asia/Kolkata",
+          }),
+        },
+        currentTimeIST: new Date().toLocaleString("en-IN", {
+          timeZone: "Asia/Kolkata",
+        }),
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching feedback schedule info:", error);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -1349,12 +1343,11 @@ module.exports = {
   submitFeedback,
   removeFeedback,
   getAllFeedback,
-  enableFeedback,
-  disableFeedback,
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
   getFeedbackSettings,
   getFeedbackSettingsPublic,
+  getFeedbackScheduleInfo,
   getFeedbackLeaderboard,
   getFeedbackLeaderboardByWindow,
   getAvailableWindows,

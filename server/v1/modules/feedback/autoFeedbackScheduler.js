@@ -4,38 +4,10 @@ const {
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
 } = require("./feedbackController");
-const { User } = require("../user/userModel");
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
-
-// Helper to get feedback window dates for a given month
-// Server is already in IST timezone, so we use local time
-const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
-  const now = new Date();
-  const year = targetYear || now.getFullYear();
-  const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
-
-  let startDay, endDay;
-
-  if (month === 1) {
-    // February
-    startDay = 23;
-    endDay = 25;
-  } else {
-    // All other months
-    startDay = 25;
-    endDay = 27;
-  }
-
-  // Create dates in local time (IST)
-  // Start: 9 AM IST
-  const startDate = new Date(year, month, startDay, 9, 0, 0);
-  // End: 23:59:59 IST (end of day)
-  const endDate = new Date(year, month, endDay, 23, 59, 59);
-
-  return { startDate, endDate };
-};
+const { getFeedbackWindowDates } = require("../../utils/windowDates.js");
 
 // Use controller implementations for enable/disable so scheduler doesn't
 // duplicate business logic. They are imported from the controller below.
