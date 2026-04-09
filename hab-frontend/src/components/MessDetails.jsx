@@ -106,6 +106,9 @@ export default function MessDetails() {
   const [fbOpi, setFbOpi] = useState(null);
   const [fbRank, setFbRank] = useState(null);
   const [selectedWindow, setSelectedWindow] = useState("");
+  const [showOnlySMC, setShowOnlySMC] = useState(false);
+  const [hideEmptyMessages, setHideEmptyMessages] = useState(false);
+  const [hideRatings, setHideRatings] = useState(false);
 
   const handleDownloadQrCode = async () => {
     if (!mess?.qr_img) return;
@@ -176,7 +179,7 @@ export default function MessDetails() {
       try {
         const token =
           localStorage.getItem("admin_token") || localStorage.getItem("token");
-        const base = `${BACKEND_URL}/feedback/by-caterer?catererId=${id}&page=${fbPage}&pageSize=${fbPageSize}`;
+        const base = `${BACKEND_URL}/feedback/by-caterer?catererId=${id}&page=${fbPage}&pageSize=${fbPageSize}&showOnlySMC=${showOnlySMC}&hideEmptyMessages=${hideEmptyMessages}`;
         const url = selectedWindow
           ? `${base}&windowNumber=${selectedWindow}`
           : base;
@@ -209,11 +212,11 @@ export default function MessDetails() {
     return () => {
       ignore = true;
     };
-  }, [id, fbPage, fbPageSize, selectedWindow]);
+  }, [id, fbPage, fbPageSize, selectedWindow, showOnlySMC, hideEmptyMessages]);
 
   useEffect(() => {
     setFbPage(1);
-  }, [selectedWindow]);
+  }, [selectedWindow, showOnlySMC, hideEmptyMessages]);
 
   const fallbackFeedbacks = passedFeedbacks
     ? passedFeedbacks
@@ -580,6 +583,12 @@ export default function MessDetails() {
       page={fbItems.length > 0 ? fbPage : undefined}
       serverTotal={fbItems.length > 0 ? fbTotal : undefined}
       onPageChange={fbItems.length > 0 ? setFbPage : undefined}
+      showOnlySMC={showOnlySMC}
+      onOnlySMCChange={setShowOnlySMC}
+      hideEmptyMessages={hideEmptyMessages}
+      onHideEmptyMessagesChange={setHideEmptyMessages}
+      hideRatings={hideRatings}
+      onHideRatingsChange={setHideRatings}
     />
   );
 

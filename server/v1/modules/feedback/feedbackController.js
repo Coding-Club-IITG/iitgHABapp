@@ -162,13 +162,18 @@ const getSubscriberCountByCatererIds = async (catererIds) => {
 
 // ==========================================
 // Get feedback texts for a caterer (with user names) - paginated
-// Query params: catererId (required), page (default 1), pageSize (default 10), windowNumber (optional)
 // Auth: HAB/Admin
-// Response: { items: [{ id, userName, message, createdAt }], page, pageSize, total, totalPages }
 // ==========================================
 const getFeedbacksByCaterer = async (req, res) => {
   try {
-    const { catererId, page = "1", pageSize = "10", windowNumber } = req.query;
+    const {
+      catererId,
+      page = "1",
+      pageSize = "10",
+      windowNumber,
+      showOnlySMC,
+      hideEmptyMessages,
+    } = req.query;
     if (!catererId) {
       return res.status(400).json({ message: "catererId is required" });
     }
@@ -181,10 +186,21 @@ const getFeedbacksByCaterer = async (req, res) => {
       query.feedbackWindowNumber = parseInt(windowNumber, 10);
     }
 
-    const rawItems = await Feedback.find(query)
+    let rawItems = await Feedback.find(query)
       .populate("user", "name")
       .sort({ date: -1 })
       .lean();
+
+    if (showOnlySMC === "true") {
+      rawItems = rawItems.filter((fb) => fb.user?.isSMC || fb.smcFields);
+    }
+
+    if (hideEmptyMessages === "true") {
+      rawItems = rawItems.filter(
+        (fb) => fb.comment && fb.comment.trim() !== "",
+      );
+    }
+
     const dedupedItems = dedupeByLatestUserFeedback(rawItems);
     const total = dedupedItems.length;
     const items = dedupedItems.slice((p - 1) * size, p * size);
@@ -194,6 +210,10 @@ const getFeedbacksByCaterer = async (req, res) => {
       userName: fb.user?.name || "Anonymous User",
       message: fb.comment || "",
       createdAt: fb.date,
+      breakfast: fb.breakfast,
+      lunch: fb.lunch,
+      dinner: fb.dinner,
+      smcFields: fb.smcFields,
     }));
 
     // Compute OPI and Rank context for this caterer (window-scoped if provided, otherwise all-time)
