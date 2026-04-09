@@ -1,10 +1,12 @@
 const { Mess } = require("./messModel");
+const { MessWorker } = require("./messWorkerModel");
 const { Menu } = require("./menuModel");
 const { MenuItem } = require("./menuItemModel");
 const { User } = require("../user/userModel");
 const { Hostel } = require("../hostel/hostelModel");
 const { ScanLogs } = require("./ScanLogsModel.js");
 const mongoose = require("mongoose");
+const MessBill = require("./messBillModel");
 const { QR } = require("../qr/qrModel.js");
 const qrcode = require("qrcode");
 const { MessClosure } = require("../hostel/messClosureModel");
@@ -1006,8 +1008,166 @@ const formatTime2 = (time) => {
     .padStart(2, "0")}`;
 };
 
+const getMessWorkers = async (req, res) => {
+  try {
+    let query = {};
+    if (req.hostel && req.hostel.messId) {
+      query.messId = req.hostel.messId;
+    }
+    const workers = await MessWorker.find(query);
+    return res.status(200).json({ workers });
+  } catch (error) {
+    console.error("Error fetching mess workers:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const createMessWorker = async (req, res) => {
+  try {
+    const { name, designation, rate } = req.body;
+    
+    let messId = null;
+    if (req.hostel && req.hostel.messId) {
+      messId = req.hostel.messId;
+    }
+
+    if (!messId) {
+      return res.status(400).json({ message: "Hostel does not have an active mess assigned." });
+    }
+
+    if (!name || !rate) {
+      return res.status(400).json({ message: "Name and daily wage rate are required" });
+    }
+
+    const newWorker = new MessWorker({
+      name,
+      designation: designation || "Unskilled",
+      rate,
+      messId
+    });
+
+    await newWorker.save();
+    return res.status(201).json(newWorker);
+  } catch (error) {
+    console.error("Error creating mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const deleteMessWorker = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const worker = await MessWorker.findByIdAndDelete(id);
+    if (!worker) {
+      return res.status(404).json({ message: "Mess worker not found" });
+    }
+    return res.status(200).json({ message: "Mess worker deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const generateMessBill = async (req, res) => {
+  try {
+    const { hostelId, billData } = req.body;
+    if (!hostelId || !billData || !billData.month || !billData.year) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res.status(403).json({ message: "Unauthorized to generate bill for another hostel" });
+    }
+    
+    const existingBill = await MessBill.findOne({ hostel: hostelId, month: billData.month, year: billData.year });
+    if (existingBill) {
+      return res.status(400).json({ message: "Bill for this month already exists" });
+    }
+
+    const { 
+      hostelName, month, year, accountNumber, operatingDays, shutdownDate, 
+      totalSubscribers, totalSubscribersOffset, messDays, rebateDays, 
+      rebateDaysOffset, consumingDays, foodCost, totalWage, messBillClaimed, 
+      messBill, gstAmount, tdsAmount, firstInstallment, secondInstallment, 
+      rebateReimbursement, miscDeduction, habTransfer, totalExpenditure,
+      workerAttendances
+    } = billData;
+
+    const newBill = new MessBill({
+      hostel: hostelId,
+      hostelName, month, year, accountNumber, operatingDays, shutdownDate,
+      totalSubscribers, totalSubscribersOffset, messDays, rebateDays,
+      rebateDaysOffset, consumingDays, foodCost, totalWage, messBillClaimed,
+      messBill, gstAmount, tdsAmount, firstInstallment, secondInstallment,
+      rebateReimbursement, miscDeduction, habTransfer, totalExpenditure,
+      workerAttendances,
+      generatedBy: req.hostel ? req.hostel._id : (req.user ? req.user.id : null)
+    });
+
+    await newBill.save();
+    return res.status(201).json({ message: "Bill generated successfully", bill: newBill });
+  } catch (error) {
+    console.error("Error generating mess bill:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getMessBill = async (req, res) => {
+  try {
+    const { hostelId, month, year } = req.query;
+    if (!hostelId || !month || !year) {
+      return res.status(400).json({ message: "HostelId, month, and year are required" });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res.status(403).json({ message: "Unauthorized to fetch bill for another hostel" });
+    }
+    const bill = await MessBill.findOne({ hostel: hostelId, month, year });
+    if (!bill) {
+      return res.status(200).json(null);
+    }
+    return res.status(200).json(bill);
+  } catch (error) {
+    console.error("Error fetching mess bill:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+const getAllMessBillsByMonth = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+    
+    if (!month || !year) {
+      return res.status(400).json({ message: "Month and year are required" });
+    }
+
+    const allHostels = await Hostel.find().lean();
+    const bills = await MessBill.find({ month, year }).lean();
+
+    const responseData = allHostels.map(hostel => {
+      const bill = bills.find(b => b.hostel.toString() === hostel._id.toString());
+      return {
+        hostelId: hostel._id,
+        hostel_name: hostel.hostel_name,
+        isGenerated: !!bill,
+        messBillClaimed: bill ? bill.messBillClaimed : 0,
+        totalExpenditure: bill ? bill.totalExpenditure : 0,
+        billDetails: bill || null,
+      };
+    });
+
+    return res.status(200).json(responseData);
+  } catch (error) {
+    console.error("Error fetching all mess bills by month:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 module.exports = {
   createMess,
+  getMessWorkers,
+  createMessWorker,
+  deleteMessWorker,
   createMessWithoutHostel,
   createMenu,
   deleteMenu,
@@ -1025,4 +1185,7 @@ module.exports = {
   assignMessToHostel,
   unassignMess,
   changeHostel,
+  generateMessBill,
+  getMessBill,
+  getAllMessBillsByMonth,
 };
