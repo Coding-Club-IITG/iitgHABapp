@@ -93,48 +93,58 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   Future<void> _selectDate({bool isStartDate = true}) async {
-    DateTime today = DateTime.now();
-    DateTime baseDate = DateTime(today.year, today.month, today.day);
-    
-    DateTime initialDate;
-    DateTime firstDate = (_selectedValue == 1)
-        ? baseDate.add(const Duration(days: 2))
-        : baseDate.add(const Duration(days: 1));
-    DateTime lastDate = DateTime(2027);
-    
-    if (isStartDate) {
-      initialDate = _selectedStartDate ?? firstDate;
-      // Start date cannot be after end date
-      if (_selectedEndDate != null) {
-        lastDate = _selectedEndDate!;
-      }
-    } else {
-      initialDate = _selectedEndDate ?? firstDate;
-      // End date cannot be before start date
-      if (_selectedStartDate != null) {
-        firstDate = _selectedStartDate!;
-      }
+  DateTime today = DateTime.now();
+  DateTime baseDate = DateTime(today.year, today.month, today.day);
+  
+  // 1. Define the absolute floor/ceiling
+  DateTime absoluteFirstDate = (_selectedValue == 1)
+      ? baseDate.add(const Duration(days: 2))
+      : baseDate.add(const Duration(days: 1));
+  DateTime absoluteLastDate = DateTime(2027);
+  
+  DateTime firstDate = absoluteFirstDate;
+  DateTime lastDate = absoluteLastDate;
+  DateTime initialDate;
+
+  if (isStartDate) {
+    // Picking "From"
+    if (_selectedEndDate != null) {
+      lastDate = _selectedEndDate!;
     }
-    
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: initialDate,
-      firstDate: firstDate,
-      lastDate: lastDate,
-      builder: (context, child) {
-        return Theme(data: ThemeData.light(), child: child!);
-      },
-    );
-    if (picked != null) {
-      setState(() {
-        if (isStartDate) {
-          _selectedStartDate = picked;
-        } else {
-          _selectedEndDate = picked;
-        }
-      });
+    initialDate = _selectedStartDate ?? firstDate;
+  } else {
+    // Picking "Till"
+    if (_selectedStartDate != null) {
+      firstDate = _selectedStartDate!;
     }
+    // FIX: Ensure initialDate is not before the newly set firstDate
+    initialDate = _selectedEndDate ?? firstDate;
   }
+
+  // Final Safety Check: initialDate must be within range
+  if (initialDate.isBefore(firstDate)) initialDate = firstDate;
+  if (initialDate.isAfter(lastDate)) initialDate = lastDate;
+
+  final DateTime? picked = await showDatePicker(
+    context: context,
+    initialDate: initialDate,
+    firstDate: firstDate,
+    lastDate: lastDate,
+    builder: (context, child) {
+      return Theme(data: ThemeData.light(), child: child!);
+    },
+  );
+
+  if (picked != null) {
+    setState(() {
+      if (isStartDate) {
+        _selectedStartDate = picked;
+      } else {
+        _selectedEndDate = picked;
+      }
+    });
+  }
+}
 
   Future<void> _loadBankDetails() async {
     final prefs = await SharedPreferences.getInstance();
