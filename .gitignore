@@ -1,15 +1,10 @@
 node_modules
 .idea
+**/devtools_options.yaml
 
-# Ignore specific frontend .env files (local secrets)
-hab-frontend/.env
-hostel-frontend/.env
-smc-frontend/.env
-login-frontend/.env
+.env
+**/bug-**.jpg
 
 # macOS system files
 .DS_Store
 **/.DS_Store
-
-**/devtools_options.yaml
-**/bug-**.jpg

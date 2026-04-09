@@ -100,10 +100,10 @@ const processUpload = async (id, fileArray, prefix) => {
   const uniqueSuffix = Math.round(Math.random() * 1e9);
 
   const ext = extFromMime(file.mimetype);
-    const timeStamp = Date.now();
+  const timeStamp = Date.now();
 
-    // Delegated token required to use /me/drive
-    const token = await requireDelegatedToken();
+  // Delegated token required to use /me/drive
+  const token = await requireDelegatedToken();
 
   // Dynamic target name based on the prefix passed in
   const targetName = `${prefix}-${id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
@@ -145,27 +145,30 @@ const uploadFilesToOnedrive = async (req, res, next) => {
     }
 
     req.uploadedDocuments = {};
-    console.log(
-      `Starting upload to onedrive for user: ${req.user?.name}`,
+    console.log(`Starting upload to onedrive for user: ${req.user?.name}`);
+
+    req.uploadedDocuments.proofDocument = await processUpload(
+      req.user._id,
+      req.files["proofDocument"],
+      "proofdocument",
+    );
+    req.uploadedDocuments.leaveDocument = await processUpload(
+      req.user._id,
+      req.files["leaveDocument"],
+      "leavedocument",
     );
 
-    req.uploadedDocuments.proofDocument = await processUpload(req.user._id, req.files['proofDocument'], 'proofdocument');
-    req.uploadedDocuments.leaveDocument = await processUpload(req.user._id, req.files['leaveDocument'], 'leavedocument');
-    
-    console.log("OneDrive uploads successful",req.uploadedDocuments);
+    console.log("OneDrive uploads successful", req.uploadedDocuments);
     next();
-
   } catch (err) {
     console.error("OneDrive upload failed:", err);
     const status = err.response?.status || 500;
     const msg = err.response?.data?.error?.message || err.message;
-    return res
-      .status(status === 403 ? 403 : 500)
-      .json({
-        message: "Failed to upload verification documents",
-        error: msg,
-        status,
-      });
+    return res.status(status === 403 ? 403 : 500).json({
+      message: "Failed to upload verification documents",
+      error: msg,
+      status,
+    });
   }
 };
 
@@ -186,8 +189,8 @@ async function uploadSingleToOnedrive(req, res, next) {
     const uniqueSuffix = Math.round(Math.random() * 1e9);
 
     const timeStamp = Date.now();
-  // Dynamic target name based on the prefix passed in
-  const targetName = `leavedocument-${req.user._id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
+    // Dynamic target name based on the prefix passed in
+    const targetName = `leavedocument-${req.user._id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
 
     // Delegated token required to use /me/drive
     const token = await requireDelegatedToken();
@@ -342,4 +345,40 @@ const sendDocument = async (req, res) => {
   }
 };
 
-module.exports = { uploadSingleToOnedrive, sendDocument ,uploadFilesToOnedrive};
+const uploadReportToOnedrive = async (buffer, filename) => {
+  try {
+    const folderId = process.env.ONEDRIVE_REPORTS_FOLDER_ID;
+    if (!folderId) {
+      console.warn(
+        "ONEDRIVE_REPORTS_FOLDER_ID is not configured, skipping report upload.",
+      );
+      return null;
+    }
+    const token = await requireDelegatedToken();
+    console.log(`Uploading report ${filename} to OneDrive...`);
+    const uploaded = await uploadToParentByName(
+      token,
+      folderId,
+      filename,
+      buffer,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    let publicUrl = null;
+    try {
+      publicUrl = await createOrganizationViewLink(token, uploaded.id);
+    } catch (e) {
+      console.error("Link creation failed for report:", e.message);
+    }
+    return publicUrl || uploaded.webUrl;
+  } catch (err) {
+    console.error("OneDrive report upload failed:", err);
+    return null;
+  }
+};
+
+module.exports = {
+  uploadSingleToOnedrive,
+  sendDocument,
+  uploadFilesToOnedrive,
+  uploadReportToOnedrive,
+};
