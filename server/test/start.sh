@@ -14,7 +14,7 @@ else
   echo ""
   echo "FAKETIME is set to:      ${FAKETIME:-(unset)}"
   echo "Current (faked) date:    $(date)"
-  echo "============================================="
+  echo "====================================================="
   echo ""
 fi
 

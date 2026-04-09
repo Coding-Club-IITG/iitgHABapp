@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import apiClient from "../apiClient";
 import Button from "./ui/Button";
+import { DatePicker } from "antd";
 import { useAuth } from "../context/AuthProvider";
 
 const NotificationSender = () => {
@@ -8,6 +9,8 @@ const NotificationSender = () => {
   const [body, setBody] = useState("");
   const [userType, setUserType] = useState("boarders"); // 'boarders', 'subscribers'
   const [isAlert, setIsAlert] = useState(false);
+  const [endTime, setEndTime] = useState(null);
+  const [hasCountdown, setHasCountdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
   const { user } = useAuth();
@@ -27,28 +30,55 @@ const NotificationSender = () => {
       setLoading(true);
       setSuccess(false);
 
-      // Get hostel name from user's hostel
-      const response = await apiClient.get(
-        `/hostel/all/smc/${user.hostel}`,
-      );
-      const hostelName =
-        response.data.hostel?.hostel_name?.replaceAll(" ", "_") || "";
+      if (isAlert) {
+        if (!endTime) {
+          alert("Please select an end time for the alert");
+          setLoading(false);
+          return;
+        }
 
-      const topic =
-        userType === "boarders"
-          ? `Boarders_${hostelName}`
-          : `Subscribers_${hostelName}`;
+        const ttlSeconds = Math.floor((endTime.valueOf() - Date.now()) / 1000);
+        if (ttlSeconds <= 0) {
+          alert("End time must be in the future");
+          setLoading(false);
+          return;
+        }
 
-      await apiClient.post("/notification/send", {
-        title,
-        body,
-        topic,
-        isAlert,
-      });
+        const targetType = userType === "boarders" ? "hostel" : "mess";
+        const targetIds = [user.hostel];
+
+        await apiClient.post("/alerts/create", {
+          title,
+          body,
+          ttlSeconds,
+          targetType,
+          targetIds,
+          hasCountdown,
+        });
+      } else {
+        // Get hostel name from user's hostel
+        const response = await apiClient.get(`/hostel/all/smc/${user.hostel}`);
+        const hostelName =
+          response.data.hostel?.hostel_name?.replaceAll(" ", "_") || "";
+
+        const topic =
+          userType === "boarders"
+            ? `Boarders_${hostelName}`
+            : `Subscribers_${hostelName}`;
+
+        await apiClient.post("/notification/send", {
+          title,
+          body,
+          topic,
+          isAlert: false,
+        });
+      }
 
       setSuccess(true);
       setTitle("");
       setBody("");
+      setEndTime(null);
+      setHasCountdown(false);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error("Error sending notification:", err);
@@ -109,6 +139,40 @@ const NotificationSender = () => {
             <span>Send as Alert (urgent notification)</span>
           </label>
         </div>
+
+        {isAlert && (
+          <div className="p-4 bg-red-50 rounded-lg border border-red-100 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-red-900 mb-1">
+                Alert End Time
+              </label>
+              <DatePicker
+                showTime
+                value={endTime}
+                onChange={(date) => setEndTime(date)}
+                className="w-full"
+                placeholder="Select end time"
+              />
+              <p className="text-xs text-red-600 mt-1">
+                The alert will automatically disappear from users' feeds after
+                this time.
+              </p>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={hasCountdown}
+                  onChange={(e) => setHasCountdown(e.target.checked)}
+                />
+                <span className="text-red-900">
+                  Show countdown timer to users
+                </span>
+              </label>
+            </div>
+          </div>
+        )}
 
         <Button
           onClick={handleSend}

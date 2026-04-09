@@ -1,3 +1,5 @@
+// home_screen.dart
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -5,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:frontend2/apis/mess/mess_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:frontend2/models/alert_model.dart';
 import 'package:frontend2/models/mess_menu_model.dart';
 import 'package:frontend2/models/notification_model.dart';
 import 'package:frontend2/providers/hostels.dart';
@@ -16,8 +19,11 @@ import 'package:frontend2/screens/profile_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
+import 'package:frontend2/utilities/alert_expirer.dart';
+import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
+// import 'package:frontend2/widgets/countdown.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -57,7 +63,7 @@ class _HomeScreenState extends State<HomeScreen>
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
-  static const bool _showDummyImportantMessages = false;
+  // static const bool _showDummyImportantMessages = false;
 
   String name = '';
   String currSubscribedMess = '';
@@ -335,7 +341,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     final latestCleanedBooking = cleanedBookings.first;
-    final daysSince = _daysSince(latestCleanedBooking?.bookingDate);
+    final daysSince = _daysSince(latestCleanedBooking.bookingDate);
 
     if (daysSince == null || daysSince < 0) {
       return 'Cleaned recently';
@@ -851,15 +857,13 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildImportantMessagesCard(List<NotificationModel> activeAlerts) {
+  Widget _buildImportantMessagesCard(List<AlertModel> activeAlerts) {
     if (activeAlerts.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final messages = activeAlerts
-        .take(2)
-        .map((alert) => alert.body.isNotEmpty ? alert.body : alert.title)
-        .toList();
+    // Take top 2 alerts to prevent the card from getting too massive
+    final alerts = activeAlerts.take(2).toList();
 
     return Container(
       width: double.infinity,
@@ -883,7 +887,7 @@ class _HomeScreenState extends State<HomeScreen>
                 backgroundColor: yellowSoft,
                 child: Icon(
                   Icons.warning_amber_rounded,
-                  size: 25,
+                  size: 20, // slightly smaller to fit perfectly
                   color: yellow,
                 ),
               ),
@@ -893,29 +897,55 @@ class _HomeScreenState extends State<HomeScreen>
                 style: TextStyle(
                   fontSize: 14,
                   height: 20 / 14,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   color: yellow,
                 ),
               ),
             ],
           ),
-          // const SizedBox(height: 8),
-          for (final message in messages)
+          const SizedBox(height: 4), // Space between header and alerts
+          for (final alert in alerts)
             Container(
               width: double.infinity,
-              margin: const EdgeInsets.only(top: 8),
+              margin: const EdgeInsets.only(top: 12),
               padding: const EdgeInsets.only(left: 10),
               decoration: const BoxDecoration(
                 border: Border(left: BorderSide(color: yellow, width: 2)),
               ),
-              child: Text(
-                message,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 20 / 14,
-                  fontWeight: FontWeight.w500,
-                  color: textPrimary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  // Text(
+                  //   alert.title,
+                  //   style: const TextStyle(
+                  //     fontSize: 14,
+                  //     height: 20 / 14,
+                  //     fontWeight: FontWeight.w600,
+                  //     color: textPrimary,
+                  //   ),
+                  // ),
+                  // Body (if exists)
+                  if (alert.body.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      alert.body,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 20 / 14,
+                        fontWeight: FontWeight.w500,
+                        color: textPrimary,
+                      ),
+                    ),
+                  ],
+                  // Invisible trigger to auto-deletes the alert!
+                  SilentAlertExpirer(expiresAt: alert.expiresAt),
+                  // Countdown (if hasCountdown is true)
+                  // if (alert.hasCountdown) ...[
+                  //   const SizedBox(height: 6),
+                  //   CountdownText(expiresAt: alert.expiresAt),
+                  // ],
+                ],
               ),
             ),
         ],
@@ -926,7 +956,12 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildUpdatesCard(int unreadCount) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: _openNotificationsSheet,
+      onTap: () {
+        // CLEAR THE ALERTS BADGE when they open the sheet
+        AlertsManager.markAllAlertsAsRead();
+        markAllNotificationsAsRead();
+        _openNotificationsSheet();
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -961,53 +996,36 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildAlertsSection() {
-    return ValueListenableBuilder<List<dynamic>>(
-      valueListenable: NotificationProvider.notificationProvider,
-      builder: (context, storedNotifications, child) {
-        final notifications = storedNotifications.map((item) {
-          if (item is NotificationModel) return item;
-          return NotificationModel.fromLegacyString(item.toString());
-        }).toList();
+    // 1. Listen to the REAL active alerts from AlertsManager
+    return ValueListenableBuilder<List<AlertModel>>(
+      valueListenable: AlertsManager.activeAlertsNotifier,
+      builder: (context, activeAlerts, child) {
+        
+        // 2. Also listen to NotificationHistory just for the unread count on the white button
+        return ValueListenableBuilder<List<dynamic>>(
+          valueListenable: NotificationProvider.notificationProvider,
+          builder: (context, storedNotifications, child) {
+            
+            // Convert everything safely
+            final notifications = storedNotifications.map((item) {
+              if (item is NotificationModel) return item;
+              return NotificationModel.fromLegacyString(item.toString());
+            }).toList();
 
-        final activeAlerts = notifications
-            .where(
-              (notification) =>
-          notification.isAlertActive && !notification.isRead,
-        )
-            .toList();
-        final unreadCount =
-            notifications.where((notification) => !notification.isRead).length;
-        final displayedAlerts = activeAlerts.isNotEmpty
-            ? activeAlerts
-            : (_showDummyImportantMessages
-                  ?  [
-                      NotificationModel(
-                        title: 'Water supply interruption',
-                        body:
-                            'Water supply will be unavailable in Hostel Block C from 2:00 PM to 4:00 PM today.',
-                        timestamp: DateTime.now(),
-                        isRead: false,
-                        // isAlertActive: true,
-                      ),
-                      NotificationModel(
-                        title: 'Mess timing update',
-                        body:
-                            'Dinner will begin 30 minutes late today due to kitchen maintenance.',
-                        timestamp: DateTime.now(),
-                        isRead: false,
-                        // isAlertActive: true,
-                      ),
-                    ]
-                  : const <NotificationModel>[]);
+            final unreadNotifCount = notifications.where((n) => !n.isRead).length;
+            final unreadAlertsCount = activeAlerts.where((a) => !a.isRead).length;
+            final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
 
-        return Column(
-          children: [
-            if (displayedAlerts.isNotEmpty) ...[
-              _buildImportantMessagesCard(displayedAlerts),
-              const SizedBox(height: 16),
-            ],
-            _buildUpdatesCard(unreadCount),
-          ],
+            return Column(
+              children: [
+                if (activeAlerts.isNotEmpty) ...[
+                  _buildImportantMessagesCard(activeAlerts),
+                  const SizedBox(height: 16),
+                ],
+                _buildUpdatesCard(totalUnreadCount),
+              ],
+            );
+          },
         );
       },
     );
