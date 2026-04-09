@@ -236,7 +236,7 @@ class _LeaveApplicationListScreenState
         options: Options(
           headers: {
             'Authorization': 'Bearer $accessToken',
-            "Content-Type": "multipart/form-data"
+            // "Content-Type": "multipart/form-data"
           },
         ),
       );
@@ -1402,7 +1402,7 @@ class _NativeSwipeToRevealState extends State<NativeSwipeToReveal> {
           widget.applicationId, widget.contentChild);
 
       // If they clicked "Cancel", smoothly snap the card back closed
-      if (!shouldDelete && mounted) {
+      if (mounted) {
         setState(() {
           _dragExtent = 0;
         });

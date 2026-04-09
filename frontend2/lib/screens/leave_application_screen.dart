@@ -1,3 +1,5 @@
+import 'dart:ffi';
+
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -54,9 +56,30 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   final TextEditingController _accountHolderController =
       TextEditingController();
 
+  late FocusNode _holderFocusNode;
+  late FocusNode _bankNameFocusNode;
+  late FocusNode _accountNumberFocusNode;
+  late FocusNode _ifscFocusNode;
+
   @override
   void initState() {
     super.initState();
+
+    _holderFocusNode = FocusNode();
+    _bankNameFocusNode = FocusNode();
+    _accountNumberFocusNode = FocusNode();
+    _ifscFocusNode = FocusNode();
+
+
+    // This tells the WHOLE screen to rebuild when you type (updates the button)
+    _reasonController.addListener(() {
+      setState(() {}); 
+    });
+
+    // This tells the WHOLE screen to rebuild when you tap in/out of the box (updates the borders)
+    _reasonFocusNode.addListener(() {
+      setState(() {});
+    });
     _selectedValue = widget.leaveType;
     _currentStep = 1;
     _loadBankDetails();
@@ -73,6 +96,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     DateTime baseDate = DateTime(today.year, today.month, today.day);
     final DateTimeRange? picked = await showDateRangePicker(
       context: context,
+      initialDateRange: _selectedDateRange,
       firstDate: (_selectedValue == 3)
           ? baseDate.add(const Duration(days: 1))
           : baseDate.add(const Duration(days: 4)),
@@ -337,7 +361,26 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           },
         ),
       ),
-      body: _currentStep == 1 ? _buildStep1() : _currentStep == 2 ? _buildStep2() : _buildStep3(),
+      body: PopScope(
+        // 1. canPop controls if the screen is allowed to close.
+        // We ONLY allow the screen to close if the user is on Step 1.
+        canPop: _currentStep == 1, 
+        
+        // 2. This runs whenever the user presses the physical back button.
+        onPopInvokedWithResult: (bool didPop, Object? result) {
+          // If didPop is true, it means canPop was true (Step 1) and the screen already closed. We do nothing.
+          if (didPop) return;
+
+          // If we are here, it means the screen was NOT closed, so we move back one step.
+          if (_currentStep > 1) {
+            setState(() {
+              _currentStep--; // Go back to the previous step
+            });
+          }
+        },
+
+        child: _currentStep == 1 ? _buildStep1() : _currentStep == 2 ? _buildStep2() : _buildStep3(),
+      )
     );
   }
 
@@ -355,6 +398,21 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   Widget _buildStep1() {
+    bool isFocused = _reasonFocusNode.hasFocus;
+    bool isFilled = _reasonController.text.isNotEmpty;
+
+    Color borderColor = _borderColor;
+    Color fillColor = _greyBg;
+    Widget? suffixIcon;
+
+    if (isFocused) {
+      // Focused
+      // borderColor = _primaryColor;
+      // fillColor = _primaryColor.withOpacity(0.08);
+    } else if (isFilled) {
+      //Completed
+      suffixIcon = const Icon(Icons.check, color: Colors.green);
+    }
     return CustomScrollView(
       slivers: [
         SliverToBoxAdapter(
@@ -378,56 +436,39 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    StatefulBuilder(
-                      builder: (context, setState) {
-                        bool isFocused = _reasonFocusNode.hasFocus;
-                        bool isFilled = _reasonController.text.isNotEmpty;
-              
-                        Color borderColor = _borderColor;
-                        Color fillColor = _greyBg;
-                        Widget? suffixIcon;
-              
-                        if (isFocused) {
-                          // Focused
-                          borderColor = _primaryColor;
-                          fillColor = _primaryColor.withOpacity(0.08);
-                        } else if (isFilled) {
-                          //Completed
-                          suffixIcon = const Icon(Icons.check, color: Colors.green);
-                        }
-              
-                        return TextField(
-                          controller: _reasonController,
-                          focusNode: _reasonFocusNode,
-                          onChanged: (_) => setState(() {}),
-                          onSubmitted: (_) {
-                            FocusScope.of(context).unfocus();
-                            setState(() {});
-                          },
-                          decoration: InputDecoration(
-                            hintText: "e.g. Trip to home",
-                            hintStyle: const TextStyle(color: _greyText, fontSize: 14),
-                            filled: true,
-                            fillColor: fillColor,
-                            suffixIcon: suffixIcon,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: borderColor, width: 1),
-                            ),
-                            enabledBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide(color: borderColor, width: 1),
-                            ),
-                            focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide:
-                                  const BorderSide(color: _primaryColor, width: 2),
-                            ),
-                            contentPadding:
-                                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          ),
-                        );
+                    TextField(
+                      controller: _reasonController,
+                      focusNode: _reasonFocusNode,
+                      onChanged: (_) => setState(() {}),
+                      onSubmitted: (_) {
+                        FocusScope.of(context).unfocus();
+                        setState(() {});
                       },
+                      onTapOutside: (PointerDownEvent event) {
+                        FocusScope.of(context).unfocus();
+                        setState(() {});
+                      },
+                      decoration: InputDecoration(
+                        hintText: "e.g. Trip to home",
+                        hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+                        filled: true,
+                        fillColor: fillColor,
+                        suffixIcon: suffixIcon,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor, width: 1),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: borderColor, width: 1),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          // borderSide: const BorderSide(color: _primaryColor, width: 2),
+                        ),
+                        contentPadding:
+                            const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      ),
                     ),
               
                     // Duration of Absence
@@ -456,10 +497,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                         decoration: BoxDecoration(
                           border: Border.all(color: _borderColor),
                           borderRadius: BorderRadius.circular(12),
-                          color: Colors.white,
+                          color: _greyBg,
                         ),
                         padding:
-                            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         child: Row(
                           children: [
                             SvgPicture.asset(
@@ -479,6 +520,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                                     : Colors.black,
                               ),
                             ),
+                            const Spacer(),
+                            _selectedDateRange == null ? const SizedBox() : const Icon(Icons.check, color: Colors.green)
                           ],
                         ),
                       ),
@@ -499,10 +542,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                         decoration: BoxDecoration(
                           border: Border.all(color: _borderColor),
                           borderRadius: BorderRadius.circular(12),
-                          color: Colors.white,
+                          color: _greyBg,
                         ),
                         padding:
-                            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         child: Row(
                           children: [
                             SvgPicture.asset(
@@ -522,6 +565,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                                     : Colors.black,
                               ),
                             ),
+                            const Spacer(),
+                            _selectedDateRange == null ? const SizedBox() : const Icon(Icons.check, color: Colors.green)
                           ],
                         ),
                       ),
@@ -559,6 +604,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               // 2. This transparent Spacer "eats" the extra white space
               const Spacer(),
               _buildBottomButtons(
+                canNext: () => (_reasonController.text.isNotEmpty) && (!(_selectedDateRange == null)) && (!(_selectedDateRange!.end.difference(_selectedDateRange!.start).inDays + 1 < 4)),
                 onNext: () {
                   if (_reasonController.text.isEmpty) {
                     _showSnackBar("Please enter reason for leave");
@@ -665,7 +711,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      "Leave Form is an institutional Document and a Copy of this Document needs to be submitted at the Security Desk of your Hostel before leaving the Campus.",
+                      "A copy of this official leave form must be submitted to your hostel's security desk before leaving campus.",
                       style: TextStyle(
                         fontSize: 12,
                         color: Color(0xFF535353),
@@ -767,7 +813,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     ),
                     const SizedBox(height: 4),
                     const Text(
-                      "Proof can be travel ticket or parents consent with signature.\nIn case of a medical leave then you can upload a valid proof 7 days after submitting your application.",
+                      "Valid documentation, such as a travel ticket or signed parental consent, is required. Applications for medical leave include a 7-day grace period post-submission to provide supporting medical proof.",
                       style: TextStyle(
                         fontSize: 12,
                         color: Color(0xFF535353),
@@ -870,6 +916,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                 children: [
                   const Spacer(),
                   _buildBottomButtons(
+                    canNext: () => (!(_pickedFileLeaveForm == null)) && (!(_pickedFile == null && _selectedValue != 3)),
                     onNext: () async {
                       if (_pickedFileLeaveForm == null) {
                         _showSnackBar("Please upload the leave document");
@@ -951,16 +998,16 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                         ),
                       ),
                       const SizedBox(height: 24),
-                      _buildBankField("Bank Holder Name", _accountHolderController,
+                      _buildBankField("Bank Holder Name", _accountHolderController, _holderFocusNode,
                           "e.g. Raj Kumar"),
                       const SizedBox(height: 16),
                       _buildBankField(
-                          "Bank Name", _bankNameController, "e.g. Raj Kumar"),
+                          "Bank Name", _bankNameController, _bankNameFocusNode, "e.g. Raj Kumar"),
                       const SizedBox(height: 16),
-                      _buildBankField("Bank Account Number", _accountNumberController,
+                      _buildBankField("Bank Account Number", _accountNumberController, _accountNumberFocusNode,
                           "eg. 123542332"),
                       const SizedBox(height: 16),
-                      _buildBankField("IFSC Code", _ifscController, "e.g. UTIB0000000"),
+                      _buildBankField("IFSC Code", _ifscController, _ifscFocusNode, "UTIB0000000"),
                       
                       // Save Details link
                       const SizedBox(height: 24),
@@ -1030,10 +1077,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               children: [
                 Spacer(),
                 _buildBottomButtons(
+                  canNext: () => (!(_accountHolderController.text.isEmpty || _bankNameController.text.isEmpty || _accountNumberController.text.isEmpty || _ifscController.text.isEmpty)) && _agreeToTerms,
                   onNext: () async {
                     final now = DateTime.now();
-                    if (_lastSubmitTime != null &&
-                        now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
+                    if (_lastSubmitTime != null && now.difference(_lastSubmitTime!) < Duration(seconds: 2)) {
                       return;
                     }
                     _lastSubmitTime = now;
@@ -1151,82 +1198,83 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   Widget _buildBankField(
     String label,
     TextEditingController controller,
+    FocusNode focusNode,
     String hint,
   ) {
-    final focusNode = FocusNode();
 
-    return StatefulBuilder(
-      builder: (context, setState) {
-        bool isFocused = focusNode.hasFocus;
-        bool isFilled = controller.text.isNotEmpty;
+    bool isFocused = focusNode.hasFocus;
+    bool isFilled = controller.text.isNotEmpty;
 
-        Color borderColor = _borderColor;
-        Color fillColor = _greyBg;
-        Widget? suffixIcon;
+    Color borderColor = _borderColor;
+    Color fillColor = _greyBg;
+    Widget? suffixIcon;
 
-        if (isFocused) {
-          // Focused state
-          borderColor = _primaryColor;
-          fillColor = _primaryColor.withOpacity(0.08);
-        } else if (isFilled) {
-          //Completed state
-          borderColor = _borderColor;
-          fillColor = _greyBg;
-          suffixIcon = const Icon(Icons.check, color: Colors.green);
-        }
+    if (isFocused) {
+      // Focused state
+      // borderColor = _primaryColor;
+      // fillColor = _primaryColor.withOpacity(0.08);
+    } else if (isFilled) {
+      //Completed state
+      borderColor = _borderColor;
+      fillColor = _greyBg;
+      suffixIcon = const Icon(Icons.check, color: Colors.green);
+    }
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Colors.black,
-              ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextField(
+          controller: controller,
+          focusNode: focusNode,
+          onChanged: (_) {
+            setState(() {});
+            _onFieldChanged();
+          },
+          onSubmitted: (_) {
+            FocusScope.of(context).unfocus(); // simulate "enter"
+            setState(() {});
+          },
+          onTapOutside: (_) {
+            FocusScope.of(context).unfocus();
+            setState(() {});
+          },
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: _greyText, fontSize: 14),
+            filled: true,
+            fillColor: fillColor,
+            suffixIcon: suffixIcon,
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: borderColor, width: 1),
             ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: controller,
-              focusNode: focusNode,
-              onChanged: (_) {
-                setState(() {});
-                _onFieldChanged();
-              },
-              onSubmitted: (_) {
-                FocusScope.of(context).unfocus(); // simulate "enter"
-                setState(() {});
-              },
-              decoration: InputDecoration(
-                hintText: hint,
-                hintStyle: const TextStyle(color: _greyText, fontSize: 14),
-                filled: true,
-                fillColor: fillColor,
-                suffixIcon: suffixIcon,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: borderColor, width: 1),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: borderColor, width: 1),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _primaryColor, width: 2),
-                ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: borderColor, width: 1),
             ),
-          ],
-        );
-      },
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              // borderSide: BorderSide(color: _primaryColor, width: 2),
+            ),
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _buildBottomButtons({
+    required bool Function() canNext,
     required VoidCallback onNext,
     required bool showBack,
     required String nextLabel,
@@ -1265,7 +1313,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             child: ElevatedButton(
               onPressed: onNext,
               style: ElevatedButton.styleFrom(
-                backgroundColor: (_currentStep==1) ? _primaryColor : (_currentStep==2) ? _primaryColor : (_agreeToTerms ? _primaryColor : Color.fromARGB(80, 76, 78, 219)),
+                backgroundColor: canNext() ? _primaryColor : Color.fromARGB(80, 76, 78, 219),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
