@@ -1,6 +1,10 @@
 const schedule = require("node-schedule");
 const { User } = require("../user/userModel.js");
 const UserAllocHostel = require("../hostel/hostelAllocModel.js");
+const { MessChangeSettings } = require("./messChangeSettingsModel");
+const {
+  resetAllUsersToHostel,
+} = require("./controllers/processingController.js");
 
 /**
  * Core rotation logic
@@ -8,6 +12,34 @@ const UserAllocHostel = require("../hostel/hostelAllocModel.js");
 const rotateMessAllotments = async () => {
   console.log("📅 [MESS ALLOTMENT] Starting monthly mess rotation...");
   try {
+    // Safety Check: Ensure mess change processing has occurred
+    const settings = await MessChangeSettings.findOne();
+    const now = new Date();
+
+    if (
+      settings?.currentWindowClosingTime &&
+      now > settings.currentWindowClosingTime
+    ) {
+      const closingTime = new Date(settings.currentWindowClosingTime);
+      const lastProcessed = settings.lastProcessedAt
+        ? new Date(settings.lastProcessedAt)
+        : null;
+
+      if (!lastProcessed || lastProcessed < closingTime) {
+        console.error(
+          `❌ [MESS ALLOTMENT] CRITICAL: Mess change rotation aborted! ` +
+            `Processing for the window closing at ${closingTime.toLocaleString()} has not occurred. ` +
+            `Last processed at: ${lastProcessed ? lastProcessed.toLocaleString() : "Never"}`,
+        );
+        return 0; // Abort rotation
+      }
+    }
+
+    // Reset everyone to their own hostel
+    console.log("🔄 [MESS ALLOTMENT] Resetting all users to hostel first...");
+    await User.updateMany({}, { got_mess_changed: false });
+    await resetAllUsersToHostel();
+
     // Find all users who have a staged next_mess
     const usersToRotate = await User.find({ next_mess: { $ne: null } });
 
@@ -28,6 +60,7 @@ const rotateMessAllotments = async () => {
 
       // 1. Update User model
       user.curr_subscribed_mess = allottedMessId;
+      user.got_mess_changed = true;
       user.next_mess = null; // Clear staged mess
       await user.save();
 
@@ -59,7 +92,8 @@ const rotateMessAllotments = async () => {
 const initializeMessAllotmentScheduler = () => {
   console.log("🚀 Initializing mess allotment rotation scheduler...");
 
-  schedule.scheduleJob("0 0 1 * *", async () => {
+  // Runs on the 1st of every month at 00:05 AM IST
+  schedule.scheduleJob("5 0 1 * *", async () => {
     await rotateMessAllotments();
   });
 

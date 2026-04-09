@@ -1,3 +1,5 @@
+// home_screen.dart
+
 import 'dart:async';
 import 'dart:convert';
 
@@ -5,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:frontend2/apis/mess/mess_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:frontend2/models/alert_model.dart';
 import 'package:frontend2/models/mess_menu_model.dart';
 import 'package:frontend2/models/notification_model.dart';
 import 'package:frontend2/providers/hostels.dart';
@@ -16,8 +19,11 @@ import 'package:frontend2/screens/profile_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
+import 'package:frontend2/utilities/alert_expirer.dart';
+import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
+// import 'package:frontend2/widgets/countdown.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -39,7 +45,7 @@ class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   static const bool _isWeatherBackgroundTesting = false;
   static const String _testingWeatherGroup =
-      'clear'; // clear, rainy
+      'cloudy'; // clear, cloudy, rainy, thunder
   static const bool _testingIsDay = false;
 
   static const pageBackground = Color(0xFFFFFFFF);
@@ -57,8 +63,7 @@ class _HomeScreenState extends State<HomeScreen>
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
-  static const generalSans = 'GeneralSans';
-  static const bool _showDummyImportantMessages = false;
+  // static const bool _showDummyImportantMessages = false;
 
   String name = '';
   String currSubscribedMess = '';
@@ -167,32 +172,10 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String getGreeting() {
-    final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final sunriseUnix = _weatherBackground.sunriseUnix;
-    final sunsetUnix = _weatherBackground.sunsetUnix;
-
-    if (sunriseUnix != null && sunsetUnix != null && sunriseUnix < sunsetUnix) {
-      final solarNoonUnix = sunriseUnix + ((sunsetUnix - sunriseUnix) ~/ 2);
-      final eveningEndUnix = sunsetUnix + const Duration(hours: 2).inSeconds;
-
-      if (nowUnix < sunriseUnix || nowUnix >= eveningEndUnix) {
-        return 'Good Night';
-      }
-      if (nowUnix < solarNoonUnix) {
-        return 'Good Morning';
-      }
-      if (nowUnix < sunsetUnix) {
-        return 'Good Afternoon';
-      }
-      return 'Good Evening';
-    }
-
     final hour = DateTime.now().hour;
-    if (hour < 5) return 'Good Night';
     if (hour < 12) return 'Good Morning';
-    if (hour < 17) return 'Good Afternoon';
-    if (hour < 21) return 'Good Evening';
-    return 'Good Night';
+    if (hour < 18) return 'Good Afternoon';
+    return 'Good Evening';
   }
 
   String getTodayDay() {
@@ -358,7 +341,7 @@ class _HomeScreenState extends State<HomeScreen>
     }
 
     final latestCleanedBooking = cleanedBookings.first;
-    final daysSince = _daysSince(latestCleanedBooking?.bookingDate);
+    final daysSince = _daysSince(latestCleanedBooking.bookingDate);
 
     if (daysSince == null || daysSince < 0) {
       return 'Cleaned recently';
@@ -439,8 +422,8 @@ class _HomeScreenState extends State<HomeScreen>
       boxShadow: const [
         BoxShadow(
           color: shadow,
-          blurRadius: 16,
-          offset: Offset.zero,
+          blurRadius: 6,
+          offset: Offset(0, 4),
         ),
       ],
     );
@@ -808,10 +791,6 @@ class _HomeScreenState extends State<HomeScreen>
             decoration: BoxDecoration(
               color: const Color(0xFFC9D4DE),
               borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.92),
-                width: 3,
-              ),
             ),
             clipBehavior: Clip.antiAlias,
             child: value.isNotEmpty
@@ -826,130 +805,65 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  String _weatherHeroGreeting() {
-    final greeting = getGreeting();
-    return greeting.isEmpty
-        ? greeting
-        : '${greeting[0]}${greeting.substring(1).toLowerCase()}';
-  }
-
-  Widget _buildWeatherHeroHeader({required int unreadCount}) {
+  Widget _buildTopBar({required bool onWeatherBackground}) {
     final displayName = name.isNotEmpty ? name : 'User';
-    final greeting = _weatherHeroGreeting();
-    final subtitleText = unreadCount == 1
-        ? '1 notification today'
-        : '$unreadCount notifications today';
+    final titleColor = onWeatherBackground ? Colors.white : primary;
+    final subtitleColor = onWeatherBackground
+        ? Colors.white.withOpacity(0.92)
+        : textSecondary;
 
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 14),
+        child: Row(
           children: [
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const Expanded(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'HABit',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w700,
+                      color: titleColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
                     children: [
-                      // SizedBox(width: 6),
-                      Text(
-                        'HABit',
-                        style: TextStyle(
-                          fontFamily: generalSans,
-                          fontSize: 28,
-                          height: 30.4 / 28,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFFEDEDFB),
-                        ),
-                      ),
-                      SizedBox(width: 6),
-                      Padding(
-                        padding: EdgeInsets.only(bottom: 5),
+                      Flexible(
                         child: Text(
-                          'BETA V2',
+                          '${getGreeting()}, $displayName',
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontFamily: generalSans,
-                            fontSize: 12,
-                            height: 16 / 12,
+                            fontSize: 14,
+                            height: 20 / 14,
                             fontWeight: FontWeight.w500,
-                            color: Color(0xFFEDEDFB),
-                            letterSpacing: 0.3,
+                            color: subtitleColor,
                           ),
                         ),
                       ),
                     ],
                   ),
-                ),
-                _buildProfileAvatar(),
-              ],
-            ),
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.only(right: 5),
-                  child: Icon(
-                    Icons.wb_sunny_rounded,
-                    size: 20,
-                    color: Color(0xFFFFC83D),
-                  ),
-                ),
-                Flexible(
-                  child: RichText(
-                    overflow: TextOverflow.ellipsis,
-                    text: TextSpan(
-                      style: const TextStyle(
-                        fontFamily: generalSans,
-                        fontSize: 24,
-                        height: 32 / 24,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.white,
-                      ),
-                      children: [
-                        TextSpan(text: greeting),
-                        const TextSpan(text: ' '),
-                        TextSpan(
-                          text: displayName,
-                          style: const TextStyle(color: Color(0xFFEDEDFB)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.only(left: 5),
-              child: Text(
-                subtitleText,
-                style: const TextStyle(
-                  fontFamily: generalSans,
-                  fontSize: 12,
-                  height: 16 / 12,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.white,
-                ),
+                ],
               ),
             ),
+            _buildProfileAvatar(),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildImportantMessagesCard(List<NotificationModel> activeAlerts) {
+  Widget _buildImportantMessagesCard(List<AlertModel> activeAlerts) {
     if (activeAlerts.isEmpty) {
       return const SizedBox.shrink();
     }
 
-    final messages = activeAlerts
-        .take(2)
-        .map((alert) => alert.body.isNotEmpty ? alert.body : alert.title)
-        .toList();
+    // Take top 2 alerts to prevent the card from getting too massive
+    final alerts = activeAlerts.take(2).toList();
 
     return Container(
       width: double.infinity,
@@ -973,7 +887,7 @@ class _HomeScreenState extends State<HomeScreen>
                 backgroundColor: yellowSoft,
                 child: Icon(
                   Icons.warning_amber_rounded,
-                  size: 25,
+                  size: 20, // slightly smaller to fit perfectly
                   color: yellow,
                 ),
               ),
@@ -983,29 +897,55 @@ class _HomeScreenState extends State<HomeScreen>
                 style: TextStyle(
                   fontSize: 14,
                   height: 20 / 14,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: FontWeight.w600,
                   color: yellow,
                 ),
               ),
             ],
           ),
-          // const SizedBox(height: 8),
-          for (final message in messages)
+          const SizedBox(height: 4), // Space between header and alerts
+          for (final alert in alerts)
             Container(
               width: double.infinity,
-              margin: const EdgeInsets.only(top: 8),
+              margin: const EdgeInsets.only(top: 12),
               padding: const EdgeInsets.only(left: 10),
               decoration: const BoxDecoration(
                 border: Border(left: BorderSide(color: yellow, width: 2)),
               ),
-              child: Text(
-                message,
-                style: const TextStyle(
-                  fontSize: 14,
-                  height: 20 / 14,
-                  fontWeight: FontWeight.w500,
-                  color: textPrimary,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title
+                  // Text(
+                  //   alert.title,
+                  //   style: const TextStyle(
+                  //     fontSize: 14,
+                  //     height: 20 / 14,
+                  //     fontWeight: FontWeight.w600,
+                  //     color: textPrimary,
+                  //   ),
+                  // ),
+                  // Body (if exists)
+                  if (alert.body.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      alert.body,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        height: 20 / 14,
+                        fontWeight: FontWeight.w500,
+                        color: textPrimary,
+                      ),
+                    ),
+                  ],
+                  // Invisible trigger to auto-deletes the alert!
+                  SilentAlertExpirer(expiresAt: alert.expiresAt),
+                  // Countdown (if hasCountdown is true)
+                  // if (alert.hasCountdown) ...[
+                  //   const SizedBox(height: 6),
+                  //   CountdownText(expiresAt: alert.expiresAt),
+                  // ],
+                ],
               ),
             ),
         ],
@@ -1016,7 +956,12 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildUpdatesCard(int unreadCount) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: _openNotificationsSheet,
+      onTap: () {
+        // CLEAR THE ALERTS BADGE when they open the sheet
+        AlertsManager.markAllAlertsAsRead();
+        markAllNotificationsAsRead();
+        _openNotificationsSheet();
+      },
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.all(16),
@@ -1036,7 +981,6 @@ class _HomeScreenState extends State<HomeScreen>
             Text(
               '$unreadCount Updates',
               style: const TextStyle(
-                fontFamily: generalSans,
                 fontSize: 14,
                 height: 20 / 14,
                 fontWeight: FontWeight.w500,
@@ -1052,63 +996,36 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildAlertsSection() {
-    return ValueListenableBuilder<List<dynamic>>(
-      valueListenable: NotificationProvider.notificationProvider,
-      builder: (context, storedNotifications, child) {
-        final notifications = storedNotifications.map((item) {
-          if (item is NotificationModel) return item;
-          return NotificationModel.fromLegacyString(item.toString());
-        }).toList();
+    // 1. Listen to the REAL active alerts from AlertsManager
+    return ValueListenableBuilder<List<AlertModel>>(
+      valueListenable: AlertsManager.activeAlertsNotifier,
+      builder: (context, activeAlerts, child) {
+        
+        // 2. Also listen to NotificationHistory just for the unread count on the white button
+        return ValueListenableBuilder<List<dynamic>>(
+          valueListenable: NotificationProvider.notificationProvider,
+          builder: (context, storedNotifications, child) {
+            
+            // Convert everything safely
+            final notifications = storedNotifications.map((item) {
+              if (item is NotificationModel) return item;
+              return NotificationModel.fromLegacyString(item.toString());
+            }).toList();
 
-        final activeAlerts = notifications
-            .where(
-              (notification) =>
-          notification.isAlertActive && !notification.isRead,
-        )
-            .toList();
-        final unreadCount =
-            notifications.where((notification) => !notification.isRead).length;
-        final displayedAlerts = activeAlerts.isNotEmpty
-            ? activeAlerts
-            : (_showDummyImportantMessages
-                  ?  [
-                      NotificationModel(
-                        title: 'Water supply interruption',
-                        body:
-                            'Water supply will be unavailable in Hostel Block C from 2:00 PM to 4:00 PM today.',
-                        timestamp: DateTime.now(),
-                        isRead: false,
-                        // isAlertActive: true,
-                      ),
-                      NotificationModel(
-                        title: 'Mess timing update',
-                        body:
-                            'Dinner will begin 30 minutes late today due to kitchen maintenance.',
-                        timestamp: DateTime.now(),
-                        isRead: false,
-                        // isAlertActive: true,
-                      ),
-                    ]
-                  : const <NotificationModel>[]);
+            final unreadNotifCount = notifications.where((n) => !n.isRead).length;
+            final unreadAlertsCount = activeAlerts.where((a) => !a.isRead).length;
+            final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _buildWeatherHeroHeader(unreadCount: unreadCount),
-            const SizedBox(height: 36),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: _buildUpdatesCard(unreadCount),
-            ),
-            if (displayedAlerts.isNotEmpty) ...[
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildImportantMessagesCard(displayedAlerts),
-              ),
-            ],
-            const SizedBox(height: 2),
-          ],
+            return Column(
+              children: [
+                if (activeAlerts.isNotEmpty) ...[
+                  _buildImportantMessagesCard(activeAlerts),
+                  const SizedBox(height: 16),
+                ],
+                _buildUpdatesCard(totalUnreadCount),
+              ],
+            );
+          },
         );
       },
     );
@@ -1247,7 +1164,7 @@ class _HomeScreenState extends State<HomeScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Quick Actions', style: _sectionTitleStyle()),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         Row(
           children: [
             _buildQuickActionCard(featured[0]),
@@ -1379,7 +1296,6 @@ class _HomeScreenState extends State<HomeScreen>
         AnimatedContainer(
           duration: const Duration(milliseconds: 400),
           width: double.infinity,
-          constraints: const BoxConstraints(minHeight: 328),
           decoration: BoxDecoration(
             image: DecorationImage(
               image: AssetImage(_weatherBackground.assetPath),
@@ -1393,24 +1309,32 @@ class _HomeScreenState extends State<HomeScreen>
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
                 colors: [
-                  Color(0x2A000000),
-                  Color(0x10000000),
-                  Color(0x04FFFFFF),
+                  Color(0x2E000000),
+                  Color(0x12000000),
+                  Color(0x00FFFFFF),
                   Color(0xFFFFFFFF),
                 ],
-                stops: [0.0, 0.48, 0.88, 1.0],
+                stops: [0.0, 0.34, 0.72, 1.0],
               ),
             ),
-            child: _buildAlertsSection(),
+            child: Column(
+              children: [
+                _buildTopBar(onWeatherBackground: true),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                  child: _buildAlertsSection(),
+                ),
+              ],
+            ),
           ),
         ),
-        // Container(
-        //   height: 12,
-        //   decoration: const BoxDecoration(
-        //     color: pageBackground,
-        //     borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        //   ),
-        // ),
+        Container(
+          height: 20,
+          decoration: const BoxDecoration(
+            color: pageBackground,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+        ),
       ],
     );
   }
@@ -1423,9 +1347,8 @@ class _HomeScreenState extends State<HomeScreen>
         child: Column(
           children: [
             _buildWeatherHeroSection(),
-            _buildSectionDivider(),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
               child: ValueListenableBuilder<List<String>>(
                 valueListenable: HostelsNotifier.hostelNotifier,
                 builder: (context, _, __) => _buildQuickActionsSection(),
@@ -1434,7 +1357,7 @@ class _HomeScreenState extends State<HomeScreen>
             if (currSubscribedMess.isNotEmpty) ...[
               _buildSectionDivider(),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+                padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
                 child: _buildMessSection(),
               ),
             ],

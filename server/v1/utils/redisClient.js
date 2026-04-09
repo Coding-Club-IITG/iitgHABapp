@@ -61,6 +61,42 @@ const redisClient = {
       }
     }
   },
+  
+  // Added Sorted Set Methods for Alerts Feature
+  zadd: async (key, score, member) => {
+    if (isConnected && client) {
+      try {
+        return await client.zadd(key, score, member);
+      } catch (err) {
+        console.warn(`[Redis] ZADD error for ${key}:`, err.message);
+        return null;
+      }
+    }
+    return null;
+  },
+  zrangebyscore: async (key, min, max) => {
+    if (isConnected && client) {
+      try {
+        return await client.zrangebyscore(key, min, max);
+      } catch (err) {
+        console.warn(`[Redis] ZRANGEBYSCORE error for ${key}:`, err.message);
+        return [];
+      }
+    }
+    return []; // Return empty array on fail/disconnect so getAlerts doesn't crash
+  },
+  zremrangebyscore: async (key, min, max) => {
+    if (isConnected && client) {
+      try {
+        return await client.zremrangebyscore(key, min, max);
+      } catch (err) {
+        console.warn(`[Redis] ZREMRANGEBYSCORE error for ${key}:`, err.message);
+        return null;
+      }
+    }
+    return null;
+  },
+
   getInstance: () => client,
   getIsConnected: () => isConnected,
 };

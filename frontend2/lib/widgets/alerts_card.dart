@@ -1,241 +1,125 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:frontend2/providers/notifications.dart';
-import 'package:frontend2/screens/notification.dart';
+import '../utilities/alert_manager.dart';
+import '../models/alert_model.dart';
 
-class AlertsCard extends StatefulWidget {
-  const AlertsCard(
-      {super.key, this.feedbackform = false, this.daysLeft = 2});
-  final bool feedbackform;
-  final int daysLeft;
+class AlertsCard extends StatelessWidget {
+  const AlertsCard({super.key});
 
   @override
-  State<AlertsCard> createState() => _AlertsCardState();
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<AlertModel>>(
+      valueListenable: AlertsManager.activeAlertsNotifier,
+      builder: (context, activeAlerts, child) {
+        if (activeAlerts.isEmpty) {
+          return const SizedBox.shrink(); // Hide entirely if no active alerts
+        }
+
+        // We filter out alerts locally if the user has already completed the action
+        final validAlerts = activeAlerts.where((alert) {
+             // If you want to check local state (like hasAppliedForMessChange), you can do it here
+             // bool hasApplied = Provider.of<UserProvider>(context).user.hasAppliedForMessChange;
+             // if (alert.targetType == 'mess' && hasApplied) return false;
+             return true; 
+        }).toList();
+
+        if (validAlerts.isEmpty) return const SizedBox.shrink();
+
+        return Container(
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.red[50],
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.red.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.warning_amber_outlined, color: Colors.red[800], size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    "Active Alerts",
+                    style: TextStyle(
+                      color: Colors.red[800],
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...validAlerts.map((alert) => _buildAlertItem(alert)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildAlertItem(AlertModel alert) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            alert.title,
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            alert.body,
+            style: const TextStyle(fontSize: 14, color: Colors.black87),
+          ),
+          if (alert.hasCountdown) _CountdownText(expiresAt: alert.expiresAt),
+        ],
+      ),
+    );
+  }
 }
 
-class _AlertsCardState extends State<AlertsCard> {
-  int expandedSection = 2;
+class _CountdownText extends StatefulWidget {
+  final int expiresAt;
+  const _CountdownText({required this.expiresAt});
 
-  // int num_notification = 0;
+  @override
+  State<_CountdownText> createState() => _CountdownTextState();
+}
 
-  // Future<void> _loadNotificationCount() async {
-  //   final prefs = await SharedPreferences.getInstance();
-  //   final List<String> stored = prefs.getStringList('notifications') ?? [];
-  //   setState(() {
-  //     num_notification = stored.length;
-  //   });
-  // }
+class _CountdownTextState extends State<_CountdownText> {
+  late Timer _timer;
 
   @override
   void initState() {
     super.initState();
-    // SharedPreferences.getInstance().then((prefs) => {setState(() {
-    //   num_notification = (prefs.getStringList('notifications') ?? []).length;
-    //   // Firebase Messaging setup
-    //   FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
-    //       setState(() {
-    //         num_notification += 1;
-    //         //storedNotifications = stored;
-    //       });
-    //     });
-    //   }
-    // )});
+    _timer = Timer.periodic(const Duration(minutes: 1), (timer) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    Widget sectionHeader(String title, int section, {Widget? trailing}) {
-      return Row(
-        children: [
-          CircleAvatar(
-              radius: 12,
-              backgroundColor: Colors.red[50],
-              child: Icon(Icons.warning_amber_outlined,
-                  weight: 20, color: Colors.red[800], size: 16)),
-          const SizedBox(width: 12),
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final diff = widget.expiresAt - now;
+    
+    if (diff <= 0) return const SizedBox.shrink();
 
-          Text(title,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.red[800],
-                    fontWeight: FontWeight.w500,
-                    fontSize: 16,
-                  )),
+    final hours = diff ~/ (1000 * 60 * 60);
+    final minutes = (diff % (1000 * 60 * 60)) ~/ (1000 * 60);
 
-          if (trailing != null) ...[const SizedBox(width: 6), trailing],
-          // const Spacer(),
-          // Icon(
-          //   expandedSection == section
-          //       ? Icons.keyboard_arrow_up_rounded
-          //       : Icons.keyboard_arrow_down_rounded,
-          //   color: Colors.black38,
-          // ),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        Card(
-          color: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-              side: BorderSide(color: Colors.red[800]!, width: 0.5)),
-          elevation: 0.5,
-          child: Padding(
-            padding: const EdgeInsets.all(18.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                //sectionHeader("Complaints", 1),
-                //sectionBody(1),
-                //const SizedBox(height: 16),
-                //if (expandedSection != 1) const Divider(),
-                //sectionHeader("Mess", 2),
-                //sectionBody(2),
-                //const SizedBox(height: 16),
-                //if (expandedSection != 2)
-                //const Divider(),
-
-                sectionHeader(
-                  "Alerts",
-                  3,
-                ),
-                // Alerts section - show active alerts
-                ValueListenableBuilder(
-                  valueListenable: NotificationProvider.notificationProvider,
-                  builder: (context, storedNotifications, child) {
-                    final activeAlerts = storedNotifications
-                        .where((n) => n.isAlertActive && !n.isRead)
-                        .toList();
-                    if (activeAlerts.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 18.0),
-                        child: Center(
-                          child: Text(
-                            "nothing to be worried about",
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w400,
-                            ),
-                          ),
-                        ),
-                      );
-                    }
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 16.0, bottom: 8.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: activeAlerts.map((alert) {
-                          return Padding(
-                            padding: const EdgeInsets.only(bottom: 16.0),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Padding(
-                                  padding: const EdgeInsets.only(
-                                      top: 6.0, right: 12.0),
-                                  child: Container(
-                                    width: 6,
-                                    height: 6,
-                                    decoration: BoxDecoration(
-                                      color: Colors.red[800],
-                                      shape: BoxShape.circle,
-                                    ),
-                                  ),
-                                ),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        alert.title,
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 15,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 6),
-                                      Text(
-                                        alert.body,
-                                        style: const TextStyle(
-                                          fontSize: 14,
-                                          color: Colors.black87,
-                                          height: 1.4,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      ),
-                    );
-                  },
-                )
-              ],
-            ),
-          ),
-        ),
-        // Notifications Card
-        GestureDetector(
-          onTap: () {
-            showModalBottomSheet(
-              context: context,
-              isScrollControlled: true,
-              backgroundColor: Colors.transparent,
-              builder: (context) => const NotificationScreen(),
-            );
-          },
-          child: Card(
-            color: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            elevation: 0.5,
-            child: Padding(
-              padding: const EdgeInsets.all(18.0),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: Colors.blue[50],
-                    child: const Icon(
-                      Icons.notifications_none,
-                      size: 16,
-                      color: Colors.blue,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    "Notifications",
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                          fontWeight: FontWeight.w500,
-                          fontSize: 16,
-                        ),
-                  ),
-                  ValueListenableBuilder(
-                    valueListenable: NotificationProvider.notificationProvider,
-                    builder: (context, storedNotifications, child) {
-                      final unreadCount =
-                          storedNotifications.where((n) => !n.isRead).length;
-                      return Text(
-                        " ($unreadCount)",
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                              color: Colors.black,
-                              fontWeight: FontWeight.w500,
-                              fontSize: 16,
-                            ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ],
+    return Padding(
+      padding: const EdgeInsets.only(top: 4.0),
+      child: Text(
+        "Expires in ${hours}h ${minutes}m",
+        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red[900]),
+      ),
     );
   }
 }

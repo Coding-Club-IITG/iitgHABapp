@@ -1,7 +1,6 @@
-// NOTE: This file lives in `components` (lowercase).
 import React, { useState } from "react";
 import { BACKEND_URL } from "../apis/server";
-import { Button, Input, Select, Checkbox } from "antd";
+import { Button, Input, Select, Checkbox, DatePicker } from "antd";
 import { SendOutlined } from "@ant-design/icons";
 import { useAuth } from "../context/AuthProvider";
 
@@ -17,6 +16,8 @@ const NotificationSender = () => {
   const [selectedHostel, setSelectedHostel] = useState("");
   const [hostels, setHostels] = useState([]);
   const [isAlert, setIsAlert] = useState(false);
+  const [endTime, setEndTime] = useState(null);
+  const [hasCountdown, setHasCountdown] = useState(false);
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
 
@@ -44,25 +45,6 @@ const NotificationSender = () => {
       setLoading(true);
       setSuccess(false);
 
-      let topic = "";
-
-      if (topicType === "all") {
-        topic = "All_Hostels";
-      } else {
-        // Specific hostel
-        if (!selectedHostel) {
-          alert("Please select a hostel");
-          return;
-        }
-        const hostelName = hostels
-          .find((h) => h._id === selectedHostel)
-          ?.hostel_name.replaceAll(" ", "_");
-        topic =
-          userType === "boarders"
-            ? `Boarders_${hostelName}`
-            : `Subscribers_${hostelName}`;
-      }
-
       const headers = {
         "Content-Type": "application/json",
       };
@@ -70,15 +52,78 @@ const NotificationSender = () => {
         headers["Authorization"] = `Bearer ${token}`;
       }
 
-      const response = await fetch(`${BACKEND_URL}/notification/send`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
+      let url = `${BACKEND_URL}/notification/send`;
+      let payload = {};
+
+      if (isAlert) {
+        if (!endTime) {
+          alert("Please select an end time for the alert");
+          setLoading(false);
+          return;
+        }
+
+        const ttlSeconds = Math.floor((endTime.valueOf() - Date.now()) / 1000);
+        if (ttlSeconds <= 0) {
+          alert("End time must be in the future");
+          setLoading(false);
+          return;
+        }
+
+        let targetType = "global";
+        let targetIds = [];
+
+        if (topicType === "specific") {
+          if (!selectedHostel) {
+            alert("Please select a hostel");
+            setLoading(false);
+            return;
+          }
+          targetType = userType === "boarders" ? "hostel" : "mess";
+          targetIds = [selectedHostel];
+        }
+
+        url = `${BACKEND_URL}/alerts/create`;
+        payload = {
+          title,
+          body,
+          ttlSeconds,
+          targetType,
+          targetIds,
+          hasCountdown,
+        };
+      } else {
+        let topic = "";
+
+        if (topicType === "all") {
+          topic = "All_Hostels";
+        } else {
+          // Specific hostel
+          if (!selectedHostel) {
+            alert("Please select a hostel");
+            setLoading(false);
+            return;
+          }
+          const hostelName = hostels
+            .find((h) => h._id === selectedHostel)
+            ?.hostel_name.replaceAll(" ", "_");
+          topic =
+            userType === "boarders"
+              ? `Boarders_${hostelName}`
+              : `Subscribers_${hostelName}`;
+        }
+
+        payload = {
           title,
           body,
           topic,
-          isAlert,
-        }),
+          isAlert: false,
+        };
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
@@ -88,6 +133,8 @@ const NotificationSender = () => {
       setSuccess(true);
       setTitle("");
       setBody("");
+      setEndTime(null);
+      setHasCountdown(false);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error("Error sending notification:", err);
@@ -173,6 +220,38 @@ const NotificationSender = () => {
             Send as Alert (urgent notification)
           </Checkbox>
         </div>
+
+        {isAlert && (
+          <div className="p-4 bg-red-50 rounded-lg border border-red-100 space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-red-900 mb-1">
+                Alert End Time
+              </label>
+              <DatePicker
+                showTime
+                value={endTime}
+                onChange={(date) => setEndTime(date)}
+                className="w-full"
+                placeholder="Select end time"
+              />
+              <p className="text-xs text-red-600 mt-1">
+                The alert will automatically disappear from users' feeds after
+                this time.
+              </p>
+            </div>
+
+            <div>
+              <Checkbox
+                checked={hasCountdown}
+                onChange={(e) => setHasCountdown(e.target.checked)}
+              >
+                <span className="text-red-900">
+                  Show countdown timer to users
+                </span>
+              </Checkbox>
+            </div>
+          </div>
+        )}
 
         <Button
           type="primary"

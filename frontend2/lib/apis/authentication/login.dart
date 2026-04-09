@@ -15,6 +15,7 @@ import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/utilities/notifications.dart';
 // provider import removed (unused in this file)
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend2/utilities/alert_manager.dart';
 
 import '../../screens/login_screen.dart';
 
@@ -48,6 +49,7 @@ Future<void> authenticate() async {
     // await registerFcmToken();
     await HostelsNotifier.init();
     ProfilePictureProvider.init();
+    await AlertsManager.syncAlerts();
   } on PlatformException catch (_) {
     rethrow;
   } catch (e) {
@@ -88,6 +90,7 @@ Future<void> guestAuthenticate() async {
     // await registerFcmToken();
     await HostelsNotifier.init();
     ProfilePictureProvider.init();
+    await AlertsManager.syncAlerts();
   } catch (e) {
     rethrow;
   }
@@ -100,7 +103,7 @@ Future<bool> refreshAccessToken() async {
     final refreshToken = prefs.getString('refresh_token');
 
     debugPrint('[refreshAccessToken] Refresh token: '
-        '${refreshToken != null ? refreshToken.substring(0, 8) + '...' : 'null'}');
+        '${refreshToken != null ? '${refreshToken.substring(0, 8)}...' : 'null'}');
 
     if (refreshToken == null) {
       debugPrint('[refreshAccessToken] No refresh token found');
@@ -146,6 +149,8 @@ Future<void> logoutHandler(context) async {
 
   final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
+  // Instantly wipe the local alerts cache and UI
+  await AlertsManager.clearAlerts();
   // Use the global navigator if available; the dialog's build context may be
   // deactivated after calling Navigator.pop() in the dialog. This avoids the
   // "Looking up a deactivated widget's ancestor is unsafe" error.
@@ -219,6 +224,7 @@ Future<void> signInWithApple() async {
     // await registerFcmToken();
     await HostelsNotifier.init();
     ProfilePictureProvider.init();
+    await AlertsManager.syncAlerts();
   } on SignInWithAppleAuthorizationException catch (e) {
     // Error code 1000 often means simulator limitation or missing configuration
     if (e.code == AuthorizationErrorCode.unknown) {

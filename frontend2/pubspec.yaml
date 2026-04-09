@@ -104,9 +104,6 @@ flutter:
     - assets/lottie/
 
   fonts:
-    - family: GeneralSans
-      fonts:
-        - asset: assets/fonts/GeneralSans-Variable.ttf
     - family: OpenSans_bold
       fonts:
         - asset: assets/fonts/OpenSans-Bold.ttf

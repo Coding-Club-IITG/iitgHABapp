@@ -60,9 +60,19 @@ router.post(
  */
 // Profile picture upload with error handling
 const uploadMiddleware = (req, res, next) => {
+  console.log("[Profile][v1] uploadMiddleware start", {
+    method: req.method,
+    url: req.originalUrl,
+  });
+
   upload.single("file")(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
+        console.error("[Profile][v1] Multer error in uploadMiddleware", {
+          code: err.code,
+          message: err.message,
+        });
+
         if (err.code === "LIMIT_FILE_SIZE") {
           return res
             .status(400)
@@ -72,8 +82,19 @@ const uploadMiddleware = (req, res, next) => {
           .status(400)
           .json({ message: `Multer error: ${err.message}` });
       }
+
+      console.error("[Profile][v1] Non-multer upload error", {
+        message: err.message,
+        stack: err.stack,
+      });
       return res.status(400).json({ message: `Upload error: ${err.message}` });
     }
+
+    console.log("[Profile][v1] uploadMiddleware success", {
+      hasFile: !!req.file,
+      mimetype: req.file?.mimetype,
+      size: req.file?.size,
+    });
     next();
   });
 };
