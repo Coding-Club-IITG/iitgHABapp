@@ -3,7 +3,7 @@
 const axios = require("axios");
 const {
   getDelegatedAccessToken,
-} = require("../../utils/delegatedGraphAuth.js");
+} = require("./delegatedGraphAuth.js");
 require("dotenv").config();
 
 async function requireDelegatedToken() {
@@ -94,85 +94,53 @@ async function createOrganizationViewLink(token, itemId) {
 }
 
 
+//Provide
 
-//For multiple file-upload
-
-//Sequence required 
-//Upload to server middleware for generation of buffer = files[fieldname][0].buffer
-
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|pdf/;//You can add your own filetypes required
-    const extname = allowedTypes.test(
-      path.extname(file.originalname).toLowerCase(),
-    );
-    const mimetype = allowedTypes.test(file.mimetype);
-
-    if (mimetype && extname) {
-      return cb(null, true);
-    } else {
-      cb(new Error("UNSUPPORTED_FILE_TYPE"));
+//file.buffer
+//file.mimetype
+//custom file name
+//FOLDER_ID of the floder you want to upload in
+const uploadToOnedrive = async (buffer,mimetype,targetName,FOLDER_ID,res) => {
+  let uploaded = null;  
+  try {
+       if (!FOLDER_ID) {
+      return res
+        .status(400)
+        .json({ message: "FOLDER_ID is not configured" });
     }
-  },
-});
-
-const uploadMiddleware = async (req, res, next) => {
-  console.log("Started uploading document to server");
-  upload.fields([
-    { name: document_name_1, maxCount: 1 },
-    { name: document_name_2, maxCount: 1 },
-  ])(req, res, (err) => {
-    if (err) {
-      if (err.message == "UNSUPPORTED_FILE_TYPE") {
-        res.status(400).json({
-          message: "Invalid file Type. Only jpg, pdf, png are allowed!",
-          error: err.message,
-        });
-        return;
-      }
-    }
-    console.log("Passing file to Onedrive Uploader System");
-    next();
-  });
-};
-
-//I made the uploading possible in two forms
-//1) If you have multiple upload controllers, which access the same upload to server middleware
-//Then you can use mymodularised upload functions
-//Just define the processUpload function inside your controller file
-//Call it inside your actual controller function
-
-//2) If you have only one uploading function, and you will only upload one file through that, I would recommend to go with part 2 of this
-//This is an independent function, only depending on graphPUT, uploadToParentName, createOrganizationViewLink
-
-//1
-
-const processUpload = async (id, fileArray, prefix) => {
-    try {
-        if (!fileArray || fileArray.length === 0) return null;
-      
-        const file = fileArray[0]; // Grab the first (and only) file for this field
-        const uniqueSuffix = Math.round(Math.random() * 1e9);
-      
-        const ext = extFromMime(file.mimetype);
-        const timeStamp = Date.now();
       
         // Delegated token required to use /me/drive
         const token = await requireDelegatedToken();
-      
-        // Dynamic target name based on the prefix passed in
-        const targetName = `${prefix}-${id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
       
         // Upload to OneDrive
         const uploaded = await uploadToParentByName(
           token,
           FOLDER_ID,
           targetName,
-          file.buffer,
-          file.mimetype,
+          buffer,
+          mimetype,
         );
+        try {
+            // Create public link
+            let publicUrl = null;
+            try {
+              publicUrl = await createOrganizationViewLink(token, uploaded.id);
+            } catch (e) {
+              console.error(`Link creation failed for ${prefix}:`, e.message);
+            }
+          
+            return {
+              url: publicUrl || "",
+              filename: targetName,
+            };
+        }
+        catch(err) {
+            console.error("Error in creating organization view link");
+            return res.status(500).json({
+                message: "Error in generation of publicUrl",
+                error: err.message,
+            })
+        }
     }
     catch(err) {
         console.error("Error in uploading document to onedrive", err);
@@ -183,180 +151,18 @@ const processUpload = async (id, fileArray, prefix) => {
         })
     }
 
-    try {
-        // Create public link
-        let publicUrl = null;
-        try {
-          publicUrl = await createOrganizationViewLink(token, uploaded.id);
-        } catch (e) {
-          console.error(`Link creation failed for ${prefix}:`, e.message);
-        }
-      
-        return {
-          url: publicUrl || "",
-          filename: file.originalname,
-        };
-    }
-    catch(err) {
-        console.error("Error in creating organization view link");
-        return res.status(500).json({
-            message: "Error in generation of publicUrl",
-            error: err.message,
-        })
-    }
 };
-
-const uploadFilesToOnedrive = async (req, res, next) => {
-  try {
-    if (!req.files || Object.keys(req.files).length === 0) {
-      req.uploadedDocuments = {};
-      return next();
-    }
-
-    if (!LEAVE_FOLDER_ID) {
-      return res
-        .status(400)
-        .json({ message: "ONEDRIVE_LEAVE_FOLDER_ID is not configured" });
-    }
-
-    req.uploadedDocuments = {};
-    console.log(`Starting upload to onedrive for user: ${req.user?.name}`);
-
-    req.uploadedDocuments.proofDocument = await processUpload(
-      req.user._id,
-      req.files[document_name_1],
-      document_name_1,
-    );
-    req.uploadedDocuments.leaveDocument = await processUpload(
-      req.user._id,
-      req.files[document_name_2],
-      document_name_2,
-    );
-
-    console.log("OneDrive uploads successful", req.uploadedDocuments);
-    next();
-  } catch (err) {
-    console.error("OneDrive upload failed:", err);
-    const status = err.response?.status || 500;
-    const msg = err.response?.data?.error?.message || err.message;
-    return res.status(status === 403 ? 403 : 500).json({
-      message: "Failed to upload verification documents",
-      error: msg,
-      status,
-    });
-  }
-};
-
-//2
-
-async function uploadSingleToOnedrive(req, res, next) {
-  try {
-    //Check already present in applyForLeave. So not required here
-    const file = req.file;
-    // console.log("Trying to upload proof document");
-    //console.log("File received by Onedrive Uploader");
-    if (!file) return res.status(400).json({ message: "No file uploaded" });
-    if (!FOLDER_ID) {
-      return res
-        .status(400)
-        .json({ message: "ONEDRIVE_FOLDER_ID is not configured" });
-    }
-
-    const ext = extFromMime(file.mimetype);
-    const uniqueSuffix = Math.round(Math.random() * 1e9);
-
-    const timeStamp = Date.now();
-    // Dynamic target name based on the prefix passed in
-    const targetName = `leavedocument-${req.user._id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
-
-    // Delegated token required to use /me/drive
-    const token = await requireDelegatedToken();
-
-    // Sanity checks: who am I? which drive? does folder exist?
-    let me, drive, parentItem;
-    try {
-      me = await getMe(token);
-    } catch (e) {}
-
-    try {
-      drive = await getMyDrive(token);
-    } catch (e) {}
-
-    try {
-      parentItem = await getItemById(token, FOLDER_ID);
-      if (
-        drive?.id &&
-        parentItem?.parentReference?.driveId &&
-        drive.id !== parentItem.parentReference.driveId
-      ) {
-        return res.status(400).json({
-          message:
-            "Configured folder belongs to a different drive than the token user's drive.",
-        });
-      }
-    } catch (e) {
-      // Parent folder lookup failed
-      return res.status(400).json({
-        message:
-          "Configured ONEDRIVE_FOLDER_ID not found or not accessible for this account.",
-        hint: "Fetch it with GET /v1.0/me/drive/root:/HAB%20App/your_folder_name and use the returned id.",
-      });
-    }
-    console.log(
-      `Starting upload to onedrive to ${targetName} for user: ${req.user?.name}`,
-    );
-    // Upload new content to the parent folder with file name = roll.ext
-    const uploaded = await uploadToParentByName(
-      token,
-      FOLDER_ID,
-      targetName,
-      file.buffer,
-      file.mimetype,
-    );
-
-    //console.log("Uplaoding to onedrive successful.");
-    //console.log("Creating organization view link");
-
-    // Create org-scoped view link (tenant must allow it)
-    let publicUrl = null;
-    try {
-      publicUrl = await createOrganizationViewLink(token, uploaded.id);
-    } catch (e) {
-      return res.status(401).json({
-        message: "Error in creating public link. Please try again",
-      });
-    }
-
-
-    return publicUrl || uploaded.id;
-
-    console.log("Uploading to onedrive successful");
-    next();
-  } catch (err) {
-    const status = err.response?.status;
-    const msg = err.response?.data?.error?.message || err.message;
-    return res.status(status === 403 ? 403 : 500).json({
-      message: "Failed to upload document",
-      error: msg,
-      status,
-    });
-  }
-}
-
-//P.S.: This is an imported function
-//I don't know why we should check /me and /drive
-//But it is there, apparently cause no extra lag
-//So I left it there
-
 
 
 //If you want file.buffer from an organization view link
 //This is the controller for you
 
+//Arguements
+//url of the file
+//response object
 
-const sendDocument = async (req, res) => {
-  const { the_url } = req.body;
-  const documentUrl = the_url;
+const downloadFromOnedrive = async (url,res) => {
+  const documentUrl = url;
   try {
     if (!documentUrl) {
       return res.status(404).json({ message: "No document URL attached" });
@@ -372,6 +178,7 @@ const sendDocument = async (req, res) => {
           "image/gif": ".gif",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             ".docx",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx"
         };
 
         // Find the extension, default to .bin if unknown
@@ -408,7 +215,7 @@ const sendDocument = async (req, res) => {
         return res.send(Buffer.from(response.data));
       } catch (e) {
         console.error("Error in fetching document", e);
-        return res.status(200).json({ url: proofDocumentUrl });
+        return res.status(200).json({ url: documentUrl });
       }
     }
   } catch (err) {
@@ -419,3 +226,5 @@ const sendDocument = async (req, res) => {
     });
   }
 };
+
+module.exports = {uploadToOnedrive, downloadFromOnedrive};

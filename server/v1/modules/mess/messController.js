@@ -624,7 +624,24 @@ const toggleLikeMenuItem = async (req, res) => {
 const ScanMess = async (req, res) => {
   try {
     const { userId } = req.body;
+    
+    const user = await User.findById(userId).lean();
+    if (!user) {
+      return res
+      .status(404)
+      .json({ message: "User not found", success: false });
+    }
     const messInfoId = req.params.messId;
+    const scanner_perms = user.scannerPermission;
+
+    console.log(user.scannerPermission);
+    
+    if (scanner_perms === false) {
+      console.log("Mess rebate active");
+      return res
+        .status(404)
+        .json({ message: "Mess Rebate Active", success: false });
+    }
 
     const messInfo = await Mess.findById(messInfoId);
     if (!messInfo) {
@@ -649,20 +666,7 @@ const ScanMess = async (req, res) => {
       });
     }
 
-    const user = await User.findById(userId).lean();
-    if (!user) {
-      return res
-        .status(404)
-        .json({ message: "User not found", success: false });
-    }
 
-    const scanner_perms = user.scannerPermission;
-
-    if (scanner_perms === false) {
-      return res
-        .status(404)
-        .json({ message: "Mess Rebate Active", success: false });
-    }
 
     const hostel = await Hostel.findById(user.curr_subscribed_mess).lean();
     if (!hostel) {

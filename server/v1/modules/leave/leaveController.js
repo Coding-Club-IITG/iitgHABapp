@@ -141,11 +141,19 @@ const validateIntersection = async (req) => {
   const myApplications = await getMyApplications(req.user, "date");
   // console.log(myApplications);
 
+  if (myApplications == null) {
+    return {
+      isWithinRange: false,
+      conflictStartDate: null,
+      conflictEndDate: null
+    };
+  };
+
   const isWithinRange = myApplications.some(application => {
     const applicationStart = application.startDate;
     const applicationEnd = application.endDate;
     // console.log(applicationStart, " ",applicationEnd, " ", application._id);
-    const check = (applicationStart<start && start<applicationEnd) || (applicationStart<end && end<applicationEnd);
+    const check = (applicationStart < start && start < applicationEnd) || (applicationStart < end && end < applicationEnd);
     if (check) {
       conflictStartDate = start;
       conflictEndDate = end;
@@ -155,10 +163,10 @@ const validateIntersection = async (req) => {
 
   })
 
-  let answer = {isWithinRange,conflictStartDate,conflictEndDate}
+  let answer = { isWithinRange, conflictStartDate, conflictEndDate }
 
   return answer;
-  
+
 }
 
 // const conditionalUpload = (req, res, next) => {
@@ -207,22 +215,22 @@ const applyForLeave = async (req, res) => {
     dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
 
 
-    if(leaveType==="Medical" || leaveType==="Academic") {
-      if (start < tomorrow) {
-        console.error("Application must be submitted at least before 1 day");
-        return res.status(400).json({
-          message: "Application must be submitted at least before 1 day",
-        });
-      }
-    }
-    if(leaveType==="Casual") {
-      if (start < dayAfterTomorrow) {
-        console.error("Application must be submitted at least before 2 days");
-        return res.status(400).json({
-          message: "Application must be submitted at least before 2 days",
-        });
-      }
-    }
+    // if (leaveType === "Medical" || leaveType === "Academic") {
+    //   if (start < tomorrow) {
+    //     console.error("Application must be submitted at least before 1 day");
+    //     return res.status(400).json({
+    //       message: "Application must be submitted at least before 1 day",
+    //     });
+    //   }
+    // }
+    // if (leaveType === "Casual") {
+    //   if (start < dayAfterTomorrow) {
+    //     console.error("Application must be submitted at least before 2 days");
+    //     return res.status(400).json({
+    //       message: "Application must be submitted at least before 2 days",
+    //     });
+    //   }
+    // }
 
     //Get difference between two dates
     const diffBtwDates = Math.abs(end - start);
@@ -262,8 +270,9 @@ const applyForLeave = async (req, res) => {
     }
     // console.log("Trying to validate intersection");
     const doesItIntersect = await validateIntersection(req);
-
-    if(doesItIntersect.isWithinRange) {
+    if (doesItIntersect.isWithinRange) {
+      doesItIntersect.conflictStartDate = doesItIntersect.conflictStartDate.setDate(doesItIntersect.conflictStartDate.getDate()+1);
+      doesItIntersect.conflictEndDate = doesItIntersect.conflictEndDate.setDate(doesItIntersect.conflictEndDate.getDate()+1);
       return res.status(400).json({
         message: `The leave conflicts with a leave between ${doesItIntersect.conflictStartDate.toISOString().split("T")[0]} and ${doesItIntersect.conflictEndDate.toISOString().split("T")[0]}`
       })
@@ -362,8 +371,8 @@ const applyForLeave = async (req, res) => {
 };
 
 
-const getMyApplications = async (id,type) => {
-  
+const getMyApplications = async (id, type) => {
+
   const myApplicationswithDate = await Leave.find({
     user: id,
   })
@@ -372,7 +381,7 @@ const getMyApplications = async (id,type) => {
     })
     .lean();
 
-  if(myApplicationswithDate.length=== 0 ) {
+  if (myApplicationswithDate.length === 0) {
     return null;
   }
 
@@ -385,7 +394,7 @@ const getMyApplications = async (id,type) => {
 
   //If type is date then return with date object intact
   //Else return it stringified
-  return type==="date"?myApplicationswithDate:myApplications;
+  return type === "date" ? myApplicationswithDate : myApplications;
 
 }
 
@@ -394,7 +403,7 @@ const getApplications = async (req, res) => {
   const myApplications = await getMyApplications(req.user, "string");
 
   //For empty applications array
-  if (myApplications===null) {
+  if (myApplications == null) {
     res.status(200).json({
       message: "No past applications available",
     });
@@ -585,7 +594,20 @@ const cancelApplication = async (req, res) => {
       id,
       { status: "cancelled" },
       { new: true },
-    ).populate("user", "name rollNumber email -_id");
+    ).populate("user", "name rollNumber email");
+
+    console.log("start", updatedDoc.startDate, "now", new Date());
+
+    if (
+      updatedDoc.startDate <= new Date() &&
+      new Date() <= new Date(updatedDoc.endDate.getFullYear(), updatedDoc.endDate.getMonth(), updatedDoc.endDate.getDate() + 1)
+    ) {
+      const updatedUser = await User.findOneAndUpdate(
+        { _id: updatedDoc.user._id },
+        { scannerPermission: true },
+      );
+      console.log(updatedUser);
+    }
 
     return res.status(201).json({
       message: `Application with ID ${id} successfully cancelled`,
@@ -778,7 +800,7 @@ const rejectApplication = async (req, res) => {
 
       if (
         updatedDoc.startDate <= new Date() &&
-        new Date() <= updatedDoc.endDate
+        new Date() <= new Date(updatedDoc.endDate.getFullYear(), updatedDoc.endDate.getMonth(), updatedDoc.endDate.getDate() + 1)
       ) {
         const updatedUser = await User.findOneAndUpdate(
           { _id: updatedDoc.user._id },
