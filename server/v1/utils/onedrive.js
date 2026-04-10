@@ -1,9 +1,8 @@
-// lines 1-95 is mandatory to be in you respective onedrive Controller
+// lines 1-95 is mandatory to be in you respective onedrive Controller - TBD
 
 const axios = require("axios");
-const {
-  getDelegatedAccessToken,
-} = require("../../utils/delegatedGraphAuth.js");
+const multer = require("multer");
+const { getDelegatedAccessToken } = require("./delegatedGraphAuth.js");
 require("dotenv").config();
 
 async function requireDelegatedToken() {

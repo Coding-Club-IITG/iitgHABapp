@@ -17,6 +17,9 @@ const {
   processUsersInIterations,
 } = require("../utils/messChangeLogic.js");
 
+const {
+  generateMessChangeReport,
+} = require("../utils/messChangeReportGenerator.js");
 const { uploadReportToOnedrive } = require("../../../utils/onedrive.js");
 
 // Helper Functions
@@ -171,6 +174,9 @@ const updateLastProcessedTimestamp = async () => {
   await settings.save();
 };
 
+/**
+ * Mess change flow
+ */
 const createBackup = (users, hostels) => {
   try {
     if (!fs.existsSync(backupDir)) {
@@ -215,129 +221,22 @@ const generateAndUploadReport = async (
   hostels,
 ) => {
   try {
-    const hostelMap = hostels.reduce((acc, h) => {
-      acc[h._id.toString()] = h.hostel_name;
-      return acc;
-    }, {});
-
-    const sortedUsers = [...users].sort(
-      (a, b) =>
-        new Date(a.applied_hostel_timestamp || 0) -
-        new Date(b.applied_hostel_timestamp || 0),
-    );
-    const sortedAccepted = [...acceptedUsers].sort((a, b) => {
-      const uA = users.find((u) => u._id.toString() === a.id);
-      const uB = users.find((u) => u._id.toString() === b.id);
-      return (
-        new Date(uA?.applied_hostel_timestamp || 0) -
-        new Date(uB?.applied_hostel_timestamp || 0)
-      );
-    });
-    const sortedRejected = [...rejectedUsers].sort((a, b) => {
-      const uA = users.find((u) => u._id.toString() === a.id);
-      const uB = users.find((u) => u._id.toString() === b.id);
-      return (
-        new Date(uA?.applied_hostel_timestamp || 0) -
-        new Date(uB?.applied_hostel_timestamp || 0)
-      );
+    const buffer = await generateMessChangeReport({
+      users,
+      acceptedUsers,
+      rejectedUsers,
+      capacityTracker,
+      hostels,
     });
 
-    const sheet1Data = sortedUsers.map((u) => ({
-      "Roll number": u.rollNumber || "",
-      Name: u.name || "",
-      "Boarding hostel": hostelMap[u.hostel?.toString()] || "Unknown",
-      "Preference 1": hostelMap[u.next_mess1?.toString()] || "N/A",
-      "Preference 2": hostelMap[u.next_mess2?.toString()] || "N/A",
-      "Preference 3": hostelMap[u.next_mess3?.toString()] || "N/A",
-      "Application Timestamp": u.applied_hostel_timestamp
-        ? new Date(u.applied_hostel_timestamp).toLocaleString("en-IN", {
-            timeZone: "Asia/Kolkata",
-          })
-        : "",
-    }));
-
-    const sheet2Data = sortedAccepted.map((a) => {
-      const u = users.find((user) => user._id.toString() === a.id);
-      return {
-        "Roll number": a.rollNumber || "",
-        "Boarding hostel": hostelMap[a.fromHostelId?.toString()] || "Unknown",
-        "New hostel": hostelMap[a.toHostelId?.toString()] || "Unknown",
-        Timestamp: u?.applied_hostel_timestamp
-          ? new Date(u.applied_hostel_timestamp).toLocaleString("en-IN", {
-              timeZone: "Asia/Kolkata",
-            })
-          : "",
-      };
-    });
-
-    const sheet3Data = sortedRejected.map((r) => {
-      const u = users.find((user) => user._id.toString() === r.id);
-      return {
-        "Roll number": r.rollNumber || "",
-        "Boarding hostel": hostelMap[r.fromHostelId?.toString()] || "Unknown",
-        "Preference 1": hostelMap[u?.next_mess1?.toString()] || "N/A",
-        "Preference 2": hostelMap[u?.next_mess2?.toString()] || "N/A",
-        "Preference 3": hostelMap[u?.next_mess3?.toString()] || "N/A",
-        Timestamp: u?.applied_hostel_timestamp
-          ? new Date(u.applied_hostel_timestamp).toLocaleString("en-IN", {
-              timeZone: "Asia/Kolkata",
-            })
-          : "",
-      };
-    });
-
-    const sheet4Data = hostels.map((h) => {
-      const id = h._id.toString();
-      const tracker = capacityTracker[id] || {};
-      const finalCount =
-        tracker.finalCount !== undefined ? tracker.finalCount : tracker.current;
-      const incoming = acceptedUsers.filter(
-        (a) => a.toHostelId?.toString() === id,
-      ).length;
-      const outgoing = acceptedUsers.filter(
-        (a) => a.fromHostelId?.toString() === id,
-      ).length;
-      const net = incoming - outgoing;
-      return {
-        Hostel: h.hostel_name || "Unknown",
-        Boarders: h.curr_cap || 0,
-        "Mess subscribers": finalCount || 0,
-        Incoming: incoming,
-        Outgoing: outgoing,
-        "Net Change": net,
-      };
-    });
-
-    const wb = xlsx.utils.book_new();
-    xlsx.utils.book_append_sheet(
-      wb,
-      xlsx.utils.json_to_sheet(sheet1Data),
-      "All Applications",
-    );
-    xlsx.utils.book_append_sheet(
-      wb,
-      xlsx.utils.json_to_sheet(sheet2Data),
-      "Accepted Applications",
-    );
-    xlsx.utils.book_append_sheet(
-      wb,
-      xlsx.utils.json_to_sheet(sheet3Data),
-      "Rejected Applications",
-    );
-    xlsx.utils.book_append_sheet(
-      wb,
-      xlsx.utils.json_to_sheet(sheet4Data),
-      "Report Summary",
-    );
-
-    const buffer = xlsx.write(wb, { type: "buffer", bookType: "xlsx" });
     const filename = `Mess_Change_Report_${Date.now()}.xlsx`;
 
     // Save locally
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
     }
-    xlsx.writeFile(wb, path.join(backupDir, filename), { bookType: "xlsx" });
+    const filePath = path.join(backupDir, filename);
+    fs.writeFileSync(filePath, buffer);
     console.log(`Saved report locally to backup folder as ${filename}`);
 
     const url = await uploadReportToOnedrive(buffer, filename);
