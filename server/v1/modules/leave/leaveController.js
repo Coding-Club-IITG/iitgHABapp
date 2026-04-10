@@ -138,7 +138,9 @@ const validateIntersection = async (req) => {
   const id = req.user;
   // console.log(id);
 
-  const myApplications = await getMyApplications(req.user, "date");
+  let myApplications = await getMyApplications(req.user, "date");
+
+  myApplications = myApplications.filter((application) => ["accepted", "pending"].includes(application.status));
   // console.log(myApplications);
 
   if (myApplications == null) {
@@ -153,10 +155,10 @@ const validateIntersection = async (req) => {
     const applicationStart = application.startDate;
     const applicationEnd = application.endDate;
     // console.log(applicationStart, " ",applicationEnd, " ", application._id);
-    const check = (applicationStart < start && start < applicationEnd) || (applicationStart < end && end < applicationEnd);
+    const check = (applicationStart <= start && start <= applicationEnd) || (applicationStart <= end && end <= applicationEnd);
     if (check) {
-      conflictStartDate = start;
-      conflictEndDate = end;
+      conflictStartDate = applicationStart;
+      conflictEndDate = applicationEnd;
     }
 
     return check;
@@ -215,22 +217,22 @@ const applyForLeave = async (req, res) => {
     dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
 
 
-    // if (leaveType === "Medical" || leaveType === "Academic") {
-    //   if (start < tomorrow) {
-    //     console.error("Application must be submitted at least before 1 day");
-    //     return res.status(400).json({
-    //       message: "Application must be submitted at least before 1 day",
-    //     });
-    //   }
-    // }
-    // if (leaveType === "Casual") {
-    //   if (start < dayAfterTomorrow) {
-    //     console.error("Application must be submitted at least before 2 days");
-    //     return res.status(400).json({
-    //       message: "Application must be submitted at least before 2 days",
-    //     });
-    //   }
-    // }
+    if(leaveType==="Medical" || leaveType==="Academic") {
+      if (start < tomorrow) {
+        console.error("Application must be submitted at least before 1 day");
+        return res.status(400).json({
+          message: "Application must be submitted at least before 1 day",
+        });
+      }
+    }
+    if(leaveType==="Casual") {
+      if (start < dayAfterTomorrow) {
+        console.error("Application must be submitted at least before 2 days");
+        return res.status(400).json({
+          message: "Application must be submitted at least before 2 days",
+        });
+      }
+    }
 
     //Get difference between two dates
     const diffBtwDates = Math.abs(end - start);
@@ -271,8 +273,8 @@ const applyForLeave = async (req, res) => {
     // console.log("Trying to validate intersection");
     const doesItIntersect = await validateIntersection(req);
     if (doesItIntersect.isWithinRange) {
-      doesItIntersect.conflictStartDate = doesItIntersect.conflictStartDate.setDate(doesItIntersect.conflictStartDate.getDate()+1);
-      doesItIntersect.conflictEndDate = doesItIntersect.conflictEndDate.setDate(doesItIntersect.conflictEndDate.getDate()+1);
+      doesItIntersect.conflictStartDate.setDate(doesItIntersect.conflictStartDate.getDate()+1);
+      doesItIntersect.conflictEndDate.setDate(doesItIntersect.conflictEndDate.getDate()+1);
       return res.status(400).json({
         message: `The leave conflicts with a leave between ${doesItIntersect.conflictStartDate.toISOString().split("T")[0]} and ${doesItIntersect.conflictEndDate.toISOString().split("T")[0]}`
       })
@@ -342,7 +344,7 @@ const applyForLeave = async (req, res) => {
       await leaveApplication.save();
 
       return res.status(201).json({
-        message: "Leave Application submited successfully",
+        message: "Leave Application submitted successfully",
         leaveApplication: {
           id: leaveApplication._id,
           user: req.user._id,
