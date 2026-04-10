@@ -17,7 +17,7 @@ const {
   generateOpiReport,
   saveOpiReportBackup,
 } = require("./opiReportGenerator");
-const { uploadReportToOnedrive } = require("../leave/OnedriveController");
+const { uploadReportToOnedrive } = require("../../utils/onedrive.js");
 
 const ratingMap = {
   "Very Poor": 1,

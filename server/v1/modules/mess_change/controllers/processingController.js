@@ -17,7 +17,7 @@ const {
   processUsersInIterations,
 } = require("../utils/messChangeLogic.js");
 
-const { uploadReportToOnedrive } = require("../../leave/OnedriveController.js");
+const { uploadReportToOnedrive } = require("../../../utils/onedrive.js");
 
 // Helper Functions
 
@@ -244,7 +244,7 @@ const generateAndUploadReport = async (
 
     const sheet1Data = sortedUsers.map((u) => ({
       "Roll number": u.rollNumber || "",
-      Name: u.name || "App not installed",
+      Name: u.name || "",
       "Boarding hostel": hostelMap[u.hostel?.toString()] || "Unknown",
       "Preference 1": hostelMap[u.next_mess1?.toString()] || "N/A",
       "Preference 2": hostelMap[u.next_mess2?.toString()] || "N/A",
@@ -289,7 +289,6 @@ const generateAndUploadReport = async (
     const sheet4Data = hostels.map((h) => {
       const id = h._id.toString();
       const tracker = capacityTracker[id] || {};
-      const initial = tracker.initial || 0;
       const finalCount =
         tracker.finalCount !== undefined ? tracker.finalCount : tracker.current;
       const incoming = acceptedUsers.filter(

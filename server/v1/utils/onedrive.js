@@ -93,18 +93,16 @@ async function createOrganizationViewLink(token, itemId) {
   return data?.link?.webUrl;
 }
 
-
-
 //For multiple file-upload
 
-//Sequence required 
+//Sequence required
 //Upload to server middleware for generation of buffer = files[fieldname][0].buffer
 
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
   fileFilter: (req, file, cb) => {
-    const allowedTypes = /jpeg|jpg|png|pdf/;//You can add your own filetypes required
+    const allowedTypes = /jpeg|jpg|png|pdf|xlsx/; //You can add your own filetypes required
     const extname = allowedTypes.test(
       path.extname(file.originalname).toLowerCase(),
     );
@@ -127,7 +125,7 @@ const uploadMiddleware = async (req, res, next) => {
     if (err) {
       if (err.message == "UNSUPPORTED_FILE_TYPE") {
         res.status(400).json({
-          message: "Invalid file Type. Only jpg, pdf, png are allowed!",
+          message: "Invalid file Type. Only jpg, pdf, png, xlsx are allowed!",
           error: err.message,
         });
         return;
@@ -150,60 +148,58 @@ const uploadMiddleware = async (req, res, next) => {
 //1
 
 const processUpload = async (id, fileArray, prefix) => {
-    try {
-        if (!fileArray || fileArray.length === 0) return null;
-      
-        const file = fileArray[0]; // Grab the first (and only) file for this field
-        const uniqueSuffix = Math.round(Math.random() * 1e9);
-      
-        const ext = extFromMime(file.mimetype);
-        const timeStamp = Date.now();
-      
-        // Delegated token required to use /me/drive
-        const token = await requireDelegatedToken();
-      
-        // Dynamic target name based on the prefix passed in
-        const targetName = `${prefix}-${id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
-      
-        // Upload to OneDrive
-        const uploaded = await uploadToParentByName(
-          token,
-          FOLDER_ID,
-          targetName,
-          file.buffer,
-          file.mimetype,
-        );
-    }
-    catch(err) {
-        console.error("Error in uploading document to onedrive", err);
+  try {
+    if (!fileArray || fileArray.length === 0) return null;
 
-        return res.status(500).json({
-            message: "Error in uploading file to onedrive",
-            error: err.message,
-        })
+    const file = fileArray[0]; // Grab the first (and only) file for this field
+    const uniqueSuffix = Math.round(Math.random() * 1e9);
+
+    const ext = extFromMime(file.mimetype);
+    const timeStamp = Date.now();
+
+    // Delegated token required to use /me/drive
+    const token = await requireDelegatedToken();
+
+    // Dynamic target name based on the prefix passed in
+    const targetName = `${prefix}-${id}-${timeStamp}-${uniqueSuffix}-${file.originalname}`;
+
+    // Upload to OneDrive
+    const uploaded = await uploadToParentByName(
+      token,
+      FOLDER_ID,
+      targetName,
+      file.buffer,
+      file.mimetype,
+    );
+  } catch (err) {
+    console.error("Error in uploading document to onedrive", err);
+
+    return res.status(500).json({
+      message: "Error in uploading file to onedrive",
+      error: err.message,
+    });
+  }
+
+  try {
+    // Create public link
+    let publicUrl = null;
+    try {
+      publicUrl = await createOrganizationViewLink(token, uploaded.id);
+    } catch (e) {
+      console.error(`Link creation failed for ${prefix}:`, e.message);
     }
 
-    try {
-        // Create public link
-        let publicUrl = null;
-        try {
-          publicUrl = await createOrganizationViewLink(token, uploaded.id);
-        } catch (e) {
-          console.error(`Link creation failed for ${prefix}:`, e.message);
-        }
-      
-        return {
-          url: publicUrl || "",
-          filename: file.originalname,
-        };
-    }
-    catch(err) {
-        console.error("Error in creating organization view link");
-        return res.status(500).json({
-            message: "Error in generation of publicUrl",
-            error: err.message,
-        })
-    }
+    return {
+      url: publicUrl || "",
+      filename: file.originalname,
+    };
+  } catch (err) {
+    console.error("Error in creating organization view link");
+    return res.status(500).json({
+      message: "Error in generation of publicUrl",
+      error: err.message,
+    });
+  }
 };
 
 const uploadFilesToOnedrive = async (req, res, next) => {
@@ -314,7 +310,7 @@ async function uploadSingleToOnedrive(req, res, next) {
       file.mimetype,
     );
 
-    //console.log("Uplaoding to onedrive successful.");
+    //console.log("Uploading to onedrive successful.");
     //console.log("Creating organization view link");
 
     // Create org-scoped view link (tenant must allow it)
@@ -326,7 +322,6 @@ async function uploadSingleToOnedrive(req, res, next) {
         message: "Error in creating public link. Please try again",
       });
     }
-
 
     return publicUrl || uploaded.id;
 
@@ -348,11 +343,8 @@ async function uploadSingleToOnedrive(req, res, next) {
 //But it is there, apparently cause no extra lag
 //So I left it there
 
-
-
 //If you want file.buffer from an organization view link
 //This is the controller for you
-
 
 const sendDocument = async (req, res) => {
   const { the_url } = req.body;
@@ -364,7 +356,6 @@ const sendDocument = async (req, res) => {
 
     if (documentUrl) {
       try {
-
         const extensionMap = {
           "application/pdf": ".pdf",
           "image/jpeg": ".jpg",
@@ -418,4 +409,39 @@ const sendDocument = async (req, res) => {
       status: err.response?.status,
     });
   }
+};
+
+const uploadReportToOnedrive = async (buffer, filename) => {
+  try {
+    const folderId = process.env.ONEDRIVE_REPORTS_FOLDER_ID;
+    if (!folderId) {
+      console.warn(
+        "ONEDRIVE_REPORTS_FOLDER_ID is not configured, skipping report upload.",
+      );
+      return null;
+    }
+    const token = await requireDelegatedToken();
+    console.log(`Uploading report ${filename} to OneDrive...`);
+    const uploaded = await uploadToParentByName(
+      token,
+      folderId,
+      filename,
+      buffer,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+    let publicUrl = null;
+    try {
+      publicUrl = await createOrganizationViewLink(token, uploaded.id);
+    } catch (e) {
+      console.error("Link creation failed for report:", e.message);
+    }
+    return publicUrl || uploaded.webUrl;
+  } catch (err) {
+    console.error("OneDrive report upload failed:", err);
+    return null;
+  }
+};
+
+module.exports = {
+  uploadReportToOnedrive,
 };
