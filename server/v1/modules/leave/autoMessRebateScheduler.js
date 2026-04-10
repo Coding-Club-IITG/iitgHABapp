@@ -1,16 +1,12 @@
-const schedule = require("node-schedule");
 const Leave = require("./leaveModel.js");
 const { User } = require("../user/userModel.js");
+const { withTransaction } = require("../../utils/withTransaction.js");
+const agenda = require("../../utils/agenda.js");
 
-const initializeMessRebateAutoScheduler = async () => {
-  console.log("🚀 Initializing mess rebate scheduler...");
-  schedule.scheduleJob("0 1 * * *", schedulerStuff);
+const JOB_NAME = "mess-rebate-daily";
 
-  console.log("✅ Automatic mess rebate canceller initialized");
-  console.log("📅 Rebate cancelling scheduled: Everyday at 1:00 AM IST");
-};
-
-const schedulerStuff = async() => {
+// Core logic
+const runMessRebateJob = async () => {
   const today = new Date(
     new Date().getFullYear(),
     new Date().getMonth(),
@@ -38,7 +34,6 @@ const schedulerStuff = async() => {
     0,
     0,
   );
-
   const yesterweek = new Date(
     today.getFullYear(),
     today.getMonth(),
@@ -48,7 +43,6 @@ const schedulerStuff = async() => {
     0,
     0,
   );
-
   const yesterweekplusone = new Date(
     today.getFullYear(),
     today.getMonth(),
@@ -59,69 +53,69 @@ const schedulerStuff = async() => {
     0,
   );
 
-  const NotRejectedNorResolvedApplications = await Leave.find({
+  const activeApplications = await Leave.find({
     resolved: false,
-    status: {
-      $in: ["pending", "approved"],
-    },
+    status: { $in: ["pending", "approved"] },
   })
-    .sort({
-      appliedAt: -1,
-    })
+    .sort({ appliedAt: -1 })
     .lean();
 
-  console.log("Not Rejected Nor Resolved Applications");
-  console.log(NotRejectedNorResolvedApplications);
+  console.log(
+    `[MESS REBATE] Found ${activeApplications.length} active applications`,
+  );
 
-  // FOR GIVING BACK SCANNER PERMISSION AT THE END
+  // 1. Re-enable scanner permission when leave ends
   {
-    const to_check = NotRejectedNorResolvedApplications.filter((app) => {
-      return yesterday <= app.endDate && app.endDate < today;
-    });
+    const ending = activeApplications.filter(
+      (app) => yesterday <= app.endDate && app.endDate < today,
+    );
+    const userIds = ending.map((a) => a.user);
+    const userIdsToResolve = ending
+      .filter((app) => app.status === "approved")
+      .map((application) => application.user);
 
-    const user_ids = to_check.map((application) => application.user);
-    const user_ids_to_resolve = to_check.filter((app) => app.status === "approved").map((application) => application.user);
-
-    if (user_ids.length > 0) {
+    if (userIds.length > 0) {
       const result = await User.updateMany(
-        { _id: { $in: user_ids } },
+        { _id: { $in: userIds } },
         { $set: { scannerPermission: true } },
       );
 
-      if (user_ids_to_resolve.length > 0) {
-        const resolved_result = await Leave.updateMany({ _id: { $in: user_ids_to_resolve } }, { $set: { resolved: true } });
-        console.log(`RESOLVED APPS: ${resolved_result.modifiedCount} applications resolved.`);
+      if (userIdsToResolve.length > 0) {
+        const resolvedResult = await Leave.updateMany(
+          { _id: { $in: userIdsToResolve } },
+          { $set: { resolved: true } },
+        );
+        console.log(
+          `[MESS REBATE] ${resolvedResult.modifiedCount} applications resolved`,
+        );
       }
 
       console.log(
-        `PERMITTED USERS: ${result.modifiedCount} users re-enabled`,
+        `[MESS REBATE] Re-enabled scanner for ${result.modifiedCount} users (leave ended)`,
       );
     }
-    
   }
 
-  // FOR TAKING AWAY SCANNER PERMISSION AT THE START
+  // 2. Revoke scanner permission when leave starts
   {
-    const to_check = NotRejectedNorResolvedApplications.filter((app) => {
-      return today <= app.startDate && app.startDate < tomorrow;
-    });
-
-    const user_ids = to_check.map((application) => application.user);
-
-    if (user_ids.length > 0) {
+    const starting = activeApplications.filter(
+      (app) => today <= app.startDate && app.startDate < tomorrow,
+    );
+    const userIds = starting.map((a) => a.user);
+    if (userIds.length > 0) {
       const result = await User.updateMany(
-        { _id: { $in: user_ids } },
+        { _id: { $in: userIds } },
         { $set: { scannerPermission: false } },
       );
       console.log(
-        `RESTRICTED USERS: ${result.modifiedCount} users restricted`,
+        `[MESS REBATE] Revoked scanner for ${result.modifiedCount} users (leave started)`,
       );
     }
   }
 
-  // FOR REJECTING AND GIVING BACK SCANNER PERMISSION AT 7 DAYS MEDICAL
+  // 3. Auto-reject medical leaves not submitted within 7 days
   {
-    const to_check = await Leave.find({
+    const expiredMedical = await Leave.find({
       resolved: false,
       proofDocumentUrl: null,
       leaveType: "Medical",
@@ -131,34 +125,58 @@ const schedulerStuff = async() => {
       },
     }).lean();
 
-    const targetIds = to_check.map((t) => t._id);
+    const targetIds = expiredMedical.map((t) => t._id);
 
     if (targetIds.length > 0) {
-      await Leave.updateMany(
-        {
-          _id: { $in: targetIds },
-        },
-        {
-          resolved: true,
-          status: "rejected",
-          feedback: "Medical Application Not Submitted On Time",
-        },
-      );
+      const userIds = expiredMedical.map((a) => a.user);
 
-      const user_ids = to_check.map((application) => application.user);
+      await withTransaction(async (session) => {
+        await Leave.updateMany(
+          { _id: { $in: targetIds } },
+          {
+            resolved: true,
+            status: "rejected",
+            feedback: "Medical Application Not Submitted On Time",
+          },
+          { session },
+        );
 
-      const result = await User.updateMany(
-        { _id: { $in: user_ids } },
-        { $set: { scannerPermission: true } },
-      );
+        await User.updateMany(
+          { _id: { $in: userIds } },
+          { $set: { scannerPermission: true } },
+          { session },
+        );
+      });
+
       console.log(
-        `REJECTED MEDICAL USERS: ${result.modifiedCount} users re-enabled, ${targetIds.length} leaves rejected`,
+        `[MESS REBATE] Auto-rejected ${targetIds.length} expired medical leaves, scanner restored for ${userIds.length} users`,
       );
     }
   }
-}
+};
+
+const initializeMessRebateAutoScheduler = () => {
+  agenda.define(
+    JOB_NAME,
+    async (job) => {
+      try {
+        console.log("[MESS REBATE] Daily job fired");
+        await runMessRebateJob();
+      } catch (err) {
+        console.error("[MESS REBATE] Job failed:", err);
+        throw err;
+      }
+    },
+    { concurrency: 1 },
+  );
+
+  // Every day at 01:00 AM IST
+  agenda.every("0 1 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
+
+  console.log("[MESS REBATE] Scheduled: every day at 01:00 AM IST");
+};
 
 module.exports = {
   initializeMessRebateAutoScheduler,
-  schedulerStuff,
+  runMessRebateJob,
 };

@@ -146,7 +146,7 @@ const processUsersInIterations = async (users, capacityTracker) => {
   const rejectedUsers = queue
     .filter((u) => !state.get(u._id.toString())?.resolved)
     .map((u) => ({
-      id: u._id,
+      id: u._id.toString(),
       name: u.name,
       rollNumber: u.rollNumber,
       fromHostelId: state.get(u._id.toString())?.hostelId || u.hostel,

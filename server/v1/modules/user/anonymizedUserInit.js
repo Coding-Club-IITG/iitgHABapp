@@ -8,10 +8,12 @@ const { User } = require("./userModel");
  */
 const initializeAnonymizedUser = async () => {
   try {
-    const ANONYMIZED_USER_ID = new mongoose.Types.ObjectId('000000000000000000000000');
-    
+    const ANONYMIZED_USER_ID = new mongoose.Types.ObjectId(
+      "000000000000000000000000",
+    );
+
     const anonymizedUser = await User.findById(ANONYMIZED_USER_ID);
-    
+
     if (!anonymizedUser) {
       const user = new User({
         _id: ANONYMIZED_USER_ID,
@@ -21,14 +23,14 @@ const initializeAnonymizedUser = async () => {
         authProvider: "microsoft",
         hasMicrosoftLinked: false,
       });
-      
+
       await user.save();
-      console.log("✅ Anonymized user created successfully");
+      console.log("[ANONYMIZED USER] Created successfully");
     } else {
-      console.log("ℹ️ Anonymized user already exists");
+      console.log("[ANONYMIZED USER] Already exists");
     }
   } catch (error) {
-    console.error("❌ Error initializing anonymized user:", error);
+    console.error("[ANONYMIZED USER] Error initializing:", error);
     // Don't throw - allow server to continue even if this fails
   }
 };
@@ -36,4 +38,3 @@ const initializeAnonymizedUser = async () => {
 module.exports = {
   initializeAnonymizedUser,
 };
-

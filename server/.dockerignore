@@ -5,7 +5,5 @@
 *.log
 node_modules
 uploads
-v1/node_modules
-v1/uploads
+.secrets
 v2
-v2/node_modules

@@ -1,32 +1,31 @@
-// autoFeedbackScheduler.js
-
-const schedule = require("node-schedule");
 const { FeedbackSettings } = require("./feedbackSettingsModel");
 const {
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
 } = require("./feedbackController");
-const {
-  sendNotificationMessage,
-} = require("../notification/notificationController");
-const { getFeedbackWindowDates } = require("../../utils/windowDates.js");
 const admin = require("../notification/firebase");
 const { FCMToken } = require("../notification/FCMToken");
+const { getFeedbackWindowDates } = require("../../utils/windowDates.js");
+const agenda = require("../../utils/agenda.js");
+
+const JOB_ENABLE = "feedback-enable-check";
+const JOB_DISABLE = "feedback-disable-check";
+const JOB_REMIND_12H = "feedback-reminder-12h";
+const JOB_REMIND_2H = "feedback-reminder-2h";
 
 /**
- * Sends a targeted reminder only to students who haven't filled out the active feedback.
- * @param {number} hoursLeft - The number of hours remaining.
+ * Sends a targeted reminder only to students who haven't filled out the active feedback
+ * @param {number} hoursLeft - The number of hours remaining
  */
 const sendFeedbackReminder = async (hoursLeft) => {
   try {
     // 1. Find all users who have NOT filled out the current active feedback
-    // (Note: Ensure 'hasFilledCurrentFeedback' matches your actual boolean in userModel)
     const slackers = await User.find({
       hasFilledCurrentFeedback: false,
     }).select("_id");
 
     if (slackers.length === 0) {
-      console.log(`No feedback reminders needed for ${hoursLeft}hr mark.`);
+      console.log(`[FEEDBACK] No reminders needed for ${hoursLeft}hr mark`);
       return;
     }
 
@@ -49,155 +48,144 @@ const sendFeedbackReminder = async (hoursLeft) => {
       },
       android: {
         notification: {
-          channelId: "hab_feedback_reminders", // Allows users to mute this category in Android settings
+          channelId: "hab_feedback_reminders",
         },
       },
     });
 
     console.log(
-      `Sent ${hoursLeft}hr feedback reminder to ${response.successCount} users.`,
+      `[FEEDBACK] Sent ${hoursLeft}hr reminder to ${response.successCount} users`,
     );
   } catch (error) {
-    console.error("Error sending feedback reminders:", error);
+    console.error("[FEEDBACK] Error sending reminders:", error);
   }
 };
-
-// Use controller implementations for enable/disable so scheduler doesn't
-// duplicate business logic. They are imported from the controller below.
 
 // Schedule reminder notifications
 const scheduleFeedbackReminders = async () => {
   try {
-    // Cancel any existing jobs for feedback reminders
-    const existingJobs = schedule.scheduledJobs;
-    Object.keys(existingJobs).forEach((jobName) => {
-      if (jobName.startsWith("feedback-reminder-")) {
-        existingJobs[jobName].cancel();
-      }
-    });
-
     const settings = await FeedbackSettings.findOne();
-    if (!settings?.isEnabled || !settings.currentWindowClosingTime) {
-      return;
-    }
+    if (!settings?.isEnabled || !settings.currentWindowClosingTime) return;
 
     const closingTime = new Date(settings.currentWindowClosingTime);
     const now = new Date();
 
-    // 12 hours before closing (IST 11:59 AM on end day)
+    // Cancel any existing scheduled reminder jobs
+    await agenda.cancel({ name: { $in: [JOB_REMIND_12H, JOB_REMIND_2H] } });
+
+    // 12 hours before closing
     const reminder12h = new Date(closingTime.getTime() - 12 * 60 * 60 * 1000);
     if (reminder12h > now) {
-      const jobName12h = `feedback-reminder-12h-${Date.now()}`;
-      // schedule.scheduleJob(jobName12h, reminder12h, () => {
-      //   sendNotificationMessage(
-      //     "MESS FEEDBACK",
-      //     "Feedback Submission form will close in 12 hours",
-      //     "All_Hostels",
-      //     { redirectType: "mess_screen", isAlert: "true" },
-      //   ).catch((err) =>
-      //     console.error("📢 12h feedback reminder send failed:", err),
-      //   );
-      //   console.log("📢 Sent 12h feedback reminder");
-      // });
-      schedule.scheduleJob(jobName12h, reminder12h, () => {
-        sendFeedbackReminder(12);
-      });
+      await agenda.schedule(reminder12h, JOB_REMIND_12H);
       console.log(
-        `📅 [FEEDBACK] Scheduled 12h reminder for ${reminder12h.toLocaleString(
-          "en-IN",
-          {
-            timeZone: "Asia/Kolkata",
-          },
-        )}`,
+        `[FEEDBACK] Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
     }
 
-    // 2 hours before closing (IST 9:59 PM on end day)
+    // 2 hours before closing
     const reminder2h = new Date(closingTime.getTime() - 2 * 60 * 60 * 1000);
     if (reminder2h > now) {
-      const jobName2h = `feedback-reminder-2h-${Date.now()}`;
-      // schedule.scheduleJob(jobName2h, reminder2h, () => {
-      //   sendNotificationMessage(
-      //     "MESS FEEDBACK",
-      //     "Feedback Submission form will close in 2 hours",
-      //     "All_Hostels",
-      //     { redirectType: "mess_screen", isAlert: "true" },
-      //   ).catch((err) =>
-      //     console.error("📢 [FEEDBACK] 2h feedback reminder send failed:", err),
-      //   );
-      //   console.log("📢 [FEEDBACK] Sent 2h feedback reminder");
-      // });
-      schedule.scheduleJob(jobName2h, reminder2h, () => {
-        sendFeedbackReminder(2);
-      });
+      await agenda.schedule(reminder2h, JOB_REMIND_2H);
       console.log(
-        `📅 [FEEDBACK] Scheduled 2h reminder for ${reminder2h.toLocaleString(
-          "en-IN",
-          {
-            timeZone: "Asia/Kolkata",
-          },
-        )}`,
+        `[FEEDBACK] Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
     }
   } catch (error) {
-    console.error("❌ Error scheduling feedback reminders:", error);
+    console.error("[FEEDBACK] Error scheduling reminders:", error);
   }
 };
 
 // Initialize feedback scheduler
 const initializeFeedbackAutoScheduler = () => {
-  console.log("🚀 Initializing automatic feedback scheduler...");
+  // Runs daily at 9 AM IST
+  agenda.define(
+    JOB_ENABLE,
+    async (job) => {
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const day = now.getDate();
 
-  // Schedule for feedback enable - runs daily at 9 AM IST
-  schedule.scheduleJob("0 9 * * *", async () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const day = now.getDate();
+        const { startDate, endDate } = getFeedbackWindowDates(month, year);
 
-    let startDay;
-    if (month === 1) {
-      startDay = 23; // February
-    } else {
-      startDay = 25; // Other months
-    }
-
-    // Check if today is the start date
-    if (day === startDay) {
-      console.log(
-        `📅 Feedback start date detected: ${day}/${month + 1}/${year}`,
-      );
-      await enableFeedbackAutomatic();
-      await scheduleFeedbackReminders();
-    }
-  });
-
-  // Schedule to close the window - runs daily at 12:01 AM IST
-  schedule.scheduleJob("1 0 * * *", async () => {
-    try {
-      const settings = await FeedbackSettings.findOne();
-      if (settings?.isEnabled && settings.currentWindowClosingTime) {
-        if (new Date() > new Date(settings.currentWindowClosingTime)) {
-          console.log(`📅 Feedback closing time reached, disabling now.`);
-          await disableFeedbackAutomatic();
+        if (day === startDate.getDate()) {
+          console.log(
+            `[FEEDBACK] Start date detected: ${day}/${month + 1}/${year}`,
+          );
+          await enableFeedbackAutomatic(endDate);
+          await scheduleFeedbackReminders();
         }
+      } catch (e) {
+        console.error("[FEEDBACK] Enable check job failed:", e);
+        throw e;
       }
-    } catch (e) {
-      console.error("❌ Error in automatic feedback closing job:", e);
-    }
-  });
+    },
+    { concurrency: 1 },
+  );
 
-  console.log("✅ Automatic feedback scheduler initialized");
-  // Schedule reminders if feedback is already enabled
-  FeedbackSettings.findOne().then(async (settings) => {
-    if (settings?.isEnabled) {
-      await scheduleFeedbackReminders();
-    }
-  });
+  // Runs daily at 12:01 AM IST
+  agenda.define(
+    JOB_DISABLE,
+    async (job) => {
+      try {
+        const settings = await FeedbackSettings.findOne();
+        if (settings?.isEnabled && settings.currentWindowClosingTime) {
+          if (new Date() > new Date(settings.currentWindowClosingTime)) {
+            console.log(`[FEEDBACK] Closing time reached, disabling now.`);
+            await disableFeedbackAutomatic();
+          }
+        }
+      } catch (e) {
+        console.error("[FEEDBACK] Disable check job failed:", e);
+        throw e;
+      }
+    },
+    { concurrency: 1 },
+  );
+
+  // 12h reminder
+  agenda.define(
+    JOB_REMIND_12H,
+    async (job) => {
+      await sendFeedbackReminder(12);
+    },
+    { concurrency: 1 },
+  );
+
+  // 2h reminder
+  agenda.define(
+    JOB_REMIND_2H,
+    async (job) => {
+      await sendFeedbackReminder(2);
+    },
+    { concurrency: 1 },
+  );
+
+  // Set up recurring schedules
+  agenda.every("0 9 * * *", JOB_ENABLE, {}, { timezone: "Asia/Kolkata" });
+  agenda.every("1 0 * * *", JOB_DISABLE, {}, { timezone: "Asia/Kolkata" });
+
+  console.log("[FEEDBACK] Scheduler initialized");
+
+  // Restore reminders on boot if the window was already open before restart
+  FeedbackSettings.findOne()
+    .then(async (settings) => {
+      if (settings?.isEnabled) {
+        console.log(
+          "[FEEDBACK] Feedback window already open, restoring reminder jobs",
+        );
+        await scheduleFeedbackReminders();
+      }
+    })
+    .catch((err) =>
+      console.error("[FEEDBACK] Boot-time reminder restore failed:", err),
+    );
 };
 
 module.exports = {
   initializeFeedbackAutoScheduler,
+  scheduleFeedbackReminders,
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
   getFeedbackWindowDates,
