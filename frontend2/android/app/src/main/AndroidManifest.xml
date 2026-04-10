@@ -10,7 +10,8 @@
 
     <application
         android:label="HABit"
-        android:icon="@mipmap/hab_icon">
+        android:icon="@mipmap/hab_icon"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"

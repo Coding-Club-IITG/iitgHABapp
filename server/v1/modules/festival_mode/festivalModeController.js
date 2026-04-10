@@ -1,0 +1,335 @@
+const axios = require("axios");
+const FestivalMode = require("./festivalModeModel.js");
+const AppError = require("../../utils/appError.js");
+const path = require("path");
+const multer = require("multer");
+const {
+  uploadFestivalImageToOneDrive,
+  deleteFestivalImageFromOneDrive,
+} = require("./onedriveFestivalUpload.js");
+const { getDelegatedAccessToken } = require("../../utils/delegatedGraphAuth.js");
+
+
+// Memory storage for multer - OneDrive handles the actual storage
+const upload = multer({ storage: multer.memoryStorage() });
+
+const buildFestivalImageProxyUrl = (req, itemId) => {
+  // Return relative URL with /api prefix that clients can resolve
+  // Clients prepend only the host part (protocol+domain:port) to form the full URL
+  return `/api/festival-mode/image/item/${itemId}`;
+};
+
+const getImageResponseFromData = (req, imageData) => {
+  if (!imageData) return null;
+  return {
+    ...imageData,
+    url: imageData.itemId ? buildFestivalImageProxyUrl(req, imageData.itemId) : imageData.url || null,
+  };
+};
+
+/**
+ * GET /api/festival-mode/status
+ * Public endpoint - no authentication needed
+ * Returns current festival mode config with image URLs
+ */
+const getFestivalModeStatus = async (req, res, next) => {
+  try {
+    let festivalMode = await FestivalMode.findOne();
+
+    // If no document exists, create a default disabled state
+    if (!festivalMode) {
+      festivalMode = await FestivalMode.create({
+        isEnabled: false,
+        cacheUntil: new Date(Date.now() + 6 * 60 * 60 * 1000),
+      });
+    }
+
+    // Check if it has expired
+    if (festivalMode.expiresAt && new Date() > festivalMode.expiresAt) {
+      festivalMode.isEnabled = false;
+      await festivalMode.save();
+    }
+
+    const withAlerts = getImageResponseFromData(req, festivalMode.imageWithAlerts);
+    const withoutAlerts = getImageResponseFromData(req, festivalMode.imageWithoutAlerts);
+
+    res.status(200).json({
+      festivalId: festivalMode._id,
+      isEnabled: festivalMode.isEnabled,
+      imageWithAlerts: withAlerts?.url || null,
+      imageWithoutAlerts: withoutAlerts?.url || null,
+      overlayTextWithAlerts: festivalMode.imageWithAlerts?.overlayText || "Happy Diwali",
+      overlayTextWithoutAlerts: festivalMode.imageWithoutAlerts?.overlayText || "Happy Diwali",
+      lastUpdatedAt: festivalMode.lastUpdatedAt,
+      cacheUntil: festivalMode.cacheUntil, // Tell mobile app when to refresh
+    });
+  } catch (err) {
+    console.error("Error fetching festival mode:", err);
+    next(new AppError(500, "Failed to fetch festival mode"));
+  }
+};
+
+/**
+ * POST /api/festival-mode/upload
+ * Admin only - upload festival images to OneDrive
+ * Body: FormData { imageType: "with_alerts" | "without_alerts", file }
+ */
+const uploadFestivalImage = async (req, res, next) => {
+  try {
+    if (!req.file) {
+      return next(new AppError(400, "Image file is required"));
+    }
+
+    const { imageType } = req.body;
+    if (!["with_alerts", "without_alerts"].includes(imageType)) {
+      return next(new AppError(400, "Invalid imageType"));
+    }
+
+    // Validate file is an image
+    if (!req.file.mimetype.startsWith("image/")) {
+      return next(new AppError(400, "File must be an image"));
+    }
+
+    // Max 5MB for festival images
+    if (req.file.size > 5 * 1024 * 1024) {
+      return next(new AppError(400, "Image must be less than 5MB"));
+    }
+
+    let festivalMode = await FestivalMode.findOne();
+    if (!festivalMode) {
+      festivalMode = await FestivalMode.create({ isEnabled: false });
+    }
+
+    // Generate unique filename
+    const timestamp = Date.now();
+    const ext = path.extname(req.file.originalname);
+    const fileName = `festival-${imageType}-${timestamp}${ext}`;
+
+    // Upload to OneDrive
+    let uploaded;
+    try {
+      console.log(`[Festival] Starting OneDrive upload: ${fileName}, size: ${req.file.size} bytes`);
+      uploaded = await uploadFestivalImageToOneDrive(
+        req.file.buffer,
+        req.file.mimetype,
+        fileName,
+      );
+      console.log(`[Festival] Upload successful, itemId: ${uploaded.itemId}`);
+    } catch (err) {
+      console.error("OneDrive upload error:", {
+        message: err.message,
+        status: err.response?.status,
+        errorCode: err.response?.data?.error?.code,
+        errorMessage: err.response?.data?.error?.message,
+        fullError: JSON.stringify(err.response?.data || {}),
+      });
+      // Use 502 for OneDrive auth issues, 500 for other OneDrive errors
+      const statusCode = err.message?.includes("delegated token") ? 502 : 500;
+      return next(
+        new AppError(
+          statusCode,
+          err.response?.data?.error?.message || err.message || "Failed to upload image to OneDrive",
+        ),
+      );
+    }
+
+    const { overlayText } = req.body;
+    const imageRecord = {
+      url: uploaded.url,
+      itemId: uploaded.itemId,
+      overlayText: overlayText || "Happy Diwali",
+    };
+
+    if (imageType === "with_alerts") {
+      festivalMode.imageWithAlerts = imageRecord;
+    } else {
+      festivalMode.imageWithoutAlerts = imageRecord;
+    }
+
+    festivalMode.lastUpdatedBy = req.user._id;
+    festivalMode.lastUpdatedAt = new Date();
+    festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    await festivalMode.save();
+
+    const proxyUrl = buildFestivalImageProxyUrl(req, uploaded.itemId);
+    return res.status(200).json({
+      success: true,
+      imageType,
+      url: proxyUrl,
+      itemId: uploaded.itemId,
+      uploadedAt: festivalMode.lastUpdatedAt,
+      message: "Image uploaded successfully",
+    });
+  } catch (err) {
+    console.error("Error in uploadFestivalImage:", err);
+    next(
+      new AppError(500, err.message || "Failed to upload festival image")
+    );
+  }
+};
+
+/**
+ * POST /api/festival-mode/toggle
+ * Admin only - enable/disable festival mode
+ * Body: { isEnabled: Boolean }
+ */
+const toggleFestivalMode = async (req, res, next) => {
+  try {
+    const { isEnabled, expiresAt } = req.body;
+
+    let festivalMode = await FestivalMode.findOne();
+    if (!festivalMode) {
+      festivalMode = await FestivalMode.create({ isEnabled: false });
+    }
+
+    festivalMode.isEnabled = Boolean(isEnabled);
+    if (expiresAt) {
+      festivalMode.expiresAt = new Date(expiresAt);
+    }
+
+    festivalMode.lastUpdatedBy = req.user._id;
+    festivalMode.lastUpdatedAt = new Date();
+    // Reset cache timer on any change
+    festivalMode.cacheUntil = new Date(
+      Date.now() + 6 * 60 * 60 * 1000
+    );
+
+    await festivalMode.save();
+
+    res.status(200).json({
+      success: true,
+      isEnabled: festivalMode.isEnabled,
+      message: `Festival mode ${isEnabled ? "enabled" : "disabled"}`,
+    });
+  } catch (err) {
+    console.error("Error toggling festival mode:", err);
+    next(new AppError(500, "Failed to update festival mode"));
+  }
+};
+
+/**
+ * DELETE /api/festival-mode/image/:imageType
+ * Admin only - delete a festival image
+ */
+const deleteFestivalImage = async (req, res, next) => {
+  try {
+    const { imageType } = req.params;
+    if (!["with_alerts", "without_alerts"].includes(imageType)) {
+      return next(new AppError(400, "Invalid imageType"));
+    }
+
+    let festivalMode = await FestivalMode.findOne();
+    if (!festivalMode) {
+      return next(new AppError(404, "Festival mode not configured"));
+    }
+
+    let imageData = null;
+    if (imageType === "with_alerts") {
+      imageData = festivalMode.imageWithAlerts;
+      festivalMode.imageWithAlerts = null;
+    } else {
+      imageData = festivalMode.imageWithoutAlerts;
+      festivalMode.imageWithoutAlerts = null;
+    }
+
+    if (!imageData) {
+      return res.status(200).json({
+        success: true,
+        message: "No image to delete",
+      });
+    }
+
+    // Delete from OneDrive if itemId exists
+    if (imageData.itemId) {
+      try {
+        await deleteFestivalImageFromOneDrive(imageData.itemId);
+      } catch (oneDriveErr) {
+        console.warn("OneDrive deletion warning:", oneDriveErr.message);
+        // Don't fail if the item was already removed externally
+      }
+    }
+
+    festivalMode.lastUpdatedBy = req.user._id;
+    festivalMode.lastUpdatedAt = new Date();
+    festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
+
+    await festivalMode.save();
+
+    res.status(200).json({
+      success: true,
+      imageType,
+      message: "Image deleted successfully",
+    });
+  } catch (err) {
+    console.error("Error deleting festival image:", err);
+    next(new AppError(500, "Failed to delete festival image"));
+  }
+};
+
+/**
+ * GET /api/festival-mode/admin/config
+ * Admin only - get detailed config for admin panel
+ */
+const getFestivalImageContent = async (req, res, next) => {
+  try {
+    const { itemId } = req.params;
+    if (!itemId) {
+      return next(new AppError(400, "itemId is required"));
+    }
+
+    const token = await getDelegatedAccessToken();
+    const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}/content`;
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+      responseType: "stream",
+      validateStatus: (status) => status < 500,
+    });
+
+    if (response.status >= 400) {
+      const message = response.data?.error?.message || "Failed to download festival image";
+      return next(new AppError(response.status || 500, message));
+    }
+
+    res.setHeader("Content-Type", response.headers["content-type"] || "application/octet-stream");
+    res.setHeader("Cache-Control", "public, max-age=300");
+    response.data.pipe(res);
+  } catch (err) {
+    console.error("Error proxying festival image content:", err);
+    next(new AppError(500, err.message || "Failed to fetch festival image"));
+  }
+};
+
+const getAdminFestivalConfig = async (req, res, next) => {
+  try {
+    let festivalMode = await FestivalMode.findOne().populate("lastUpdatedBy", "name email");
+
+    if (!festivalMode) {
+      festivalMode = await FestivalMode.create({ isEnabled: false });
+    }
+
+    res.status(200).json({
+      festivalId: festivalMode._id,
+      _id: festivalMode._id,
+      isEnabled: festivalMode.isEnabled,
+      imageWithAlerts: getImageResponseFromData(req, festivalMode.imageWithAlerts),
+      imageWithoutAlerts: getImageResponseFromData(req, festivalMode.imageWithoutAlerts),
+      lastUpdatedBy: festivalMode.lastUpdatedBy,
+      lastUpdatedAt: festivalMode.lastUpdatedAt,
+      expiresAt: festivalMode.expiresAt,
+      cacheUntil: festivalMode.cacheUntil,
+    });
+  } catch (err) {
+    console.error("Error fetching admin config:", err);
+    next(new AppError(500, "Failed to fetch festival config"));
+  }
+};
+
+module.exports = {
+  getFestivalModeStatus,
+  uploadFestivalImage,
+  toggleFestivalMode,
+  deleteFestivalImage,
+  getFestivalImageContent,
+  getAdminFestivalConfig,
+  upload,
+};

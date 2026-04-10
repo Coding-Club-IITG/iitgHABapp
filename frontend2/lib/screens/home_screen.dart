@@ -25,6 +25,8 @@ import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
 // import 'package:frontend2/widgets/countdown.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
+import 'package:frontend2/widgets/festival_background_widget.dart';
+import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -64,11 +66,12 @@ class _HomeScreenState extends State<HomeScreen>
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
   static const generalSans = 'GeneralSans';
-
+  bool _isFestivalActive = false;
   String name = '';
   String currSubscribedMess = '';
   String? token;
   String? userHostelId;
+  bool _hasAlerts = false;
   final ValueNotifier<_QuickActionStatusData> _scanQrStatusNotifier =
       ValueNotifier(
           const _QuickActionStatusData(status: 'Closed', color: textMuted));
@@ -77,7 +80,7 @@ class _HomeScreenState extends State<HomeScreen>
   late final AnimationController _shimmerController;
   late final Animation<double> _shimmerAnimation;
   WeatherBackgroundData _weatherBackground = WeatherBackgroundData.fallback();
-
+  late Future<FestivalModeData> _festivalFuture;
   @override
   void initState() {
     super.initState();
@@ -88,9 +91,19 @@ class _HomeScreenState extends State<HomeScreen>
     _shimmerAnimation = Tween<double>(begin: -1.5, end: 2.5).animate(
       CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
     );
+    _festivalFuture =
+        Future.value(FestivalModeData.disabled()); // temp placeholder
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() {
+        _festivalFuture =
+            FestivalModeService().fetchFestivalMode(context: context);
+      });
+    });
     fetchUserData();
     fetchMessIdAndToken();
     _loadWeatherBackground();
+    _checkForAlerts();
     _startScanQrStatusTicker();
     _startWeatherBackgroundTicker();
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
@@ -149,10 +162,29 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _onRefreshRequested() {
     if (homeScreenRefreshNotifier.value) {
+      // move the guard UP
+      setState(() {
+        _festivalFuture =
+            FestivalModeService().fetchFestivalMode(context: context);
+      });
       fetchUserData();
       fetchMessIdAndToken();
       _loadWeatherBackground();
+      _checkForAlerts();
       homeScreenRefreshNotifier.value = false;
+    }
+  }
+
+  Future<void> _checkForAlerts() async {
+    try {
+      // Check for important messages (newsletter/announcements)
+      // If there are any active alerts, hasAlerts = true
+      final hasMessages = true; // Placeholder - connect to your alerts API
+      if (mounted) {
+        setState(() => _hasAlerts = hasMessages);
+      }
+    } catch (e) {
+      debugPrint('Error checking alerts: $e');
     }
   }
 
@@ -181,6 +213,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadWeatherBackground() async {
+    final festivalData =
+        await _festivalFuture.catchError((_) => FestivalModeData.disabled());
+    if (festivalData.isEnabled) return;
     WeatherBackgroundData nextBackground;
 
     if (_isWeatherBackgroundTesting) {
@@ -898,6 +933,9 @@ class _HomeScreenState extends State<HomeScreen>
                     'assets/images/default_profile.png',
                     fit: BoxFit.cover,
                   ),
+                    'assets/images/default_profile.png',
+                    fit: BoxFit.cover,
+                  ),
           );
         },
       ),
@@ -1519,11 +1557,103 @@ class _HomeScreenState extends State<HomeScreen>
           ],
         );
       },
+    return FutureBuilder<FestivalModeData>(
+      future: _festivalFuture,
+      builder: (context, snapshot) {
+        final isFestivalActive = snapshot.hasData && snapshot.data!.isEnabled;
+
+        if (isFestivalActive != _isFestivalActive) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) setState(() => _isFestivalActive = isFestivalActive);
+          });
+        }
+
+        final DecorationImage? bgImage = isFestivalActive
+            ? null
+            : DecorationImage(
+                image: AssetImage(_weatherBackground.assetPath),
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              );
+
+        return Column(
+          children: [
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 400),
+              width: double.infinity,
+              decoration: BoxDecoration(image: bgImage),
+              child: Container(
+                decoration: isFestivalActive
+                    ? null
+                    : const BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Color(0x2E000000),
+                            Color(0x12000000),
+                            Color(0x00FFFFFF),
+                            Color(0xFFFFFFFF),
+                          ],
+                          stops: [0.0, 0.34, 0.72, 1.0],
+                        ),
+                      ),
+                child: Column(
+                  children: [
+                    _buildTopBar(onWeatherBackground: true),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                      child: _buildAlertsSection(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Container(
+              height: 20,
+              decoration: BoxDecoration(
+                color: isFestivalActive ? Colors.transparent : pageBackground,
+                borderRadius:
+                    const BorderRadius.vertical(top: Radius.circular(28)),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    return FestivalBackgroundBuilder(
+      hasAlerts: _hasAlerts,
+      builder: (context) {
+        return Scaffold(
+          backgroundColor:
+              _isFestivalActive ? Colors.transparent : pageBackground,
+          body: SingleChildScrollView(
+            child: Column(
+              children: [
+                _buildWeatherHeroSection(),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
+                  child: ValueListenableBuilder<List<String>>(
+                    valueListenable: HostelsNotifier.hostelNotifier,
+                    builder: (context, _, __) => _buildQuickActionsSection(),
+                  ),
+                ),
+                if (currSubscribedMess.isNotEmpty) ...[
+                  _buildSectionDivider(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 24, 16, 32),
+                    child: _buildMessSection(),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        );
+      },
     return Scaffold(
       backgroundColor: pageBackground,
       body: SingleChildScrollView(

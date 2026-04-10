@@ -417,8 +417,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                       setModalState(() {
                                         _inprogress = false;
                                       });
-                                      final errorMessage =
-                                          _getErrorMessage(e);
+                                      final errorMessage = _getErrorMessage(e);
                                       messenger.showSnackBar(
                                         SnackBar(
                                           content: Center(
@@ -724,4 +723,3 @@ class FeatureButton extends StatelessWidget {
     );
   }
 }
-

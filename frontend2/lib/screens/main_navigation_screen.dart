@@ -70,7 +70,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
       await fetchUserProfilePicture();
     } catch (_) {}
     try {
-      await getUserMessInfo();
+      //await getUserMessInfo();
     } catch (_) {}
     if (mounted) setState(() => _homeDataReady = true);
   }

@@ -45,7 +45,7 @@ Future<void> authenticate() async {
 
     await fetchUserDetails();
     await fetchUserProfilePicture();
-    await getUserMessInfo();
+    //await getUserMessInfo(); remove comment for sure
     // await registerFcmToken();
     await HostelsNotifier.init();
     ProfilePictureProvider.init();
@@ -63,7 +63,7 @@ Future<void> authenticate() async {
 Future<void> guestAuthenticate() async {
   try {
     final dio = DioClient().dio;
-     // Send empty body - backend will handle guest login automatically
+    // Send empty body - backend will handle guest login automatically
     // Old app versions may send email/password, but backend accepts and ignores them
     final resp = await dio.post(
       '$baseUrl/auth/guest',
@@ -77,6 +77,9 @@ Future<void> guestAuthenticate() async {
         resp.data['accessToken'] == null) {
       throw ('Guest login failed: Missing access token');
     }
+
+    final refreshToken =
+        resp.data['refreshToken'] ?? resp.data['refresh_token'];
 
     final prefs = await SharedPreferences.getInstance();
     final accessToken = resp.data['accessToken'];
@@ -224,7 +227,7 @@ Future<void> signInWithApple() async {
     await fetchUserDetails();
     // Only fetch mess info if user has Microsoft linked (has roll number and mess subscription)
     if (hasMicrosoftLinked) {
-      await getUserMessInfo();
+      //await getUserMessInfo();
     }
     // await registerFcmToken();
     await HostelsNotifier.init();
@@ -283,7 +286,8 @@ Future<void> linkMicrosoftAccount() async {
     prefs.setBool('hasMicrosoftLinked', true);
 
     // If accounts were merged, backend returns a new token - update it
-    if (response.data['accessToken'] != null && response.data['refreshToken'] != null) {
+    if (response.data['accessToken'] != null &&
+        response.data['refreshToken'] != null) {
       prefs.setString('access_token', response.data['accessToken']);
       prefs.setString('refresh_token', response.data['refreshToken']);
     }
