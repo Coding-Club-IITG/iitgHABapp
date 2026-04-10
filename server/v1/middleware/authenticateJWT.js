@@ -88,6 +88,11 @@ const authenticateUserOrAdminJWT = async (req, res, next) => {
     }
 
     return next(new AppError(403, "Not Authenticated"));
+  } catch (err) {
+    if (err instanceof AppError) return next(err);
+    console.error("Error verifying token:", err);
+    return next(new AppError(500, "Server error during authentication"));
+  }
 };
 
 const authenticateHabJWT = async (req, res, next) => {
