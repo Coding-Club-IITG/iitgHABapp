@@ -10,7 +10,11 @@ import '../apis/mess/menu_like.dart';
 import '../apis/mess/mess_menu.dart';
 import '../models/mess_menu_model.dart';
 import '../providers/hostels.dart';
+import '../models/mess_info_model.dart';
 import '../utilities/startupitem.dart';
+import '../widgets/common/hostel_logo.dart';
+import 'leave_application_list_screen.dart';
+import 'mess_preference.dart';
 
 class MessApp extends StatefulWidget {
   final bool active;
@@ -54,6 +58,10 @@ class _MessScreenState extends State<MessScreen> {
   static const redSoft = Color(0xFFFCF0F0);
   static const greySoft = Color(0xFFF5F5F5);
   static const shadow = Color(0x14000000);
+  /// Figma: section separator between menu and lower blocks
+  static const sectionDividerGrey = Color(0xFFF0F0F0);
+  /// Vertical gap between content and full-bleed section dividers (matches Figma rhythm).
+  static const double sectionGap = 20;
 
   bool _isLoading = true;
   bool _startedLoading = false;
@@ -80,32 +88,30 @@ class _MessScreenState extends State<MessScreen> {
               bottom: false,
               child: Padding(
                 padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-                child: Row(
-                  children: [
-                    Text(
-                      'Mess',
-                      style: TextStyle(
-                        fontSize: 32,
-                        height: 48 / 32,
-                        fontWeight: FontWeight.w500,
-                        color: textPrimary,
-                      ),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Mess',
+                    style: TextStyle(
+                      fontFamily: 'GeneralSans',
+                      fontSize: 32,
+                      height: 48 / 32,
+                      fontWeight: FontWeight.w500,
+                      color: textPrimary,
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),
           ),
           const Expanded(
             child: SingleChildScrollView(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 20, 16, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _MenuSection(),
-                  ],
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(height: 20),
+                  _MenuSection(),
+                ],
               ),
             ),
           ),
@@ -163,6 +169,8 @@ class _MenuSectionState extends State<_MenuSection> {
   bool _menuRequested = false;
   List<MenuModel> _menus = const [];
   bool _isMenuLoading = true;
+  /// True while loading after user picked another hostel — full-page shimmers.
+  bool _hostelTransitionLoading = false;
   String? _menuError;
   Timer? _statusTicker;
   final ScrollController _dayScrollController = ScrollController();
@@ -225,7 +233,15 @@ class _MenuSectionState extends State<_MenuSection> {
 
   Future<void> _loadMenus() async {
     final currentMessId = messId;
-    if (currentMessId == null || currentMessId.isEmpty) return;
+    if (currentMessId == null || currentMessId.isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isMenuLoading = false;
+          _hostelTransitionLoading = false;
+        });
+      }
+      return;
+    }
 
     setState(() {
       _isMenuLoading = true;
@@ -234,17 +250,35 @@ class _MenuSectionState extends State<_MenuSection> {
 
     try {
       final menus = await fetchMenu(currentMessId, selectedDay);
-      if (!mounted || messId != currentMessId) return;
+      if (!mounted || messId != currentMessId) {
+        if (mounted) {
+          setState(() {
+            _isMenuLoading = false;
+            _hostelTransitionLoading = false;
+          });
+        }
+        return;
+      }
       setState(() {
         _menus = menus;
         _isMenuLoading = false;
+        _hostelTransitionLoading = false;
       });
     } catch (_) {
-      if (!mounted || messId != currentMessId) return;
+      if (!mounted || messId != currentMessId) {
+        if (mounted) {
+          setState(() {
+            _isMenuLoading = false;
+            _hostelTransitionLoading = false;
+          });
+        }
+        return;
+      }
       setState(() {
         _menus = const [];
         _menuError = 'Unable to fetch menu';
         _isMenuLoading = false;
+        _hostelTransitionLoading = false;
       });
     }
   }
@@ -293,6 +327,7 @@ class _MenuSectionState extends State<_MenuSection> {
       selectedHostel = hostelName;
       messId = id;
       _menuRequested = true;
+      _hostelTransitionLoading = true;
     });
     _loadMenus();
   }
@@ -331,65 +366,193 @@ class _MenuSectionState extends State<_MenuSection> {
     _initializeFromProvider(hostelMap);
     _requestInitialMenuLoad();
 
+    final fullPageShimmer = _hostelTransitionLoading;
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
-          children: [
-            const Text(
-              'Menu',
-              style: TextStyle(
-                fontSize: 16,
-                height: 24 / 16,
-                fontWeight: FontWeight.w500,
-                color: _MessScreenState.textSecondary,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            16,
+            0,
+            16,
+            _MessScreenState.sectionGap,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Text(
+                    'Menu',
+                    style: TextStyle(
+                      fontFamily: 'GeneralSans',
+                      fontSize: 16,
+                      height: 24 / 16,
+                      fontWeight: FontWeight.w500,
+                      color: _MessScreenState.textSecondary,
+                    ),
+                  ),
+                  const Spacer(),
+                  _HostelSelector(
+                    selectedHostel: selectedHostel,
+                    hostelNames:
+                        hostelMap.keys.map((e) => e.toString()).toList(),
+                    onSelected: _updateMess,
+                  ),
+                ],
               ),
-            ),
-            const Spacer(),
-            _HostelSelector(
-              selectedHostel: selectedHostel,
-              hostelNames: hostelMap.keys.map((e) => e.toString()).toList(),
-              onSelected: _updateMess,
-            ),
-          ],
-        ),
-        const SizedBox(height: 20),
-        SizedBox(
-          height: 36,
-          child: ListView.separated(
-            controller: _dayScrollController,
-            scrollDirection: Axis.horizontal,
-            itemCount: daysOnly.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
-            itemBuilder: (context, index) {
-              final day = daysOnly[index];
-              return KeyedSubtree(
-                key: _dayChipKeys[index],
-                child: _DayChip(
-                  label: day,
-                  selected: selectedDay == day,
-                  onTap: () => _updateDay(day),
+              const SizedBox(height: 20),
+              if (fullPageShimmer) ...[
+                const _MessMenuBodyLoadingSkeleton(),
+              ] else ...[
+                SizedBox(
+                  height: 36,
+                  child: ListView.separated(
+                    controller: _dayScrollController,
+                    scrollDirection: Axis.horizontal,
+                    itemCount: daysOnly.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (context, index) {
+                      final day = daysOnly[index];
+                      return KeyedSubtree(
+                        key: _dayChipKeys[index],
+                        child: _DayChip(
+                          label: day,
+                          selected: selectedDay == day,
+                          onTap: () => _updateDay(day),
+                        ),
+                      );
+                    },
+                  ),
                 ),
-              );
-            },
+                const SizedBox(height: 20),
+                if (_isMenuLoading)
+                  const _MenuLoadingState()
+                else if (_menuError != null)
+                  const _MenuErrorCard()
+                else if (_menus.isEmpty)
+                  const _MenuEmptyCard()
+                else
+                  _MealList(
+                    key: ValueKey('$messId-$selectedDay'),
+                    menus: _menus,
+                    selectedDay: selectedDay,
+                    userMessId: userMessId ?? '',
+                    selectedMessId: messId ?? '',
+                  ),
+              ],
+            ],
           ),
         ),
-        const SizedBox(height: 20),
-        if (_isMenuLoading)
-          const _MenuLoadingState()
-        else if (_menuError != null)
-          const _MenuErrorCard()
-        else if (_menus.isEmpty)
-          const _MenuEmptyCard()
-        else
-          _MealList(
-            key: ValueKey('$messId-$selectedDay'),
-            menus: _menus,
-            selectedDay: selectedDay,
-            userMessId: userMessId ?? '',
-            selectedMessId: messId ?? '',
+        if (fullPageShimmer)
+          const _MessLowerPageSkeleton()
+        else ...[
+          const _MessScreenSectionDivider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              _MessScreenState.sectionGap,
+              16,
+              _MessScreenState.sectionGap,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const _MessChangeRow(),
+                const SizedBox(height: _MessScreenState.sectionGap),
+                const _MessRebateRow(),
+              ],
+            ),
           ),
+          const _MessScreenSectionDivider(),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              16,
+              _MessScreenState.sectionGap,
+              16,
+              32,
+            ),
+            child: _MessInfoSection(
+              selectedHostel: selectedHostel,
+              hostelMap: hostelMap,
+            ),
+          ),
+        ],
       ],
+    );
+  }
+}
+
+/// Same card style as [_MessRebateRow]; opens mess change (preference) flow.
+class _MessChangeRow extends StatelessWidget {
+  const _MessChangeRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const MessChangePreferenceScreen(),
+            ),
+          );
+        },
+        child: Ink(
+          decoration: BoxDecoration(
+            color: _MessScreenState.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _MessScreenState.border),
+            boxShadow: const [
+              BoxShadow(
+                color: _MessScreenState.shadow,
+                blurRadius: 16,
+                offset: Offset(0, 0),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _MessScreenState.primarySoft,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.swap_horiz_rounded,
+                    size: 24,
+                    color: _MessScreenState.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Mess Change',
+                    style: TextStyle(
+                      fontFamily: 'GeneralSans',
+                      fontSize: 16,
+                      height: 24 / 16,
+                      fontWeight: FontWeight.w500,
+                      color: _MessScreenState.textPrimary,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: _MessScreenState.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -1053,7 +1216,41 @@ class _MenuLoadingState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const _MessMenuLoadingSkeleton();
+    return const _MessMenuBodyLoadingSkeleton();
+  }
+}
+
+/// Day chips + meal cards + hint (no duplicate "Menu" row — use under real header).
+class _MessMenuBodyLoadingSkeleton extends StatelessWidget {
+  const _MessMenuBodyLoadingSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _MessDayChipsSkeleton(),
+        SizedBox(height: 20),
+        _MessMealCardSkeleton(expanded: false),
+        SizedBox(height: 12),
+        _MessMealCardSkeleton(expanded: false),
+        SizedBox(height: 12),
+        _MessMealCardSkeleton(expanded: false),
+        SizedBox(height: 16),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            _MessShimmerBlock(
+              height: 16,
+              width: 16,
+              radius: BorderRadius.all(Radius.circular(8)),
+            ),
+            SizedBox(width: 6),
+            _MessShimmerBlock(height: 18, width: 220),
+          ],
+        ),
+      ],
+    );
   }
 }
 
@@ -1117,25 +1314,163 @@ class _MessMenuLoadingSkeleton extends StatelessWidget {
           ],
         ),
         SizedBox(height: 20),
-        _MessDayChipsSkeleton(),
-        SizedBox(height: 20),
-        _MessMealCardSkeleton(expanded: false),
-        SizedBox(height: 12),
-        _MessMealCardSkeleton(expanded: false),
-        SizedBox(height: 12),
-        _MessMealCardSkeleton(expanded: false),
-        SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            _MessShimmerBlock(
-              height: 16,
-              width: 16,
-              radius: BorderRadius.all(Radius.circular(8)),
-            ),
-            SizedBox(width: 6),
-            _MessShimmerBlock(height: 18, width: 220),
-          ],
+        _MessMenuBodyLoadingSkeleton(),
+      ],
+    );
+  }
+}
+
+/// Dividers + Mess Change / Rebate / Mess Info placeholders (hostel switch loading).
+class _MessLowerPageSkeleton extends StatelessWidget {
+  const _MessLowerPageSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _MessScreenSectionDivider(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            16,
+            _MessScreenState.sectionGap,
+            16,
+            _MessScreenState.sectionGap,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: const [
+              _MessActionRowSkeleton(),
+              SizedBox(height: _MessScreenState.sectionGap),
+              _MessActionRowSkeleton(),
+            ],
+          ),
+        ),
+        const _MessScreenSectionDivider(),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(
+            16,
+            _MessScreenState.sectionGap,
+            16,
+            32,
+          ),
+          child: _MessInfoCardSkeleton(),
+        ),
+      ],
+    );
+  }
+}
+
+class _MessActionRowSkeleton extends StatelessWidget {
+  const _MessActionRowSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _MessScreenState.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: _MessScreenState.border),
+        boxShadow: const [
+          BoxShadow(
+            color: _MessScreenState.shadow,
+            blurRadius: 16,
+            offset: Offset(0, 0),
+          ),
+        ],
+      ),
+      child: const Row(
+        children: [
+          _MessShimmerBlock(
+            height: 40,
+            width: 40,
+            radius: BorderRadius.all(Radius.circular(18)),
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: _MessShimmerBlock(height: 20, width: 120),
+          ),
+          SizedBox(width: 8),
+          _MessShimmerBlock(height: 20, width: 20),
+        ],
+      ),
+    );
+  }
+}
+
+class _MessInfoCardSkeleton extends StatelessWidget {
+  const _MessInfoCardSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _MessShimmerBlock(height: 16, width: 72),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _MessScreenState.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _MessScreenState.border),
+            boxShadow: const [
+              BoxShadow(
+                color: _MessScreenState.shadow,
+                blurRadius: 16,
+                offset: Offset(0, 0),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const _MessShimmerBlock(height: 14, width: 88),
+              const SizedBox(height: 8),
+              const _MessShimmerBlock(height: 28, width: 200),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: _MessScreenState.border,
+                ),
+              ),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          _MessShimmerBlock(height: 14, width: 52),
+                          SizedBox(height: 8),
+                          _MessShimmerBlock(height: 36, width: 64),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                      color: _MessScreenState.border,
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: const [
+                          _MessShimmerBlock(height: 14, width: 40),
+                          SizedBox(height: 8),
+                          _MessShimmerBlock(height: 36, width: 48),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -1330,6 +1665,292 @@ class _MessShimmerBlockState extends State<_MessShimmerBlock>
           ),
         );
       },
+    );
+  }
+}
+
+/// Figma: full-bleed 8px grey band between major sections.
+class _MessScreenSectionDivider extends StatelessWidget {
+  const _MessScreenSectionDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ColoredBox(
+      color: _MessScreenState.sectionDividerGrey,
+      child: SizedBox(height: 8, width: double.infinity),
+    );
+  }
+}
+
+class _MessRebateRow extends StatelessWidget {
+  const _MessRebateRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () {
+          Navigator.of(context).push(
+            MaterialPageRoute<void>(
+              builder: (_) => const LeaveApplicationListScreen(),
+            ),
+          );
+        },
+        child: Ink(
+          decoration: BoxDecoration(
+            color: _MessScreenState.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _MessScreenState.border),
+            boxShadow: const [
+              BoxShadow(
+                color: _MessScreenState.shadow,
+                blurRadius: 16,
+                offset: Offset(0, 0),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: _MessScreenState.primarySoft,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(
+                    Icons.currency_rupee_rounded,
+                    size: 24,
+                    color: _MessScreenState.primary,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                const Expanded(
+                  child: Text(
+                    'Mess Rebate',
+                    style: TextStyle(
+                      fontFamily: 'GeneralSans',
+                      fontSize: 16,
+                      height: 24 / 16,
+                      fontWeight: FontWeight.w500,
+                      color: _MessScreenState.textPrimary,
+                    ),
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: _MessScreenState.textSecondary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MessInfoSection extends StatelessWidget {
+  final String? selectedHostel;
+  final Map<String, HostelData> hostelMap;
+
+  const _MessInfoSection({
+    required this.selectedHostel,
+    required this.hostelMap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hostel = selectedHostel;
+    final data =
+        hostel != null && hostelMap.containsKey(hostel) ? hostelMap[hostel] : null;
+
+    final catererName = data?.messname ?? '—';
+    final rating = data?.rating;
+    final rank = data?.ranking;
+    final feedbackPct = data?.feedbackPercentage;
+
+    final isUnranked = rank == null || rank == 0;
+
+    final ratingText = rating == null
+        ? '—'
+        : (rating == 0
+            ? '—'
+            : truncateToTwoDecimals(rating).toStringAsFixed(2));
+    final feedbackText = feedbackPct == null
+        ? '—'
+        : '${truncateToTwoDecimals(feedbackPct).toStringAsFixed(2)}%';
+    final leftMetricText = isUnranked ? feedbackText : ratingText;
+    final rankText = isUnranked ? 'Unranked' : rank.toString();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          'Mess Info',
+          style: TextStyle(
+            fontFamily: 'GeneralSans',
+            fontSize: 16,
+            height: 24 / 16,
+            fontWeight: FontWeight.w500,
+            color: _MessScreenState.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _MessScreenState.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: _MessScreenState.border),
+            boxShadow: const [
+              BoxShadow(
+                color: _MessScreenState.shadow,
+                blurRadius: 16,
+                offset: Offset(0, 0),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Caterer Name',
+                    style: TextStyle(
+                      fontFamily: 'GeneralSans',
+                      fontSize: 14,
+                      height: 20 / 14,
+                      fontWeight: FontWeight.w500,
+                      color: _MessScreenState.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          catererName,
+                          style: const TextStyle(
+                            fontFamily: 'GeneralSans',
+                            fontSize: 24,
+                            height: 32 / 24,
+                            fontWeight: FontWeight.w500,
+                            color: _MessScreenState.textPrimary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      HostelLogo(
+                        hostelName: hostel,
+                        height: 56,
+                        backgroundColor: _MessScreenState.primarySoft,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Divider(
+                  height: 1,
+                  thickness: 1,
+                  color: _MessScreenState.border,
+                ),
+              ),
+              IntrinsicHeight(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isUnranked ? 'Feedback %' : 'Rating',
+                            style: const TextStyle(
+                              fontFamily: 'GeneralSans',
+                              fontSize: 14,
+                              height: 20 / 14,
+                              fontWeight: FontWeight.w500,
+                              color: _MessScreenState.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            leftMetricText,
+                            style: const TextStyle(
+                              fontFamily: 'GeneralSans',
+                              fontSize: 32,
+                              height: 48 / 32,
+                              fontWeight: FontWeight.w500,
+                              color: _MessScreenState.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      margin: const EdgeInsets.symmetric(horizontal: 8),
+                      color: _MessScreenState.border,
+                    ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Rank',
+                            style: TextStyle(
+                              fontFamily: 'GeneralSans',
+                              fontSize: 14,
+                              height: 20 / 14,
+                              fontWeight: FontWeight.w500,
+                              color: _MessScreenState.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            rankText,
+                            style: const TextStyle(
+                              fontFamily: 'GeneralSans',
+                              fontSize: 32,
+                              height: 48 / 32,
+                              fontWeight: FontWeight.w500,
+                              color: _MessScreenState.textPrimary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (isUnranked) ...[
+          const SizedBox(height: 12),
+          const Text(
+            '*Mess with less than 40% feedback percentage are not ranked.',
+            style: TextStyle(
+              fontFamily: 'GeneralSans',
+              fontSize: 12,
+              height: 16 / 12,
+              fontWeight: FontWeight.w400,
+              color: _MessScreenState.textMuted,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
