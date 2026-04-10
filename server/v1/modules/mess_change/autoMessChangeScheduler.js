@@ -9,7 +9,7 @@ const {
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
-
+const { getMessChangeWindowDates } = require("../../utils/windowDates.js");
 const admin = require("../notification/firebase");
 const { FCMToken } = require("../notification/FCMToken");
 const { User } = require("../user/userModel");
@@ -22,18 +22,22 @@ const sendMessChangeReminder = async (hoursLeft) => {
   try {
     // 1. Find all users who have NOT applied for a mess change this month
     // (Note: Ensure 'hasAppliedForMessChange' matches your actual boolean in userModel)
-    const slackers = await User.find({ hasAppliedForMessChange: false }).select('_id');
-    
+    const slackers = await User.find({ hasAppliedForMessChange: false }).select(
+      "_id",
+    );
+
     if (slackers.length === 0) {
       console.log(`No mess change reminders needed for ${hoursLeft}hr mark.`);
-      return; 
+      return;
     }
 
-    const userIds = slackers.map(u => u._id);
+    const userIds = slackers.map((u) => u._id);
 
     // 2. Fetch all registered device tokens for those specific users
-    const tokens = await FCMToken.find({ user: { $in: userIds } }).select('token');
-    const tokenArray = tokens.map(t => t.token);
+    const tokens = await FCMToken.find({ user: { $in: userIds } }).select(
+      "token",
+    );
+    const tokenArray = tokens.map((t) => t.token);
 
     if (tokenArray.length === 0) return;
 
@@ -46,47 +50,18 @@ const sendMessChangeReminder = async (hoursLeft) => {
       },
       android: {
         notification: {
-          channelId: "hab_mess_updates" // Allows users to mute this category in Android settings
-        }
-      }
+          channelId: "hab_mess_updates", // Allows users to mute this category in Android settings
+        },
+      },
     });
 
-    console.log(`Sent ${hoursLeft}hr mess change reminder to ${response.successCount} users.`);
+    console.log(
+      `Sent ${hoursLeft}hr mess change reminder to ${response.successCount} users.`,
+    );
   } catch (error) {
     console.error("Error sending mess change reminders:", error);
   }
 };
-
-// Helper to get mess change window dates for a given month
-// Server is already in IST timezone, so we use local time
-const getMessChangeWindowDates = (targetMonth = null, targetYear = null) => {
-  const now = new Date();
-  const year = targetYear || now.getFullYear();
-  const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
-
-  let startDay, endDay;
-
-  if (month === 1) {
-    // February
-    startDay = 26;
-    endDay = 28;
-  } else {
-    // All other months
-    startDay = 28;
-    endDay = 30;
-  }
-
-  // Create dates in local time (IST)
-  // Start: 9 AM IST
-  const startDate = new Date(year, month, startDay, 9, 0, 0);
-  // End: 23:59:59 IST (end of day)
-  const endDate = new Date(year, month, endDay, 23, 59, 59);
-
-  return { startDate, endDate };
-};
-
-// Use controller implementations for enable/disable so the scheduler
-// doesn't duplicate business logic. They are imported below.
 
 // Schedule reminder notifications
 const scheduleMessChangeReminders = async () => {

@@ -119,3 +119,22 @@ export const getMessMenuByDay = async (messId, day, token) => {
     throw error;
   }
 };
+
+// Get all mess bills for a specific month
+export const getAllBillsByMonth = async (month, year) => {
+  try {
+    const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
+    const response = await axios.get(
+      `${BACKEND_URL}/mess/bills/all?month=${month}&year=${year}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error(`Error fetching bills for ${month} ${year}:`, error);
+    throw error;
+  }
+};

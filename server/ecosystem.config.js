@@ -19,10 +19,13 @@ module.exports = {
     },
     {
       name: "api-v2",
-      script: "./index.js", // Relative to cwd
+      script: "./index.js",
       cwd: "./v2",
+      instances: "max",
+      exec_mode: "cluster",
+      watch: false,
       env: { PORT: 3002 },
-      max_memory_restart: "512M",
+      max_memory_restart: "1G",
     },
   ],
 };

@@ -6,10 +6,10 @@ const {
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
 } = require("./feedbackController");
-const { User } = require("../user/userModel");
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
+const { getFeedbackWindowDates } = require("../../utils/windowDates.js");
 const admin = require("../notification/firebase");
 const { FCMToken } = require("../notification/FCMToken");
 
@@ -21,18 +21,22 @@ const sendFeedbackReminder = async (hoursLeft) => {
   try {
     // 1. Find all users who have NOT filled out the current active feedback
     // (Note: Ensure 'hasFilledCurrentFeedback' matches your actual boolean in userModel)
-    const slackers = await User.find({ hasFilledCurrentFeedback: false }).select('_id');
-    
+    const slackers = await User.find({
+      hasFilledCurrentFeedback: false,
+    }).select("_id");
+
     if (slackers.length === 0) {
       console.log(`No feedback reminders needed for ${hoursLeft}hr mark.`);
-      return; 
+      return;
     }
 
-    const userIds = slackers.map(u => u._id);
+    const userIds = slackers.map((u) => u._id);
 
     // 2. Fetch their device tokens
-    const tokens = await FCMToken.find({ user: { $in: userIds } }).select('token');
-    const tokenArray = tokens.map(t => t.token);
+    const tokens = await FCMToken.find({ user: { $in: userIds } }).select(
+      "token",
+    );
+    const tokenArray = tokens.map((t) => t.token);
 
     if (tokenArray.length === 0) return;
 
@@ -45,43 +49,17 @@ const sendFeedbackReminder = async (hoursLeft) => {
       },
       android: {
         notification: {
-          channelId: "hab_feedback_reminders" // Allows users to mute this category in Android settings
-        }
-      }
+          channelId: "hab_feedback_reminders", // Allows users to mute this category in Android settings
+        },
+      },
     });
 
-    console.log(`Sent ${hoursLeft}hr feedback reminder to ${response.successCount} users.`);
+    console.log(
+      `Sent ${hoursLeft}hr feedback reminder to ${response.successCount} users.`,
+    );
   } catch (error) {
     console.error("Error sending feedback reminders:", error);
   }
-};
-
-// Helper to get feedback window dates for a given month
-// Server is already in IST timezone, so we use local time
-const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
-  const now = new Date();
-  const year = targetYear || now.getFullYear();
-  const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
-
-  let startDay, endDay;
-
-  if (month === 1) {
-    // February
-    startDay = 23;
-    endDay = 25;
-  } else {
-    // All other months
-    startDay = 25;
-    endDay = 27;
-  }
-
-  // Create dates in local time (IST)
-  // Start: 9 AM IST
-  const startDate = new Date(year, month, startDay, 9, 0, 0);
-  // End: 23:59:59 IST (end of day)
-  const endDate = new Date(year, month, endDay, 23, 59, 59);
-
-  return { startDate, endDate };
 };
 
 // Use controller implementations for enable/disable so scheduler doesn't

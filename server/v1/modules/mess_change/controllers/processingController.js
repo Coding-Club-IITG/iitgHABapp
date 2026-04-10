@@ -164,59 +164,23 @@ const processAllMessChangeRequests = async (req, res) => {
       console.error("Mess change disabled notification failed:", err),
     );
 
-    res.status(200).json({
-      message: `${acceptedUsers.length} accepted, ${rejectedUsers.length} rejected`,
-      acceptedUsers,
-      rejectedUsers,
-    });
+    if (res) {
+      res.status(200).json({
+        message: `${acceptedUsers.length} accepted, ${rejectedUsers.length} rejected`,
+        acceptedUsers,
+        rejectedUsers,
+      });
+    }
   } catch (err) {
     console.error(err);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-const rejectAllMessChangeRequests = async (req, res) => {
-  try {
-    const users = await User.find({ applied_for_mess_changed: true });
-    if (!users.length) {
-      return res
-        .status(400)
-        .json({ message: "No pending mess change requests found" });
+    if (res) {
+      res.status(500).json({ message: "Internal server error" });
     }
-
-    for (const user of users) {
-      user.applied_for_mess_changed = false;
-      user.applied_hostel_string = "";
-      user.next_mess = null;
-      user.next_mess1 = null;
-      user.next_mess2 = null;
-      user.next_mess3 = null;
-      await user.save();
-    }
-
-    await updateLastProcessedTimestamp();
-
-    sendNotificationMessage(
-      "MESS CHANGE",
-      "Mess Change is Disabled",
-      "All_Hostels",
-      { redirectType: "mess_change", isAlert: "true" },
-    ).catch((err) =>
-      console.error("Mess change disabled notification failed:", err),
-    );
-
-    res.status(200).json({
-      message: `Rejected ${users.length} pending requests. Mess change has been automatically disabled.`,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Internal server error" });
   }
 };
 
 module.exports = {
   processAllMessChangeRequests,
-  rejectAllMessChangeRequests,
   resetAllUsersToHostel,
   updateLastProcessedTimestamp,
 };
