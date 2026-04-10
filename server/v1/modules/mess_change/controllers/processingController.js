@@ -1,3 +1,5 @@
+// processingController.js
+
 const { User } = require("../../user/userModel.js");
 const { Hostel } = require("../../hostel/hostelModel.js");
 const UserAllocHostel = require("../../hostel/hostelAllocModel.js");
@@ -86,6 +88,7 @@ const updateAcceptedUsers = async (acceptedUsers) => {
         user._id,
         "Mess Change Accepted",
         `Mess changed to ${toHostel?.hostel_name}. Applicable from next month.`,
+        "hab_mess_updates",
       );
     } catch {}
   }
@@ -112,6 +115,7 @@ const updateRejectedUsers = async (rejectedUsers) => {
         user._id,
         "Mess Change Rejected",
         "Your mess change request was not approved this cycle.",
+        "hab_mess_updates",
       );
     } catch {}
   }
