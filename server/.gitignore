@@ -5,5 +5,5 @@ backup
 logs
 upload
 
+# App version config
 modules/app_version/config/
-modules/notification/serviceAccountKey.json

@@ -296,6 +296,7 @@ const processAllMessChangeRequests = async (req, res) => {
         a.id,
         "Mess Change Accepted",
         `Mess changed to ${toName}. Applicable from next month.`,
+        "hab_mess_updates",
       ).catch(() => {});
     }
     for (const r of rejectedUsers) {
@@ -303,6 +304,7 @@ const processAllMessChangeRequests = async (req, res) => {
         r.id,
         "Mess Change Rejected",
         "Your mess change request was not approved this cycle.",
+        "hab_mess_updates",
       ).catch(() => {});
     }
 

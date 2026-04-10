@@ -29,6 +29,7 @@ const logsRoute = require("./modules/mess/ScanLogsRoute.js");
 const bugReportRoute = require("./modules/bug_report/bugReportRoute.js");
 const roomCleaningRoute = require("./modules/room_cleaning/roomCleaningRoute.js");
 const laundryRoute = require("./modules/laundry/laundryRoute.js");
+const alertRoutes = require("./modules/alert/alertRoute.js");
 const galaRoute = require("./modules/gala/galaRoute.js");
 const messChangeRoute = require("./modules/mess_change/messchangeRoute.js");
 const profileRoute = require("./modules/profile/profileRoute.js");
@@ -298,13 +299,13 @@ app.use("/api/users", userRoute);
 // Feedback route
 app.use("/api/feedback", feedbackRoute);
 
-// Auth route
+// auth route
 app.use("/api/auth", authRoutes);
 
-// Hostel route
+// hostel route
 app.use("/api/hostel", hostelRoute);
 
-// Notification route
+// notification route
 app.use("/api/notification", notificationRoute);
 
 // Mess route
@@ -316,13 +317,16 @@ app.use("/api/gala", galaRoute);
 // Mess Rebate route
 app.use("/api/leave", leaveRoute);
 
-// Mess Change route
-app.use("/api/mess-change", messChangeRoute);
+// mess change route
+app.use("/api/mess-change", messChangeRouter);
 
-// Rrofile route
-app.use("/api/profile", profileRoute);
+// alert route
+app.use("/api/alerts", alertRoutes);
 
-// Scan logs route
+// profile route
+app.use("/api/profile", profileRouter);
+
+// scanlogs route
 app.use("/api/logs", logsRoute);
 
 // Bug report route

@@ -116,6 +116,66 @@ const validateApply = async (req, res, next) => {
   next();
 };
 
+const validateIntersection = async (req) => {
+  const { startDate, endDate } = req.body;
+
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number);
+  const [endYear, endMonth, endDay] = endDate.split("-").map(Number);
+  const start = new Date(startYear, startMonth - 1, startDay);
+  const end = new Date(endYear, endMonth - 1, endDay);
+
+  // console.log(startDate, endDate);
+
+  // console.log("Starting to validate intersection for user");
+
+  let conflictStartDate = null;
+  let conflictEndDate = null;
+
+  const id = req.user;
+  // console.log(id);
+
+  let myApplications = await getMyApplications(req.user, "date");
+
+  myApplications = myApplications.filter((application) => ["accepted", "pending"].includes(application.status));
+  // console.log(myApplications);
+
+  if (myApplications == null) {
+    return {
+      isWithinRange: false,
+      conflictStartDate: null,
+      conflictEndDate: null
+    };
+  };
+
+  if (myApplications == null) {
+    return {
+      isWithinRange: false,
+      conflictStartDate: null,
+      conflictEndDate: null,
+    };
+  }
+
+  const isWithinRange = myApplications.some((application) => {
+    const applicationStart = application.startDate;
+    const applicationEnd = application.endDate;
+    // console.log(applicationStart, " ",applicationEnd, " ", application._id);
+    const check = (applicationStart <= start && start <= applicationEnd) || (applicationStart <= end && end <= applicationEnd);
+    if (check) {
+      conflictStartDate = applicationStart;
+      conflictEndDate = applicationEnd;
+    }
+
+    return check;
+  });
+
+  })
+
+  let answer = { isWithinRange, conflictStartDate, conflictEndDate }
+
+  return answer;
+
+}
+
 // const conditionalUpload = (req, res, next) => {
 //   // console.log(req);
 //   // If Medical and no proof, skip the upload steps
@@ -141,6 +201,16 @@ const applyForLeave = async (req, res) => {
       bankName,
       bankAccountHoldersName,
     } = req.body;
+    console.log("[Leave][applyForLeave] Incoming request", {
+      userId: req.user?._id,
+      leaveType,
+      startDate,
+      endDate,
+    });
+    console.log("[Leave][applyForLeave] Incoming files", {
+      hasFiles: !!req.files,
+      fileFields: req.files ? Object.keys(req.files) : [],
+    });
     //No error handling required due to presence of validateApply()
     let proofDocumentUrl = null;
     let leaveDocumentUrl = null;
@@ -157,12 +227,25 @@ const applyForLeave = async (req, res) => {
     const tomorrow = new Date();
     tomorrow.setHours(0, 0, 0, 0);
     tomorrow.setDate(tomorrow.getDate() + 1);
+    const dayAfterTomorrow = new Date();
+    dayAfterTomorrow.setHours(0, 0, 0, 0);
+    dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
 
-    if (start < tomorrow) {
-      console.error("Application must be submitted at least before 1 day");
-      return res.status(400).json({
-        message: "Application must be submitted at least before 1 day",
-      });
+    if (leaveType === "Medical" || leaveType === "Academic") {
+      if (start < tomorrow) {
+        console.error("Application must be submitted at least before 1 day");
+        return res.status(400).json({
+          message: "Application must be submitted at least before 1 day",
+        });
+      }
+    }
+    if (leaveType === "Casual") {
+      if (start < dayAfterTomorrow) {
+        console.error("Application must be submitted at least before 2 days");
+        return res.status(400).json({
+          message: "Application must be submitted at least before 2 days",
+        });
+      }
     }
 
     //Get difference between two dates
@@ -171,15 +254,21 @@ const applyForLeave = async (req, res) => {
 
     //numberofdays business logic
 
-    if (numberOfDays < 4) {
+    if (numberOfDays < 3) {
       return res.status(400).json({
-        message: "Number of days must be greater than 4",
+        message: "Number of days must be greater than or equal to 4",
       });
     }
 
+    console.log("[Leave][applyForLeave] Computed number of days", {
+      start: start.toISOString(),
+      end: end.toISOString(),
+      numberOfDays,
+    });
+
     let eligibleDays = 0;
     //Calculation of eligible days
-    if (numberOfDays >= 4) {
+    if (numberOfDays >= 3) {
       eligibleDays = numberOfDays;
     }
 
@@ -201,22 +290,39 @@ const applyForLeave = async (req, res) => {
         message: "Start, end date combination is invalid",
       });
     }
+    // console.log("Trying to validate intersection");
+    const doesItIntersect = await validateIntersection(req);
+    if (doesItIntersect.isWithinRange) {
+      doesItIntersect.conflictStartDate.setDate(doesItIntersect.conflictStartDate.getDate()+1);
+      doesItIntersect.conflictEndDate.setDate(doesItIntersect.conflictEndDate.getDate()+1);
+      return res.status(400).json({
+        message: `The leave conflicts with a leave between ${doesItIntersect.conflictStartDate.toISOString().split("T")[0]} and ${doesItIntersect.conflictEndDate.toISOString().split("T")[0]}`,
+      });
+    }
 
     //Autogenerated variables
     const appliedAt = new Date(Date.now());
 
     //Only if user exists
     if (req.user && req.user.curr_subscribed_mess) {
+      console.log("[Leave][applyForLeave] User and mess verified", {
+        userId: req.user._id,
+        messHostel: req.user.curr_subscribed_mess,
+      });
       if (
-        !(
-          req.files["leaveDocument"] &&
-          req.files["leaveDocument"].length > 0
-        )
+        !(req.files["leaveDocument"] && req.files["leaveDocument"].length > 0)
       ) {
         return res.status(400).json({
           message: "Please upload hostel leave form",
         });
       } else {
+        console.log("[Leave][applyForLeave] Hostel leave form present", {
+          leaveDocumentCount: req.files["leaveDocument"]
+            ? req.files["leaveDocument"].length
+            : 0,
+          hasProofDocument:
+            req.files["proofDocument"] && req.files["proofDocument"].length > 0,
+        });
         if (
           !(req.files["proofDocument"] && req.files["proofDocument"].length > 0)
         ) {
@@ -225,20 +331,33 @@ const applyForLeave = async (req, res) => {
               message: "Please upload proof document",
             });
           } else {
-            console.log("Not uploading proof document");
+            console.log(
+              "[Leave][applyForLeave] Medical leave without proof document; uploading only leave form",
+            );
             await uploadFilesToOnedrive(req, res, () => {
-              console.log("Coming back to controller");
+              console.log(
+                "[Leave][applyForLeave] Returned from uploadFilesToOnedrive (medical, no proof)",
+              );
             });
             leaveDocumentUrl = req.uploadedDocuments.leaveDocument.url;
           }
         } else {
+          console.log(
+            "[Leave][applyForLeave] Proof document present; uploading proof + leave form",
+          );
           await uploadFilesToOnedrive(req, res, () => {
-            console.log("Coming back to controller");
+            console.log(
+              "[Leave][applyForLeave] Returned from uploadFilesToOnedrive (with proof)",
+            );
           });
           //Obtain url and fileName generated by uploadToOnedrive.js
           proofDocumentUrl = req.uploadedDocuments.proofDocument.url;
           proofDocumentFilename = req.uploadedDocuments.proofDocument.filename;
           leaveDocumentUrl = req.uploadedDocuments.leaveDocument.url;
+          console.log("[Leave][applyForLeave] Uploaded document URLs", {
+            proofDocumentUrl,
+            leaveDocumentUrl,
+          });
         }
       }
       const applicationData = {
@@ -261,12 +380,25 @@ const applyForLeave = async (req, res) => {
         bankName: bankName,
         bankAccountHoldersName: bankAccountHoldersName,
       };
+      console.log("[Leave][applyForLeave] Creating Leave application", {
+        userId: req.user._id,
+        leaveType,
+        numberOfDays,
+        eligibleDays,
+        hasProofDocument: !!proofDocumentUrl,
+        hasLeaveDocument: !!leaveDocumentUrl,
+      });
       const leaveApplication = new Leave(applicationData);
 
       await leaveApplication.save();
 
+      console.log("[Leave][applyForLeave] Leave application saved", {
+        applicationId: leaveApplication._id,
+        userId: req.user._id,
+      });
+
       return res.status(201).json({
-        message: "Leave Application submited successfully",
+        message: "Leave Application submitted successfully",
         leaveApplication: {
           id: leaveApplication._id,
           user: req.user._id,
@@ -286,7 +418,10 @@ const applyForLeave = async (req, res) => {
       });
     }
   } catch (err) {
-    console.error("Error submitting leave application", err);
+    console.error(
+      "[Leave][applyForLeave] Error submitting leave application",
+      err,
+    );
     res.status(500).json({
       message: "Error submitting leave application",
       error: err.message,
@@ -294,22 +429,19 @@ const applyForLeave = async (req, res) => {
   }
 };
 
-const getApplications = async (req, res) => {
-  //Search by User ObjectID
+
+const getMyApplications = async (id, type) => {
+
   const myApplicationswithDate = await Leave.find({
-    user: req.user,
+    user: id,
   })
     .sort({
       appliedAt: -1,
     })
     .lean();
 
-  //For empty applications array
   if (myApplicationswithDate.length === 0) {
-    res.status(200).json({
-      message: "No past applications available",
-    });
-    return;
+    return null;
   }
 
   const myApplications = myApplicationswithDate.map((application) => ({
@@ -317,6 +449,24 @@ const getApplications = async (req, res) => {
     startDate: application.startDate.toISOString().split("T")[0],
     endDate: application.endDate.toISOString().split("T")[0],
   }));
+
+  //If type is date then return with date object intact
+  //Else return it stringified
+  return type === "date" ? myApplicationswithDate : myApplications;
+
+}
+
+const getApplications = async (req, res) => {
+  //Search by User ObjectID
+  const myApplications = await getMyApplications(req.user, "string");
+
+  //For empty applications array
+  if (myApplications == null) {
+    res.status(200).json({
+      message: "No past applications available",
+    });
+    return;
+  }
 
   res.status(200).json({
     message: "Retrieved applications successfully",
@@ -469,8 +619,10 @@ const validateUploadDoc = async (req, res, next) => {
 const uploadDocForMedicalLeave = async (req, res) => {
   try {
     const { id } = req.params;
-    const query = { proofDocumentUrl: req.file.leaveUrl };
-    query.proofDocumentFilename = req.file.originalname;
+    const query = {
+      proofDocumentUrl: req.uploadedDocuments.proofDocument?.url,
+    };
+    query.proofDocumentFilename = req.uploadedDocuments.proofDocument?.filename;
 
     const updatedDoc = await Leave.findByIdAndUpdate(id, query, {
       new: true,
@@ -502,7 +654,20 @@ const cancelApplication = async (req, res) => {
       id,
       { status: "cancelled" },
       { new: true },
-    ).populate("user", "name rollNumber email -_id");
+    ).populate("user", "name rollNumber email");
+
+    console.log("start", updatedDoc.startDate, "now", new Date());
+
+    if (
+      updatedDoc.startDate <= new Date() &&
+      new Date() <= new Date(updatedDoc.endDate.getFullYear(), updatedDoc.endDate.getMonth(), updatedDoc.endDate.getDate() + 1)
+    ) {
+      const updatedUser = await User.findOneAndUpdate(
+        { _id: updatedDoc.user._id },
+        { scannerPermission: true },
+      );
+      console.log(updatedUser);
+    }
 
     return res.status(201).json({
       message: `Application with ID ${id} successfully cancelled`,
@@ -645,7 +810,7 @@ const approveApplication = async (req, res) => {
         await sendNotificationToUser(
           updatedDoc.user._id,
           "Leave Approved! ✅",
-          `Your leave request for ${updatedDoc.startDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} to ${updatedDoc.endDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} has been approved.`,
+          `Your rebate request for ${updatedDoc.startDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} to ${updatedDoc.endDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} has been approved.`,
         );
       } catch (e) {
         console.error("Error in sending notification", e);
@@ -695,7 +860,7 @@ const rejectApplication = async (req, res) => {
 
       if (
         updatedDoc.startDate <= new Date() &&
-        new Date() <= updatedDoc.endDate
+        new Date() <= new Date(updatedDoc.endDate.getFullYear(), updatedDoc.endDate.getMonth(), updatedDoc.endDate.getDate() + 1)
       ) {
         const updatedUser = await User.findOneAndUpdate(
           { _id: updatedDoc.user._id },
@@ -712,7 +877,7 @@ const rejectApplication = async (req, res) => {
         await sendNotificationToUser(
           updatedDoc.user._id,
           "Leave Rejected ⚠️",
-          `Your leave application from ${updatedDoc.startDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} has been rejected.`
+          `Your leave application from ${updatedDoc.startDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} has been rejected.`,
         );
       } catch (e) {
         console.error("Error in sending notification", e);

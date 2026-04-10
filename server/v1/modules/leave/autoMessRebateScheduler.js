@@ -43,6 +43,15 @@ const runMessRebateJob = async () => {
     0,
     0,
   );
+  const yesterweekplusone = new Date(
+    today.getFullYear(),
+    today.getMonth(),
+    today.getDate() - 6,
+    0,
+    0,
+    0,
+    0,
+  );
 
   const activeApplications = await Leave.find({
     resolved: false,
@@ -61,11 +70,26 @@ const runMessRebateJob = async () => {
       (app) => yesterday <= app.endDate && app.endDate < today,
     );
     const userIds = ending.map((a) => a.user);
+    const userIdsToResolve = ending
+      .filter((app) => app.status === "approved")
+      .map((application) => application.user);
+
     if (userIds.length > 0) {
       const result = await User.updateMany(
         { _id: { $in: userIds } },
         { $set: { scannerPermission: true } },
       );
+
+      if (userIdsToResolve.length > 0) {
+        const resolvedResult = await Leave.updateMany(
+          { _id: { $in: userIdsToResolve } },
+          { $set: { resolved: true } },
+        );
+        console.log(
+          `[MESS REBATE] ${resolvedResult.modifiedCount} applications resolved`,
+        );
+      }
+
       console.log(
         `[MESS REBATE] Re-enabled scanner for ${result.modifiedCount} users (leave ended)`,
       );
@@ -93,9 +117,12 @@ const runMessRebateJob = async () => {
   {
     const expiredMedical = await Leave.find({
       resolved: false,
-      status: { $in: ["pending"] },
+      proofDocumentUrl: null,
       leaveType: "Medical",
-      startDate: { $gte: yesterweek, $lt: today },
+      appliedAt: {
+        $gte: yesterweek,
+        $lt: yesterweekplusone,
+      },
     }).lean();
 
     const targetIds = expiredMedical.map((t) => t._id);
@@ -122,22 +149,26 @@ const runMessRebateJob = async () => {
       });
 
       console.log(
-        `[MESS REBATE] Auto-rejected ${targetIds.length} expired medical leaves; scanner restored for ${userIds.length} users`,
+        `[MESS REBATE] Auto-rejected ${targetIds.length} expired medical leaves, scanner restored for ${userIds.length} users`,
       );
     }
   }
 };
 
 const initializeMessRebateAutoScheduler = () => {
-  agenda.define(JOB_NAME, async (job) => {
-    try {
-      console.log("[MESS REBATE] Daily job fired");
-      await runMessRebateJob();
-    } catch (err) {
-      console.error("[MESS REBATE] Job failed:", err);
-      throw err;
-    }
-  }, { concurrency: 1 });
+  agenda.define(
+    JOB_NAME,
+    async (job) => {
+      try {
+        console.log("[MESS REBATE] Daily job fired");
+        await runMessRebateJob();
+      } catch (err) {
+        console.error("[MESS REBATE] Job failed:", err);
+        throw err;
+      }
+    },
+    { concurrency: 1 },
+  );
 
   // Every day at 01:00 AM IST
   agenda.every("0 1 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
