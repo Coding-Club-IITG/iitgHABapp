@@ -109,18 +109,24 @@ class _LeaveApplicationListScreenState
       });
       return;
     }
-    final dio = DioClient().dio;
-    final response = await dio.get(
-      MessRebateEndpoints.getApplications,
-      options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
-    );
-    if (response.statusCode == 200) {
-      final data = response.data as Map;
-      setState(() {
-        myApplications = data['myApplications'] ?? [];
-        isLoading = false;
-      });
-    } else {
+    try {
+      final dio = DioClient().dio;
+      final response = await dio.get(
+        MessRebateEndpoints.getApplications,
+        options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
+      );
+      if (response.statusCode == 200) {
+        final data = response.data as Map;
+        setState(() {
+          myApplications = data['myApplications'] ?? [];
+          isLoading = false;
+        });
+      } else {
+        setState(() {
+          isLoading = false;
+        });
+      }
+    } catch (err) {
       setState(() {
         isLoading = false;
       });

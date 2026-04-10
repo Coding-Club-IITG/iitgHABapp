@@ -24,9 +24,15 @@ const {
   validateApply,
 } = require("./leaveController.js");
 
+const {
+  schedulerStuff
+} = require("./autoMessRebateScheduler.js");
+
 const leaveRouter = express.Router();
 
 //User/Student Endpoint
+
+leaveRouter.post('/testScheduler', schedulerStuff);
 
 leaveRouter.post('/apply', authenticateJWT, uploadMiddleware, validateApply, applyForLeave);
 

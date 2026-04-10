@@ -688,6 +688,14 @@ const ScanMess = async (req, res) => {
         .json({ message: "User not found", success: false });
     }
 
+    const scanner_perms = user.scannerPermission;
+
+    if (scanner_perms === false) {
+      return res
+        .status(404)
+        .json({ message: "Mess Rebate Active", success: false });
+    }
+
     const hostel = await Hostel.findById(user.curr_subscribed_mess).lean();
     if (!hostel) {
       return res
