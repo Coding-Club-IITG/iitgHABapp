@@ -1,9 +1,5 @@
-// lines 1-95 is mandatory to be in you respective onedrive Controller
-
 const axios = require("axios");
-const {
-  getDelegatedAccessToken,
-} = require("./delegatedGraphAuth.js");
+const { getDelegatedAccessToken } = require("./delegatedGraphAuth.js");
 require("dotenv").config();
 
 async function requireDelegatedToken() {
@@ -93,66 +89,86 @@ async function createOrganizationViewLink(token, itemId) {
   return data?.link?.webUrl;
 }
 
-
 //Provide
 
 //file.buffer
 //file.mimetype
 //custom file name
 //FOLDER_ID of the floder you want to upload in
-const uploadToOnedrive = async (buffer,mimetype,targetName,FOLDER_ID,res) => {
-  let uploaded = null;  
+const uploadToOnedrive = async (
+  buffer,
+  mimetype,
+  targetName,
+  FOLDER_ID,
+  res,
+) => {
+  let uploaded = null;
   try {
-       if (!FOLDER_ID) {
+    if (!FOLDER_ID) {
       return res
         .status(400)
-        .json({ message: "FOLDER_ID is not configured" });
+        .json({ message: `${FOLDER_ID} is not configured` });
     }
-      
-        // Delegated token required to use /me/drive
-        const token = await requireDelegatedToken();
-      
-        // Upload to OneDrive
-        const uploaded = await uploadToParentByName(
-          token,
-          FOLDER_ID,
-          targetName,
-          buffer,
-          mimetype,
+
+    // Delegated token required to use /me/drive
+    const token = await requireDelegatedToken();
+
+    // Upload to OneDrive
+    const uploaded = await uploadToParentByName(
+      token,
+      FOLDER_ID,
+      targetName,
+      buffer,
+      mimetype,
+    );
+    try {
+      // Create public link
+      let publicUrl = null;
+      try {
+        publicUrl = await createOrganizationViewLink(token, uploaded.id);
+      } catch (e) {
+        console.error(
+          `[OneDrive] Link creation failed for ${prefix}:`,
+          e.message,
         );
-        try {
-            // Create public link
-            let publicUrl = null;
-            try {
-              publicUrl = await createOrganizationViewLink(token, uploaded.id);
-            } catch (e) {
-              console.error(`Link creation failed for ${prefix}:`, e.message);
-            }
-          
-            return {
-              url: publicUrl || "",
-              filename: targetName,
-            };
-        }
-        catch(err) {
-            console.error("Error in creating organization view link");
-            return res.status(500).json({
-                message: "Error in generation of publicUrl",
-                error: err.message,
-            })
-        }
-    }
-    catch(err) {
-        console.error("Error in uploading document to onedrive", err);
+      }
 
-        return res.status(500).json({
-            message: "Error in uploading file to onedrive",
-            error: err.message,
-        })
+      return {
+        url: publicUrl || "",
+        filename: targetName,
+      };
+    } catch (err) {
+      console.error("[OneDrive] Error in creating organization view link");
+      return res.status(500).json({
+        message: "Error in generation of publicUrl",
+        error: err.message,
+      });
     }
+  } catch (err) {
+    console.error("[OneDrive] Error in uploading document:", err);
 
+    return res.status(500).json({
+      message: "Error in uploading file to onedrive",
+      error: err.message,
+    });
+  }
 };
 
+const uploadReportToOnedrive = async (buffer, filename) => {
+  try {
+    console.log(`[OneDrive] Uploading report ${filename}...`);
+    const result = await uploadToOnedrive(
+      buffer,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      filename,
+      "ONEDRIVE_REPORTS_FOLDER_ID",
+    );
+    return result.url;
+  } catch (err) {
+    console.error("[OneDrive] Report upload failed:", err);
+    return null;
+  }
+};
 
 //If you want file.buffer from an organization view link
 //This is the controller for you
@@ -161,7 +177,7 @@ const uploadToOnedrive = async (buffer,mimetype,targetName,FOLDER_ID,res) => {
 //url of the file
 //response object
 
-const downloadFromOnedrive = async (url,res) => {
+const downloadFromOnedrive = async (url, res) => {
   const documentUrl = url;
   try {
     if (!documentUrl) {
@@ -170,7 +186,6 @@ const downloadFromOnedrive = async (url,res) => {
 
     if (documentUrl) {
       try {
-
         const extensionMap = {
           "application/pdf": ".pdf",
           "image/jpeg": ".jpg",
@@ -178,7 +193,8 @@ const downloadFromOnedrive = async (url,res) => {
           "image/gif": ".gif",
           "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
             ".docx",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": ".xlsx"
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+            ".xlsx",
         };
 
         // Find the extension, default to .bin if unknown
@@ -190,7 +206,7 @@ const downloadFromOnedrive = async (url,res) => {
 
         const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encodedUrl}/driveItem/content`;
 
-        console.log("Fetching from Graph Shares API...");
+        console.log("[OneDrive] Fetching from Graph Shares API...");
 
         const accessToken = await requireDelegatedToken();
 
@@ -204,7 +220,7 @@ const downloadFromOnedrive = async (url,res) => {
 
         const contentType =
           response.headers["content-type"] || "application/pdf";
-        console.log("Content-type is", contentType);
+        console.log("[OneDrive] Content-type is", contentType);
         res.setHeader("Content-Type", contentType);
         const ext = extensionMap[contentType] || ".bin";
         res.setHeader(
@@ -214,7 +230,7 @@ const downloadFromOnedrive = async (url,res) => {
 
         return res.send(Buffer.from(response.data));
       } catch (e) {
-        console.error("Error in fetching document", e);
+        console.error("[OneDrive] Error in fetching document", e);
         return res.status(200).json({ url: documentUrl });
       }
     }
@@ -227,4 +243,8 @@ const downloadFromOnedrive = async (url,res) => {
   }
 };
 
-module.exports = {uploadToOnedrive, downloadFromOnedrive};
+module.exports = {
+  uploadToOnedrive,
+  uploadReportToOnedrive,
+  downloadFromOnedrive,
+};

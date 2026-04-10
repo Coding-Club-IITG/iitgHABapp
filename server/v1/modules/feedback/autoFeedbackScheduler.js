@@ -1,4 +1,5 @@
 const { FeedbackSettings } = require("./feedbackSettingsModel");
+const { User } = require("../user/userModel");
 const {
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
@@ -21,7 +22,7 @@ const sendFeedbackReminder = async (hoursLeft) => {
   try {
     // 1. Find all users who have NOT filled out the current active feedback
     const slackers = await User.find({
-      hasFilledCurrentFeedback: false,
+      isFeedbackSubmitted: false,
     }).select("_id");
 
     if (slackers.length === 0) {

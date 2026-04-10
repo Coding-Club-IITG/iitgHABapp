@@ -4,6 +4,7 @@ const {
   enableMessChangeAutomatic,
   disableMessChangeAutomatic,
 } = require("./controllers/schedulerController");
+const admin = require("../notification/firebase");
 const { FCMToken } = require("../notification/FCMToken");
 const { getMessChangeWindowDates } = require("../../utils/windowDates.js");
 const agenda = require("../../utils/agenda.js");
@@ -12,7 +13,6 @@ const JOB_ENABLE = "messchange-enable-check";
 const JOB_DISABLE = "messchange-disable-check";
 const JOB_REMIND_12H = "messchange-reminder-12h";
 const JOB_REMIND_2H = "messchange-reminder-2h";
-const admin = require("../notification/firebase");
 
 /**
  * Sends a targeted reminder only to students who haven't applied for a mess change
@@ -21,9 +21,9 @@ const admin = require("../notification/firebase");
 const sendMessChangeReminder = async (hoursLeft) => {
   try {
     // 1. Find all users who have NOT applied for a mess change this month
-    const slackers = await User.find({ hasAppliedForMessChange: false }).select(
-      "_id",
-    );
+    const slackers = await User.find({
+      applied_for_mess_changed: false,
+    }).select("_id");
 
     if (slackers.length === 0) {
       console.log(`[MESS CHANGE] No reminders needed for ${hoursLeft}hr mark`);

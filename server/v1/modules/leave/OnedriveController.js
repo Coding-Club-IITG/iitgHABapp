@@ -1,12 +1,6 @@
 const axios = require("axios");
-const {
-  getDelegatedAccessToken,
-} = require("../../utils/delegatedGraphAuth.js");
 require("dotenv").config();
-const {
-  uploadToOnedrive,
-  downloadFromOnedrive,
-} = require("../../utils/onedriveController.js");
+const { uploadToOnedrive } = require("../../utils/onedriveController.js");
 
 const LEAVE_FOLDER_ID = process.env.ONEDRIVE_LEAVE_FOLDER_ID;
 

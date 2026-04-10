@@ -20,7 +20,9 @@ const {
 const {
   generateMessChangeReport,
 } = require("../utils/messChangeReportGenerator.js");
-const { uploadReportToOnedrive } = require("../../../utils/onedrive.js");
+const {
+  uploadReportToOnedrive,
+} = require("../../../utils/onedriveController.js");
 const { withTransaction } = require("../../../utils/withTransaction.js");
 
 // Helper Functions

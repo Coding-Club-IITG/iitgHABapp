@@ -318,13 +318,13 @@ app.use("/api/gala", galaRoute);
 app.use("/api/leave", leaveRoute);
 
 // mess change route
-app.use("/api/mess-change", messChangeRouter);
+app.use("/api/mess-change", messChangeRoute);
 
 // alert route
 app.use("/api/alerts", alertRoutes);
 
 // profile route
-app.use("/api/profile", profileRouter);
+app.use("/api/profile", profileRoute);
 
 // scanlogs route
 app.use("/api/logs", logsRoute);

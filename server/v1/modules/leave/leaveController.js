@@ -136,16 +136,18 @@ const validateIntersection = async (req) => {
 
   let myApplications = await getMyApplications(req.user, "date");
 
-  myApplications = myApplications.filter((application) => ["accepted", "pending"].includes(application.status));
+  myApplications = myApplications.filter((application) =>
+    ["accepted", "pending"].includes(application.status),
+  );
   // console.log(myApplications);
 
   if (myApplications == null) {
     return {
       isWithinRange: false,
       conflictStartDate: null,
-      conflictEndDate: null
+      conflictEndDate: null,
     };
-  };
+  }
 
   if (myApplications == null) {
     return {
@@ -159,7 +161,9 @@ const validateIntersection = async (req) => {
     const applicationStart = application.startDate;
     const applicationEnd = application.endDate;
     // console.log(applicationStart, " ",applicationEnd, " ", application._id);
-    const check = (applicationStart <= start && start <= applicationEnd) || (applicationStart <= end && end <= applicationEnd);
+    const check =
+      (applicationStart <= start && start <= applicationEnd) ||
+      (applicationStart <= end && end <= applicationEnd);
     if (check) {
       conflictStartDate = applicationStart;
       conflictEndDate = applicationEnd;
@@ -168,13 +172,10 @@ const validateIntersection = async (req) => {
     return check;
   });
 
-  })
-
-  let answer = { isWithinRange, conflictStartDate, conflictEndDate }
+  let answer = { isWithinRange, conflictStartDate, conflictEndDate };
 
   return answer;
-
-}
+};
 
 // const conditionalUpload = (req, res, next) => {
 //   // console.log(req);
@@ -293,8 +294,12 @@ const applyForLeave = async (req, res) => {
     // console.log("Trying to validate intersection");
     const doesItIntersect = await validateIntersection(req);
     if (doesItIntersect.isWithinRange) {
-      doesItIntersect.conflictStartDate.setDate(doesItIntersect.conflictStartDate.getDate()+1);
-      doesItIntersect.conflictEndDate.setDate(doesItIntersect.conflictEndDate.getDate()+1);
+      doesItIntersect.conflictStartDate.setDate(
+        doesItIntersect.conflictStartDate.getDate() + 1,
+      );
+      doesItIntersect.conflictEndDate.setDate(
+        doesItIntersect.conflictEndDate.getDate() + 1,
+      );
       return res.status(400).json({
         message: `The leave conflicts with a leave between ${doesItIntersect.conflictStartDate.toISOString().split("T")[0]} and ${doesItIntersect.conflictEndDate.toISOString().split("T")[0]}`,
       });
@@ -429,9 +434,7 @@ const applyForLeave = async (req, res) => {
   }
 };
 
-
 const getMyApplications = async (id, type) => {
-
   const myApplicationswithDate = await Leave.find({
     user: id,
   })
@@ -453,8 +456,7 @@ const getMyApplications = async (id, type) => {
   //If type is date then return with date object intact
   //Else return it stringified
   return type === "date" ? myApplicationswithDate : myApplications;
-
-}
+};
 
 const getApplications = async (req, res) => {
   //Search by User ObjectID
@@ -660,7 +662,12 @@ const cancelApplication = async (req, res) => {
 
     if (
       updatedDoc.startDate <= new Date() &&
-      new Date() <= new Date(updatedDoc.endDate.getFullYear(), updatedDoc.endDate.getMonth(), updatedDoc.endDate.getDate() + 1)
+      new Date() <=
+        new Date(
+          updatedDoc.endDate.getFullYear(),
+          updatedDoc.endDate.getMonth(),
+          updatedDoc.endDate.getDate() + 1,
+        )
     ) {
       const updatedUser = await User.findOneAndUpdate(
         { _id: updatedDoc.user._id },
@@ -860,7 +867,12 @@ const rejectApplication = async (req, res) => {
 
       if (
         updatedDoc.startDate <= new Date() &&
-        new Date() <= new Date(updatedDoc.endDate.getFullYear(), updatedDoc.endDate.getMonth(), updatedDoc.endDate.getDate() + 1)
+        new Date() <=
+          new Date(
+            updatedDoc.endDate.getFullYear(),
+            updatedDoc.endDate.getMonth(),
+            updatedDoc.endDate.getDate() + 1,
+          )
       ) {
         const updatedUser = await User.findOneAndUpdate(
           { _id: updatedDoc.user._id },

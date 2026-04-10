@@ -17,7 +17,7 @@ const {
   generateOpiReport,
   saveOpiReportBackup,
 } = require("./opiReportGenerator");
-const { uploadReportToOnedrive } = require("../../utils/onedrive.js");
+const { uploadReportToOnedrive } = require("../../utils/onedriveController.js");
 const { withTransaction } = require("../../utils/withTransaction.js");
 
 // Rating helpers
