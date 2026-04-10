@@ -1,7 +1,4 @@
 const axios = require("axios");
-const {
-  getDelegatedAccessToken,
-} = require("../../utils/delegatedGraphAuth.js");
 require("dotenv").config();
 const {uploadToOnedrive, downloadFromOnedrive} = require('../../utils/onedriveController.js')
 
@@ -111,47 +108,7 @@ const sendDocument = async (req, res) => {
 
     if (documentUrl) {
       try {
-        const extensionMap = {
-          "application/pdf": ".pdf",
-          "image/jpeg": ".jpg",
-          "image/png": ".png",
-          "image/gif": ".gif",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            ".docx",
-        };
-
-        // Find the extension, default to .bin if unknown
-
-        const base64Value = Buffer.from(documentUrl).toString("base64");
-        const encodedUrl =
-          "u!" +
-          base64Value.replace(/=/g, "").replace(/\//g, "_").replace(/\+/g, "-");
-
-        const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encodedUrl}/driveItem/content`;
-
-        console.log("Fetching from Graph Shares API...");
-
-        const accessToken = await requireDelegatedToken();
-
-        // 2. Fetch the actual binary content
-        const response = await axios.get(graphUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          responseType: "arraybuffer",
-        });
-
-        const contentType =
-          response.headers["content-type"] || "application/pdf";
-        console.log("Content-type is", contentType);
-        res.setHeader("Content-Type", contentType);
-        const ext = extensionMap[contentType] || ".bin";
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="leave_document${ext}"`,
-        );
-
-        return res.send(Buffer.from(response.data));
+        await downloadFromOnedrive(documentUrl, res);
       } catch (e) {
         console.error("Error in fetching document", e);
         return res.status(200).json({ url: proofDocumentUrl });
