@@ -258,7 +258,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
 
-  Future<bool> _sendRequest() async {
+  Future<String?> _sendRequest() async {
 
     if ( _pickedFileLeaveForm == null) {
     ScaffoldMessenger.of(context).showSnackBar(
@@ -267,7 +267,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         duration: Duration(seconds: 3),
       ),
     );
-    return false; // Exit early
+    return null; // Exit early
   }
   else if(_pickedFile == null ) {
     if(_selectedValue == 1 || _selectedValue == 2) {
@@ -277,7 +277,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         duration: Duration(seconds: 3),
       ),
     );
-    return false; // Exit early
+    return null; // Exit early
     }
   }
 
@@ -332,9 +332,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           },
         ),
       );
-      return response.statusCode == 200 || response.statusCode == 201;
-    } catch (e) {
-      return false;
+      return ((response.statusCode == 200 || response.statusCode == 201)?"true":null);
+    } on DioException catch (e) {
+      return e.response?.data?['message']?.toString();
     }
   }
 
@@ -1128,9 +1128,12 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     });
                       
                      bool success = false;
-                      
+                      String? responseString;
                     try {
-                      success = await _sendRequest();
+                      responseString = await _sendRequest();
+                      if(responseString == "true") {
+                        success = true;
+                      }
                     } catch (e) {
                       success = false;
                     }
@@ -1139,12 +1142,14 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                       setState(() {
                         _isSubmitting = false;
                       });
+
+
                       _showStatusDialog(
                         isSuccess: success,
                         title: success ? "Success" : "Failure",
                         message: success
                             ? "Application sent successfully!"
-                            : "Something went wrong. Please check your connection and try again.",
+                            : (responseString ?? "Something went wrong. Please check your connection and try again."),
                       );
                     }
                 },
@@ -1410,7 +1415,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       // 2. Show the Success SnackBar
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isSuccess ? "Upload Successful" : "Upload Failed"),
+          content: Text(message),
           // backgroundColor: isSuccess ? _primaryColor : Colors.redAccent,
           // behavior: SnackBarBehavior.fixed,
           duration: const Duration(seconds: 3),

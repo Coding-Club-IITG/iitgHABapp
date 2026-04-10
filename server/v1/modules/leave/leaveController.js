@@ -138,27 +138,37 @@ const validateIntersection = async (req) => {
   const id = req.user;
   // console.log(id);
 
-  const myApplications = await getMyApplications(req.user, "date");
+  let myApplications = await getMyApplications(req.user, "date");
+
+  myApplications = myApplications.filter((application) => ["accepted", "pending"].includes(application.status));
   // console.log(myApplications);
+
+  if (myApplications == null) {
+    return {
+      isWithinRange: false,
+      conflictStartDate: null,
+      conflictEndDate: null
+    };
+  };
 
   const isWithinRange = myApplications.some(application => {
     const applicationStart = application.startDate;
     const applicationEnd = application.endDate;
     // console.log(applicationStart, " ",applicationEnd, " ", application._id);
-    const check = (applicationStart<start && start<applicationEnd) || (applicationStart<end && end<applicationEnd);
+    const check = (applicationStart <= start && start <= applicationEnd) || (applicationStart <= end && end <= applicationEnd);
     if (check) {
-      conflictStartDate = start;
-      conflictEndDate = end;
+      conflictStartDate = applicationStart;
+      conflictEndDate = applicationEnd;
     }
 
     return check;
 
   })
 
-  let answer = {isWithinRange,conflictStartDate,conflictEndDate}
+  let answer = { isWithinRange, conflictStartDate, conflictEndDate }
 
   return answer;
-  
+
 }
 
 // const conditionalUpload = (req, res, next) => {
@@ -230,15 +240,15 @@ const applyForLeave = async (req, res) => {
 
     //numberofdays business logic
 
-    if (numberOfDays < 4) {
+    if (numberOfDays < 3) {
       return res.status(400).json({
-        message: "Number of days must be greater than 4",
+        message: "Number of days must be greater than or equal to 4",
       });
     }
 
     let eligibleDays = 0;
     //Calculation of eligible days
-    if (numberOfDays >= 4) {
+    if (numberOfDays >= 3) {
       eligibleDays = numberOfDays;
     }
 
@@ -262,8 +272,9 @@ const applyForLeave = async (req, res) => {
     }
     // console.log("Trying to validate intersection");
     const doesItIntersect = await validateIntersection(req);
-
-    if(doesItIntersect.isWithinRange) {
+    if (doesItIntersect.isWithinRange) {
+      doesItIntersect.conflictStartDate.setDate(doesItIntersect.conflictStartDate.getDate()+1);
+      doesItIntersect.conflictEndDate.setDate(doesItIntersect.conflictEndDate.getDate()+1);
       return res.status(400).json({
         message: `The leave conflicts with a leave between ${doesItIntersect.conflictStartDate.toISOString().split("T")[0]} and ${doesItIntersect.conflictEndDate.toISOString().split("T")[0]}`
       })
@@ -333,7 +344,7 @@ const applyForLeave = async (req, res) => {
       await leaveApplication.save();
 
       return res.status(201).json({
-        message: "Leave Application submited successfully",
+        message: "Leave Application submitted successfully",
         leaveApplication: {
           id: leaveApplication._id,
           user: req.user._id,
@@ -362,8 +373,8 @@ const applyForLeave = async (req, res) => {
 };
 
 
-const getMyApplications = async (id,type) => {
-  
+const getMyApplications = async (id, type) => {
+
   const myApplicationswithDate = await Leave.find({
     user: id,
   })
@@ -372,7 +383,7 @@ const getMyApplications = async (id,type) => {
     })
     .lean();
 
-  if(myApplicationswithDate.length=== 0 ) {
+  if (myApplicationswithDate.length === 0) {
     return null;
   }
 
@@ -385,7 +396,7 @@ const getMyApplications = async (id,type) => {
 
   //If type is date then return with date object intact
   //Else return it stringified
-  return type==="date"?myApplicationswithDate:myApplications;
+  return type === "date" ? myApplicationswithDate : myApplications;
 
 }
 
@@ -394,7 +405,7 @@ const getApplications = async (req, res) => {
   const myApplications = await getMyApplications(req.user, "string");
 
   //For empty applications array
-  if (myApplications===null) {
+  if (myApplications == null) {
     res.status(200).json({
       message: "No past applications available",
     });
@@ -585,7 +596,20 @@ const cancelApplication = async (req, res) => {
       id,
       { status: "cancelled" },
       { new: true },
-    ).populate("user", "name rollNumber email -_id");
+    ).populate("user", "name rollNumber email");
+
+    console.log("start", updatedDoc.startDate, "now", new Date());
+
+    if (
+      updatedDoc.startDate <= new Date() &&
+      new Date() <= new Date(updatedDoc.endDate.getFullYear(), updatedDoc.endDate.getMonth(), updatedDoc.endDate.getDate() + 1)
+    ) {
+      const updatedUser = await User.findOneAndUpdate(
+        { _id: updatedDoc.user._id },
+        { scannerPermission: true },
+      );
+      console.log(updatedUser);
+    }
 
     return res.status(201).json({
       message: `Application with ID ${id} successfully cancelled`,
@@ -778,7 +802,7 @@ const rejectApplication = async (req, res) => {
 
       if (
         updatedDoc.startDate <= new Date() &&
-        new Date() <= updatedDoc.endDate
+        new Date() <= new Date(updatedDoc.endDate.getFullYear(), updatedDoc.endDate.getMonth(), updatedDoc.endDate.getDate() + 1)
       ) {
         const updatedUser = await User.findOneAndUpdate(
           { _id: updatedDoc.user._id },
