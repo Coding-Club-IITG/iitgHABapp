@@ -1,11 +1,12 @@
 gradle-wrapper.jar
 /.gradle
 /.kotlin
-/captures/
-.idea/
+/build
+/captures
 /gradlew
 /gradlew.bat
 /local.properties
+
 GeneratedPluginRegistrant.java
 generated_plugin_registrant.cc
 generated_plugin_registrant.h
@@ -20,3 +21,4 @@ key.properties
 
 # Firebase
 google-services.json
+prod-google-services.json
