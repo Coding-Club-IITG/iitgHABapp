@@ -887,13 +887,9 @@ class _HomeScreenState extends State<HomeScreen>
           return Container(
             width: 48,
             height: 48,
-            decoration: BoxDecoration(
+            decoration: const BoxDecoration(
               color: const Color(0xFFC9D4DE),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(
-                color: Colors.white.withOpacity(0.92),
-                width: 3,
-              ),
+              shape: BoxShape.circle,
             ),
             clipBehavior: Clip.antiAlias,
             child: value.isNotEmpty
