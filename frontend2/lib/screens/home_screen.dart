@@ -44,8 +44,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen>
     with SingleTickerProviderStateMixin {
   static const bool _isWeatherBackgroundTesting = false;
-  static const String _testingWeatherGroup =
-      'clear'; // clear, rainy
+  static const String _testingWeatherGroup = 'clear'; // clear, rainy
   static const bool _testingIsDay = false;
   static const bool _isTestingNotifications = false;
 
@@ -71,7 +70,8 @@ class _HomeScreenState extends State<HomeScreen>
   String? token;
   String? userHostelId;
   final ValueNotifier<_QuickActionStatusData> _scanQrStatusNotifier =
-      ValueNotifier(const _QuickActionStatusData(status: 'Closed', color: textMuted));
+      ValueNotifier(
+          const _QuickActionStatusData(status: 'Closed', color: textMuted));
   Timer? _scanQrStatusTimer;
   Timer? _weatherBackgroundTimer;
   late final AnimationController _shimmerController;
@@ -96,7 +96,7 @@ class _HomeScreenState extends State<HomeScreen>
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      
+
       // Add dummy alerts for testing extended background
       if (_isTestingNotifications) {
         final dummyAlerts = [
@@ -105,7 +105,10 @@ class _HomeScreenState extends State<HomeScreen>
             title: 'Important Messages',
             body: 'Mess will be closed on 29 May, Sunday',
             hasCountdown: false,
-            expiresAt: DateTime.now().add(const Duration(days: 1)).millisecondsSinceEpoch ~/ 1000,
+            expiresAt: DateTime.now()
+                    .add(const Duration(days: 1))
+                    .millisecondsSinceEpoch ~/
+                1000,
             targetType: 'global',
             isRead: false,
           ),
@@ -114,14 +117,17 @@ class _HomeScreenState extends State<HomeScreen>
             title: 'Important Messages',
             body: 'Use the scanning feature for filling the complaints',
             hasCountdown: false,
-            expiresAt: DateTime.now().add(const Duration(days: 1)).millisecondsSinceEpoch ~/ 1000,
+            expiresAt: DateTime.now()
+                    .add(const Duration(days: 1))
+                    .millisecondsSinceEpoch ~/
+                1000,
             targetType: 'global',
             isRead: false,
           ),
         ];
         AlertsManager.activeAlertsNotifier.value = dummyAlerts;
       }
-      
+
       final roomCleaningProvider = context.read<RoomCleaningProvider>();
       if (!roomCleaningProvider.isBookingsLoading &&
           roomCleaningProvider.myBookings.isEmpty &&
@@ -189,8 +195,8 @@ class _HomeScreenState extends State<HomeScreen>
     if (!mounted) return;
     final hasChanged =
         nextBackground.assetPath != _weatherBackground.assetPath ||
-        nextBackground.isDay != _weatherBackground.isDay ||
-        nextBackground.weatherGroup != _weatherBackground.weatherGroup;
+            nextBackground.isDay != _weatherBackground.isDay ||
+            nextBackground.weatherGroup != _weatherBackground.weatherGroup;
     if (!hasChanged) return;
 
     setState(() {
@@ -238,7 +244,7 @@ class _HomeScreenState extends State<HomeScreen>
   bool _isWeekendPeriod() {
     final now = DateTime.now();
     final hour = now.hour;
-    
+
     // Friday (5): 7PM (19:00) onwards
     if (now.weekday == DateTime.friday && hour >= 19) {
       return true;
@@ -327,8 +333,7 @@ class _HomeScreenState extends State<HomeScreen>
       for (final menu in menus) {
         final start = _parseMenuTime(menu.startTime);
         final end = _parseMenuTime(menu.endTime);
-        final isOngoing =
-            (now.isAfter(start) || now.isAtSameMomentAs(start)) &&
+        final isOngoing = (now.isAfter(start) || now.isAtSameMomentAs(start)) &&
             now.isBefore(end);
         if (isOngoing) {
           activeMeal = menu;
@@ -427,9 +432,7 @@ class _HomeScreenState extends State<HomeScreen>
       return 'Cleaned recently';
     }
 
-    return daysSince == 1
-        ? 'Cleaned 1 day ago'
-        : 'Cleaned $daysSince days ago';
+    return daysSince == 1 ? 'Cleaned 1 day ago' : 'Cleaned $daysSince days ago';
   }
 
   List<_QuickActionData> _buildQuickActions() {
@@ -511,7 +514,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   TextStyle _sectionTitleStyle() {
     return const TextStyle(
-      fontSize:16,
+      fontSize: 16,
       height: 1.5,
       fontWeight: FontWeight.w500,
       color: textSecondary,
@@ -550,8 +553,7 @@ class _HomeScreenState extends State<HomeScreen>
         break;
       }
 
-      final isOngoing =
-          (now.isAfter(start) || now.isAtSameMomentAs(start)) &&
+      final isOngoing = (now.isAfter(start) || now.isAtSameMomentAs(start)) &&
           now.isBefore(end);
       if (isOngoing) {
         final remaining = end.difference(now);
@@ -575,28 +577,25 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildMenuItemText(MenuItemModel item) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Flexible(
-            child: Text(
-              item.name,
-              style: const TextStyle(
-                fontSize: 14,
-                height: 20 / 14,
-                fontWeight: FontWeight.w500,
-                color: textPrimary,
-              ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Flexible(
+          child: Text(
+            item.name,
+            style: const TextStyle(
+              fontSize: 14,
+              height: 20 / 14,
+              fontWeight: FontWeight.w500,
+              color: textPrimary,
             ),
           ),
-          if (item.isLiked) ...[
-            const SizedBox(width: 8),
-            const Icon(Icons.favorite, color: Color(0xFFF87171), size: 14),
-          ],
+        ),
+        if (item.isLiked) ...[
+          const SizedBox(width: 8),
+          const Icon(Icons.favorite, color: Color(0xFFF87171), size: 12),
         ],
-      ),
+      ],
     );
   }
 
@@ -627,7 +626,16 @@ class _HomeScreenState extends State<HomeScreen>
               color: textPrimary,
             ),
           ),
-        for (final item in items) _buildMenuItemText(item),
+        if (items.isNotEmpty)
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (var i = 0; i < items.length; i++) ...[
+                _buildMenuItemText(items[i]),
+                if (i != items.length - 1) const SizedBox(height: 4),
+              ],
+            ],
+          ),
       ],
     );
   }
@@ -689,7 +697,8 @@ class _HomeScreenState extends State<HomeScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildShimmerBlock(height: 16, width: 48, radius: BorderRadius.circular(4)),
+              _buildShimmerBlock(
+                  height: 16, width: 48, radius: BorderRadius.circular(4)),
               const SizedBox(height: 12),
               _buildShimmerBlock(height: 18),
               const SizedBox(height: 8),
@@ -807,40 +816,50 @@ class _HomeScreenState extends State<HomeScreen>
         const SizedBox(height: 16),
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: _cardDecoration(
             gradient: const LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [Color(0xFFFFFFFF), Color(0xFFFFFEF8)],
             ),
+            radius: 12,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildMenuCategory(title: 'DISH', items: dishItems),
-              const SizedBox(height: 12),
-              const Divider(height: 1, thickness: 1, color: Color(0xFFE6E6E6)),
-              const SizedBox(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.only(bottom: 16),
+                decoration: const BoxDecoration(
+                  border: Border(bottom: BorderSide(color: border)),
+                ),
+                child: _buildMenuCategory(title: 'DISH', items: dishItems),
+              ),
+              const SizedBox(height: 16),
               IntrinsicHeight(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Expanded(
-                      child: _buildMenuCategory(
-                        title: 'BREADS & RICE',
-                        items: breadsRiceItems,
+                      child: Container(
+                        padding: const EdgeInsets.only(right: 16),
+                        decoration: const BoxDecoration(
+                          border: Border(right: BorderSide(color: border)),
+                        ),
+                        child: _buildMenuCategory(
+                          title: 'BREADS & RICE',
+                          items: breadsRiceItems,
+                        ),
                       ),
                     ),
-                    Container(
-                      width: 1,
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      color: const Color(0xFFE6E6E6),
-                    ),
                     Expanded(
-                      child: _buildMenuCategory(
-                        title: 'OTHERS',
-                        items: otherItems,
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 16),
+                        child: _buildMenuCategory(
+                          title: 'OTHERS',
+                          items: otherItems,
+                        ),
                       ),
                     ),
                   ],
@@ -880,9 +899,9 @@ class _HomeScreenState extends State<HomeScreen>
             child: value.isNotEmpty
                 ? Image.memory(base64Decode(value), fit: BoxFit.cover)
                 : Image.asset(
-              'assets/images/default_profile.png',
-              fit: BoxFit.cover,
-            ),
+                    'assets/images/default_profile.png',
+                    fit: BoxFit.cover,
+                  ),
           );
         },
       ),
@@ -906,7 +925,9 @@ class _HomeScreenState extends State<HomeScreen>
     final group = _weatherBackground.weatherGroup;
 
     // For morning, afternoon, and weekend use dark color
-    if (variant == 'morning' || variant == 'afternoon' || variant == 'weekend') {
+    if (variant == 'morning' ||
+        variant == 'afternoon' ||
+        variant == 'weekend') {
       return const Color(0xFF4C4EDB); // #4C4EDB
     }
 
@@ -919,7 +940,9 @@ class _HomeScreenState extends State<HomeScreen>
     final group = _weatherBackground.weatherGroup;
 
     // For morning, afternoon, and weekend use dark/black color
-    if (variant == 'morning' || variant == 'afternoon' || variant == 'weekend') {
+    if (variant == 'morning' ||
+        variant == 'afternoon' ||
+        variant == 'weekend') {
       return const Color(0xFF2E2F31); // Dark text
     }
 
@@ -1030,7 +1053,7 @@ class _HomeScreenState extends State<HomeScreen>
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 32),
             ],
           ],
         ),
@@ -1195,7 +1218,7 @@ class _HomeScreenState extends State<HomeScreen>
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: _buildUpdatesCard(totalUnreadCount),
                 ),
-                const SizedBox(height: 31),
+                const SizedBox(height: 32),
               ],
             );
           },
@@ -1207,11 +1230,11 @@ class _HomeScreenState extends State<HomeScreen>
   Widget _buildQuickActionCard(_QuickActionData action) {
     final iconChild = action.iconAsset != null
         ? SvgPicture.asset(
-      action.iconAsset!,
-      width: 24,
-      height: 24,
-      colorFilter: const ColorFilter.mode(primary, BlendMode.srcIn),
-    )
+            action.iconAsset!,
+            width: 24,
+            height: 24,
+            colorFilter: const ColorFilter.mode(primary, BlendMode.srcIn),
+          )
         : Icon(action.icon, color: primary, size: 24);
 
     return Expanded(
@@ -1337,7 +1360,7 @@ class _HomeScreenState extends State<HomeScreen>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Quick Actions', style: _sectionTitleStyle()),
-        const SizedBox(height: 32),
+        const SizedBox(height: 24),
         Row(
           children: [
             _buildQuickActionCard(featured[0]),
@@ -1398,7 +1421,7 @@ class _HomeScreenState extends State<HomeScreen>
                     child: Row(
                       children: [
                         Text(
-                          'View & Edit',
+                          'View Full Menu',
                           style: TextStyle(
                             fontSize: 14,
                             height: 20 / 14,
@@ -1467,18 +1490,15 @@ class _HomeScreenState extends State<HomeScreen>
     return ValueListenableBuilder<List<AlertModel>>(
       valueListenable: AlertsManager.activeAlertsNotifier,
       builder: (context, activeAlerts, child) {
-        // Keep consistent min height regardless of alerts
-        const minHeight = 328.0;
-        
         return Column(
           children: [
             AnimatedContainer(
               duration: const Duration(milliseconds: 400),
               width: double.infinity,
-              constraints: const BoxConstraints(minHeight: minHeight),
               decoration: BoxDecoration(
                 image: DecorationImage(
-                  image: AssetImage(_getBackgroundAssetPath(_weatherBackground.assetPath)),
+                  image: AssetImage(
+                      _getBackgroundAssetPath(_weatherBackground.assetPath)),
                   fit: BoxFit.cover,
                   alignment: Alignment.topCenter,
                 ),
