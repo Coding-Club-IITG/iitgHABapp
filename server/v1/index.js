@@ -1,5 +1,3 @@
-// server/v1/index.js
-
 require("dotenv").config({ path: "../.env" });
 const PORT = process.env.PORT_V1 || 3001;
 
@@ -35,6 +33,7 @@ const galaRoute = require("./modules/gala/galaRoute.js");
 const messChangeRoute = require("./modules/mess_change/messchangeRoute.js");
 const profileRoute = require("./modules/profile/profileRoute.js");
 
+const agenda = require("./utils/agenda.js");
 const {
   initializeFeedbackAutoScheduler,
 } = require("./modules/feedback/autoFeedbackScheduler.js");
@@ -244,27 +243,19 @@ app.use(express.urlencoded({ extended: true }));
 // MongoDB connection
 mongoose
   .connect(process.env.MONGODB_URI)
-  .then(() => {
+  .then(async () => {
     console.log("MongoDB connected");
-    console.log(`[DEBUG] Current Time: ${new Date().toLocaleString()}`);
 
-    // Only run schedulers on the primary PM2 instance
-    if (
-      process.env.NODE_APP_INSTANCE === "0" ||
-      typeof process.env.NODE_APP_INSTANCE === "undefined"
-    ) {
-      console.log("Primary instance detected. Starting schedulers...");
-      initializeFeedbackAutoScheduler();
-      initializeMessChangeAutoScheduler();
-      initializeMessAllotmentScheduler();
-      initializeMessRebateAutoScheduler();
-      initializeRoomCleaningAutoResolveScheduler();
-      initializeGuestCleanupScheduler();
-    } else {
-      console.log(
-        `Worker instance ${process.env.NODE_APP_INSTANCE} started. Schedulers disabled here.`,
-      );
-    }
+    await agenda.start();
+    console.log("[Agenda] Job processor started");
+
+    // Register all scheduler job definitions
+    initializeFeedbackAutoScheduler();
+    initializeMessChangeAutoScheduler();
+    initializeMessAllotmentScheduler();
+    initializeMessRebateAutoScheduler();
+    initializeRoomCleaningAutoResolveScheduler();
+    initializeGuestCleanupScheduler();
 
     // Initialize anonymized user for soft-deleted account references
     initializeAnonymizedUser();
@@ -417,7 +408,8 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
   }
 });
 
-// Global error handler (must be after all routes). Catches errors passed to next(err).
+// Global error handler (must be after all routes)
+// Catches errors passed to next(err)
 app.use((err, req, res, next) => {
   console.error("[Express error]", err);
 
@@ -428,8 +420,11 @@ app.use((err, req, res, next) => {
   });
 });
 
+// STARTUP
 const server = app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  console.log(`Current Time: ${new Date().toLocaleString()}`);
+  if (process.send) process.send("ready");
 });
 
 // Initialize WebSocket servers for manager live scan logs
@@ -441,5 +436,36 @@ initScanBroadcast();
 
 // Connect to Redis and backfill delegated Graph token from disk so first request can use Redis
 initDelegatedGraphRedis();
+
+// SHUTDOWN
+async function gracefulShutdown(signal) {
+  console.log(`\n[${signal}] Shutdown initiated...`);
+
+  // 1. Stop accepting new HTTP connections
+  server.close(() => {
+    console.log("✅ HTTP server closed");
+  });
+
+  // 2. Stop Agenda from picking up new jobs and wait for running jobs to finish
+  try {
+    await agenda.stop();
+    console.log("✅ Agenda stopped");
+  } catch (err) {
+    console.error("❌ Agenda stop error:", err);
+  }
+
+  // 3. Close Mongoose connection
+  try {
+    await mongoose.connection.close();
+    console.log("✅ Mongoose connection closed");
+  } catch (err) {
+    console.error("❌ Mongoose close error:", err);
+  }
+
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
 module.exports = app;

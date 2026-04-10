@@ -4,21 +4,23 @@ const { Mess } = require("../mess/messModel");
 const UserAllocHostel = require("../hostel/hostelAllocModel");
 const Feedback = require("./feedbackModel");
 const { FeedbackSettings } = require("./feedbackSettingsModel");
+
+const redisClient = require("../../utils/redisClient.js");
 const {
   sendNotificationMessage,
 } = require("../notification/notificationController");
-const redisClient = require("../../utils/redisClient.js");
 const {
   getFeedbackWindowDates,
   getOrdinalSuffix,
 } = require("../../utils/windowDates.js");
-
 const {
   generateOpiReport,
   saveOpiReportBackup,
 } = require("./opiReportGenerator");
 const { uploadReportToOnedrive } = require("../../utils/onedrive.js");
+const { withTransaction } = require("../../utils/withTransaction.js");
 
+// Rating helpers
 const ratingMap = {
   "Very Poor": 1,
   Poor: 2,
@@ -226,9 +228,7 @@ const getFeedbacksByCaterer = async (req, res) => {
     let opi = null;
     let rank = null;
     try {
-      const fbQuery = {
-        caterer: { $ne: null },
-      };
+      const fbQuery = { caterer: { $ne: null } };
       if (windowNumber)
         fbQuery.feedbackWindowNumber = parseInt(windowNumber, 10);
       const allRaw = await Feedback.find(fbQuery)
@@ -328,7 +328,10 @@ const getFeedbacksByCaterer = async (req, res) => {
       }
     } catch (e) {
       // If leaderboard calc fails, keep opi/rank null but do not fail the endpoint
-      console.error("getFeedbacksByCaterer leaderboard calc error:", e);
+      console.error(
+        "[FEEDBACK] getFeedbacksByCaterer leaderboard calc error:",
+        e,
+      );
     }
 
     return res.status(200).json({
@@ -341,7 +344,7 @@ const getFeedbacksByCaterer = async (req, res) => {
       rank,
     });
   } catch (e) {
-    console.error("getFeedbacksByCaterer error:", e);
+    console.error("[FEEDBACK] getFeedbacksByCaterer error:", e);
     return res.status(500).json({ message: "Failed to fetch feedbacks" });
   }
 };
@@ -402,7 +405,7 @@ const getDetailedFeedbackByWindow = async (req, res) => {
 
     return res.status(200).json(rows);
   } catch (e) {
-    console.error("getDetailedFeedbackByWindow error:", e);
+    console.error("[FEEDBACK] getDetailedFeedbackByWindow error:", e);
     return res.status(500).json({
       message: "Failed to fetch detailed feedback by window",
       error: String(e.message || e),
@@ -430,10 +433,7 @@ const submitFeedback = async (req, res) => {
     // Enforce feedback window closing time
     if (settings.currentWindowClosingTime) {
       const expiresAt = new Date(settings.currentWindowClosingTime);
-      const now = new Date();
-      if (now > expiresAt) {
-        // Don't silently disable here — let the scheduler handle it
-        // so that updateAllMessRatingsAndRankings is properly called.
+      if (new Date() > expiresAt) {
         return res.status(403).send("Mess feedback window has ended.");
       }
     }
@@ -564,7 +564,7 @@ const getAllFeedback = async (req, res) => {
 
     return res.status(200).json(formatted);
   } catch (err) {
-    console.error("getAllFeedback error:", err);
+    console.error("[FEEDBACK] getAllFeedback error:", err);
     return res.status(500).json({
       message: "Error fetching feedbacks",
       error: String(err?.message || err),
@@ -578,23 +578,33 @@ const getAllFeedback = async (req, res) => {
 // Helper to enable feedback automatically so schedulers can call it
 const enableFeedbackAutomatic = async (endDate = null) => {
   try {
-    let s = await FeedbackSettings.findOne();
-    if (!s) {
-      s = new FeedbackSettings();
-      s.currentWindowNumber = 1;
-    }
+    let savedSettings;
 
-    // If enabling a new window, increment window number and reset user submission flags
-    if (!s.isEnabled) {
-      s.currentWindowNumber += 1;
-      await User.updateMany({}, { $set: { isFeedbackSubmitted: false } });
-    }
+    // ATOMIC TRANSACTION
+    await withTransaction(async (session) => {
+      let s = await FeedbackSettings.findOne().session(session);
+      if (!s) {
+        s = new FeedbackSettings();
+        s.currentWindowNumber = 1;
+      }
 
-    s.isEnabled = true;
-    s.enabledAt = new Date();
-    s.disabledAt = null;
-    s.currentWindowClosingTime = endDate;
-    await s.save();
+      if (!s.isEnabled) {
+        s.currentWindowNumber += 1;
+        // Reset submission flag for every user in the same transaction
+        await User.updateMany(
+          {},
+          { $set: { isFeedbackSubmitted: false } },
+          { session },
+        );
+      }
+
+      s.isEnabled = true;
+      s.enabledAt = new Date();
+      s.disabledAt = null;
+      s.currentWindowClosingTime = endDate;
+      await s.save({ session });
+      savedSettings = s;
+    });
 
     sendNotificationMessage(
       "MESS FEEDBACK",
@@ -602,13 +612,14 @@ const enableFeedbackAutomatic = async (endDate = null) => {
       "All_Hostels",
       { redirectType: "mess_screen", isAlert: "true" },
     ).catch((err) =>
-      console.error("Feedback enabled notification failed:", err),
+      console.error("[FEEDBACK] Window enabled notification failed:", err),
     );
-    console.log("✅ Feedback enabled automatically");
+
     await redisClient.del("feedback_settings");
-    return { success: true, settings: s };
+    console.log("[FEEDBACK] Window enabled automatically");
+    return { success: true, settings: savedSettings };
   } catch (e) {
-    console.error("❌ Error enabling feedback automatically:", e);
+    console.error("[FEEDBACK] Error enabling automatically:", e);
     return { success: false, error: e };
   }
 };
@@ -698,22 +709,27 @@ const buildOpiReportData = async (windowNumber) => {
 // Helper to disable feedback automatically
 const disableFeedbackAutomatic = async () => {
   try {
-    let s = await FeedbackSettings.findOne();
-    if (!s) return { success: false, error: "Settings not found" };
+    let windowNumber;
 
-    const windowNumber = s.currentWindowNumber;
+    // ATOMIC TRANSACTION
+    await withTransaction(async (session) => {
+      const s = await FeedbackSettings.findOne().session(session);
+      if (!s) throw new Error("FeedbackSettings not found");
 
-    // Disable feedback window
-    s.isEnabled = false;
-    s.disabledAt = new Date();
-    await s.save();
+      windowNumber = s.currentWindowNumber;
+      s.isEnabled = false;
+      s.disabledAt = new Date();
+      await s.save({ session });
+    });
 
     // Recalculate all mess OPI ratings and rankings
     if (typeof windowNumber === "number") {
-      await updateAllMessRatingsAndRankings(windowNumber);
+      await updateAllMessRatingsAndRankings(windowNumber).catch((err) =>
+        console.error("[OPI] Rankings update failed:", err),
+      );
     }
 
-    // Generate OPI Excel report
+    // Generate OPI Excel Report
     console.log(`[OPI] Generating OPI report for window ${windowNumber}`);
     try {
       const { feedbacks, subscribers, messes } =
@@ -745,23 +761,18 @@ const disableFeedbackAutomatic = async () => {
       if (url) {
         console.log(`[OPI] Report uploaded to OneDrive: ${url}`);
       } else {
-        console.warn(
-          "[OPI] OneDrive upload skipped or failed (check ONEDRIVE_REPORTS_FOLDER_ID).",
-        );
+        console.warn("[OPI] OneDrive upload skipped or failed");
       }
     } catch (reportErr) {
       // Report generation failure must not abort the disable flow
-      console.error(
-        "❌ [OPI] Failed to generate/upload OPI report:",
-        reportErr,
-      );
+      console.error("[OPI] Failed to generate/upload OPI report:", reportErr);
     }
 
-    console.log("✅ Feedback disabled automatically");
+    console.log("[FEEDBACK] Window disabled automatically");
     await redisClient.del("feedback_settings");
-    return { success: true, settings: s };
+    return { success: true };
   } catch (e) {
-    console.error("❌ Error disabling feedback automatically:", e);
+    console.error("[FEEDBACK] Error disabling automatically:", e);
     return { success: false, error: e };
   }
 };
@@ -907,7 +918,7 @@ const getFeedbackScheduleInfo = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching feedback schedule info:", error);
+    console.error("[FEEDBACK] Error fetching schedule info:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1060,7 +1071,6 @@ const getAvailableWindows = async (req, res) => {
 const getFeedbackLeaderboardByWindow = async (req, res) => {
   try {
     const { windowNumber } = req.query;
-
     if (!windowNumber) {
       return res.status(400).json({ message: "Window number required" });
     }
@@ -1242,22 +1252,16 @@ const getFeedbackWindowTimeLeft = async (req, res) => {
     let formatted = "";
     let unit = "minutes";
     if (days >= 1) {
-      if (hours > 0) {
-        formatted = `${days} day${days > 1 ? "s" : ""} ${hours} hour${
-          hours !== 1 ? "s" : ""
-        }`;
-      } else {
-        formatted = `${days} day${days > 1 ? "s" : ""}`;
-      }
+      formatted =
+        hours > 0
+          ? `${days} day${days > 1 ? "s" : ""} ${hours} hour${hours !== 1 ? "s" : ""}`
+          : `${days} day${days > 1 ? "s" : ""}`;
       unit = "days";
     } else if (totalHours >= 1) {
-      if (minutes > 0) {
-        formatted = `${totalHours} hour${
-          totalHours !== 1 ? "s" : ""
-        } ${minutes} minute${minutes !== 1 ? "s" : ""}`;
-      } else {
-        formatted = `${totalHours} hour${totalHours !== 1 ? "s" : ""}`;
-      }
+      formatted =
+        minutes > 0
+          ? `${totalHours} hour${totalHours !== 1 ? "s" : ""} ${minutes} minute${minutes !== 1 ? "s" : ""}`
+          : `${totalHours} hour${totalHours !== 1 ? "s" : ""}`;
       unit = "hours";
     } else {
       formatted = `${totalMinutes} minute${totalMinutes !== 1 ? "s" : ""}`;
@@ -1272,11 +1276,16 @@ const getFeedbackWindowTimeLeft = async (req, res) => {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Update Mess OPI
+// ---------------------------------------------------------------------------
 const updateAllMessRatingsAndRankings = async (windowNumber) => {
   if (typeof windowNumber !== "number") return;
 
   const startTime = Date.now();
-  console.log(`⏱️ Starting mess ratings update for window ${windowNumber}...`);
+  console.log(
+    `[OPI] Starting mess ratings update for window ${windowNumber}...`,
+  );
 
   // Get all messes and hostels
   const messes = await Mess.find({}, { _id: 1, hostelId: 1 }).lean();
@@ -1301,15 +1310,12 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
     },
     {
       $project: {
-        subscribedHostel: { $ifNull: ["$current_subscribed_mess", "$hostel"] },
+        subscribedHostel: {
+          $ifNull: ["$current_subscribed_mess", "$hostel"],
+        },
       },
     },
-    {
-      $group: {
-        _id: "$subscribedHostel",
-        count: { $sum: 1 },
-      },
-    },
+    { $group: { _id: "$subscribedHostel", count: { $sum: 1 } } },
   ]);
   const subscriberByHostel = new Map(
     subscriberRows.map((row) => [String(row._id), row.count]),
@@ -1330,7 +1336,12 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
   });
 
   const feedbackAgg = await Feedback.aggregate([
-    { $match: { feedbackWindowNumber: windowNumber, caterer: { $ne: null } } },
+    {
+      $match: {
+        feedbackWindowNumber: windowNumber,
+        caterer: { $ne: null },
+      },
+    },
     {
       $lookup: {
         from: "users",
@@ -1342,9 +1353,7 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
     },
     { $unwind: { path: "$userData", preserveNullAndEmptyArrays: true } },
     {
-      $addFields: {
-        isSMC: { $ifNull: ["$userData.isSMC", false] },
-      },
+      $addFields: { isSMC: { $ifNull: ["$userData.isSMC", false] } },
     },
     {
       $group: {
@@ -1388,9 +1397,7 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
 
   // Build lookup from aggregation results
   const aggByMess = new Map();
-  for (const row of feedbackAgg) {
-    aggByMess.set(String(row._id), row);
-  }
+  for (const row of feedbackAgg) aggByMess.set(String(row._id), row);
 
   // Compute OPI for all messes (including zero-feedback ones)
   const rows = [];
@@ -1457,7 +1464,7 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
   rows.sort((a, b) => b.overall - a.overall);
   rows.forEach((r, i) => (r.rank = i + 1));
 
-  // Single bulk write instead of individual findByIdAndUpdate calls
+  // Single bulk write
   if (rows.length > 0) {
     const bulkOps = rows.map((r) => ({
       updateOne: {
@@ -1469,7 +1476,7 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
   }
 
   console.log(
-    `✅ Mess ratings updated for ${rows.length} messes in ${Date.now() - startTime}ms`,
+    `[OPI] Mess ratings updated for ${rows.length} messes in ${Date.now() - startTime}ms`,
   );
 };
 

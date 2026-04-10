@@ -570,7 +570,7 @@ const saveOpiReportBackup = async (buffer, filename) => {
   }
   const filePath = path.join(backupDir, filename);
   fs.writeFileSync(filePath, buffer);
-  console.log(`✅ [OPI] Saved report backup to ${filePath}`);
+  console.log(`[OPI] Saved report backup to ${filePath}`);
   return filePath;
 };
 
