@@ -26,19 +26,28 @@ class FestivalModeData {
     required this.cacheUntil,
   });
 
+  static String? _getFullUrl(String? url) {
+    if (url == null) return null;
+    if (url.startsWith('http')) return url;
+    final uri = Uri.parse(baseUrl);
+    // Support standard frontend /api path by constructing the origin explicitly
+    final portString = uri.hasPort ? ':${uri.port}' : '';
+    return '${uri.scheme}://${uri.host}$portString$url';
+  }
+
   factory FestivalModeData.fromJson(Map<String, dynamic> json) {
     return FestivalModeData(
       festivalId: json['festivalId'],
       isEnabled: json['isEnabled'] ?? false,
-      imageWithAlerts: json['imageWithAlerts'],
-      imageWithoutAlerts: json['imageWithoutAlerts'],
+      imageWithAlerts: _getFullUrl(json['imageWithAlerts']),
+      imageWithoutAlerts: _getFullUrl(json['imageWithoutAlerts']),
       overlayTextWithAlerts: json['overlayTextWithAlerts'] ?? "Happy Diwali",
       overlayTextWithoutAlerts:
           json['overlayTextWithoutAlerts'] ?? "Happy Diwali",
       lastUpdatedAt: DateTime.parse(
           json['lastUpdatedAt'] ?? DateTime.now().toIso8601String()),
       cacheUntil: DateTime.parse(json['cacheUntil'] ??
-          DateTime.now().add(Duration(hours: 6)).toIso8601String()),
+          DateTime.now().add(const Duration(hours: 6)).toIso8601String()),
     );
   }
 
@@ -82,6 +91,27 @@ class FestivalModeService {
 
   late Box<dynamic> _festivalBox;
   FestivalModeData? _currentData;
+  FestivalModeData? get currentData => _currentData;
+  
+  /// Synchronously retrieve cached config if available to prevent UI flicker
+  FestivalModeData? getCachedDataSynchronously() {
+    if (_currentData != null) return _currentData;
+    if (_isInitialized) {
+      try {
+        final cachedJson = _festivalBox.get('current_festival_config');
+        if (cachedJson != null) {
+          final cached = FestivalModeData.fromJson(
+              Map<String, dynamic>.from(cachedJson));
+          // _currentData = cached; // Don't permanently override memory cache during a sync read
+          return cached;
+        }
+      } catch (e) {
+        debugPrint('[FestivalMode] Sync cache read failed: $e');
+      }
+    }
+    return null;
+  }
+  
   String? _lastKnownFestivalId; // Track festival ID to detect config changes
   bool _isInitialized = false;
 
@@ -155,6 +185,10 @@ class FestivalModeService {
       if (newData.festivalId != null) {
         final cacheKey = 'festival_${newData.festivalId}';
         await _festivalBox.put(cacheKey, newData.toJson());
+        
+        // Save as the absolute current config for bulletproof cold-start offline fallback
+        await _festivalBox.put('current_festival_config', newData.toJson());
+        
         _lastKnownFestivalId = newData.festivalId;
         debugPrint('[FestivalMode] Caching to key: $cacheKey');
       }
@@ -167,16 +201,13 @@ class FestivalModeService {
 
       // BULLETPROOF FALLBACK: Return cached data (even if expired)
       try {
-        if (_lastKnownFestivalId != null) {
-          final cacheKey = 'festival_${_lastKnownFestivalId}';
-          final cachedJson = _festivalBox.get(cacheKey);
-          if (cachedJson != null) {
-            debugPrint('[FestivalMode] Using expired Hive cache as fallback');
-            final cached = FestivalModeData.fromJson(
-                Map<String, dynamic>.from(cachedJson));
-            _currentData = cached;
-            return cached;
-          }
+        final cachedJson = _festivalBox.get('current_festival_config');
+        if (cachedJson != null) {
+          debugPrint('[FestivalMode] Using expired Hive cache as fallback');
+          final cached = FestivalModeData.fromJson(
+              Map<String, dynamic>.from(cachedJson));
+          _currentData = cached;
+          return cached;
         }
       } catch (cacheErr) {
         debugPrint('[FestivalMode] Error reading Hive fallback: $cacheErr');

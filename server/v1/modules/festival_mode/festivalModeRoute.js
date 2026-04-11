@@ -9,7 +9,7 @@ const {
   getAdminFestivalConfig,
   upload,
 } = require("./festivalModeController.js");
-const { authenticateJWT } = require("../../middleware/authenticateJWT.js");
+const { authenticateHabOrSMCJWT } = require("../../middleware/authenticateJWT.js");
 const { getDelegatedAccessToken } = require("../../utils/delegatedGraphAuth.js");
 
 /**
@@ -36,7 +36,7 @@ router.get("/status", getFestivalModeStatus);
  *       200:
  *         description: "Detailed festival mode configuration"
  */
-router.get("/admin/config", authenticateJWT, getAdminFestivalConfig);
+router.get("/admin/config", authenticateHabOrSMCJWT, getAdminFestivalConfig);
 
 /**
  * @swagger
@@ -64,7 +64,7 @@ router.get("/admin/config", authenticateJWT, getAdminFestivalConfig);
  */
 router.post(
   "/upload",
-  authenticateJWT,
+  authenticateHabOrSMCJWT,
   upload.single("file"),
   uploadFestivalImage
 );
@@ -89,7 +89,7 @@ router.post(
  *                 type: string
  *                 format: date-time
  */
-router.post("/toggle", authenticateJWT, toggleFestivalMode);
+router.post("/toggle", authenticateHabOrSMCJWT, toggleFestivalMode);
 
 router.get("/image/item/:itemId", getFestivalImageContent);
 
@@ -109,10 +109,10 @@ router.get("/image/item/:itemId", getFestivalImageContent);
  *           type: string
  *           enum: ["with_alerts", "without_alerts"]
  */
-router.delete("/image/:imageType", authenticateJWT, deleteFestivalImage);
+router.delete("/image/:imageType", authenticateHabOrSMCJWT, deleteFestivalImage);
 
 // Diagnostic endpoint for OneDrive token status (ADMIN DEBUG ONLY)
-router.get("/admin/diagnostics/onedrive-token", authenticateJWT, async (req, res, next) => {
+router.get("/admin/diagnostics/onedrive-token", authenticateHabOrSMCJWT, async (req, res, next) => {
   try {
     console.log(`[Festival Diagnostics] Checking OneDrive token status...`);
     const token = await getDelegatedAccessToken();

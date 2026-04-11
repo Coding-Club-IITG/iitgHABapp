@@ -146,7 +146,7 @@ const uploadFestivalImage = async (req, res, next) => {
       festivalMode.imageWithoutAlerts = imageRecord;
     }
 
-    festivalMode.lastUpdatedBy = req.user._id;
+    festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
     festivalMode.lastUpdatedAt = new Date();
     festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
     await festivalMode.save();
@@ -187,7 +187,7 @@ const toggleFestivalMode = async (req, res, next) => {
       festivalMode.expiresAt = new Date(expiresAt);
     }
 
-    festivalMode.lastUpdatedBy = req.user._id;
+    festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
     festivalMode.lastUpdatedAt = new Date();
     // Reset cache timer on any change
     festivalMode.cacheUntil = new Date(
@@ -249,7 +249,7 @@ const deleteFestivalImage = async (req, res, next) => {
       }
     }
 
-    festivalMode.lastUpdatedBy = req.user._id;
+    festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
     festivalMode.lastUpdatedAt = new Date();
     festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
 

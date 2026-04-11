@@ -295,7 +295,15 @@ class _HomeScreenState extends State<HomeScreen>
     return false;
   }
 
-  String _weatherHeroGreeting() {
+  String _weatherHeroGreeting(bool hasAlerts) {
+    final festivalData = FestivalModeService().currentData;
+    if (festivalData != null && festivalData.isEnabled) {
+      if (hasAlerts && festivalData.overlayTextWithAlerts.isNotEmpty) {
+        return festivalData.overlayTextWithAlerts;
+      } else if (!hasAlerts && festivalData.overlayTextWithoutAlerts.isNotEmpty) {
+        return festivalData.overlayTextWithoutAlerts;
+      }
+    }
     return getGreeting();
   }
 
@@ -933,9 +941,6 @@ class _HomeScreenState extends State<HomeScreen>
                     'assets/images/default_profile.png',
                     fit: BoxFit.cover,
                   ),
-                    'assets/images/default_profile.png',
-                    fit: BoxFit.cover,
-                  ),
           );
         },
       ),
@@ -989,7 +994,7 @@ class _HomeScreenState extends State<HomeScreen>
     required bool hasImportantMessages,
   }) {
     final displayName = name.isNotEmpty ? name : 'User';
-    final greeting = _weatherHeroGreeting();
+    final greeting = _weatherHeroGreeting(hasImportantMessages);
     final subtitleText = unreadCount == 1
         ? '1 notification today'
         : '$unreadCount notifications today';
@@ -1564,7 +1569,6 @@ class _HomeScreenState extends State<HomeScreen>
                       ),
                 child: Column(
                   children: [
-                    _buildTopBar(onWeatherBackground: true),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
                       child: _buildAlertsSection(),

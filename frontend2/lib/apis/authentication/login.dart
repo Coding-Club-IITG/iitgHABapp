@@ -77,10 +77,6 @@ Future<void> guestAuthenticate() async {
         resp.data['accessToken'] == null) {
       throw ('Guest login failed: Missing access token');
     }
-
-    final refreshToken =
-        resp.data['refreshToken'] ?? resp.data['refresh_token'];
-
     final prefs = await SharedPreferences.getInstance();
     final accessToken = resp.data['accessToken'];
     final refreshToken = resp.data['refreshToken'];

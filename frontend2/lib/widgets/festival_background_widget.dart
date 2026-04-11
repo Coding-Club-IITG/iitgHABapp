@@ -48,6 +48,7 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<FestivalModeData>(
+      initialData: FestivalModeService().getCachedDataSynchronously(),
       future: _festivalFuture,
       builder: (context, snapshot) {
         // Determine which image to use
@@ -208,6 +209,7 @@ class _FestivalBackgroundBuilderState extends State<FestivalBackgroundBuilder> {
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<FestivalModeData>(
+      initialData: FestivalModeService().getCachedDataSynchronously(),
       future: _festivalFuture,
       builder: (context, snapshot) {
         String? backgroundImage;

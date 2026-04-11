@@ -48,6 +48,13 @@ const FestivalModeAdmin = () => {
         }
     };
 
+    const getFullUrl = (url) => {
+        if (!url) return null;
+        if (url.startsWith('http')) return url;
+        const urlObj = new URL(API_BASE);
+        return `${urlObj.origin}${url}`;
+    };
+
     const loadFestivalConfig = async () => {
         try {
             setLoading(true);
@@ -72,8 +79,8 @@ const FestivalModeAdmin = () => {
             }
 
             // Set previews
-            if (data.imageWithAlerts?.url) setPreviewAlerts(data.imageWithAlerts.url);
-            if (data.imageWithoutAlerts?.url) setPreviewNoAlerts(data.imageWithoutAlerts.url);
+            if (data.imageWithAlerts?.url) setPreviewAlerts(getFullUrl(data.imageWithAlerts.url));
+            if (data.imageWithoutAlerts?.url) setPreviewNoAlerts(getFullUrl(data.imageWithoutAlerts.url));
             setOverlayTextAlerts(data.imageWithAlerts?.overlayText || "Happy Diwali");
             setOverlayTextNoAlerts(data.imageWithoutAlerts?.overlayText || "Happy Diwali");
 
@@ -110,8 +117,8 @@ const FestivalModeAdmin = () => {
                             if (cachedData.expiresAt) {
                                 setExpiresAt(cachedData.expiresAt.split("T")[0]);
                             }
-                            if (cachedData.imageWithAlerts?.url) setPreviewAlerts(cachedData.imageWithAlerts.url);
-                            if (cachedData.imageWithoutAlerts?.url) setPreviewNoAlerts(cachedData.imageWithoutAlerts.url);
+                            if (cachedData.imageWithAlerts?.url) setPreviewAlerts(getFullUrl(cachedData.imageWithAlerts.url));
+                            if (cachedData.imageWithoutAlerts?.url) setPreviewNoAlerts(getFullUrl(cachedData.imageWithoutAlerts.url));
                             foundCache = true;
                             break;
                         }

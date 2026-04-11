@@ -49,7 +49,7 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       icon: <ContainerOutlined />,
     },
     {
-      key: "8",
+      key: "9",
       name: "Festival Mode",
       path: "/festival-mode",
       icon: <FileImageOutlined />,
