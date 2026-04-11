@@ -1,9 +1,6 @@
+.env
 node_modules/
 .secrets/
-.env
 backup
 logs
 upload
-
-# App version config
-modules/app_version/config/

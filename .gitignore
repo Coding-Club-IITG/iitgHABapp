@@ -1,10 +1,23 @@
-node_modules
-.idea
-**/devtools_options.yaml
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-.env
-**/bug-**.jpg
-
-# macOS system files
+# Editor files
 .DS_Store
-**/.DS_Store
+.atom
+.idea
+*.iml
+*.ipr
+*.iws
+.vscode
+devtools_options.yaml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
