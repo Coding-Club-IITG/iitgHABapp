@@ -353,7 +353,7 @@ const FestivalModeAdmin = () => {
                 {/* Without Alerts Image */}
                 <div className="border-2 border-dashed border-indigo-500 rounded-lg p-8 bg-gray-50">
                     <h3 className="text-lg font-semibold text-gray-700 mb-4">
-                        Image without Alerts (Normal Evening)
+                        Image without Alerts (Normal)
                     </h3>
                     <div className="w-full h-80 bg-gray-300 rounded-lg flex items-center justify-center mb-4 relative overflow-hidden">
                         {previewNoAlerts ? (
@@ -432,7 +432,7 @@ const FestivalModeAdmin = () => {
                     </li>
                     <li className="text-gray-700 pl-6 relative">
                         <span className="absolute left-0 text-green-600 font-bold">✓</span>
-                        App shows "without alerts" image during normal evenings
+                        App shows "without alerts" image under normal conditions
                     </li>
                     <li className="text-gray-700 pl-6 relative">
                         <span className="absolute left-0 text-green-600 font-bold">✓</span>

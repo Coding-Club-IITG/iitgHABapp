@@ -98,6 +98,132 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
     );
   }
 
+  /// iPhone / iPad: Sign in with Apple in the Guest slot (Guest hidden). Not web.
+  bool get _useAppleInsteadOfGuest => !kIsWeb && Platform.isIOS;
+
+  static const double _kSignInSheetButtonHeight = 56;
+
+  /// Same layout for Microsoft / Apple / Guest so bar heights match on screen.
+  Widget _signInSheetButton({
+    Color? materialColor,
+    BorderSide? outlineSide,
+    required VoidCallback onTap,
+    required Widget child,
+  }) {
+    final radius = BorderRadius.circular(12);
+    final shape = outlineSide != null
+        ? RoundedRectangleBorder(borderRadius: radius, side: outlineSide)
+        : RoundedRectangleBorder(borderRadius: radius);
+
+    return SizedBox(
+      width: double.infinity,
+      height: _kSignInSheetButtonHeight,
+      child: Material(
+        color: materialColor,
+        shape: shape,
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          splashColor: Colors.white24,
+          borderRadius: radius,
+          child: SizedBox.expand(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildAppleSignInButton(
+    BuildContext sheetContext,
+    StateSetter setModalState,
+  ) {
+    return _signInSheetButton(
+      materialColor: Colors.black,
+      outlineSide: null,
+      onTap: () async {
+        _showLoader(sheetContext);
+        final navigator = Navigator.of(sheetContext);
+        final messenger = ScaffoldMessenger.of(sheetContext);
+        try {
+          setModalState(() {
+            _inprogress = true;
+          });
+          await signInWithApple();
+          setModalState(() {
+            _inprogress = false;
+          });
+          if (!mounted) return;
+          navigator.pushAndRemoveUntil(
+            MaterialPageRoute(
+              builder: (context) => const MainNavigationScreen(),
+            ),
+            (route) => false,
+          );
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Center(
+                child: Text(
+                  'Successfully Logged In',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.white),
+                ),
+              ),
+              backgroundColor: Colors.black,
+              behavior: SnackBarBehavior.floating,
+              margin: EdgeInsets.all(50),
+              duration: Duration(milliseconds: 1000),
+            ),
+          );
+        } catch (e) {
+          navigator.pop();
+          setModalState(() {
+            _inprogress = false;
+          });
+          final errorMessage = _getErrorMessage(e);
+          messenger.showSnackBar(
+            SnackBar(
+              content: Center(
+                child: Text(
+                  errorMessage,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white),
+                ),
+              ),
+              backgroundColor: Colors.black,
+              behavior: SnackBarBehavior.floating,
+              margin: const EdgeInsets.all(50),
+              duration: const Duration(milliseconds: 3000),
+            ),
+          );
+        }
+      },
+      child: const Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.apple, color: Colors.white, size: 24),
+          SizedBox(width: 16),
+          Text(
+            'Sign in with Apple',
+            style: TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w500,
+              fontSize: 14,
+              height: 20 / 14,
+              fontFamily: 'GeneralSans',
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showBottomSheet(BuildContext context) {
     _controller.forward();
     showModalBottomSheet(
@@ -111,7 +237,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
             return Stack(
               children: [
                 FractionallySizedBox(
-                  heightFactor: 0.4125 + ((!kIsWeb && Platform.isIOS) ? 0.05 : 0.0), // slightly increased height
+                  heightFactor: 0.4125,
                   child: Container(
                     decoration: const BoxDecoration(
                       color: Colors.white,
@@ -122,255 +248,167 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                     ),
                     child: Padding(
                       padding: EdgeInsets.only(
-                        left: 24,
-                        right: 24,
-                        top: 24,
-                        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+                        left: 16,
+                        right: 16,
+                        top: 16,
+                        bottom:
+                            MediaQuery.of(context).viewInsets.bottom + 36,
                       ),
                       child: SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
                         child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Text(
-                              'Sign in',
-                              style: TextStyle(
-                                fontFamily: 'GeneralSans',
-                                fontWeight: FontWeight.w600,
-                                fontSize: 32,
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text(
+                                'Sign in',
+                                style: TextStyle(
+                                  fontFamily: 'GeneralSans',
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 32,
+                                  height: 48 / 32,
+                                  color: Color(0xFF2E2F31),
+                                ),
                               ),
                             ),
-                            const Divider(height: 32, thickness: 1.6,),
-                            const Text(
-                              'For Students',
-                              style: TextStyle(
-                                fontFamily: 'GeneralSans',
-                                fontWeight: FontWeight.w500,
-                                fontSize: 14,
-                                color: Color(0xFF676767),
+                            const SizedBox(height: 16),
+                            const Divider(
+                              height: 1,
+                              thickness: 1,
+                              color: Color(0xFFE8E8EB),
+                            ),
+                            const SizedBox(height: 16),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 8),
+                              child: Text(
+                                'For Students',
+                                style: TextStyle(
+                                  fontFamily: 'GeneralSans',
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14,
+                                  height: 20 / 14,
+                                  color: Color(0xFF535353),
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 10),
-
-                            // Apple Sign In button - Only visible on iOS
-                            if (!kIsWeb && Platform.isIOS)
-                              SizedBox(
-                                height: 48,
-                                width: double.infinity,
-                                child: Material(
-                                  color: Colors.black,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(12),
+                            const SizedBox(height: 8),
+                            _signInSheetButton(
+                              materialColor: const Color(0xFF4C4EDB),
+                              outlineSide: null,
+                              onTap: () async {
+                                _showLoader(context);
+                                final navigator = Navigator.of(context);
+                                final messenger =
+                                    ScaffoldMessenger.of(context);
+                                try {
+                                  setModalState(() {
+                                    _inprogress = true;
+                                  });
+                                  await authenticate();
+                                  setModalState(() {
+                                    _inprogress = false;
+                                  });
+                                  if (!mounted) return;
+                                  navigator.pushAndRemoveUntil(
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          const MainNavigationScreen(),
+                                    ),
+                                    (route) => false,
+                                  );
+                                  messenger.showSnackBar(
+                                    const SnackBar(
+                                      content: Center(
+                                        child: Text(
+                                          'Successfully Logged In',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                              color: Colors.white),
+                                        ),
+                                      ),
+                                      backgroundColor: Colors.black,
+                                      behavior: SnackBarBehavior.floating,
+                                      margin: EdgeInsets.all(50),
+                                      duration:
+                                          Duration(milliseconds: 1000),
+                                    ),
+                                  );
+                                } catch (e) {
+                                  navigator.pop();
+                                  setModalState(() {
+                                    _inprogress = false;
+                                  });
+                                  final errorMessage = _getErrorMessage(e);
+                                  messenger.showSnackBar(
+                                    SnackBar(
+                                      content: Center(
+                                        child: Text(
+                                          errorMessage,
+                                          textAlign: TextAlign.center,
+                                          style: const TextStyle(
+                                              color: Colors.white),
+                                        ),
+                                      ),
+                                      backgroundColor: Colors.black,
+                                      behavior: SnackBarBehavior.floating,
+                                      margin: const EdgeInsets.all(50),
+                                      duration: const Duration(
+                                          milliseconds: 3000),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: const LoginButton(),
+                            ),
+                            const SizedBox(height: 20),
+                            Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 12),
+                              child: Row(
+                                children: [
+                                  const Expanded(
+                                    child: Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      color: Color(0xFFE8E8EB),
+                                    ),
                                   ),
-                                  child: InkWell(
-                                    splashColor: Colors.white24,
-                                    onTap: () async {
-                                      _showLoader(context);
-                                      final navigator = Navigator.of(context);
-                                      final messenger =
-                                          ScaffoldMessenger.of(context);
-                                      try {
-                                        setModalState(() {
-                                          _inprogress = true;
-                                        });
-                                        await signInWithApple();
-                                        setModalState(() {
-                                          _inprogress = false;
-                                        });
-                                        if (!mounted) return;
-                                        navigator.pushAndRemoveUntil(
-                                          MaterialPageRoute(
-                                            builder: (context) =>
-                                                const MainNavigationScreen(),
-                                          ),
-                                          (route) => false,
-                                        );
-                                        messenger.showSnackBar(
-                                          const SnackBar(
-                                            content: Center(
-                                              child: Text(
-                                                'Successfully Logged In',
-                                                textAlign: TextAlign.center,
-                                                style: TextStyle(
-                                                    color: Colors.white),
-                                              ),
-                                            ),
-                                            backgroundColor: Colors.black,
-                                            behavior: SnackBarBehavior.floating,
-                                            margin: EdgeInsets.all(50),
-                                            duration:
-                                                Duration(milliseconds: 1000),
-                                          ),
-                                        );
-                                      } catch (e) {
-                                        navigator.pop();
-                                        setModalState(() {
-                                          _inprogress = false;
-                                        });
-                                        final errorMessage =
-                                            _getErrorMessage(e);
-                                        messenger.showSnackBar(
-                                          SnackBar(
-                                            content: Center(
-                                              child: Text(
-                                                errorMessage,
-                                                textAlign: TextAlign.center,
-                                                style: const TextStyle(
-                                                    color: Colors.white),
-                                              ),
-                                            ),
-                                            backgroundColor: Colors.black,
-                                            behavior: SnackBarBehavior.floating,
-                                            margin: const EdgeInsets.all(50),
-                                            duration: const Duration(
-                                                milliseconds: 3000),
-                                          ),
-                                        );
-                                      }
-                                    },
-                                    child: const Padding(
-                                      padding: EdgeInsets.all(15),
-                                      child: Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.apple,
-                                              color: Colors.white, size: 20),
-                                          SizedBox(width: 8),
-                                          Text(
-                                            'Sign in with Apple',
-                                            style: TextStyle(
-                                              color: Colors.white,
-                                              fontWeight: FontWeight.w500,
-                                              fontSize: 14,
-                                              fontFamily: 'GeneralSans',
-                                            ),
-                                          ),
-                                        ],
+                                  const Padding(
+                                    padding:
+                                        EdgeInsets.symmetric(horizontal: 16),
+                                    child: Text(
+                                      'OR',
+                                      style: TextStyle(
+                                        color: Color(0xFFB9B9F4),
+                                        fontSize: 14,
+                                        height: 20 / 14,
+                                        fontFamily: 'GeneralSans',
+                                        fontWeight: FontWeight.w500,
                                       ),
                                     ),
                                   ),
-                                ),
-                              ),
-
-                            if (!kIsWeb && Platform.isIOS)
-                              const SizedBox(height: 10),
-
-                            // Microsoft login (Link Student Account)
-                            SizedBox(
-                              height: 48,
-                              width: double.infinity,
-                              child: Material(
-                                color: const Color(0xFF4C4EDB),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
-                                child: InkWell(
-                                  splashColor: Colors.white,
-                                  onTap: () async {
-                                    _showLoader(context);
-                                    final navigator = Navigator.of(context);
-                                    final messenger =
-                                        ScaffoldMessenger.of(context);
-                                    try {
-                                      setModalState(() {
-                                        _inprogress = true;
-                                      });
-                                      await authenticate();
-                                      setModalState(() {
-                                        _inprogress = false;
-                                      });
-                                      if (!mounted) return;
-                                      navigator.pushAndRemoveUntil(
-                                        MaterialPageRoute(
-                                          builder: (context) =>
-                                              const MainNavigationScreen(),
-                                        ),
-                                        (route) => false,
-                                      );
-                                      messenger.showSnackBar(
-                                        const SnackBar(
-                                          content: Center(
-                                            child: Text(
-                                              'Successfully Logged In',
-                                              textAlign: TextAlign.center,
-                                              style: TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                          ),
-                                          backgroundColor: Colors.black,
-                                          behavior: SnackBarBehavior.floating,
-                                          margin: EdgeInsets.all(50),
-                                          duration:
-                                              Duration(milliseconds: 1000),
-                                        ),
-                                      );
-                                    } catch (e) {
-                                      navigator.pop();
-                                      setModalState(() {
-                                        _inprogress = false;
-                                      });
-                                      final errorMessage = _getErrorMessage(e);
-                                      messenger.showSnackBar(
-                                        SnackBar(
-                                          content: Center(
-                                            child: Text(
-                                              errorMessage,
-                                              textAlign: TextAlign.center,
-                                              style: const TextStyle(
-                                                  color: Colors.white),
-                                            ),
-                                          ),
-                                          backgroundColor: Colors.black,
-                                          behavior: SnackBarBehavior.floating,
-                                          margin: const EdgeInsets.all(50),
-                                          duration: const Duration(
-                                              milliseconds: 3000),
-                                        ),
-                                      );
-                                    }
-                                  },
-                                  child: const Padding(
-                                    padding: EdgeInsets.all(15),
-                                    child: LoginButton(),
+                                  const Expanded(
+                                    child: Divider(
+                                      height: 1,
+                                      thickness: 1,
+                                      color: Color(0xFFE8E8EB),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
                             ),
+                            const SizedBox(height: 20),
 
-                            const Row(
-                              children: [
-                                Expanded(child: Divider(height: 32, thickness: 1.6,)),
-                                Padding(
-                                  padding: EdgeInsets.all(8.0),
-                                  child: Text(
-                                      'OR',
-                                      style: TextStyle(
-                                          color: const Color(0xFFB9B9F4) /* Brand-Primary-Border-1 */,
-                                          fontSize: 14,
-                                          fontFamily: 'General Sans Variable',
-                                          fontWeight: FontWeight.w500,
-                                          height: 1.43,
-                                      ),
-                                  ),
-                                ),
-                                Expanded(child: Divider(height: 32, thickness: 2,)),
-                              ],
-                            ),
-
-                            // Guest login
-                            SizedBox(
-                              height: 48,
-                              width: double.infinity,
-                              child: Material(
-                                // color: const Color(0xFF2E2E2E),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  side: const BorderSide(
-                                    width: 1,
-                                    color: Color(0xFFB9B9F4) /* Brand-Primary-Border-1 */,
-                                  ),
+                            if (_useAppleInsteadOfGuest)
+                              _buildAppleSignInButton(context, setModalState)
+                            else
+                              _signInSheetButton(
+                                materialColor: null,
+                                outlineSide: const BorderSide(
+                                  width: 1,
+                                  color: Color(0xFFB9B9F4),
                                 ),
                                 child: InkWell(
                                   splashColor: Colors.white24,
@@ -449,17 +487,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                         style: TextStyle(
                                         color: Color(0xFF4B4EDA) /* Brand-Primary */,
                                         fontSize: 14,
-                                        fontFamily: 'General Sans Variable',
+                                        height: 20 / 14,
+                                        fontFamily: 'GeneralSans',
                                         fontWeight: FontWeight.w500,
-                                        height: 1.43,
                                       ),
-                                      ),
-                                    ],
                                     ),
+                                  ],
                                 ),
                               ),
-                            ),
-                            const SizedBox(height: 14),
                           ],
                         ),
                       ),

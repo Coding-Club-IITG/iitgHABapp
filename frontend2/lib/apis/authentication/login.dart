@@ -45,7 +45,7 @@ Future<void> authenticate() async {
 
     await fetchUserDetails();
     await fetchUserProfilePicture();
-    //await getUserMessInfo(); remove comment for sure
+    await getUserMessInfo();
     // await registerFcmToken();
     await HostelsNotifier.init();
     ProfilePictureProvider.init();
@@ -227,7 +227,7 @@ Future<void> signInWithApple() async {
     await fetchUserDetails();
     // Only fetch mess info if user has Microsoft linked (has roll number and mess subscription)
     if (hasMicrosoftLinked) {
-      //await getUserMessInfo();
+      await getUserMessInfo();
     }
     // await registerFcmToken();
     await HostelsNotifier.init();

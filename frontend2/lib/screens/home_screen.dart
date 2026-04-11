@@ -1521,42 +1521,6 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildWeatherHeroSection() {
-    return ValueListenableBuilder<List<AlertModel>>(
-      valueListenable: AlertsManager.activeAlertsNotifier,
-      builder: (context, activeAlerts, child) {
-        return Column(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 400),
-              width: double.infinity,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(
-                      _getBackgroundAssetPath(_weatherBackground.assetPath)),
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-              ),
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x2A000000),
-                      Color(0x10000000),
-                      Color(0x04FFFFFF),
-                      Color(0xFFFFFFFF),
-                    ],
-                    stops: [0.0, 0.48, 0.88, 1.0],
-                  ),
-                ),
-                child: _buildAlertsSection(),
-              ),
-            ),
-          ],
-        );
-      },
     return FutureBuilder<FestivalModeData>(
       future: _festivalFuture,
       builder: (context, snapshot) {
@@ -1654,30 +1618,6 @@ class _HomeScreenState extends State<HomeScreen>
           ),
         );
       },
-    return Scaffold(
-      backgroundColor: pageBackground,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildWeatherHeroSection(),
-            _buildSectionDivider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-              child: ValueListenableBuilder<List<String>>(
-                valueListenable: HostelsNotifier.hostelNotifier,
-                builder: (context, _, __) => _buildQuickActionsSection(),
-              ),
-            ),
-            if (currSubscribedMess.isNotEmpty) ...[
-              _buildSectionDivider(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                child: _buildMessSection(),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

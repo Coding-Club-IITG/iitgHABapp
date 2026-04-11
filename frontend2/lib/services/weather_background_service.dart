@@ -204,7 +204,7 @@ class WeatherBackgroundService {
   }
 
   static String _backgroundVariantForClear(DateTime now) {
-    if (now.weekday == DateTime.saturday || now.weekday == DateTime.sunday) {
+    if (_isWeekendPeriod()) {
       return 'weekend';
     }
     return _timeOfDayVariant();
