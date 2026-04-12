@@ -5,21 +5,34 @@ const agenda = require("../../utils/agenda.js");
 
 const JOB_NAME = "mess-rebate-daily";
 
-// Core logic
-const runMessRebateJob = async () => {
-  const today = new Date(
-    new Date().getFullYear(),
-    new Date().getMonth(),
-    new Date().getDate(),
+const MS_PER_DAY = 86400000;
+
+/** Start of local calendar day for a timestamp (same convention as the rest of this file). */
+function startOfLocalDay(d) {
+  const x = new Date(d);
+  return new Date(
+    x.getFullYear(),
+    x.getMonth(),
+    x.getDate(),
     0,
     0,
     0,
     0,
   );
-  const yesterday = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate() - 1,
+}
+
+/** Whole calendar days from application day (local) to `todayStart` (exclusive of the 7-day grace). */
+function calendarDaysSinceAppliedDay(appliedAt, todayStart) {
+  const appliedDay = startOfLocalDay(appliedAt);
+  return Math.floor((todayStart - appliedDay) / MS_PER_DAY);
+}
+
+// Core logic — safe to re-run after missed days: uses "as of start of today", not only "yesterday".
+const runMessRebateJob = async () => {
+  const today = new Date(
+    new Date().getFullYear(),
+    new Date().getMonth(),
+    new Date().getDate(),
     0,
     0,
     0,
@@ -34,28 +47,9 @@ const runMessRebateJob = async () => {
     0,
     0,
   );
-  const yesterweek = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate() - 7,
-    0,
-    0,
-    0,
-    0,
-  );
-  const yesterweekplusone = new Date(
-    today.getFullYear(),
-    today.getMonth(),
-    today.getDate() - 6,
-    0,
-    0,
-    0,
-    0,
-  );
 
   const activeApplications = await Leave.find({
-    resolved: false,
-    status: { $in: ["pending", "approved"] },
+    status: { $in: ["Pending", "Acknowledged"] },
   })
     .sort({ appliedAt: -1 })
     .lean();
@@ -64,15 +58,10 @@ const runMessRebateJob = async () => {
     `[MESS REBATE] Found ${activeApplications.length} active applications`,
   );
 
-  // 1. Re-enable scanner permission when leave ends
+  // 1. Re-enable scanner when leave has ended (any time before today — catches missed runs)
   {
-    const ending = activeApplications.filter(
-      (app) => yesterday <= app.endDate && app.endDate < today,
-    );
+    const ending = activeApplications.filter((app) => app.endDate < today);
     const userIds = ending.map((a) => a.user);
-    const userIdsToResolve = ending
-      .filter((app) => app.status === "approved")
-      .map((application) => application.user);
 
     if (userIds.length > 0) {
       const result = await User.updateMany(
@@ -80,50 +69,40 @@ const runMessRebateJob = async () => {
         { $set: { scannerPermission: true } },
       );
 
-      if (userIdsToResolve.length > 0) {
-        const resolvedResult = await Leave.updateMany(
-          { _id: { $in: userIdsToResolve } },
-          { $set: { resolved: true } },
-        );
-        console.log(
-          `[MESS REBATE] ${resolvedResult.modifiedCount} applications resolved`,
-        );
-      }
-
       console.log(
-        `[MESS REBATE] Re-enabled scanner for ${result.modifiedCount} users (leave ended)`,
+        `[MESS REBATE] Re-enabled scanner for ${result.modifiedCount} users (leave ended before today)`,
       );
     }
   }
 
-  // 2. Revoke scanner permission when leave starts
+  // 2. Revoke scanner when leave overlaps calendar "today" (started on or before today, not ended yet)
   {
-    const starting = activeApplications.filter(
-      (app) => today <= app.startDate && app.startDate < tomorrow,
+    const onLeaveToday = activeApplications.filter(
+      (app) => app.startDate < tomorrow && app.endDate >= today,
     );
-    const userIds = starting.map((a) => a.user);
+    const userIds = onLeaveToday.map((a) => a.user);
     if (userIds.length > 0) {
       const result = await User.updateMany(
         { _id: { $in: userIds } },
         { $set: { scannerPermission: false } },
       );
       console.log(
-        `[MESS REBATE] Revoked scanner for ${result.modifiedCount} users (leave started)`,
+        `[MESS REBATE] Revoked scanner for ${result.modifiedCount} users (on leave today)`,
       );
     }
   }
 
-  // 3. Auto-reject medical leaves not submitted within 7 days
+  // 3. Medical Pending without proof after upload window (>7 calendar days since local application day)
   {
-    const expiredMedical = await Leave.find({
-      resolved: false,
+    const candidates = await Leave.find({
+      status: "Pending",
       proofDocumentUrl: null,
       leaveType: "Medical",
-      appliedAt: {
-        $gte: yesterweek,
-        $lt: yesterweekplusone,
-      },
     }).lean();
+
+    const expiredMedical = candidates.filter(
+      (a) => calendarDaysSinceAppliedDay(a.appliedAt, today) > 7,
+    );
 
     const targetIds = expiredMedical.map((t) => t._id);
 
@@ -134,9 +113,7 @@ const runMessRebateJob = async () => {
         await Leave.updateMany(
           { _id: { $in: targetIds } },
           {
-            resolved: true,
-            status: "rejected",
-            feedback: "Medical Application Not Submitted On Time",
+            status: "Cancelled",
           },
           { session },
         );
@@ -149,7 +126,7 @@ const runMessRebateJob = async () => {
       });
 
       console.log(
-        `[MESS REBATE] Auto-rejected ${targetIds.length} expired medical leaves, scanner restored for ${userIds.length} users`,
+        `[MESS REBATE] Auto-cancelled ${targetIds.length} expired medical leaves, scanner restored for ${userIds.length} users`,
       );
     }
   }

@@ -58,6 +58,19 @@ async function getItemById(token, itemId) {
   return graphGET(url, token);
 }
 
+/** Pre-authenticated URL; works with unauthenticated HTTP GET (e.g. mobile app). Short-lived. */
+function driveItemGraphDownloadUrl(driveItem) {
+  if (!driveItem || typeof driveItem !== "object") return "";
+  return String(driveItem["@microsoft.graph.downloadUrl"] || "").trim();
+}
+
+async function fetchDriveItemDownloadUrl(token, itemId) {
+  if (!itemId) return "";
+  const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}`;
+  const data = await graphGET(url, token);
+  return driveItemGraphDownloadUrl(data);
+}
+
 async function uploadToParentByName(
   token,
   parentId,
@@ -243,8 +256,54 @@ const downloadFromOnedrive = async (url, res) => {
   }
 };
 
+/**
+ * Upload a buffer to the leave documents folder (no Express res).
+ * @returns {{ url: string, filename: string }}
+ */
+async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
+  const LEAVE_FOLDER_ID = process.env.ONEDRIVE_LEAVE_FOLDER_ID;
+  if (!LEAVE_FOLDER_ID) {
+    throw new Error("ONEDRIVE_LEAVE_FOLDER_ID is not configured");
+  }
+  const token = await requireDelegatedToken();
+  const uploaded = await uploadToParentByName(
+    token,
+    LEAVE_FOLDER_ID,
+    targetName,
+    buffer,
+    mimetype,
+  );
+  let graphDownloadUrl = driveItemGraphDownloadUrl(uploaded);
+  if (!graphDownloadUrl && uploaded?.id) {
+    try {
+      graphDownloadUrl = await fetchDriveItemDownloadUrl(token, uploaded.id);
+    } catch (e) {
+      console.error(
+        "[OneDrive] Could not fetch @microsoft.graph.downloadUrl for leave PDF:",
+        e.message,
+      );
+    }
+  }
+  let orgViewUrl = "";
+  try {
+    orgViewUrl = await createOrganizationViewLink(token, uploaded.id);
+  } catch (e) {
+    console.error("[OneDrive] Link creation failed for leave PDF:", e.message);
+  }
+  // Organization "view" links require the user to be signed into M365 in a browser — plain
+  // GET from the app returns 403. Prefer Graph download URL for mobile / Dio.
+  const urlForClient = graphDownloadUrl || orgViewUrl || "";
+  if (!graphDownloadUrl && orgViewUrl) {
+    console.warn(
+      "[OneDrive] leave PDF: no @microsoft.graph.downloadUrl; returning org link (in-app download may 403).",
+    );
+  }
+  return { url: urlForClient, filename: targetName };
+}
+
 module.exports = {
   uploadToOnedrive,
   uploadReportToOnedrive,
   downloadFromOnedrive,
+  uploadBufferToLeaveFolder,
 };

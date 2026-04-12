@@ -196,7 +196,8 @@ app.use(
 function startWorker() {
   const worker = new Worker(
     path.resolve(__dirname, "./workers/loggerWorker.js"),
-    { execArgv: process.execArgv },
+    // PM2 injects --max-old-space-size=… into process.execArgv; worker threads reject it (ERR_WORKER_INVALID_EXEC_ARGV).
+    { execArgv: [] },
   );
 
   worker.on("error", (err) => console.error("Worker Error:", err));
@@ -240,28 +241,6 @@ app.use(
 
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
-
-// MongoDB connection
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(async () => {
-    console.log("MongoDB connected");
-
-    await agenda.start();
-    console.log("[Agenda] Job processor started");
-
-    // Register all scheduler job definitions
-    initializeFeedbackAutoScheduler();
-    initializeMessChangeAutoScheduler();
-    initializeMessAllotmentScheduler();
-    initializeMessRebateAutoScheduler();
-    initializeRoomCleaningAutoResolveScheduler();
-    initializeGuestCleanupScheduler();
-
-    // Initialize anonymized user for soft-deleted account references
-    initializeAnonymizedUser();
-  })
-  .catch((err) => console.log(err));
 
 /**
  * @swagger
@@ -424,31 +403,56 @@ app.use((err, req, res, next) => {
   });
 });
 
-// STARTUP
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`Current Time: ${new Date().toLocaleString()}`);
-  if (process.send) process.send("ready");
+// STARTUP — listen only after MongoDB is ready so auth queries are not buffered until timeout
+let server;
+
+async function bootstrap() {
+  if (!process.env.MONGODB_URI) {
+    console.error("MONGODB_URI is not set; refusing to start.");
+    process.exit(1);
+  }
+
+  await mongoose.connect(process.env.MONGODB_URI);
+  console.log("MongoDB connected");
+
+  await agenda.start();
+  console.log("[Agenda] Job processor started");
+
+  initializeFeedbackAutoScheduler();
+  initializeMessChangeAutoScheduler();
+  initializeMessAllotmentScheduler();
+  initializeMessRebateAutoScheduler();
+  initializeRoomCleaningAutoResolveScheduler();
+  initializeGuestCleanupScheduler();
+  await initializeAnonymizedUser();
+
+  server = app.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+    console.log(`Current Time: ${new Date().toLocaleString()}`);
+    if (process.send) process.send("ready");
+  });
+
+  initMessManagerWs(server);
+  initGalaManagerWs(server);
+  initScanBroadcast();
+  initDelegatedGraphRedis();
+}
+
+bootstrap().catch((err) => {
+  console.error("Server failed to start:", err);
+  process.exit(1);
 });
-
-// Initialize WebSocket servers for manager live scan logs
-initMessManagerWs(server);
-initGalaManagerWs(server);
-
-// Subscribe to Redis scan events so all cluster instances can broadcast to their local WS clients
-initScanBroadcast();
-
-// Connect to Redis and backfill delegated Graph token from disk so first request can use Redis
-initDelegatedGraphRedis();
 
 // SHUTDOWN
 async function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Shutdown initiated...`);
 
   // 1. Stop accepting new HTTP connections
-  server.close(() => {
-    console.log("✅ HTTP server closed");
-  });
+  if (server) {
+    server.close(() => {
+      console.log("✅ HTTP server closed");
+    });
+  }
 
   // 2. Stop Agenda from picking up new jobs and wait for running jobs to finish
   try {

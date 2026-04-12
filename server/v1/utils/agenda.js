@@ -1,26 +1,17 @@
-const { Agenda } = require("agenda");
-const { MongoBackend } = require("@agendajs/mongo-backend");
-
 /**
- * Singleton Agenda instance shared by all scheduler modules
- * Agenda persists every job in MongoDB (collection: "agendaJobs")
+ * Singleton Agenda instance shared by all scheduler modules.
+ * Agenda v4 is CommonJS-compatible; v6+ is ESM-only and breaks require().
+ * Jobs persist in MongoDB (collection: "agendaJobs").
  */
+const Agenda = require("agenda");
 
 const agenda = new Agenda({
-  backend: new MongoBackend({
+  db: {
     address: process.env.MONGODB_URI,
     collection: "agendaJobs",
-  }),
-
-  // How often Agenda queries MongoDB for due jobs (ms)
-  // 5 000 ms is fine for jobs that fire at minute-level precision
+  },
   processEvery: "5 seconds",
-
-  // Maximum concurrent jobs across all queues on this process
   maxConcurrency: 4,
-
-  // Lock lifetime: if a job hasn't finished in 10 minutes, release the lock
-  // so another instance can pick it up
   defaultLockLifetime: 10 * 60 * 1000,
 });
 
