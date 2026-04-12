@@ -15,16 +15,15 @@ const {
   applyForLeave,
   getApplications,
   getApplicationByID,
-  getApplicationProof,
   validateUploadDoc,
   uploadDocForMedicalLeave,
   cancelApplication,
-  getAllPendingApplications,
-  filterApplications,
-  approveApplication,
-  rejectApplication,
-  getRebateSummary,
+  getMessApplications,
+  getApplicationSummary,
+  acknowledgeRebateApplication,
   validateApply,
+  validateGenerateFormOnly,
+  generateStationLeaveFormOnly,
 } = require("./leaveController.js");
 
 const { runMessRebateJob } = require("./autoMessRebateScheduler.js");
@@ -43,11 +42,18 @@ leaveRouter.post(
   applyForLeave,
 );
 
+/** PDF only — no Leave document, no bank/proof (student hostel form). */
+leaveRouter.post(
+  "/generate-form-only",
+  authenticateJWT,
+  uploadMiddleware,
+  validateGenerateFormOnly,
+  generateStationLeaveFormOnly,
+);
+
 leaveRouter.get("/my-applications", authenticateJWT, getApplications);
 
 leaveRouter.get("/:id", authenticateJWT, getApplicationByID);
-
-leaveRouter.get("/:id/proof", authenticateJWT, getApplicationProof);
 
 leaveRouter.post(
   "/my-applications/:id/upload-late-medical-document",
@@ -62,25 +68,21 @@ leaveRouter.delete("/my-applications/:id", authenticateJWT, cancelApplication);
 
 //Hostel Office Endpoints
 leaveRouter.get(
-  "/hostel/pending",
+  "/hostel/mess-applications",
   authenticateMessManagerJWT,
-  getAllPendingApplications,
+  getMessApplications,
 );
-
-leaveRouter.get("/hostel/all", authenticateMessManagerJWT, filterApplications);
-
-leaveRouter.post(
-  "/:id/approve",
-  authenticateMessManagerJWT,
-  approveApplication,
-);
-
-leaveRouter.post("/:id/reject", authenticateMessManagerJWT, rejectApplication);
 
 leaveRouter.get(
-  "/hostel/rebate-summary",
+  "/hostel/application-summary",
   authenticateMessManagerJWT,
-  getRebateSummary,
+  getApplicationSummary,
+);
+
+leaveRouter.post(
+  "/hostel/applications/:id/acknowledge",
+  authenticateMessManagerJWT,
+  acknowledgeRebateApplication,
 );
 
 leaveRouter.post("/download", authenticateMessManagerJWT, sendDocument);

@@ -24,25 +24,21 @@ const leaveSchema = new mongoose.Schema({
         type: Number,
         required: true,
     },
-    eligibleDays: {
-        type: Number,
-        required: true,
-    },
-    resolved: {
-        type: Boolean,
-        default: false
-    },
     status: {
         type: String,
-        enum: ["pending", "approved", "rejected","cancelled"],
-        default: "pending",
+        enum: ["Pending", "Acknowledged", "Processed", "Cancelled"],
+        default: "Pending",
         required: true,
     },
-    proofDocumentUrl: {
-        type: String,
+    acknowledgedAt: {
+        type: Date,
         required: false,
     },
-    proofDocumentFilename: {
+    processedAt: {
+        type: Date,
+        required: false,
+    },
+    proofDocumentUrl: {
         type: String,
         required: false,
     },
@@ -54,19 +50,10 @@ const leaveSchema = new mongoose.Schema({
         type: Date,
         required: true,
     },
-    feedback: {
-        type: String,
-        required: false,
-    },
     messHostel: {
         type: mongoose.Schema.Types.ObjectId,
         ref: "Hostel",
         required: true,
-    },
-    isEligibleForRebate: {
-        type: Boolean,
-        default: false,
-        required: true
     },
     bankAccountNumber: {
         type: Number,
