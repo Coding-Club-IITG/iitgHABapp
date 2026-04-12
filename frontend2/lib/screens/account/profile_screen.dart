@@ -179,7 +179,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text(
           'Profile',
           style: TextStyle(
-              fontFamily: Themes.kFont,
               fontSize: 20,
               fontWeight: FontWeight.w600,
               color: Colors.black),
@@ -190,7 +189,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: widget.onEdit,
             child: const Text('Edit',
                 style: TextStyle(
-                    fontFamily: Themes.kFont,
                     color: Themes.kAccent,
                     fontWeight: FontWeight.w600)),
           ),
@@ -328,14 +326,12 @@ class _ProfileField extends StatelessWidget {
               children: [
                 Text(label,
                     style: TextStyle(
-                        fontFamily: Themes.kFont,
                         fontSize: 14,
                         color: Colors.grey[800],
                         fontWeight: FontWeight.w500)),
                 const SizedBox(height: 3),
                 Text(value,
                     style: const TextStyle(
-                        fontFamily: Themes.kFont,
                         fontSize: 20,
                         color: Colors.black,
                         fontWeight: FontWeight.w500)),

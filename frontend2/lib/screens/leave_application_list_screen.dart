@@ -763,7 +763,6 @@ class _LeaveApplicationListScreenState
                     style: TextStyle(
                       color: Color(0xFF676767), // Grey-1
                       fontSize: 16,
-                      fontFamily: 'General Sans Variable',
                       fontWeight: FontWeight.w600,
                       height: 1.50,
                     ),
@@ -800,7 +799,6 @@ class _LeaveApplicationListScreenState
                               color:
                                   Color(0xFF4B4EDA) /* Brand-Primary */,
                               fontSize: 16,
-                              fontFamily: 'General Sans Variable',
                               fontWeight: FontWeight.w500,
                               height: 1.50,
                             ),

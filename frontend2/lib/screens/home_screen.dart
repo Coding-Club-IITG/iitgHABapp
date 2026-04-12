@@ -63,7 +63,6 @@ class _HomeScreenState extends State<HomeScreen>
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
-  static const generalSans = 'GeneralSans';
 
   String name = '';
   String currSubscribedMess = '';
@@ -982,7 +981,6 @@ class _HomeScreenState extends State<HomeScreen>
                       Text(
                         'HABit',
                         style: TextStyle(
-                          fontFamily: generalSans,
                           fontSize: 28,
                           height: 30.4 / 28,
                           fontWeight: FontWeight.w700,
@@ -995,7 +993,6 @@ class _HomeScreenState extends State<HomeScreen>
                         child: Text(
                           'BETA V2',
                           style: TextStyle(
-                            fontFamily: generalSans,
                             fontSize: 12,
                             height: 16 / 12,
                             fontWeight: FontWeight.w500,
@@ -1020,7 +1017,6 @@ class _HomeScreenState extends State<HomeScreen>
                       overflow: TextOverflow.ellipsis,
                       text: TextSpan(
                         style: TextStyle(
-                          fontFamily: generalSans,
                           fontSize: hasImportantMessages ? 16 : 24,
                           height: hasImportantMessages ? 20 / 16 : 32 / 24,
                           fontWeight: FontWeight.w500,
@@ -1047,7 +1043,6 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Text(
                   subtitleText,
                   style: TextStyle(
-                    fontFamily: generalSans,
                     fontSize: 12,
                     height: 16 / 12,
                     fontWeight: FontWeight.w500,
@@ -1168,7 +1163,6 @@ class _HomeScreenState extends State<HomeScreen>
             Text(
               '$unreadCount Updates',
               style: const TextStyle(
-                fontFamily: generalSans,
                 fontSize: 14,
                 height: 20 / 14,
                 fontWeight: FontWeight.w500,

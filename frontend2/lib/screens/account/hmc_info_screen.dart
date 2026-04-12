@@ -86,7 +86,6 @@ class _HmcInfoScreenState extends State<HmcInfoScreen> {
         title: const Text(
           'HMC Info',
           style: TextStyle(
-              fontFamily: Themes.kFont,
               fontSize: 20,
               fontWeight: FontWeight.w500,
               color: Colors.black),
@@ -122,7 +121,6 @@ class _HmcInfoScreenState extends State<HmcInfoScreen> {
                             child: Text(
                               _hmcRoles[ri].title,
                               style: const TextStyle(
-                                fontFamily: Themes.kFont,
                                 fontSize: 16,
                                 fontWeight: FontWeight.w500,
                                 color: Colors.black87,
@@ -204,7 +202,6 @@ class _HmcMemberCard extends StatelessWidget {
                                   ? member.name[0].toUpperCase()
                                   : '?',
                               style: const TextStyle(
-                                  fontFamily: Themes.kFont,
                                   fontSize: 18,
                                   fontWeight: FontWeight.w600,
                                   color: Colors.black54),
@@ -218,18 +215,15 @@ class _HmcMemberCard extends StatelessWidget {
                         children: [
                           Text(member.name,
                               style: const TextStyle(
-                                  fontFamily: Themes.kFont,
                                   fontSize: 16,
                                   fontWeight: FontWeight.w500)),
                           const SizedBox(height: 2),
                           Text(member.email,
                               style: TextStyle(
-                                  fontFamily: Themes.kFont,
                                   fontSize: 14,
                                   color: Colors.grey[800])),
                           Text(member.phone,
                               style: TextStyle(
-                                  fontFamily: Themes.kFont,
                                   fontSize: 14,
                                   color: Colors.grey[800])),
                         ],
@@ -266,7 +260,6 @@ class _HmcMemberCard extends StatelessWidget {
                             width: 24, height: 24),
                         label: const Text('Call',
                             style: TextStyle(
-                                fontFamily: Themes.kFont,
                                 color: Themes.kAccent,
                                 fontWeight: FontWeight.w500,
                                 fontSize: 16)),
@@ -290,7 +283,6 @@ class _HmcMemberCard extends StatelessWidget {
                             width: 24, height: 24),
                         label: const Text('Mail',
                             style: TextStyle(
-                                fontFamily: Themes.kFont,
                                 color: Themes.kAccent)),
                       ),
                     ),

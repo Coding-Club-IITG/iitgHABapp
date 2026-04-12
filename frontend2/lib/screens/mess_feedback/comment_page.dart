@@ -128,7 +128,6 @@ class _CommentPageState extends State<CommentPage> {
                       const Text(
                         "Mess Feedback",
                         style: TextStyle(
-                          fontFamily: 'OpenSans_Bold',
                           color: Themes.feedbackColor,
                           fontSize: 32,
                           fontWeight: FontWeight.w700,
@@ -146,7 +145,6 @@ class _CommentPageState extends State<CommentPage> {
                       const Text(
                         "Add additional comments that would help improve the mess service",
                         style: TextStyle(
-                          fontFamily: 'OpenSans-Regular',
                           fontWeight: FontWeight.w500,
                           fontSize: 20,
                           color: Color.fromRGBO(46, 47, 49, 1),
@@ -179,7 +177,6 @@ class _CommentPageState extends State<CommentPage> {
                   child: const Text(
                     'Submit',
                     style: TextStyle(
-                      fontFamily: 'OpenSans-Regular',
                       fontSize: 16,
                       color: Colors.white,
                       fontWeight: FontWeight.w500,

@@ -319,7 +319,6 @@ class _MessChangePreferenceScreenState
                     const Text(
                       "Mess Preference",
                       style: TextStyle(
-                        fontFamily: 'OpenSans_Bold',
                         color: Themes.feedbackColor,
                         fontSize: 32,
                         fontWeight: FontWeight.w700,

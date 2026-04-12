@@ -8,7 +8,7 @@ class Themes {
     useMaterial3: true,
     primaryColor: kYellow,
     scaffoldBackgroundColor: Colors.white,
-    fontFamily: 'ProximaNova',
+    fontFamily: kFont,
     splashColor: kYellow,
     textTheme: const TextTheme(
       labelMedium: TextStyle(
@@ -78,7 +78,7 @@ class Themes {
       fontSize: 10.0,
     ),
     labelLarge: TextStyle(
-        fontFamily: "ProximaNova",
+        fontFamily: kFont,
         fontSize: 16,
         fontWeight: FontWeight.w700,
         color: Colors.black),

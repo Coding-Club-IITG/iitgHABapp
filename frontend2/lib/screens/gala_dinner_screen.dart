@@ -335,7 +335,6 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
                 const Text(
                   'Gala Dinner',
                   style: TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontSize: 32,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF2E2F31),
@@ -698,7 +697,6 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
   bool _expanded = false;
 
   static const _sectionLabelStyle = TextStyle(
-    fontFamily: "Manrope_semibold",
     fontSize: 12,
     fontWeight: FontWeight.w600,
     color: Color(0xFF676767),

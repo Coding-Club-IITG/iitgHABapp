@@ -34,7 +34,6 @@ Widget customOption({
           Text(
             text,
             style: TextStyle(
-              fontFamily: 'OpenSans-Regular',
               fontSize: 16,
               color: isSelected ? const Color(0xFF4C4BD9) : Colors.black,
               fontWeight: FontWeight.w500,

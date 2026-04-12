@@ -156,7 +156,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
         title: const Text(
           "Change Mess",
           style: TextStyle(
-              fontFamily: 'OpenSans_bold',
               fontWeight: FontWeight.w400,
               fontSize: 24),
         ),
@@ -176,14 +175,12 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                       const Text(
                         "Current Mess",
                         style: TextStyle(
-                            fontFamily: 'OpenSans_regular',
                             fontSize: 16,
                             color: Color.fromRGBO(0, 0, 0, 1)),
                       ),
                       Text(
                         calculateHostel(currMess),
                         style: const TextStyle(
-                          fontFamily: 'OpenSans_bold',
                           fontSize: 24,
                           fontWeight: FontWeight.w400,
                           color: Color.fromRGBO(57, 77, 198, 1),
@@ -193,14 +190,12 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                       const Text(
                         "Name",
                         style: TextStyle(
-                            fontFamily: 'OpenSans_regular',
                             fontSize: 16,
                             color: Color.fromRGBO(0, 0, 0, 1)),
                       ),
                       Text(
                         capitalizeWords(name),
                         style: const TextStyle(
-                            fontFamily: 'OpenSans_regular',
                             fontSize: 18,
                             fontWeight: FontWeight.w600),
                       ),
@@ -211,7 +206,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                           Text(
                             "Roll Number",
                             style: TextStyle(
-                                fontFamily: 'OpenSans_regular',
                                 fontSize: 16,
                                 color: Color.fromRGBO(0, 0, 0, 1)),
                           ),
@@ -222,7 +216,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                             child: Text(
                               "Hostel",
                               style: TextStyle(
-                                fontFamily: 'OpenSans_regular',
                                 fontSize: 16,
                                 color: Color.fromRGBO(0, 0, 0, 1),
                               ),
@@ -245,7 +238,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                             child: Text(
                               calculateHostel(hostel),
                               style: const TextStyle(
-                                fontFamily: 'OpenSans_regular',
                                 fontSize: 19,
                                 fontWeight: FontWeight.w600,
                                 color: Color.fromRGBO(0, 0, 0, 1),
@@ -260,7 +252,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                         const Text(
                           "Change mess to:",
                           style: TextStyle(
-                              fontFamily: 'OpenSans_regular',
                               fontSize: 16,
                               fontWeight: FontWeight.w400),
                         ),
@@ -297,7 +288,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                         const Text(
                           "Reason for changing",
                           style: TextStyle(
-                              fontFamily: 'OpenSans_regular',
                               fontSize: 15,
                               fontWeight: FontWeight.w400),
                         ),
@@ -338,7 +328,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                                     child: Text(
                                       "Sorry!",
                                       style: TextStyle(
-                                        fontFamily: 'OpenSans_reqular',
                                         fontSize: 20,
                                         color: Color.fromRGBO(0, 0, 0, 1),
                                       ),
@@ -348,7 +337,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                                     child: Text(
                                       "Apply again Next month",
                                       style: TextStyle(
-                                        fontFamily: 'OpenSans_bold',
                                         fontSize: 16,
                                         color: Color.fromRGBO(57, 77, 197, 1),
                                       ),
@@ -381,7 +369,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                                     child: Text(
                                       "Your Allotted Mess for Next month is:",
                                       style: TextStyle(
-                                        fontFamily: 'OpenSans_regular',
                                         fontSize: 16,
                                         color: Color.fromRGBO(0, 0, 0, 1),
                                       ),
@@ -391,7 +378,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                                     child: Text(
                                       applyMess,
                                       style: const TextStyle(
-                                        fontFamily: 'OpenSans_bold',
                                         fontSize: 21,
                                         fontWeight: FontWeight.w600,
                                         color: Color.fromRGBO(57, 77, 197, 1),
@@ -425,7 +411,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                                     child: Text(
                                       "You have applied for the mess: ",
                                       style: TextStyle(
-                                        fontFamily: 'OpenSans_regular',
                                         fontSize: 16,
                                       ),
                                     ),
@@ -434,7 +419,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                                     child: Text(
                                       "$selectedHostel",
                                       style: const TextStyle(
-                                        fontFamily: 'OpenSans_regular',
                                         fontSize: 21,
                                         fontWeight: FontWeight.w600,
                                         color: Color.fromRGBO(57, 77, 197, 1),
@@ -468,7 +452,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                                     child: Text(
                                       "You can apply next month.",
                                       style: TextStyle(
-                                        fontFamily: 'OpenSans_bold',
                                         fontSize: 16,
                                         color: Color.fromRGBO(57, 77, 198, 1),
                                       ),
@@ -515,7 +498,6 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                             child: const Text(
                               "Confirm Your Choice",
                               style: TextStyle(
-                                  fontFamily: 'OpenSans_bold',
                                   color: Colors.white),
                             ),
                           ),

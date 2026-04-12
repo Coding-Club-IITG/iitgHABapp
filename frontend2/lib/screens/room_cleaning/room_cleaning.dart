@@ -40,7 +40,6 @@ class RoomCleaningScreen extends StatelessWidget {
               title: const Text(
                 'Room Cleaning',
                 style: TextStyle(
-                  fontFamily: 'OpenSans_regular',
                   fontWeight: FontWeight.w600,
                   fontSize: 18,
                   color: Colors.black,
@@ -56,12 +55,10 @@ class RoomCleaningScreen extends StatelessWidget {
                     indicatorColor: Color(0xFF3754DB),
                     indicatorSize: TabBarIndicatorSize.label,
                     labelStyle: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
                     unselectedLabelStyle: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w500,
                       fontSize: 14,
                     ),
@@ -123,7 +120,6 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                   'Unable to load room-cleaning info',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontWeight: FontWeight.w600,
                     fontSize: 15,
                     color: Color(0xFF111827),
@@ -134,7 +130,6 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                   provider.availabilityError!,
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontSize: 13,
                     color: Color(0xFF6B7280),
                   ),
@@ -159,7 +154,6 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                   child: const Text(
                     'Retry',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
@@ -220,7 +214,6 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                             child: Text(
                               'You have an active booking this period.',
                               style: TextStyle(
-                                fontFamily: 'OpenSans_regular',
                                 fontSize: 13,
                                 color: Color(0xFF92400E),
                               ),
@@ -235,7 +228,6 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                             child: const Text(
                               'View →',
                               style: TextStyle(
-                                fontFamily: 'OpenSans_regular',
                                 fontWeight: FontWeight.w600,
                                 fontSize: 13,
                                 color: Color(0xFF92400E),
@@ -321,7 +313,6 @@ class _DayCard extends StatelessWidget {
                     child: Text(
                       dateLabel,
                       style: const TextStyle(
-                        fontFamily: 'OpenSans_regular',
                         fontWeight: FontWeight.w600,
                         fontSize: 16,
                         color: Colors.black,
@@ -420,7 +411,6 @@ class _SlotTile extends StatelessWidget {
                   const Text(
                     'Confirm room cleaning slot',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w600,
                       fontSize: 17,
                       color: Color(0xFF111827),
@@ -430,7 +420,6 @@ class _SlotTile extends StatelessWidget {
                   Text(
                     heading,
                     style: const TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontSize: 13,
                       color: Color(0xFF6B7280),
                     ),
@@ -475,7 +464,6 @@ class _SlotTile extends StatelessWidget {
                     const Text(
                       'Room number',
                       style: TextStyle(
-                        fontFamily: 'OpenSans_regular',
                         fontWeight: FontWeight.w500,
                         fontSize: 13,
                         color: Color(0xFF374151),
@@ -518,7 +506,6 @@ class _SlotTile extends StatelessWidget {
                     const Text(
                       'Phone number',
                       style: TextStyle(
-                        fontFamily: 'OpenSans_regular',
                         fontWeight: FontWeight.w500,
                         fontSize: 13,
                         color: Color(0xFF374151),
@@ -563,7 +550,6 @@ class _SlotTile extends StatelessWidget {
                       Text(
                         localError!,
                         style: const TextStyle(
-                          fontFamily: 'OpenSans_regular',
                           fontSize: 12,
                           color: Color(0xFFDC2626),
                         ),
@@ -589,7 +575,6 @@ class _SlotTile extends StatelessWidget {
                   child: const Text(
                     'Go Back',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
@@ -622,7 +607,6 @@ class _SlotTile extends StatelessWidget {
                   child: const Text(
                     'Book Slot',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                     ),
@@ -743,7 +727,6 @@ class _SlotTile extends StatelessWidget {
                       Text(
                         slot.timeRange,
                         style: const TextStyle(
-                          fontFamily: 'OpenSans_regular',
                           fontWeight: FontWeight.w500,
                           fontSize: 14,
                           color: Colors.black,
@@ -753,7 +736,6 @@ class _SlotTile extends StatelessWidget {
                       Text(
                         availText,
                         style: const TextStyle(
-                          fontFamily: 'OpenSans_regular',
                           fontSize: 12,
                           color: Color(0xFF6B7280),
                         ),
@@ -772,7 +754,6 @@ class _SlotTile extends StatelessWidget {
                   child: Text(
                     pillLabel,
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontSize: 11,
                       fontWeight: FontWeight.w500,
                       color: pillText,
@@ -816,7 +797,6 @@ class _InstructionBullet extends StatelessWidget {
             child: Text(
               text,
               style: const TextStyle(
-                fontFamily: 'OpenSans_regular',
                 fontSize: 13,
                 height: 1.5,
                 color: Color(0xFF374151),
@@ -957,7 +937,6 @@ class _MyBookingsTab extends StatelessWidget {
                                 Text(
                                   dateLabel,
                                   style: const TextStyle(
-                                    fontFamily: 'OpenSans_regular',
                                     fontWeight: FontWeight.w500,
                                     fontSize: 15,
                                     color: Color(0xFF111827),
@@ -976,7 +955,6 @@ class _MyBookingsTab extends StatelessWidget {
                                       _slotTimeRange[booking.slot] ??
                                           'Slot ${booking.slot}',
                                       style: const TextStyle(
-                                        fontFamily: 'OpenSans_regular',
                                         fontSize: 13,
                                         color: Color(0xFF6B7280),
                                       ),
@@ -999,7 +977,6 @@ class _MyBookingsTab extends StatelessWidget {
                             child: Text(
                               statusLabel,
                               style: TextStyle(
-                                fontFamily: 'OpenSans_regular',
                                 color: chipText,
                                 fontWeight: FontWeight.w500,
                                 fontSize: 11,
@@ -1028,7 +1005,6 @@ class _MyBookingsTab extends StatelessWidget {
                                   label: const Text(
                                     'Feedback',
                                     style: TextStyle(
-                                      fontFamily: 'OpenSans_regular',
                                       fontWeight: FontWeight.w500,
                                       fontSize: 12,
                                     ),
@@ -1069,7 +1045,6 @@ class _MyBookingsTab extends StatelessWidget {
                                   label: const Text(
                                     'Cancel booking',
                                     style: TextStyle(
-                                      fontFamily: 'OpenSans_regular',
                                       fontWeight: FontWeight.w500,
                                       fontSize: 12,
                                     ),
@@ -1110,7 +1085,6 @@ class _MyBookingsTab extends StatelessWidget {
                           child: Text(
                             subtitle,
                             style: const TextStyle(
-                              fontFamily: 'OpenSans_regular',
                               fontSize: 12,
                               height: 1.4,
                               color: Color(0xFF6B7280),
@@ -1163,7 +1137,6 @@ class _FeedbackChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontFamily: 'OpenSans_regular',
               fontWeight: FontWeight.w600,
               fontSize: 13,
               color: selected ? Colors.white : const Color(0xFF6B7280),
@@ -1198,7 +1171,6 @@ Future<void> _showFeedbackDialog(
             title: const Text(
               'Room cleaning feedback',
               style: TextStyle(
-                fontFamily: 'OpenSans_regular',
                 fontWeight: FontWeight.w700,
                 fontSize: 18,
                 color: Color(0xFF111827),
@@ -1213,7 +1185,6 @@ Future<void> _showFeedbackDialog(
                   const Text(
                     'Did the staff visit during your selected slot?',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                       color: Color(0xFF111827),
@@ -1236,7 +1207,6 @@ Future<void> _showFeedbackDialog(
                   const Text(
                     'Was the staff polite and professional?',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                       color: Color(0xFF111827),
@@ -1259,7 +1229,6 @@ Future<void> _showFeedbackDialog(
                   const Text(
                     'Overall, how satisfied are you?',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontWeight: FontWeight.w600,
                       fontSize: 14,
                       color: Color(0xFF111827),
@@ -1290,7 +1259,6 @@ Future<void> _showFeedbackDialog(
                   const Text(
                     'Additional comments (optional)',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontSize: 13,
                       color: Color(0xFF6B7280),
                     ),
@@ -1300,14 +1268,12 @@ Future<void> _showFeedbackDialog(
                     controller: remarksController,
                     maxLines: 3,
                     style: const TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontSize: 14,
                       color: Color(0xFF111827),
                     ),
                     decoration: InputDecoration(
                       hintText: 'Anything else you would like us to know?',
                       hintStyle: const TextStyle(
-                        fontFamily: 'OpenSans_regular',
                         color: Color(0xFF9CA3AF),
                         fontSize: 14,
                       ),
@@ -1350,7 +1316,6 @@ Future<void> _showFeedbackDialog(
                 child: const Text(
                   'Skip',
                   style: TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -1372,7 +1337,6 @@ Future<void> _showFeedbackDialog(
                 child: const Text(
                   'Submit',
                   style: TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
                   ),
@@ -1441,7 +1405,6 @@ void _showRoomCleaningSnackBar(
               child: Text(
                 message,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  fontFamily: 'OpenSans_regular',
                   fontSize: 13,
                   color: const Color(0xFF111827),
                 ),

@@ -23,7 +23,6 @@ class LoginButton extends StatelessWidget {
             fontWeight: FontWeight.w500,
             fontSize: 14,
             height: 20 / 14,
-            fontFamily: 'GeneralSans',
           ),
         ),
       ],

@@ -220,7 +220,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
               fontWeight: FontWeight.w500,
               fontSize: 14,
               height: 20 / 14,
-              fontFamily: 'GeneralSans',
             ),
           ),
         ],
@@ -268,7 +267,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               child: Text(
                                 'Sign in',
                                 style: TextStyle(
-                                  fontFamily: 'GeneralSans',
                                   fontWeight: FontWeight.w600,
                                   fontSize: 32,
                                   height: 48 / 32,
@@ -288,7 +286,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               child: Text(
                                 'For Students',
                                 style: TextStyle(
-                                  fontFamily: 'GeneralSans',
                                   fontWeight: FontWeight.w500,
                                   fontSize: 14,
                                   height: 20 / 14,
@@ -383,7 +380,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                         color: Color(0xFFB9B9F4),
                                         fontSize: 14,
                                         height: 20 / 14,
-                                        fontFamily: 'GeneralSans',
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -486,7 +482,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                         color: Color(0xFF4C4EDB),
                                         fontSize: 14,
                                         height: 20 / 14,
-                                        fontFamily: 'GeneralSans',
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
@@ -658,7 +653,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                     style: TextStyle(
                                         color: const Color(0xFF2E2F31),
                                         fontSize: 28 * scaleFactor,
-                                        fontFamily: "GeneralSans",
                                         fontWeight: FontWeight.w500),
                                   ),
                                 ),
@@ -678,7 +672,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                             _expand_animation.value, // The interpolation factor
                           ),
                           fontSize: 12,
-                          fontFamily: "GeneralSans",
                           fontWeight: FontWeight.w500),
                     ),
                     const Spacer(),

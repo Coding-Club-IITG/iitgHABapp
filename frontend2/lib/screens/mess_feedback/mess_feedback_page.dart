@@ -89,7 +89,6 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
                 const Text(
                   "Mess Feedback",
                   style: TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontSize: 32,
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF2E2F31),
@@ -108,7 +107,6 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
                       const Text(
                         "How satisfied are you with the respective meals?",
                         style: TextStyle(
-                            fontFamily: 'OpenSans-Regular',
                             fontWeight: FontWeight.w500,
                             fontSize: 20),
                       ),
@@ -128,7 +126,6 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
                         const Text(
                           "Additional SMC Feedback",
                           style: TextStyle(
-                              fontFamily: 'OpenSans-Regular',
                               fontWeight: FontWeight.w500,
                               fontSize: 20),
                         ),
@@ -177,7 +174,6 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
                           Text(
                             'Next',
                             style: TextStyle(
-                              fontFamily: 'OpenSans-Regular',
                               fontSize: 16,
                               color: Colors.white,
                               fontWeight: FontWeight.w500,

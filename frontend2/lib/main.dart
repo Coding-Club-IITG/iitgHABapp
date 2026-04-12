@@ -15,6 +15,7 @@ import 'package:frontend2/screens/login_screen.dart';
 import 'package:frontend2/screens/mess_screen.dart';
 import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/constants/themes.dart';
 import 'package:frontend2/utilities/startupitem.dart';
 import 'package:frontend2/utilities/version_checker.dart';
 import 'package:provider/provider.dart';
@@ -38,9 +39,25 @@ ThemeData buildAppTheme() {
 
   final noTint = WidgetStateProperty.all(Colors.transparent);
 
+  final baseTypography = ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+  ).textTheme;
+
   return ThemeData(
     useMaterial3: true,
     colorScheme: scheme,
+    fontFamily: Themes.kFont,
+    textTheme: baseTypography.apply(
+      fontFamily: Themes.kFont,
+      bodyColor: scheme.onSurface,
+      displayColor: scheme.onSurface,
+    ),
+    primaryTextTheme: baseTypography.apply(
+      fontFamily: Themes.kFont,
+      bodyColor: scheme.onPrimary,
+      displayColor: scheme.onPrimary,
+    ),
     scaffoldBackgroundColor: Colors.white,
     canvasColor: Colors.white,
     appBarTheme: const AppBarTheme(

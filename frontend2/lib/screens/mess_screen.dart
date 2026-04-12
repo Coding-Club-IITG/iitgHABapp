@@ -13,6 +13,7 @@ import '../providers/hostels.dart';
 import '../models/mess_info_model.dart';
 import '../utilities/startupitem.dart';
 import '../widgets/common/hostel_logo.dart';
+import '../widgets/common/shimmer_host.dart';
 import 'leave_application_list_screen.dart';
 import 'mess_preference.dart';
 
@@ -93,7 +94,6 @@ class _MessScreenState extends State<MessScreen> {
                   child: Text(
                     'Mess',
                     style: TextStyle(
-                      fontFamily: 'GeneralSans',
                       fontSize: 32,
                       height: 48 / 32,
                       fontWeight: FontWeight.w500,
@@ -368,6 +368,52 @@ class _MenuSectionState extends State<_MenuSection> {
 
     final fullPageShimmer = _hostelTransitionLoading;
 
+    if (fullPageShimmer) {
+      return ShimmerHost(
+        builder: (context, box) => Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                16,
+                0,
+                16,
+                _MessScreenState.sectionGap,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text(
+                        'Menu',
+                        style: TextStyle(
+                          fontSize: 16,
+                          height: 24 / 16,
+                          fontWeight: FontWeight.w500,
+                          color: _MessScreenState.textSecondary,
+                        ),
+                      ),
+                      const Spacer(),
+                      _HostelSelector(
+                        selectedHostel: selectedHostel,
+                        hostelNames:
+                            hostelMap.keys.map((e) => e.toString()).toList(),
+                        onSelected: _updateMess,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  _MessMenuBodyLoadingSkeleton(box: box),
+                ],
+              ),
+            ),
+            _MessLowerPageSkeleton(box: box),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -386,7 +432,6 @@ class _MenuSectionState extends State<_MenuSection> {
                   const Text(
                     'Menu',
                     style: TextStyle(
-                      fontFamily: 'GeneralSans',
                       fontSize: 16,
                       height: 24 / 16,
                       fontWeight: FontWeight.w500,
@@ -403,51 +448,48 @@ class _MenuSectionState extends State<_MenuSection> {
                 ],
               ),
               const SizedBox(height: 20),
-              if (fullPageShimmer) ...[
-                const _MessMenuBodyLoadingSkeleton(),
-              ] else ...[
-                SizedBox(
-                  height: 36,
-                  child: ListView.separated(
-                    controller: _dayScrollController,
-                    scrollDirection: Axis.horizontal,
-                    itemCount: daysOnly.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 8),
-                    itemBuilder: (context, index) {
-                      final day = daysOnly[index];
-                      return KeyedSubtree(
-                        key: _dayChipKeys[index],
-                        child: _DayChip(
-                          label: day,
-                          selected: selectedDay == day,
-                          onTap: () => _updateDay(day),
-                        ),
-                      );
-                    },
-                  ),
+              SizedBox(
+                height: 36,
+                child: ListView.separated(
+                  controller: _dayScrollController,
+                  scrollDirection: Axis.horizontal,
+                  itemCount: daysOnly.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, index) {
+                    final day = daysOnly[index];
+                    return KeyedSubtree(
+                      key: _dayChipKeys[index],
+                      child: _DayChip(
+                        label: day,
+                        selected: selectedDay == day,
+                        onTap: () => _updateDay(day),
+                      ),
+                    );
+                  },
                 ),
-                const SizedBox(height: 20),
-                if (_isMenuLoading)
-                  const _MenuLoadingState()
-                else if (_menuError != null)
-                  const _MenuErrorCard()
-                else if (_menus.isEmpty)
-                  const _MenuEmptyCard()
-                else
-                  _MealList(
-                    key: ValueKey('$messId-$selectedDay'),
-                    menus: _menus,
-                    selectedDay: selectedDay,
-                    userMessId: userMessId ?? '',
-                    selectedMessId: messId ?? '',
-                  ),
-              ],
+              ),
+              const SizedBox(height: 20),
+              if (_isMenuLoading)
+                ShimmerHost(
+                  builder: (context, box) =>
+                      _MessMenuBodyLoadingSkeleton(box: box),
+                )
+              else if (_menuError != null)
+                const _MenuErrorCard()
+              else if (_menus.isEmpty)
+                const _MenuEmptyCard()
+              else
+                _MealList(
+                  key: ValueKey('$messId-$selectedDay'),
+                  menus: _menus,
+                  selectedDay: selectedDay,
+                  userMessId: userMessId ?? '',
+                  selectedMessId: messId ?? '',
+                ),
             ],
           ),
         ),
-        if (fullPageShimmer)
-          const _MessLowerPageSkeleton()
-        else ...[
+        ...[
           const _MessScreenSectionDivider(),
           const Padding(
             padding: EdgeInsets.fromLTRB(
@@ -535,7 +577,6 @@ class _MessChangeRow extends StatelessWidget {
                   child: Text(
                     'Mess Change',
                     style: TextStyle(
-                      fontFamily: 'GeneralSans',
                       fontSize: 16,
                       height: 24 / 16,
                       fontWeight: FontWeight.w500,
@@ -975,11 +1016,11 @@ class _MealCardState extends State<_MealCard> {
               child: Text(
                 item.name,
                 overflow: TextOverflow.ellipsis,
+                // Match home mess card item text (Figma CC-HAB-App menu list).
                 style: const TextStyle(
-                  fontFamily: 'Manrope_semibold',
                   fontSize: 14,
-                  height: 1,
-                  fontWeight: FontWeight.w600,
+                  height: 20 / 14,
+                  fontWeight: FontWeight.w500,
                   color: _MessScreenState.textPrimary,
                 ),
               ),
@@ -999,21 +1040,22 @@ class _MealCardState extends State<_MealCard> {
       children: [
         Text(
           title,
+          // Match home `_buildMenuCategory` section label (Figma).
           style: const TextStyle(
-            fontFamily: 'Manrope_semibold',
             fontSize: 12,
-            height: 1,
-            fontWeight: FontWeight.w600,
-            color: _MessScreenState.textMuted,
+            height: 16 / 12,
+            fontWeight: FontWeight.w500,
+            color: _MessScreenState.textSecondary,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
         if (items.isEmpty)
           const Text(
             '-',
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w600,
+              height: 20 / 14,
+              fontWeight: FontWeight.w500,
               color: _MessScreenState.textPrimary,
             ),
           )
@@ -1070,9 +1112,10 @@ class _MealCardState extends State<_MealCard> {
                           Flexible(
                             child: Text(
                               _menu.type,
+                              // Match home mess card meal name (Figma).
                               style: TextStyle(
-                                fontSize: 16,
-                                height: 24 / 16,
+                                fontSize: 20,
+                                height: 28 / 20,
                                 fontWeight: FontWeight.w500,
                                 color: widget.expanded
                                     ? _MessScreenState.textPrimary
@@ -1087,8 +1130,8 @@ class _MealCardState extends State<_MealCard> {
                                 status,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  fontSize: 16,
-                                  height: 24 / 16,
+                                  fontSize: 18,
+                                  height: 24 / 18,
                                   fontWeight: FontWeight.w500,
                                   color: _statusColor(status),
                                 ),
@@ -1163,7 +1206,7 @@ class _MealCardState extends State<_MealCard> {
                           fontSize: 14,
                           height: 20 / 14,
                           fontWeight: FontWeight.w500,
-                          color: _MessScreenState.textMuted,
+                          color: _MessScreenState.textSecondary,
                         ),
                       ),
                     ],
@@ -1217,42 +1260,35 @@ class _MealCardState extends State<_MealCard> {
   }
 }
 
-class _MenuLoadingState extends StatelessWidget {
-  const _MenuLoadingState();
-
-  @override
-  Widget build(BuildContext context) {
-    return const _MessMenuBodyLoadingSkeleton();
-  }
-}
-
 /// Day chips + meal cards + hint (no duplicate "Menu" row — use under real header).
 class _MessMenuBodyLoadingSkeleton extends StatelessWidget {
-  const _MessMenuBodyLoadingSkeleton();
+  final ShimmerBoxBuilder box;
+
+  const _MessMenuBodyLoadingSkeleton({required this.box});
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _MessDayChipsSkeleton(),
-        SizedBox(height: 20),
-        _MessMealCardSkeleton(expanded: false),
-        SizedBox(height: 12),
-        _MessMealCardSkeleton(expanded: false),
-        SizedBox(height: 12),
-        _MessMealCardSkeleton(expanded: false),
-        SizedBox(height: 16),
+        _MessDayChipsSkeleton(box: box),
+        const SizedBox(height: 20),
+        _MessMealCardSkeleton(box: box, expanded: false),
+        const SizedBox(height: 12),
+        _MessMealCardSkeleton(box: box, expanded: false),
+        const SizedBox(height: 12),
+        _MessMealCardSkeleton(box: box, expanded: false),
+        const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            _MessShimmerBlock(
+            box(
               height: 16,
               width: 16,
-              radius: BorderRadius.all(Radius.circular(8)),
+              borderRadius: const BorderRadius.all(Radius.circular(8)),
             ),
-            SizedBox(width: 6),
-            _MessShimmerBlock(height: 18, width: 220),
+            const SizedBox(width: 6),
+            box(height: 18, width: 220),
           ],
         ),
       ],
@@ -1267,60 +1303,59 @@ class _MessScreenInitialLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return SafeArea(
       bottom: false,
-      child: Column(
-        children: [
-          Container(
-            decoration: const BoxDecoration(
-              color: _MessScreenState.topBarBackground,
-              border: Border(
-                bottom: BorderSide(color: _MessScreenState.border),
+      child: ShimmerHost(
+        builder: (context, box) => Column(
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                color: _MessScreenState.topBarBackground,
+                border: Border(
+                  bottom: BorderSide(color: _MessScreenState.border),
+                ),
               ),
-            ),
-            child: const Padding(
-              padding: EdgeInsets.fromLTRB(16, 0, 16, 8),
-              child: Row(
-                children: [
-                  _MessShimmerBlock(height: 48, width: 84),
-                ],
-              ),
-            ),
-          ),
-          const Expanded(
-            child: SingleChildScrollView(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 20, 16, 32),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+                child: Row(
                   children: [
-                    _MessMenuLoadingSkeleton(),
+                    box(height: 48, width: 84),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+            Expanded(
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
+                  child: _MessMenuLoadingSkeleton(box: box),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _MessMenuLoadingSkeleton extends StatelessWidget {
-  const _MessMenuLoadingSkeleton();
+  final ShimmerBoxBuilder box;
+
+  const _MessMenuLoadingSkeleton({required this.box});
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            _MessShimmerBlock(height: 24, width: 52),
-            Spacer(),
-            _MessShimmerBlock(height: 20, width: 92),
+            box(height: 24, width: 52),
+            const Spacer(),
+            box(height: 20, width: 92),
           ],
         ),
-        SizedBox(height: 20),
-        _MessMenuBodyLoadingSkeleton(),
+        const SizedBox(height: 20),
+        _MessMenuBodyLoadingSkeleton(box: box),
       ],
     );
   }
@@ -1328,16 +1363,18 @@ class _MessMenuLoadingSkeleton extends StatelessWidget {
 
 /// Dividers + Mess Change / Rebate / Mess Info placeholders (hostel switch loading).
 class _MessLowerPageSkeleton extends StatelessWidget {
-  const _MessLowerPageSkeleton();
+  final ShimmerBoxBuilder box;
+
+  const _MessLowerPageSkeleton({required this.box});
 
   @override
   Widget build(BuildContext context) {
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _MessScreenSectionDivider(),
+        const _MessScreenSectionDivider(),
         Padding(
-          padding: EdgeInsets.fromLTRB(
+          padding: const EdgeInsets.fromLTRB(
             16,
             _MessScreenState.sectionGap,
             16,
@@ -1346,21 +1383,21 @@ class _MessLowerPageSkeleton extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _MessActionRowSkeleton(),
-              SizedBox(height: _MessScreenState.sectionGap),
-              _MessActionRowSkeleton(),
+              _MessActionRowSkeleton(box: box),
+              const SizedBox(height: _MessScreenState.sectionGap),
+              _MessActionRowSkeleton(box: box),
             ],
           ),
         ),
-        _MessScreenSectionDivider(),
+        const _MessScreenSectionDivider(),
         Padding(
-          padding: EdgeInsets.fromLTRB(
+          padding: const EdgeInsets.fromLTRB(
             16,
             _MessScreenState.sectionGap,
             16,
             32,
           ),
-          child: _MessInfoCardSkeleton(),
+          child: _MessInfoCardSkeleton(box: box),
         ),
       ],
     );
@@ -1368,7 +1405,9 @@ class _MessLowerPageSkeleton extends StatelessWidget {
 }
 
 class _MessActionRowSkeleton extends StatelessWidget {
-  const _MessActionRowSkeleton();
+  final ShimmerBoxBuilder box;
+
+  const _MessActionRowSkeleton({required this.box});
 
   @override
   Widget build(BuildContext context) {
@@ -1386,19 +1425,22 @@ class _MessActionRowSkeleton extends StatelessWidget {
           ),
         ],
       ),
-      child: const Row(
+      child: Row(
         children: [
-          _MessShimmerBlock(
+          box(
             height: 40,
             width: 40,
-            radius: BorderRadius.all(Radius.circular(18)),
+            borderRadius: const BorderRadius.all(Radius.circular(18)),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           Expanded(
-            child: _MessShimmerBlock(height: 20, width: 120),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: box(height: 20, width: 120),
+            ),
           ),
-          SizedBox(width: 8),
-          _MessShimmerBlock(height: 20, width: 20),
+          const SizedBox(width: 8),
+          box(height: 20, width: 20),
         ],
       ),
     );
@@ -1406,14 +1448,16 @@ class _MessActionRowSkeleton extends StatelessWidget {
 }
 
 class _MessInfoCardSkeleton extends StatelessWidget {
-  const _MessInfoCardSkeleton();
+  final ShimmerBoxBuilder box;
+
+  const _MessInfoCardSkeleton({required this.box});
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _MessShimmerBlock(height: 16, width: 72),
+        box(height: 16, width: 72),
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(16),
@@ -1432,9 +1476,9 @@ class _MessInfoCardSkeleton extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _MessShimmerBlock(height: 14, width: 88),
+              box(height: 14, width: 88),
               const SizedBox(height: 8),
-              const _MessShimmerBlock(height: 28, width: 200),
+              box(height: 28, width: 200),
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Divider(
@@ -1447,13 +1491,13 @@ class _MessInfoCardSkeleton extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _MessShimmerBlock(height: 14, width: 52),
-                          SizedBox(height: 8),
-                          _MessShimmerBlock(height: 36, width: 64),
+                          box(height: 14, width: 52),
+                          const SizedBox(height: 8),
+                          box(height: 36, width: 64),
                         ],
                       ),
                     ),
@@ -1462,13 +1506,13 @@ class _MessInfoCardSkeleton extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(horizontal: 8),
                       color: _MessScreenState.border,
                     ),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          _MessShimmerBlock(height: 14, width: 40),
-                          SizedBox(height: 8),
-                          _MessShimmerBlock(height: 36, width: 48),
+                          box(height: 14, width: 40),
+                          const SizedBox(height: 8),
+                          box(height: 36, width: 48),
                         ],
                       ),
                     ),
@@ -1484,7 +1528,9 @@ class _MessInfoCardSkeleton extends StatelessWidget {
 }
 
 class _MessDayChipsSkeleton extends StatelessWidget {
-  const _MessDayChipsSkeleton();
+  final ShimmerBoxBuilder box;
+
+  const _MessDayChipsSkeleton({required this.box});
 
   @override
   Widget build(BuildContext context) {
@@ -1492,14 +1538,14 @@ class _MessDayChipsSkeleton extends StatelessWidget {
       height: 36,
       child: ListView(
         scrollDirection: Axis.horizontal,
-        children: const [
-          _MessShimmerBlock(height: 36, width: 70),
-          SizedBox(width: 8),
-          _MessShimmerBlock(height: 36, width: 72),
-          SizedBox(width: 8),
-          _MessShimmerBlock(height: 36, width: 96),
-          SizedBox(width: 8),
-          _MessShimmerBlock(height: 36, width: 84),
+        children: [
+          box(height: 36, width: 70),
+          const SizedBox(width: 8),
+          box(height: 36, width: 72),
+          const SizedBox(width: 8),
+          box(height: 36, width: 96),
+          const SizedBox(width: 8),
+          box(height: 36, width: 84),
         ],
       ),
     );
@@ -1507,9 +1553,10 @@ class _MessDayChipsSkeleton extends StatelessWidget {
 }
 
 class _MessMealCardSkeleton extends StatelessWidget {
+  final ShimmerBoxBuilder box;
   final bool expanded;
 
-  const _MessMealCardSkeleton({required this.expanded});
+  const _MessMealCardSkeleton({required this.box, required this.expanded});
 
   @override
   Widget build(BuildContext context) {
@@ -1531,33 +1578,33 @@ class _MessMealCardSkeleton extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Row(
+          Row(
             children: [
               Expanded(
                 child: Row(
                   children: [
-                    _MessShimmerBlock(height: 24, width: 84),
-                    SizedBox(width: 8),
-                    _MessShimmerBlock(height: 24, width: 56),
+                    box(height: 24, width: 84),
+                    const SizedBox(width: 8),
+                    box(height: 24, width: 56),
                   ],
                 ),
               ),
-              _MessShimmerBlock(height: 20, width: 20),
+              box(height: 20, width: 20),
             ],
           ),
           if (expanded) ...[
             const SizedBox(height: 12),
-            const _MessShimmerBlock(height: 20, width: 140),
+            box(height: 20, width: 140),
             const SizedBox(height: 16),
-            const _MessShimmerBlock(height: 16, width: 40),
+            box(height: 16, width: 40),
             const SizedBox(height: 16),
-            const Wrap(
+            Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
-                _MessShimmerBlock(height: 28, width: 84),
-                _MessShimmerBlock(height: 28, width: 134),
-                _MessShimmerBlock(height: 28, width: 92),
+                box(height: 28, width: 84),
+                box(height: 28, width: 134),
+                box(height: 28, width: 92),
               ],
             ),
             const SizedBox(height: 16),
@@ -1571,15 +1618,15 @@ class _MessMealCardSkeleton extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _MessShimmerBlock(height: 16, width: 88),
-                        SizedBox(height: 16),
-                        _MessShimmerBlock(height: 28, width: 78),
-                        SizedBox(height: 8),
-                        _MessShimmerBlock(height: 28, width: 94),
+                        box(height: 16, width: 88),
+                        const SizedBox(height: 16),
+                        box(height: 28, width: 78),
+                        const SizedBox(height: 8),
+                        box(height: 28, width: 94),
                       ],
                     ),
                   ),
@@ -1588,15 +1635,15 @@ class _MessMealCardSkeleton extends StatelessWidget {
                     margin: const EdgeInsets.symmetric(horizontal: 16),
                     color: _MessScreenState.border,
                   ),
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        _MessShimmerBlock(height: 16, width: 52),
-                        SizedBox(height: 16),
-                        _MessShimmerBlock(height: 28, width: 88),
-                        SizedBox(height: 8),
-                        _MessShimmerBlock(height: 28, width: 96),
+                        box(height: 16, width: 52),
+                        const SizedBox(height: 16),
+                        box(height: 28, width: 88),
+                        const SizedBox(height: 8),
+                        box(height: 28, width: 96),
                       ],
                     ),
                   ),
@@ -1606,71 +1653,6 @@ class _MessMealCardSkeleton extends StatelessWidget {
           ],
         ],
       ),
-    );
-  }
-}
-
-class _MessShimmerBlock extends StatefulWidget {
-  final double height;
-  final double? width;
-  final BorderRadius radius;
-
-  const _MessShimmerBlock({
-    required this.height,
-    this.width,
-    this.radius = const BorderRadius.all(Radius.circular(8)),
-  });
-
-  @override
-  State<_MessShimmerBlock> createState() => _MessShimmerBlockState();
-}
-
-class _MessShimmerBlockState extends State<_MessShimmerBlock>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-    _animation = Tween<double>(begin: -1.5, end: 2.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Container(
-          width: widget.width,
-          height: widget.height,
-          decoration: BoxDecoration(
-            borderRadius: widget.radius,
-            gradient: LinearGradient(
-              begin: Alignment(_animation.value - 1, 0),
-              end: Alignment(_animation.value + 1, 0),
-              colors: const [
-                Color(0xFFF2F2F2),
-                Color(0xFFF9F9F9),
-                Color(0xFFF2F2F2),
-              ],
-              stops: const [0.1, 0.5, 0.9],
-            ),
-          ),
-        );
-      },
     );
   }
 }
@@ -1738,7 +1720,6 @@ class _MessRebateRow extends StatelessWidget {
                   child: Text(
                     'Mess Rebate',
                     style: TextStyle(
-                      fontFamily: 'GeneralSans',
                       fontSize: 16,
                       height: 24 / 16,
                       fontWeight: FontWeight.w500,
@@ -1799,7 +1780,6 @@ class _MessInfoSection extends StatelessWidget {
         const Text(
           'Mess Info',
           style: TextStyle(
-            fontFamily: 'GeneralSans',
             fontSize: 16,
             height: 24 / 16,
             fontWeight: FontWeight.w500,
@@ -1831,7 +1811,6 @@ class _MessInfoSection extends StatelessWidget {
                   const Text(
                     'Caterer Name',
                     style: TextStyle(
-                      fontFamily: 'GeneralSans',
                       fontSize: 14,
                       height: 20 / 14,
                       fontWeight: FontWeight.w500,
@@ -1846,7 +1825,6 @@ class _MessInfoSection extends StatelessWidget {
                         child: Text(
                           catererName,
                           style: const TextStyle(
-                            fontFamily: 'GeneralSans',
                             fontSize: 24,
                             height: 32 / 24,
                             fontWeight: FontWeight.w500,
@@ -1883,7 +1861,6 @@ class _MessInfoSection extends StatelessWidget {
                           Text(
                             isUnranked ? 'Feedback %' : 'Rating',
                             style: const TextStyle(
-                              fontFamily: 'GeneralSans',
                               fontSize: 14,
                               height: 20 / 14,
                               fontWeight: FontWeight.w500,
@@ -1894,7 +1871,6 @@ class _MessInfoSection extends StatelessWidget {
                           Text(
                             leftMetricText,
                             style: const TextStyle(
-                              fontFamily: 'GeneralSans',
                               fontSize: 32,
                               height: 48 / 32,
                               fontWeight: FontWeight.w500,
@@ -1916,7 +1892,6 @@ class _MessInfoSection extends StatelessWidget {
                           const Text(
                             'Rank',
                             style: TextStyle(
-                              fontFamily: 'GeneralSans',
                               fontSize: 14,
                               height: 20 / 14,
                               fontWeight: FontWeight.w500,
@@ -1927,7 +1902,6 @@ class _MessInfoSection extends StatelessWidget {
                           Text(
                             rankText,
                             style: const TextStyle(
-                              fontFamily: 'GeneralSans',
                               fontSize: 32,
                               height: 48 / 32,
                               fontWeight: FontWeight.w500,
@@ -1948,7 +1922,6 @@ class _MessInfoSection extends StatelessWidget {
           const Text(
             '*Mess with less than 40% feedback percentage are not ranked.',
             style: TextStyle(
-              fontFamily: 'GeneralSans',
               fontSize: 12,
               height: 16 / 12,
               fontWeight: FontWeight.w400,

@@ -343,7 +343,6 @@ class _IndividualMealCardState extends State<IndividualMealCard>
                 item.name,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
-                    fontFamily: "Manrope_semibold",
                     fontWeight: FontWeight.w600,
                     color: Color(0xFF2E2F31),
                     fontSize: 14),
@@ -495,8 +494,7 @@ class _IndividualMealCardState extends State<IndividualMealCard>
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Color(0xFF676767),
-                          fontFamily: "Manrope_semibold")),
+                          color: Color(0xFF676767))),
                   ...dishSection.map(
                       (item) => _buildItem(item, _menu.items.indexOf(item))),
                   const Divider(
@@ -510,7 +508,6 @@ class _IndividualMealCardState extends State<IndividualMealCard>
                       children: [
                         const Text("OTHERS",
                             style: TextStyle(
-                                fontFamily: "Manrope_semibold",
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                                 color: Color(0xFF676767))),
@@ -529,7 +526,6 @@ class _IndividualMealCardState extends State<IndividualMealCard>
                               children: [
                                 const Text("BREADS & RICE",
                                     style: TextStyle(
-                                        fontFamily: "Manrope_semibold",
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         color: Color(0xFF676767))),
@@ -550,7 +546,6 @@ class _IndividualMealCardState extends State<IndividualMealCard>
                                 children: [
                                   const Text("OTHERS",
                                       style: TextStyle(
-                                          fontFamily: "Manrope_semibold",
                                           fontSize: 12,
                                           fontWeight: FontWeight.w600,
                                           color: Color(0xFF676767))),

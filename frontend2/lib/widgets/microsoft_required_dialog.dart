@@ -36,7 +36,6 @@ class MicrosoftRequiredDialog extends StatelessWidget {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans_regular',
             ),
           ),
           content: Text(
@@ -46,7 +45,6 @@ class MicrosoftRequiredDialog extends StatelessWidget {
             style: const TextStyle(
               fontSize: 14,
               color: Colors.black87,
-              fontFamily: 'OpenSans_regular',
             ),
           ),
           actions: [
@@ -57,7 +55,6 @@ class MicrosoftRequiredDialog extends StatelessWidget {
                 style: TextStyle(
                   color: Colors.grey[600],
                   fontSize: 14,
-                  fontFamily: 'OpenSans_regular',
                 ),
               ),
             ),
@@ -115,7 +112,6 @@ class MicrosoftRequiredDialog extends StatelessWidget {
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  fontFamily: 'OpenSans_regular',
                 ),
               ),
             ),

@@ -115,7 +115,6 @@ class _QrScanState extends State<QrScan> {
               style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w600,
-                fontFamily: 'OpenSans_regular',
               ),
             ),
             content: const Text(
@@ -123,7 +122,6 @@ class _QrScanState extends State<QrScan> {
               style: TextStyle(
                 fontSize: 14,
                 color: Colors.black87,
-                fontFamily: 'OpenSans_regular',
               ),
             ),
             actions: [
@@ -149,7 +147,6 @@ class _QrScanState extends State<QrScan> {
                     color: Colors.white,
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    fontFamily: 'OpenSans_regular',
                   ),
                 ),
               ),
@@ -272,7 +269,6 @@ class _QrScanState extends State<QrScan> {
             style: TextStyle(
               fontSize: 18,
               fontWeight: FontWeight.w600,
-              fontFamily: 'OpenSans_regular',
             ),
           ),
           content: const Text(
@@ -280,7 +276,6 @@ class _QrScanState extends State<QrScan> {
             style: TextStyle(
               fontSize: 14,
               color: Colors.black87,
-              fontFamily: 'OpenSans_regular',
             ),
           ),
           actions: [
@@ -291,7 +286,6 @@ class _QrScanState extends State<QrScan> {
                 style: TextStyle(
                   color: Colors.grey[600],
                   fontSize: 14,
-                  fontFamily: 'OpenSans_regular',
                 ),
               ),
             ),
@@ -312,7 +306,6 @@ class _QrScanState extends State<QrScan> {
                   color: Colors.white,
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  fontFamily: 'OpenSans_regular',
                 ),
               ),
             ),
@@ -595,7 +588,6 @@ class _QrScanState extends State<QrScan> {
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
-                      fontFamily: 'OpenSans_regular',
                     ),
                   ),
                 ),
