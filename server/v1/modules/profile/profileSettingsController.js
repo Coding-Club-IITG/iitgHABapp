@@ -1,10 +1,8 @@
-const { ProfileSettings } = require("./profileSettingsModel.js");
-const { User } = require("../user/userModel.js");
-const {
-  sendNotificationMessage,
-} = require("../notification/notificationController.js");
+import { ProfileSettings } from "./profileSettingsModel.js";
+import { User } from "../user/userModel.js";
+import { sendNotificationMessage } from "../notification/notificationController.js";
 
-async function getSettings(req, res) {
+export async function getSettings(req, res) {
   try {
     const s = await ProfileSettings.findOne();
     return res
@@ -18,7 +16,7 @@ async function getSettings(req, res) {
   }
 }
 
-async function enablePhotoChange(req, res) {
+export async function enablePhotoChange(req, res) {
   try {
     let s = await ProfileSettings.findOne();
     if (!s) s = new ProfileSettings();
@@ -28,12 +26,12 @@ async function enablePhotoChange(req, res) {
       "PROFILE UPDATE",
       "Profile Pic change is available",
       "All_Hostels",
-      { redirectType: "profile", isAlert: "true" }
+      { redirectType: "profile", isAlert: "true" },
     ).catch((err) => console.error("Profile update notification failed:", err));
     // Reset setup status for all users who completed it earlier
     const result = await User.updateMany(
       { isSetupDone: true },
-      { $set: { isSetupDone: false } }
+      { $set: { isSetupDone: false } },
     );
 
     return res.status(200).json({
@@ -49,7 +47,7 @@ async function enablePhotoChange(req, res) {
   }
 }
 
-async function disablePhotoChange(req, res) {
+export async function disablePhotoChange(req, res) {
   try {
     const s = await ProfileSettings.findOne();
     if (!s) return res.status(404).json({ message: "Settings not found" });
@@ -59,7 +57,7 @@ async function disablePhotoChange(req, res) {
       "PROFILE UPDATE",
       "Profile Pic change is no longer available",
       "All_Hostels",
-      { redirectType: "profile" }
+      { redirectType: "profile" },
     ).catch((err) => console.error("Profile update notification failed:", err));
     return res
       .status(200)
@@ -70,5 +68,3 @@ async function disablePhotoChange(req, res) {
       .json({ message: "Failed to disable", error: String(e.message || e) });
   }
 }
-
-module.exports = { getSettings, enablePhotoChange, disablePhotoChange };

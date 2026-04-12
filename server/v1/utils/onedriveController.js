@@ -1,8 +1,9 @@
-const axios = require("axios");
-const { getDelegatedAccessToken } = require("./delegatedGraphAuth.js");
-require("dotenv").config();
+import axios from "axios";
+import { getDelegatedAccessToken } from "./delegatedGraphAuth.js";
+import onedrive from "../config/onedrive.js";
 
-async function requireDelegatedToken() {
+// Low-level auth
+export async function requireDelegatedToken() {
   const tok = await getDelegatedAccessToken();
   if (!tok) {
     throw new Error(
@@ -12,7 +13,9 @@ async function requireDelegatedToken() {
   return tok;
 }
 
-async function graphGET(url, token, config = {}) {
+// Low-level Graph HTTP helpers
+
+export async function graphGET(url, token, config = {}) {
   const { data } = await axios.get(url, {
     ...config,
     headers: { ...(config.headers || {}), Authorization: `Bearer ${token}` },
@@ -20,7 +23,7 @@ async function graphGET(url, token, config = {}) {
   return data;
 }
 
-async function graphPUT(url, token, body, headers = {}) {
+export async function graphPUT(url, token, body, headers = {}) {
   const { data } = await axios.put(url, body, {
     headers: { Authorization: `Bearer ${token}`, ...headers },
     maxContentLength: Infinity,
@@ -29,68 +32,67 @@ async function graphPUT(url, token, body, headers = {}) {
   return data;
 }
 
-async function graphPOST(url, token, body, headers = {}) {
+export async function graphPOST(url, token, body, headers = {}) {
   const { data } = await axios.post(url, body, {
     headers: { Authorization: `Bearer ${token}`, ...headers },
   });
   return data;
 }
 
-function extFromMime(mime) {
+// Drive item helpers
+
+export function extFromMime(mime) {
   if (!mime) return ".jpg";
   if (mime.includes("png")) return ".png";
-  if (mime.includes("jpeg")) return ".jpg";
-  if (mime.includes("jpg")) return ".jpg";
+  if (mime.includes("jpeg") || mime.includes("jpg")) return ".jpg";
   if (mime.includes("webp")) return ".webp";
   return ".jpg";
 }
 
-async function getMe(token) {
+export async function getMe(token) {
   return graphGET("https://graph.microsoft.com/v1.0/me", token);
 }
 
-async function getMyDrive(token) {
+export async function getMyDrive(token) {
   return graphGET("https://graph.microsoft.com/v1.0/me/drive", token);
 }
 
-async function getItemById(token, itemId) {
-  const url = `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}?$select=id,name,parentReference,webUrl`;
-  return graphGET(url, token);
+export async function getItemById(token, itemId) {
+  return graphGET(
+    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}?$select=id,name,parentReference,webUrl`,
+    token,
+  );
 }
 
-/** Pre-authenticated URL; works with unauthenticated HTTP GET (e.g. mobile app). Short-lived. */
-function driveItemGraphDownloadUrl(driveItem) {
-  if (!driveItem || typeof driveItem !== "object") return "";
-  return String(driveItem["@microsoft.graph.downloadUrl"] || "").trim();
+export async function findChildByName(token, parentId, name) {
+  const data = await graphGET(
+    `https://graph.microsoft.com/v1.0/me/drive/items/${parentId}/children?$select=id,name`,
+    token,
+  );
+  return (data?.value || []).filter((x) => x.name === name);
 }
 
-async function fetchDriveItemDownloadUrl(token, itemId) {
-  if (!itemId) return "";
-  const url = `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}`;
-  const data = await graphGET(url, token);
-  return driveItemGraphDownloadUrl(data);
+export async function deleteItemById(token, itemId) {
+  await axios.delete(
+    `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}`,
+    { headers: { Authorization: `Bearer ${token}` } },
+  );
 }
 
-async function uploadToParentByName(
+export async function uploadToParentByName(
   token,
   parentId,
   filename,
   buffer,
   mimeType,
 ) {
-  // console.log(filename, buffer, mimeType);
-  const url = `https://graph.microsoft.com/v1.0/me/drive/items/${parentId}:/${encodeURIComponent(
-    filename,
-  )}:/content`;
-
-  const data = await graphPUT(url, token, buffer, {
+  const url = `https://graph.microsoft.com/v1.0/me/drive/items/${parentId}:/${encodeURIComponent(filename)}:/content`;
+  return graphPUT(url, token, buffer, {
     "Content-Type": mimeType || "application/octet-stream",
   });
-
-  return data; // driveItem
 }
 
-async function createOrganizationViewLink(token, itemId) {
+export async function createOrganizationViewLink(token, itemId) {
   const url = `https://graph.microsoft.com/v1.0/me/drive/items/${itemId}/createLink`;
   const data = await graphPOST(
     url,
@@ -98,173 +100,79 @@ async function createOrganizationViewLink(token, itemId) {
     { type: "view", scope: "organization" },
     { "Content-Type": "application/json" },
   );
-
   return data?.link?.webUrl;
 }
 
-//Provide
+function driveItemGraphDownloadUrl(driveItem) {
+  if (!driveItem || typeof driveItem !== "object") return "";
+  return String(driveItem["@microsoft.graph.downloadUrl"] || "").trim();
+}
 
-//file.buffer
-//file.mimetype
-//custom file name
-//FOLDER_ID of the floder you want to upload in
-const uploadToOnedrive = async (
+async function fetchDriveItemDownloadUrl(token, itemId) {
+  if (!itemId) return "";
+  const data = await graphGET(
+    `https://graph.microsoft.com/v1.0/me/drive/items/${encodeURIComponent(itemId)}`,
+    token,
+  );
+  return driveItemGraphDownloadUrl(data);
+}
+
+// Shared filename helper
+
+/** Generates a unique filename infix: `-{userId}-{timestamp}-{random}-` */
+export function makeUniqueMiddleName(userId) {
+  const uniqueSuffix = Math.round(Math.random() * 1e9);
+  return `-${userId}-${Date.now()}-${uniqueSuffix}-`;
+}
+
+// Core upload primitive
+
+/**
+ * Upload a buffer to any OneDrive folder. Returns { url, filename }
+ * Throws on failure - callers are responsible for error handling
+ */
+export async function uploadBufferToFolder(
   buffer,
   mimetype,
   targetName,
-  FOLDER_ID,
-  res,
-) => {
-  let uploaded = null;
+  folderId,
+) {
+  if (!folderId) throw new Error("OneDrive folder ID is not configured");
+
+  const token = await requireDelegatedToken();
+  const uploaded = await uploadToParentByName(
+    token,
+    folderId,
+    targetName,
+    buffer,
+    mimetype,
+  );
+
+  let publicUrl = "";
   try {
-    if (!FOLDER_ID) {
-      return res
-        .status(400)
-        .json({ message: `${FOLDER_ID} is not configured` });
-    }
-
-    // Delegated token required to use /me/drive
-    const token = await requireDelegatedToken();
-
-    // Upload to OneDrive
-    const uploaded = await uploadToParentByName(
-      token,
-      FOLDER_ID,
-      targetName,
-      buffer,
-      mimetype,
+    publicUrl = await createOrganizationViewLink(token, uploaded.id);
+  } catch (e) {
+    console.error(
+      `[OneDrive] Link creation failed for "${targetName}":`,
+      e.message,
     );
-    try {
-      // Create public link
-      let publicUrl = null;
-      try {
-        publicUrl = await createOrganizationViewLink(token, uploaded.id);
-      } catch (e) {
-        console.error(
-          `[OneDrive] Link creation failed for ${prefix}:`,
-          e.message,
-        );
-      }
-
-      return {
-        url: publicUrl || "",
-        filename: targetName,
-      };
-    } catch (err) {
-      console.error("[OneDrive] Error in creating organization view link");
-      return res.status(500).json({
-        message: "Error in generation of publicUrl",
-        error: err.message,
-      });
-    }
-  } catch (err) {
-    console.error("[OneDrive] Error in uploading document:", err);
-
-    return res.status(500).json({
-      message: "Error in uploading file to onedrive",
-      error: err.message,
-    });
   }
-};
 
-const uploadReportToOnedrive = async (buffer, filename) => {
-  try {
-    console.log(`[OneDrive] Uploading report ${filename}...`);
-    const result = await uploadToOnedrive(
-      buffer,
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      filename,
-      "ONEDRIVE_REPORTS_FOLDER_ID",
-    );
-    return result.url;
-  } catch (err) {
-    console.error("[OneDrive] Report upload failed:", err);
-    return null;
-  }
-};
+  return { url: publicUrl || "", filename: targetName, itemId: uploaded.id };
+}
 
-//If you want file.buffer from an organization view link
-//This is the controller for you
-
-//Arguements
-//url of the file
-//response object
-
-const downloadFromOnedrive = async (url, res) => {
-  const documentUrl = url;
-  try {
-    if (!documentUrl) {
-      return res.status(404).json({ message: "No document URL attached" });
-    }
-
-    if (documentUrl) {
-      try {
-        const extensionMap = {
-          "application/pdf": ".pdf",
-          "image/jpeg": ".jpg",
-          "image/png": ".png",
-          "image/gif": ".gif",
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            ".docx",
-          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
-            ".xlsx",
-        };
-
-        // Find the extension, default to .bin if unknown
-
-        const base64Value = Buffer.from(documentUrl).toString("base64");
-        const encodedUrl =
-          "u!" +
-          base64Value.replace(/=/g, "").replace(/\//g, "_").replace(/\+/g, "-");
-
-        const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encodedUrl}/driveItem/content`;
-
-        console.log("[OneDrive] Fetching from Graph Shares API...");
-
-        const accessToken = await requireDelegatedToken();
-
-        // 2. Fetch the actual binary content
-        const response = await axios.get(graphUrl, {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-          responseType: "arraybuffer",
-        });
-
-        const contentType =
-          response.headers["content-type"] || "application/pdf";
-        console.log("[OneDrive] Content-type is", contentType);
-        res.setHeader("Content-Type", contentType);
-        const ext = extensionMap[contentType] || ".bin";
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="document-${Date.now()}${ext}"`,
-        );
-
-        return res.send(Buffer.from(response.data));
-      } catch (e) {
-        console.error("[OneDrive] Error in fetching document", e);
-        return res.status(200).json({ url: documentUrl });
-      }
-    }
-  } catch (err) {
-    return res.status(500).json({
-      message: "Failed to fetch Proof Document",
-      error: err.message,
-      status: err.response?.status,
-    });
-  }
-};
+// Folder-specific helpers
 
 /**
- * Upload a buffer to the leave documents folder (no Express res).
- * @returns {{ url: string, filename: string }}
+ * Upload to the leave documents folder
+ * Prefers @microsoft.graph.downloadUrl over the org-view link for mobile compatibility
+ * Returns { url, filename }
  */
-async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
-  const LEAVE_FOLDER_ID = process.env.ONEDRIVE_LEAVE_FOLDER_ID;
-  if (!LEAVE_FOLDER_ID) {
+export async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
+  const LEAVE_FOLDER_ID = onedrive.leaveFolderId;
+  if (!LEAVE_FOLDER_ID)
     throw new Error("ONEDRIVE_LEAVE_FOLDER_ID is not configured");
-  }
+
   const token = await requireDelegatedToken();
   const uploaded = await uploadToParentByName(
     token,
@@ -273,6 +181,8 @@ async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
     buffer,
     mimetype,
   );
+
+  // Prefer the pre-authenticated Graph download URL (works without M365 sign-in)
   let graphDownloadUrl = driveItemGraphDownloadUrl(uploaded);
   if (!graphDownloadUrl && uploaded?.id) {
     try {
@@ -284,26 +194,102 @@ async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
       );
     }
   }
+
   let orgViewUrl = "";
   try {
     orgViewUrl = await createOrganizationViewLink(token, uploaded.id);
   } catch (e) {
     console.error("[OneDrive] Link creation failed for leave PDF:", e.message);
   }
-  // Organization "view" links require the user to be signed into M365 in a browser — plain
-  // GET from the app returns 403. Prefer Graph download URL for mobile / Dio.
-  const urlForClient = graphDownloadUrl || orgViewUrl || "";
+
   if (!graphDownloadUrl && orgViewUrl) {
     console.warn(
       "[OneDrive] leave PDF: no @microsoft.graph.downloadUrl; returning org link (in-app download may 403).",
     );
   }
-  return { url: urlForClient, filename: targetName };
+
+  return {
+    url: graphDownloadUrl || orgViewUrl || "",
+    filename: targetName,
+  };
 }
 
-module.exports = {
-  uploadToOnedrive,
-  uploadReportToOnedrive,
-  downloadFromOnedrive,
-  uploadBufferToLeaveFolder,
-};
+/**
+ * Upload a report buffer (.xlsx) to the reports folder
+ * Returns the public URL string, or null on failure (non-throwing)
+ */
+export async function uploadReportToOnedrive(buffer, filename) {
+  const REPORTS_FOLDER_ID = onedrive.reportsFolderId;
+  if (!REPORTS_FOLDER_ID) {
+    console.error(
+      "[OneDrive] ONEDRIVE_REPORTS_FOLDER_ID is not configured; skipping upload",
+    );
+    return null;
+  }
+  try {
+    console.log(`[OneDrive] Uploading report "${filename}"...`);
+    const result = await uploadBufferToFolder(
+      buffer,
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      filename,
+      REPORTS_FOLDER_ID,
+    );
+    return result.url;
+  } catch (err) {
+    console.error("[OneDrive] Report upload failed:", err);
+    return null;
+  }
+}
+
+// Download helper
+
+/**
+ * Resolve a OneDrive org-view share URL and stream the file bytes to `res`
+ */
+export async function downloadFromOnedrive(url, res) {
+  try {
+    if (!url)
+      return res.status(404).json({ message: "No document URL attached" });
+
+    const extensionMap = {
+      "application/pdf": ".pdf",
+      "image/jpeg": ".jpg",
+      "image/png": ".png",
+      "image/gif": ".gif",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+        ".docx",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":
+        ".xlsx",
+    };
+
+    const base64Value = Buffer.from(url).toString("base64");
+    const encodedUrl =
+      "u!" +
+      base64Value.replace(/=/g, "").replace(/\//g, "_").replace(/\+/g, "-");
+    const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encodedUrl}/driveItem/content`;
+
+    console.log("[OneDrive] Fetching from Graph Shares API...");
+    const accessToken = await requireDelegatedToken();
+
+    const response = await axios.get(graphUrl, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      responseType: "arraybuffer",
+    });
+
+    const contentType = response.headers["content-type"] || "application/pdf";
+    const ext = extensionMap[contentType] || ".bin";
+    res.setHeader("Content-Type", contentType);
+    res.setHeader(
+      "Content-Disposition",
+      `attachment; filename="document-${Date.now()}${ext}"`,
+    );
+    return res.send(Buffer.from(response.data));
+  } catch (err) {
+    console.error("[OneDrive] Error fetching document:", err);
+    return res.status(500).json({
+      message: "Failed to fetch document",
+      error: err.message,
+      status: err.response?.status,
+    });
+  }
+}

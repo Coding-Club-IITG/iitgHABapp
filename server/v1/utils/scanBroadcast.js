@@ -1,3 +1,9 @@
+import Redis from "ioredis";
+import { broadcastMessScanToManagers } from "../modules/mess/messManagerWs.js";
+import { broadcastGalaScanToManagers } from "../modules/gala/galaManagerWs.js";
+import redisClient from "./redisClient.js";
+import { redisUrl } from "../config/default.js";
+
 /**
  * Cross-instance broadcast for scan events (cluster-safe).
  *
@@ -8,8 +14,6 @@
  * When REDIS_URL is not set: calls the local broadcast only (single-instance behavior).
  */
 
-const redisClient = require("./redisClient.js");
-
 const REDIS_CHANNEL_MESS = "hab:mess:scan";
 const REDIS_CHANNEL_GALA = "hab:gala:scan";
 
@@ -17,12 +21,6 @@ let redisSubscriber = null;
 let redisDisabled = false;
 
 function getLocalBroadcasts() {
-  const {
-    broadcastMessScanToManagers,
-  } = require("../modules/mess/messManagerWs.js");
-  const {
-    broadcastGalaScanToManagers,
-  } = require("../modules/gala/galaManagerWs.js");
   return { broadcastMessScanToManagers, broadcastGalaScanToManagers };
 }
 
@@ -30,7 +28,7 @@ function getLocalBroadcasts() {
  * Publish mess scan event. With Redis: all instances receive and broadcast locally.
  * Without Redis: only this process broadcasts.
  */
-function publishMessScan(payload) {
+export function publishMessScan(payload) {
   const { broadcastMessScanToManagers } = getLocalBroadcasts();
   const client = redisClient.getInstance();
   if (client && redisClient.getIsConnected()) {
@@ -47,7 +45,7 @@ function publishMessScan(payload) {
  * Publish gala scan event. With Redis: all instances receive and broadcast locally.
  * Without Redis: only this process broadcasts.
  */
-function publishGalaScan(payload) {
+export function publishGalaScan(payload) {
   const { broadcastGalaScanToManagers } = getLocalBroadcasts();
   const client = redisClient.getInstance();
   if (client && redisClient.getIsConnected()) {
@@ -80,14 +78,12 @@ function disableRedis(reason) {
  * Call once after WebSocket servers are initialized (e.g. in index.js).
  * No-op if REDIS_URL is not set. If Redis connection fails, falls back to direct broadcast without spamming errors.
  */
-function initScanBroadcast() {
-  const redisUrl = process.env.REDIS_URL;
+export function initScanBroadcast() {
   if (!redisUrl) {
     return;
   }
 
   try {
-    const Redis = require("ioredis");
     const opts = {
       maxRetriesPerRequest: 0,
       enableOfflineQueue: false,
@@ -144,9 +140,3 @@ function initScanBroadcast() {
     redisSubscriber = null;
   }
 }
-
-module.exports = {
-  publishMessScan,
-  publishGalaScan,
-  initScanBroadcast,
-};

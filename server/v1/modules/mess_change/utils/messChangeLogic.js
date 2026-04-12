@@ -1,9 +1,9 @@
-const UserAllocHostel = require("../../hostel/hostelAllocModel.js");
+import UserAllocHostel from "../../hostel/hostelAllocModel.js";
 
 /**
  * Initialize capacity tracker
  */
-const initializeCapacityTracker = async (hostels) => {
+export const initializeCapacityTracker = async (hostels) => {
   const capacityTracker = {};
 
   const subscriberRows = await UserAllocHostel.aggregate([
@@ -64,7 +64,7 @@ const sortUsersByPriority = (users) =>
  * Core FCFS processing
  * Returns accepted and rejected users.
  */
-const processUsersInIterations = async (users, capacityTracker) => {
+export const processUsersInIterations = async (users, capacityTracker) => {
   const queue = sortUsersByPriority([...users]);
   const state = new Map();
 
@@ -154,10 +154,4 @@ const processUsersInIterations = async (users, capacityTracker) => {
     }));
 
   return { acceptedUsers, rejectedUsers };
-};
-
-module.exports = {
-  initializeCapacityTracker,
-  sortUsersByPriority,
-  processUsersInIterations,
 };

@@ -1,24 +1,23 @@
-const { User } = require("../user/userModel");
-const { Hostel } = require("../hostel/hostelModel");
-const { Mess } = require("../mess/messModel");
-const UserAllocHostel = require("../hostel/hostelAllocModel");
-const Feedback = require("./feedbackModel");
-const { FeedbackSettings } = require("./feedbackSettingsModel");
+import { User } from "../user/userModel.js";
+import { Hostel } from "../hostel/hostelModel.js";
+import { Mess } from "../mess/messModel.js";
+import UserAllocHostel from "../hostel/hostelAllocModel.js";
+import Feedback from "./feedbackModel.js";
+import { FeedbackSettings } from "./feedbackSettingsModel.js";
 
-const redisClient = require("../../utils/redisClient.js");
-const {
-  sendNotificationMessage,
-} = require("../notification/notificationController");
-const {
-  getFeedbackWindowDates,
-  getOrdinalSuffix,
-} = require("../../utils/windowDates.js");
-const {
+import { sendNotificationMessage } from "../notification/notificationController.js";
+import {
   generateOpiReport,
   saveOpiReportBackup,
-} = require("./opiReportGenerator");
-const { uploadReportToOnedrive } = require("../../utils/onedriveController.js");
-const { withTransaction } = require("../../utils/withTransaction.js");
+} from "./opiReportGenerator.js";
+
+import {
+  getFeedbackWindowDates,
+  getOrdinalSuffix,
+} from "../../utils/windowDates.js";
+import redisClient from "../../utils/redisClient.js";
+import { uploadReportToOnedrive } from "../../utils/onedriveController.js";
+import { withTransaction } from "../../utils/withTransaction.js";
 
 // Rating helpers
 const ratingMap = {
@@ -172,7 +171,7 @@ const getSubscriberCountByCatererIds = async (catererIds) => {
 // Get feedback texts for a caterer (with user names) - paginated
 // Auth: HAB/Admin
 // ==========================================
-const getFeedbacksByCaterer = async (req, res) => {
+export const getFeedbacksByCaterer = async (req, res) => {
   try {
     const {
       catererId,
@@ -354,7 +353,7 @@ const getFeedbacksByCaterer = async (req, res) => {
 // Query params: windowNumber (required)
 // Response: [{ userName, rollNumber, breakfast, lunch, dinner, smcFields, comment, catererName, date }]
 // ==========================================
-const getDetailedFeedbackByWindow = async (req, res) => {
+export const getDetailedFeedbackByWindow = async (req, res) => {
   try {
     const { windowNumber } = req.query;
     const parsedWindow = parseInt(windowNumber, 10);
@@ -416,7 +415,7 @@ const getDetailedFeedbackByWindow = async (req, res) => {
 // ==========================================
 // Submit feedback
 // ==========================================
-const submitFeedback = async (req, res) => {
+export const submitFeedback = async (req, res) => {
   try {
     const { name, rollNumber, breakfast, lunch, dinner, comment, smcFields } =
       req.body;
@@ -508,7 +507,7 @@ const submitFeedback = async (req, res) => {
 // ==========================================
 // Remove feedback
 // ==========================================
-const removeFeedback = async (req, res) => {
+export const removeFeedback = async (req, res) => {
   try {
     const { name, rollNumber } = req.body;
     if (!name || !rollNumber) {
@@ -543,7 +542,7 @@ const removeFeedback = async (req, res) => {
 // ==========================================
 // Get all feedbacks
 // ==========================================
-const getAllFeedback = async (req, res) => {
+export const getAllFeedback = async (req, res) => {
   try {
     const feedbacks = await Feedback.find()
       .populate("user", "name rollNumber isSMC")
@@ -576,7 +575,7 @@ const getAllFeedback = async (req, res) => {
 // Enable / Disable Feedback Window
 // ==========================================
 // Helper to enable feedback automatically so schedulers can call it
-const enableFeedbackAutomatic = async (endDate = null) => {
+export const enableFeedbackAutomatic = async (endDate = null) => {
   try {
     let savedSettings;
 
@@ -625,7 +624,7 @@ const enableFeedbackAutomatic = async (endDate = null) => {
 };
 
 // Generate Mess OPI Report
-const buildOpiReportData = async (windowNumber) => {
+export const buildOpiReportData = async (windowNumber) => {
   const rawFeedbacks = await Feedback.find({
     feedbackWindowNumber: windowNumber,
     caterer: { $ne: null },
@@ -707,7 +706,7 @@ const buildOpiReportData = async (windowNumber) => {
 };
 
 // Helper to disable feedback automatically
-const disableFeedbackAutomatic = async () => {
+export const disableFeedbackAutomatic = async () => {
   try {
     let windowNumber;
 
@@ -780,14 +779,14 @@ const disableFeedbackAutomatic = async () => {
 // ==========================================
 // Get feedback settings
 // ==========================================
-const getFeedbackSettings = async (req, res) => {
+export const getFeedbackSettings = async (req, res) => {
   try {
     const cachedSettings = await redisClient.get("feedback_settings");
     if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
 
     let s = await FeedbackSettings.findOne();
     // Check if window has expired and report accordingly, but don't
-    // persist the disable — let the scheduler handle it so
+    // persist the disable - let the scheduler handle it so
     // updateAllMessRatingsAndRankings is properly called.
     let responseData;
     if (s?.isEnabled && s.currentWindowClosingTime) {
@@ -826,7 +825,7 @@ const getFeedbackSettings = async (req, res) => {
 // ==========================================
 // Get feedback settings (Public - for mobile app)
 // ==========================================
-const getFeedbackSettingsPublic = async (req, res) => {
+export const getFeedbackSettingsPublic = async (req, res) => {
   try {
     const cachedSettings = await redisClient.get("feedback_settings");
     if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
@@ -869,7 +868,7 @@ const getFeedbackSettingsPublic = async (req, res) => {
 // ==========================================
 // Get feedback schedule info (HAB)
 // ==========================================
-const getFeedbackScheduleInfo = async (req, res) => {
+export const getFeedbackScheduleInfo = async (req, res) => {
   try {
     const settings = await FeedbackSettings.findOne();
 
@@ -926,7 +925,7 @@ const getFeedbackScheduleInfo = async (req, res) => {
 // ==========================================
 // Leaderboard (All-time)
 // ==========================================
-const getFeedbackLeaderboard = async (req, res) => {
+export const getFeedbackLeaderboard = async (req, res) => {
   try {
     const feedbacksRaw = await Feedback.find({ caterer: { $ne: null } })
       .populate("user", "isSMC")
@@ -1054,7 +1053,7 @@ const getFeedbackLeaderboard = async (req, res) => {
 // ==========================================
 // Available feedback windows
 // ==========================================
-const getAvailableWindows = async (req, res) => {
+export const getAvailableWindows = async (req, res) => {
   try {
     const windows = await Feedback.distinct("feedbackWindowNumber");
     const sorted = windows.filter(Boolean).sort((a, b) => b - a); // Sort descending (newest first)
@@ -1068,7 +1067,7 @@ const getAvailableWindows = async (req, res) => {
 // ==========================================
 // Window-based leaderboard
 // ==========================================
-const getFeedbackLeaderboardByWindow = async (req, res) => {
+export const getFeedbackLeaderboardByWindow = async (req, res) => {
   try {
     const { windowNumber } = req.query;
     if (!windowNumber) {
@@ -1202,7 +1201,7 @@ const getFeedbackLeaderboardByWindow = async (req, res) => {
 // ==========================================
 // Check if feedback is already submitted for this window
 // ==========================================
-const checkFeedbackSubmitted = async (req, res) => {
+export const checkFeedbackSubmitted = async (req, res) => {
   try {
     const user = req.user; // set by authenticateJWT
     if (!user)
@@ -1227,7 +1226,7 @@ const checkFeedbackSubmitted = async (req, res) => {
 // ==========================================
 // Get feedback window closing time and time left
 // ==========================================
-const getFeedbackWindowTimeLeft = async (req, res) => {
+export const getFeedbackWindowTimeLeft = async (req, res) => {
   try {
     let s = await FeedbackSettings.findOne();
     if (!s || !s.isEnabled || !s.currentWindowClosingTime) {
@@ -1279,7 +1278,7 @@ const getFeedbackWindowTimeLeft = async (req, res) => {
 // ---------------------------------------------------------------------------
 // Update Mess OPI
 // ---------------------------------------------------------------------------
-const updateAllMessRatingsAndRankings = async (windowNumber) => {
+export const updateAllMessRatingsAndRankings = async (windowNumber) => {
   if (typeof windowNumber !== "number") return;
 
   const startTime = Date.now();
@@ -1478,24 +1477,4 @@ const updateAllMessRatingsAndRankings = async (windowNumber) => {
   console.log(
     `[OPI] Mess ratings updated for ${rows.length} messes in ${Date.now() - startTime}ms`,
   );
-};
-
-module.exports = {
-  submitFeedback,
-  removeFeedback,
-  getAllFeedback,
-  enableFeedbackAutomatic,
-  disableFeedbackAutomatic,
-  getFeedbackSettings,
-  getFeedbackSettingsPublic,
-  getFeedbackScheduleInfo,
-  getFeedbackLeaderboard,
-  getFeedbackLeaderboardByWindow,
-  getAvailableWindows,
-  checkFeedbackSubmitted,
-  getFeedbackWindowTimeLeft,
-  getFeedbacksByCaterer,
-  getDetailedFeedbackByWindow,
-  updateAllMessRatingsAndRankings,
-  buildOpiReportData,
 };

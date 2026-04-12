@@ -1,9 +1,9 @@
-const { Menu } = require("./menuModel");
-const { MenuItem } = require("./menuItemModel");
+import { Menu } from "./menuModel.js";
+import { MenuItem } from "./menuItemModel.js";
 
-const redisClient = require("../../utils/redisClient.js");
+import redisClient from "../../utils/redisClient.js";
 
-const getMessMenuByDayForAdmin = async (req, res) => {
+export const getMessMenuByDayForAdmin = async (req, res) => {
   try {
     const messId = req.params.messId;
     const day = req.body.day;
@@ -62,8 +62,8 @@ const getMessMenuByDayForAdmin = async (req, res) => {
   }
 };
 
-//modify menu item
-const modifyMenuItem = async (req, res) => {
+// modify menu item
+export const modifyMenuItem = async (req, res) => {
   try {
     const _Id = req.body._Id;
     const name = req.body.name;
@@ -91,7 +91,7 @@ const modifyMenuItem = async (req, res) => {
   }
 };
 
-const updateTime = async (req, res) => {
+export const updateTime = async (req, res) => {
   try {
     // Accept messId either in body or as a URL param (for SMC variant)
     const messId = req.body.messId || req.params?.messId;
@@ -144,7 +144,7 @@ const updateTime = async (req, res) => {
 };
 
 // SMC-specific time update: allow authenticated SMC users to update timings
-const updateTimeSMC = async (req, res) => {
+export const updateTimeSMC = async (req, res) => {
   try {
     const user = req.user;
     const isAuthorized = (user && user.isSMC) || !!req.hostel;
@@ -204,7 +204,7 @@ const updateTimeSMC = async (req, res) => {
 };
 
 // SMC-specific version that uses user authentication
-const getMessMenuByDayForSMC = async (req, res) => {
+export const getMessMenuByDayForSMC = async (req, res) => {
   try {
     const messId = req.params.messId;
     const day = req.body.day;
@@ -274,7 +274,7 @@ const getMessMenuByDayForSMC = async (req, res) => {
 };
 
 // SMC version of modifyMenuItem
-const modifyMenuItemSMC = async (req, res) => {
+export const modifyMenuItemSMC = async (req, res) => {
   try {
     const _Id = req.body._Id;
     const name = req.body.name;
@@ -307,13 +307,4 @@ const modifyMenuItemSMC = async (req, res) => {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
   }
-};
-
-module.exports = {
-  modifyMenuItem, //to modify menu item (hostel admin)
-  modifyMenuItemSMC, //to modify menu item (SMC)
-  getMessMenuByDayForAdmin,
-  getMessMenuByDayForSMC,
-  updateTime,
-  updateTimeSMC,
 };

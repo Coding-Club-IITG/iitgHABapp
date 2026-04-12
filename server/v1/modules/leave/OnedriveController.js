@@ -1,19 +1,34 @@
-const axios = require("axios");
-require("dotenv").config();
-const { uploadToOnedrive } = require("../../utils/onedriveController.js");
+import {
+  uploadBufferToFolder,
+  downloadFromOnedrive,
+  makeUniqueMiddleName,
+} from "../../utils/onedriveController.js";
+import onedrive from "../../config/onedrive.js";
 
-const LEAVE_FOLDER_ID = process.env.ONEDRIVE_LEAVE_FOLDER_ID;
+const LEAVE_FOLDER_ID = onedrive.leaveFolderId;
 
-const uploadFilesToOnedrive = async (req, res, next) => {
+// Shared error handler
+
+function handleUploadError(err, res, message) {
+  console.error(`[OneDrive] ${message}`, err);
+  const status = err.response?.status;
+  const msg = err.response?.data?.error?.message || err.message;
+  return res
+    .status(status === 403 ? 403 : 500)
+    .json({ message, error: msg, status });
+}
+
+// Multi-file upload middleware
+
+export const uploadFilesToOnedrive = async (req, res, next) => {
   try {
     if (!req.files || Object.keys(req.files).length === 0) {
       console.log(
-        "[OneDrive][uploadFilesToOnedrive] No files on request; skipping upload",
+        "[OneDrive][uploadFilesToOnedrive] No files; skipping upload",
       );
       req.uploadedDocuments = {};
       return next();
     }
-    console.log(req.files);
 
     if (!LEAVE_FOLDER_ID) {
       console.error(
@@ -23,53 +38,41 @@ const uploadFilesToOnedrive = async (req, res, next) => {
         .status(400)
         .json({ message: "ONEDRIVE_LEAVE_FOLDER_ID is not configured" });
     }
-    const uniqueSuffix = Math.round(Math.random() * 1e9);
 
-    const timeStamp = Date.now();
-
-    const uniqueMiddleName = `-${req.user._id}-${timeStamp}-${uniqueSuffix}-`;
+    const uniqueMiddleName = makeUniqueMiddleName(req.user._id);
     req.uploadedDocuments = {};
-    console.log(`Starting upload to onedrive for user: ${req.user?.name}`);
+    console.log(`[OneDrive] Starting upload for user: ${req.user?.name}`);
+
     const proofDocument = req.files?.["proofDocument"]?.[0] ?? null;
-    const leaveDocument = req.files?.["leaveDocument"]?.[0];
+    const leaveDocument = req.files?.["leaveDocument"]?.[0] ?? null;
 
     if (proofDocument) {
-      req.uploadedDocuments.proofDocument = await uploadToOnedrive(
+      req.uploadedDocuments.proofDocument = await uploadBufferToFolder(
         proofDocument.buffer,
         proofDocument.mimetype,
-        `proofdocument${uniqueMiddleName}${proofDocument.originalname}`,
+        `proofDocument${uniqueMiddleName}${proofDocument.originalname}`,
         LEAVE_FOLDER_ID,
-        res,
       );
     }
     if (leaveDocument) {
-      req.uploadedDocuments.leaveDocument = await uploadToOnedrive(
+      req.uploadedDocuments.leaveDocument = await uploadBufferToFolder(
         leaveDocument.buffer,
         leaveDocument.mimetype,
-        `proofdocument${uniqueMiddleName}${leaveDocument.originalname}`,
+        `leaveDocument${uniqueMiddleName}${leaveDocument.originalname}`,
         LEAVE_FOLDER_ID,
-        res,
       );
     }
 
-    console.log("OneDrive uploads successful", req.uploadedDocuments);
+    console.log("[OneDrive] Uploads successful", req.uploadedDocuments);
     next();
   } catch (err) {
-    console.error(
-      "[OneDrive][uploadFilesToOnedrive] OneDrive upload failed",
-      err,
-    );
-    const status = err.response?.status || 500;
-    const msg = err.response?.data?.error?.message || err.message;
-    return res.status(status === 403 ? 403 : 500).json({
-      message: "Failed to upload verification documents",
-      error: msg,
-      status,
-    });
+    handleUploadError(err, res, "Failed to upload verification documents");
   }
 };
 
-async function uploadSingleToOnedrive(req, res, next) {
+// Single-file upload middleware
+
+export async function uploadSingleToOnedrive(req, res, next) {
   try {
     if (!req.files || Object.keys(req.files).length === 0) {
       req.uploadedDocuments = {};
@@ -82,65 +85,40 @@ async function uploadSingleToOnedrive(req, res, next) {
         .json({ message: "ONEDRIVE_LEAVE_FOLDER_ID is not configured" });
     }
 
-    const uniqueSuffix = Math.round(Math.random() * 1e9);
-
-    const timeStamp = Date.now();
-
-    const uniqueMiddleName = `-${req.user._id}-${timeStamp}-${uniqueSuffix}-`;
-
-    req.uploadedDocuments = {};
-    console.log(`Starting upload to onedrive for user: ${req.user?.name}`);
+    const uniqueMiddleName = makeUniqueMiddleName(req.user._id);
     const proofDocument = req.files["proofDocument"][0];
 
-    req.uploadedDocuments.proofDocument = await uploadToOnedrive(
-      proofDocument.buffer,
-      proofDocument.mimetype,
-      `proofdocument${uniqueMiddleName}${proofDocument.originalname}`,
-      LEAVE_FOLDER_ID,
-      res,
-    );
+    req.uploadedDocuments = {
+      proofDocument: await uploadBufferToFolder(
+        proofDocument.buffer,
+        proofDocument.mimetype,
+        `proofDocument${uniqueMiddleName}${proofDocument.originalname}`,
+        LEAVE_FOLDER_ID,
+      ),
+    };
 
-    console.log("OneDrive uploads successful", req.uploadedDocuments);
+    console.log("[OneDrive] Upload successful", req.uploadedDocuments);
     next();
   } catch (err) {
-    console.error("Addition of medical certificate failed:", err);
-    const status = err.response?.status || 500;
-    const msg = err.response?.data?.error?.message || err.message;
-    return res.status(status === 403 ? 403 : 500).json({
-      message: "Failed to upload medical documents",
-      error: msg,
-      status,
-    });
+    handleUploadError(err, res, "Failed to upload medical documents");
   }
 }
 
-const sendDocument = async (req, res) => {
-  const { proofDocumentUrl } = req.body;
-  const documentUrl = proofDocumentUrl;
-  try {
-    if (!documentUrl) {
-      return res.status(404).json({ message: "No document URL attached" });
-    }
+// Download endpoint
 
-    if (documentUrl) {
-      try {
-        await downloadFromOnedrive(documentUrl, res);
-      } catch (e) {
-        console.error("Error in fetching document", e);
-        return res.status(200).json({ url: proofDocumentUrl });
-      }
-    }
+export const sendDocument = async (req, res) => {
+  const { proofDocumentUrl } = req.body;
+  if (!proofDocumentUrl) {
+    return res.status(404).json({ message: "No document URL attached" });
+  }
+  try {
+    await downloadFromOnedrive(proofDocumentUrl, res);
   } catch (err) {
+    console.error("[OneDrive] sendDocument error:", err);
     return res.status(500).json({
       message: "Failed to fetch Proof Document",
       error: err.message,
       status: err.response?.status,
     });
   }
-};
-
-module.exports = {
-  uploadSingleToOnedrive,
-  sendDocument,
-  uploadFilesToOnedrive,
 };

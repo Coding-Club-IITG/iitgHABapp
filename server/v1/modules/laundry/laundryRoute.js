@@ -1,12 +1,21 @@
-const express = require("express");
-const { getStatus, scan, getHostelDashboard } = require("./laundryController.js");
-const { authenticateJWT, authenticateAdminJWT } = require("../../middleware/authenticateJWT.js");
+import express from "express";
+
+import { getStatus, scan, getHostelDashboard } from "./laundryController.js";
+
+import {
+  authenticateJWT,
+  authenticateAdminJWT,
+} from "../../middleware/authenticateJWT.js";
 
 const laundryRouter = express.Router();
 
 laundryRouter.get("/status", authenticateJWT, getStatus);
 laundryRouter.post("/scan", authenticateJWT, scan);
 
-laundryRouter.get("/hostel/dashboard", authenticateAdminJWT, getHostelDashboard);
+laundryRouter.get(
+  "/hostel/dashboard",
+  authenticateAdminJWT,
+  getHostelDashboard,
+);
 
-module.exports = laundryRouter;
+export default laundryRouter;

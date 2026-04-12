@@ -1,10 +1,11 @@
-const ExcelJS = require("exceljs");
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+const __dirname = import.meta.dirname;
+import ExcelJS from "exceljs";
 
 const backupDir = path.join(__dirname, "../../../backup");
 
-const generateOpiReport = async ({
+export const generateOpiReport = async ({
   windowNumber,
   windowLabel,
   feedbacks,
@@ -79,7 +80,7 @@ const generateOpiReport = async ({
   // Row 1: title
   wsApp.mergeCells("A1:E1");
   const appTitle = wsApp.getCell("A1");
-  appTitle.value = `Mess Subscription List — ${windowLabel} (App Installed)`;
+  appTitle.value = `Mess Subscription List - ${windowLabel} (App Installed)`;
   appTitle.font = font(true, WHITE_FONT, 12);
   appTitle.fill = fill(DARK_BLUE);
   appTitle.alignment = center;
@@ -131,7 +132,7 @@ const generateOpiReport = async ({
 
   wsNoApp.mergeCells("A1:D1");
   const noAppTitle = wsNoApp.getCell("A1");
-  noAppTitle.value = `Mess Subscription List — ${windowLabel} (App Not Installed)`;
+  noAppTitle.value = `Mess Subscription List - ${windowLabel} (App Not Installed)`;
   noAppTitle.font = font(true, WHITE_FONT, 12);
   noAppTitle.fill = fill(DARK_BLUE);
   noAppTitle.alignment = center;
@@ -181,7 +182,7 @@ const generateOpiReport = async ({
 
   wsFb.mergeCells("A1:F1");
   const fbTitle = wsFb.getCell("A1");
-  fbTitle.value = `Student Feedbacks — ${windowLabel}`;
+  fbTitle.value = `Student Feedbacks - ${windowLabel}`;
   fbTitle.font = font(true, WHITE_FONT, 12);
   fbTitle.fill = fill(DARK_BLUE);
   fbTitle.alignment = center;
@@ -236,7 +237,7 @@ const generateOpiReport = async ({
 
   wsSmc.mergeCells("A1:G1");
   const smcTitle = wsSmc.getCell("A1");
-  smcTitle.value = `SMC Inspection Feedbacks — ${windowLabel}`;
+  smcTitle.value = `SMC Inspection Feedbacks - ${windowLabel}`;
   smcTitle.font = font(true, WHITE_FONT, 12);
   smcTitle.fill = fill(DARK_BLUE);
   smcTitle.alignment = center;
@@ -314,7 +315,7 @@ const generateOpiReport = async ({
   // Row 1: Main title
   wsOpi.mergeCells("A1:R1");
   const opiTitle = wsOpi.getCell("A1");
-  opiTitle.value = `OPI REPORT — WINDOW ${windowNumber}`;
+  opiTitle.value = `OPI REPORT - WINDOW ${windowNumber}`;
   opiTitle.font = font(true, WHITE_FONT, 13);
   opiTitle.fill = fill(DARK_BLUE);
   opiTitle.alignment = center;
@@ -338,7 +339,7 @@ const generateOpiReport = async ({
 
   wsOpi.mergeCells("C3:E3");
   const h3C = wsOpi.getCell("C3");
-  h3C.value = "Student Feedback — Avg of Overall Satisfaction";
+  h3C.value = "Student Feedback - Avg of Overall Satisfaction";
   styleHeader(h3C, LIGHT_BLUE);
 
   wsOpi.mergeCells("F3:I3");
@@ -436,7 +437,7 @@ const generateOpiReport = async ({
     // B: Caterer name
     setVal(2, caterer, baseBg);
 
-    // C: Avg Breakfast — SUMPRODUCT formula over Feedbacks sheet
+    // C: Avg Breakfast - SUMPRODUCT formula over Feedbacks sheet
     // =IF(COUNTIF(Feedbacks!C3:C{last},"{caterer}")>0,
     //    SUMPRODUCT((Feedbacks!C3:C{last}="{caterer}")*
     //      ((Feedbacks!D3:D{last}="Very Poor")*1+...+"Very Good")*5))
@@ -455,7 +456,7 @@ const generateOpiReport = async ({
     setCell(4, fbCatFilter("C", "E"), baseBg, false, numFmt2); // Avg Lunch
     setCell(5, fbCatFilter("C", "F"), baseBg, false, numFmt2); // Avg Dinner
 
-    // F-I: SMC Fields — SUMPRODUCT over SMC Fields sheet
+    // F-I: SMC Fields - SUMPRODUCT over SMC Fields sheet
     // Cols in SMC sheet: C=caterer, D=Hygiene, E=Waste, F=Quality, G=Uniform
     const smcFilter = (smcCol) =>
       `IF(COUNTIF('SMC Fields'!C3:C${smcLastRow},"${caterer}")>0,` +
@@ -551,7 +552,7 @@ const generateOpiReport = async ({
       baseBg,
     );
 
-    // S: Helper column (hidden) — 1 if eligible for ranking, 0 otherwise
+    // S: Helper column (hidden) - 1 if eligible for ranking, 0 otherwise
     const cellS = wsOpi.getCell(r, 19);
     cellS.value = { formula: `--(${Mref}>=40)` };
     cellS.font = font(false, BLACK_FONT);
@@ -564,7 +565,7 @@ const generateOpiReport = async ({
 };
 
 // Save OPI Report to backup
-const saveOpiReportBackup = async (buffer, filename) => {
+export const saveOpiReportBackup = async (buffer, filename) => {
   if (!fs.existsSync(backupDir)) {
     fs.mkdirSync(backupDir, { recursive: true });
   }
@@ -573,5 +574,3 @@ const saveOpiReportBackup = async (buffer, filename) => {
   console.log(`[OPI] Saved report backup to ${filePath}`);
   return filePath;
 };
-
-module.exports = { generateOpiReport, saveOpiReportBackup };

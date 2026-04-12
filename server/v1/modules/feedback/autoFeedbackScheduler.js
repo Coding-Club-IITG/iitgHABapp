@@ -1,13 +1,15 @@
-const { FeedbackSettings } = require("./feedbackSettingsModel");
-const { User } = require("../user/userModel");
-const {
+import { FeedbackSettings } from "./feedbackSettingsModel.js";
+import { User } from "../user/userModel.js";
+
+import {
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
-} = require("./feedbackController");
-const admin = require("../notification/firebase");
-const { FCMToken } = require("../notification/FCMToken");
-const { getFeedbackWindowDates } = require("../../utils/windowDates.js");
-const agenda = require("../../utils/agenda.js");
+} from "./feedbackController.js";
+import admin from "../notification/firebase.js";
+import FCMToken from "../notification/FCMToken.js";
+
+import { getFeedbackWindowDates } from "../../utils/windowDates.js";
+import agenda from "../../utils/agenda.js";
 
 const JOB_ENABLE = "feedback-enable-check";
 const JOB_DISABLE = "feedback-disable-check";
@@ -97,7 +99,7 @@ const scheduleFeedbackReminders = async () => {
 };
 
 // Initialize feedback scheduler
-const initializeFeedbackAutoScheduler = () => {
+export const initializeFeedbackAutoScheduler = () => {
   // Runs daily at 9 AM IST
   agenda.define(
     JOB_ENABLE,
@@ -182,12 +184,4 @@ const initializeFeedbackAutoScheduler = () => {
     .catch((err) =>
       console.error("[FEEDBACK] Boot-time reminder restore failed:", err),
     );
-};
-
-module.exports = {
-  initializeFeedbackAutoScheduler,
-  scheduleFeedbackReminders,
-  enableFeedbackAutomatic,
-  disableFeedbackAutomatic,
-  getFeedbackWindowDates,
 };

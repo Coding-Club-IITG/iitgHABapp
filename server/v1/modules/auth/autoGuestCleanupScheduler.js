@@ -1,15 +1,15 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
-const { User } = require("../user/userModel");
-const FCMToken = require("../notification/FCMToken.js");
-const Notification = require("../notification/notificationModel.js");
-const { MenuItem } = require("../mess/menuItemModel.js");
-const Feedback = require("../feedback/feedbackModel.js");
-const { ScanLogs } = require("../mess/ScanLogsModel.js");
+import { User } from "../user/userModel.js";
+import FCMToken from "../notification/FCMToken.js";
+import Notification from "../notification/notificationModel.js";
+import { MenuItem } from "../mess/menuItemModel.js";
+import Feedback from "../feedback/feedbackModel.js";
+import { ScanLogs } from "../mess/ScanLogsModel.js";
 
-const { withTransaction } = require("../../utils/withTransaction.js");
-const redisClient = require("../../utils/redisClient.js");
-const agenda = require("../../utils/agenda.js");
+import { withTransaction } from "../../utils/withTransaction.js";
+import redisClient from "../../utils/redisClient.js";
+import agenda from "../../utils/agenda.js";
 
 const JOB_NAME = "guest-cleanup-weekly";
 const ANONYMIZED_USER_ID = new mongoose.Types.ObjectId(
@@ -101,7 +101,7 @@ const cleanupOldGuestAccounts = async () => {
   console.log(`[GUEST CLEANUP] Deleted ${userIds.length} old guest accounts`);
 };
 
-const initializeGuestCleanupScheduler = () => {
+export const initializeGuestCleanupScheduler = () => {
   agenda.define(
     JOB_NAME,
     async (job) => {
@@ -120,9 +120,4 @@ const initializeGuestCleanupScheduler = () => {
   agenda.every("0 2 * * 1", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
 
   console.log("[GUEST CLEANUP] Scheduled: every Monday at 02:00 AM IST");
-};
-
-module.exports = {
-  initializeGuestCleanupScheduler,
-  cleanupOldGuestAccounts,
 };

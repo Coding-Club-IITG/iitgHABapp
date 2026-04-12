@@ -1,14 +1,13 @@
-// alert/alertRoute.js
-
-const express = require("express");
+import express from "express";
 const router = express.Router();
-const {
+
+import {
   authenticateJWT,
   authenticateHabOrSMCJWT,
-} = require("../../middleware/authenticateJWT");
-const { createAlert, getAlerts } = require("./alertController");
+} from "../../middleware/authenticateJWT.js";
+import { createAlert, getAlerts } from "./alertController.js";
 
 router.post("/create", authenticateHabOrSMCJWT, createAlert);
 router.get("/", authenticateJWT, getAlerts);
 
-module.exports = router;
+export default router;

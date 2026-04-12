@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const galaDinnerSchema = new mongoose.Schema(
   {
@@ -9,9 +9,7 @@ const galaDinnerSchema = new mongoose.Schema(
     startersServingStartTime: { type: String, trim: true },
     dinnerServingStartTime: { type: String, trim: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-const GalaDinner = mongoose.model("GalaDinner", galaDinnerSchema);
-
-module.exports = { GalaDinner };
+export const GalaDinner = mongoose.model("GalaDinner", galaDinnerSchema);

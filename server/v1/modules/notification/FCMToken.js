@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const fcmTokenSchema = new mongoose.Schema(
   {
@@ -10,7 +10,7 @@ const fcmTokenSchema = new mongoose.Schema(
     },
     token: { type: String, required: true },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
-module.exports = mongoose.model("FCMToken", fcmTokenSchema);
+export default mongoose.model("FCMToken", fcmTokenSchema);

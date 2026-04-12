@@ -1,7 +1,8 @@
-const Leave = require("./leaveModel.js");
-const { User } = require("../user/userModel.js");
-const { withTransaction } = require("../../utils/withTransaction.js");
-const agenda = require("../../utils/agenda.js");
+import Leave from "./leaveModel.js";
+import { User } from "../user/userModel.js";
+
+import { withTransaction } from "../../utils/withTransaction.js";
+import agenda from "../../utils/agenda.js";
 
 const JOB_NAME = "mess-rebate-daily";
 
@@ -10,15 +11,7 @@ const MS_PER_DAY = 86400000;
 /** Start of local calendar day for a timestamp (same convention as the rest of this file). */
 function startOfLocalDay(d) {
   const x = new Date(d);
-  return new Date(
-    x.getFullYear(),
-    x.getMonth(),
-    x.getDate(),
-    0,
-    0,
-    0,
-    0,
-  );
+  return new Date(x.getFullYear(), x.getMonth(), x.getDate(), 0, 0, 0, 0);
 }
 
 /** Whole calendar days from application day (local) to `todayStart` (exclusive of the 7-day grace). */
@@ -27,8 +20,8 @@ function calendarDaysSinceAppliedDay(appliedAt, todayStart) {
   return Math.floor((todayStart - appliedDay) / MS_PER_DAY);
 }
 
-// Core logic — safe to re-run after missed days: uses "as of start of today", not only "yesterday".
-const runMessRebateJob = async () => {
+// Core logic - safe to re-run after missed days: uses "as of start of today", not only "yesterday".
+export const runMessRebateJob = async () => {
   const today = new Date(
     new Date().getFullYear(),
     new Date().getMonth(),
@@ -58,7 +51,7 @@ const runMessRebateJob = async () => {
     `[MESS REBATE] Found ${activeApplications.length} active applications`,
   );
 
-  // 1. Re-enable scanner when leave has ended (any time before today — catches missed runs)
+  // 1. Re-enable scanner when leave has ended (any time before today - catches missed runs)
   {
     const ending = activeApplications.filter((app) => app.endDate < today);
     const userIds = ending.map((a) => a.user);
@@ -132,7 +125,7 @@ const runMessRebateJob = async () => {
   }
 };
 
-const initializeMessRebateAutoScheduler = () => {
+export const initializeMessRebateAutoScheduler = () => {
   agenda.define(
     JOB_NAME,
     async (job) => {
@@ -151,9 +144,4 @@ const initializeMessRebateAutoScheduler = () => {
   agenda.every("0 1 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
 
   console.log("[MESS REBATE] Scheduled: every day at 01:00 AM IST");
-};
-
-module.exports = {
-  initializeMessRebateAutoScheduler,
-  runMessRebateJob,
 };

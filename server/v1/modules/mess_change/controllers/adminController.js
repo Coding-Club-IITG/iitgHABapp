@@ -1,14 +1,14 @@
-const { User } = require("../../user/userModel.js");
-const { MessChangeSettings } = require("../messChangeSettingsModel.js");
-const {
+import { User } from "../../user/userModel.js";
+import { MessChangeSettings } from "../messChangeSettingsModel.js";
+import {
   getMessChangeWindowDates,
   getOrdinalSuffix,
-} = require("../../../utils/windowDates.js");
+} from "../../../utils/windowDates.js";
 
 /**
  * Get all mess change requests for all hostels
  */
-const getAllMessChangeRequestsForAllHostels = async (req, res) => {
+export const getAllMessChangeRequestsForAllHostels = async (req, res) => {
   try {
     const messChangeRequests = await User.find({
       applied_for_mess_changed: true,
@@ -30,7 +30,7 @@ const getAllMessChangeRequestsForAllHostels = async (req, res) => {
 /**
  * Get mess change status for admin
  */
-const messChangeStatusForAdmin = async (req, res) => {
+export const messChangeStatusForAdmin = async (req, res) => {
   try {
     let settings = await MessChangeSettings.findOne();
 
@@ -57,7 +57,7 @@ const messChangeStatusForAdmin = async (req, res) => {
 /**
  * Get mess change schedule information
  */
-const getMessChangeScheduleInfo = async (req, res) => {
+export const getMessChangeScheduleInfo = async (req, res) => {
   try {
     const settings = await MessChangeSettings.findOne();
 
@@ -109,10 +109,4 @@ const getMessChangeScheduleInfo = async (req, res) => {
     console.error("Error fetching mess change schedule info:", error);
     return res.status(500).json({ message: "Internal server error" });
   }
-};
-
-module.exports = {
-  getAllMessChangeRequestsForAllHostels,
-  messChangeStatusForAdmin,
-  getMessChangeScheduleInfo,
 };

@@ -1,81 +1,67 @@
-require("dotenv").config({ path: "../.env" });
-const PORT = process.env.PORT_V1 || 3001;
+import path from "path";
+const __dirname = import.meta.dirname;
+import { nodeENV, port, publicBaseUrl, mongodbUri } from "./config/default.js";
+import onedrive from "./config/onedrive.js";
 
-const { installProcessHandlers } = require("../processHandlers.js");
+import { installProcessHandlers } from "../processHandlers.js";
 installProcessHandlers();
 
-const path = require("path");
-const express = require("express");
-const bodyParser = require("body-parser");
-const mongoose = require("mongoose");
-const cors = require("cors");
-const cookieParser = require("cookie-parser");
-const compression = require("compression");
-const winston = require("winston");
-const expressWinston = require("express-winston");
-const { randomUUID } = require("crypto");
-const { Worker } = require("worker_threads");
-const swaggerUi = require("swagger-ui-express");
-const swaggerJsdoc = require("swagger-jsdoc");
+import axios from "axios";
+import express from "express";
+import bodyParser from "body-parser";
+import mongoose from "mongoose";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import compression from "compression";
+import winston from "winston";
+import expressWinston from "express-winston";
+import { randomUUID } from "crypto";
+import { Worker } from "worker_threads";
+import swaggerUi from "swagger-ui-express";
+import swaggerJsdoc from "swagger-jsdoc";
 
-const authRoutes = require("./modules/auth/auth.routes.js");
-const userRoute = require("./modules/user/userRoute.js");
-const feedbackRoute = require("./modules/feedback/feedbackRoute.js");
-const hostelRoute = require("./modules/hostel/hostelRoute.js");
-const notificationRoute = require("./modules/notification/notificationRoute.js");
-const messRoute = require("./modules/mess/messRoute.js");
-const leaveRoute = require("./modules/leave/leaveRoute.js");
-const logsRoute = require("./modules/mess/ScanLogsRoute.js");
-const bugReportRoute = require("./modules/bug_report/bugReportRoute.js");
-const roomCleaningRoute = require("./modules/room_cleaning/roomCleaningRoute.js");
-const laundryRoute = require("./modules/laundry/laundryRoute.js");
-const alertRoutes = require("./modules/alert/alertRoute.js");
-const galaRoute = require("./modules/gala/galaRoute.js");
-const messChangeRoute = require("./modules/mess_change/messchangeRoute.js");
-const profileRoute = require("./modules/profile/profileRoute.js");
+import authRoutes from "./modules/auth/auth.routes.js";
+import userRoute from "./modules/user/userRoute.js";
+import feedbackRoute from "./modules/feedback/feedbackRoute.js";
+import hostelRoute from "./modules/hostel/hostelRoute.js";
+import notificationRoute from "./modules/notification/notificationRoute.js";
+import messRoute from "./modules/mess/messRoute.js";
+import leaveRoute from "./modules/leave/leaveRoute.js";
+import logsRoute from "./modules/mess/ScanLogsRoute.js";
+import bugReportRoute from "./modules/bug_report/bugReportRoute.js";
+import roomCleaningRoute from "./modules/room_cleaning/roomCleaningRoute.js";
+import laundryRoute from "./modules/laundry/laundryRoute.js";
+import alertRoutes from "./modules/alert/alertRoute.js";
+import galaRoute from "./modules/gala/galaRoute.js";
+import messChangeRoute from "./modules/mess_change/messchangeRoute.js";
+import profileRoute from "./modules/profile/profileRoute.js";
 
-const agenda = require("./utils/agenda.js");
-const {
-  initializeFeedbackAutoScheduler,
-} = require("./modules/feedback/autoFeedbackScheduler.js");
-const {
-  initializeMessChangeAutoScheduler,
-} = require("./modules/mess_change/autoMessChangeScheduler.js");
-const {
-  initializeMessAllotmentScheduler,
-} = require("./modules/mess_change/allotmentScheduler.js");
-const {
-  initializeAnonymizedUser,
-} = require("./modules/user/anonymizedUserInit.js");
-const {
-  initializeGuestCleanupScheduler,
-} = require("./modules/auth/autoGuestCleanupScheduler.js");
-const {
-  initializeMessRebateAutoScheduler,
-} = require("./modules/leave/autoMessRebateScheduler.js");
-const {
-  initializeRoomCleaningAutoResolveScheduler,
-} = require("./modules/room_cleaning/autoRoomCleaningResolveScheduler.js");
+import agenda from "./utils/agenda.js";
+import { initializeFeedbackAutoScheduler } from "./modules/feedback/autoFeedbackScheduler.js";
+import { initializeMessChangeAutoScheduler } from "./modules/mess_change/autoMessChangeScheduler.js";
+import { initializeMessAllotmentScheduler } from "./modules/mess_change/allotmentScheduler.js";
+import { initializeAnonymizedUser } from "./modules/user/anonymizedUserInit.js";
+import { initializeGuestCleanupScheduler } from "./modules/auth/autoGuestCleanupScheduler.js";
+import { initializeMessRebateAutoScheduler } from "./modules/leave/autoMessRebateScheduler.js";
+import { initializeRoomCleaningAutoResolveScheduler } from "./modules/room_cleaning/autoRoomCleaningResolveScheduler.js";
 
-const { initMessManagerWs } = require("./modules/mess/messManagerWs.js");
-const { initGalaManagerWs } = require("./modules/gala/galaManagerWs.js");
-const { initScanBroadcast } = require("./utils/scanBroadcast.js");
+import { initMessManagerWs } from "./modules/mess/messManagerWs.js";
+import { initGalaManagerWs } from "./modules/gala/galaManagerWs.js";
+import { initScanBroadcast } from "./utils/scanBroadcast.js";
 
-const storeLogs = require("./middleware/logger.js");
+import storeLogs from "./middleware/logger.js";
 
-const {
+import {
   setDelegatedTokens,
   tokenFilePath,
   initDelegatedGraphRedis,
-} = require("./utils/delegatedGraphAuth.js");
+} from "./utils/delegatedGraphAuth.js";
 
 // Build delegated auth URLs for starting consent
-const onedrive = require("./config/onedrive.js");
 function buildAuthorizeUrl() {
   // For delegated token flow, use a dedicated callback endpoint
-  // Use PUBLIC_BASE_URL if available, otherwise try to construct from request
-  const baseUrl = process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in";
-  const delegatedRedirectUri = `${baseUrl}/api/_debug/graph/callback`;
+  // Use publicBaseUrl if available, otherwise try to construct from request
+  const delegatedRedirectUri = `${publicBaseUrl}/api/_debug/graph/callback`;
 
   const params = new URLSearchParams({
     client_id: onedrive.clientId,
@@ -85,8 +71,7 @@ function buildAuthorizeUrl() {
       (onedrive.graphUserScopes || []).join(" ") || "offline_access User.Read",
     prompt: "consent",
   });
-  const tenant = onedrive.authTenant || onedrive.tenantId || "common";
-  return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
+  return `https://login.microsoftonline.com/${onedrive.authTenant}/oauth2/v2.0/authorize?${params.toString()}`;
 }
 
 const app = express();
@@ -116,7 +101,7 @@ const swaggerOptions = {
         description: "Production server",
       },
       {
-        url: `http://localhost:${PORT}`,
+        url: `http://localhost:${port}`,
         description: "Development server",
       },
     ],
@@ -185,7 +170,7 @@ app.use(
         user: req.body?.username || "anonymous",
         ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress,
         userAgent: req.get("User-Agent") || "unknown",
-        env: process.env.NODE_ENV || "development",
+        env: nodeENV,
       };
     },
     // This replaces the value of 'password' with '*****' in the logs
@@ -196,7 +181,8 @@ app.use(
 function startWorker() {
   const worker = new Worker(
     path.resolve(__dirname, "./workers/loggerWorker.js"),
-    // PM2 injects --max-old-space-size=… into process.execArgv; worker threads reject it (ERR_WORKER_INVALID_EXEC_ARGV).
+    // PM2 injects --max-old-space-size=… into process.execArgv
+    // Worker threads reject it (ERR_WORKER_INVALID_EXEC_ARGV)
     { execArgv: [] },
   );
 
@@ -363,15 +349,13 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
     params.append("grant_type", "authorization_code");
     params.append("code", code);
     // Use the same redirect URI that was used in the authorization request
-    const baseUrl = process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in";
-    const delegatedRedirectUri = `${baseUrl}/api/_debug/graph/callback`;
+    const delegatedRedirectUri = `${publicBaseUrl}/api/_debug/graph/callback`;
     params.append("redirect_uri", delegatedRedirectUri);
     params.append(
       "scope",
       (onedrive.graphUserScopes || []).join(" ") || "offline_access User.Read",
     );
 
-    const axios = require("axios");
     const { data } = await axios.post(tokenUrl, params, {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
@@ -403,16 +387,16 @@ app.use((err, req, res, next) => {
   });
 });
 
-// STARTUP — listen only after MongoDB is ready so auth queries are not buffered until timeout
+// STARTUP - listen only after MongoDB is ready so auth queries are not buffered until timeout
 let server;
 
 async function bootstrap() {
-  if (!process.env.MONGODB_URI) {
-    console.error("MONGODB_URI is not set; refusing to start.");
+  if (!mongodbUri) {
+    console.error("mongodbUri is not set, refusing to start.");
     process.exit(1);
   }
 
-  await mongoose.connect(process.env.MONGODB_URI);
+  await mongoose.connect(mongodbUri);
   console.log("MongoDB connected");
 
   await agenda.start();
@@ -426,8 +410,8 @@ async function bootstrap() {
   initializeGuestCleanupScheduler();
   await initializeAnonymizedUser();
 
-  server = app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
+  server = app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
     console.log(`Current Time: ${new Date().toLocaleString()}`);
     if (process.send) process.send("ready");
   });
@@ -476,4 +460,4 @@ async function gracefulShutdown(signal) {
 process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));
 
-module.exports = app;
+export default app;

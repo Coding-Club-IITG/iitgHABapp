@@ -1,10 +1,11 @@
-const Redis = require("ioredis");
+import Redis from "ioredis";
+import { redisUrl } from "../config/default.js";
 
 let client = null;
 let isConnected = false;
 
-if (process.env.REDIS_URL) {
-  client = new Redis(process.env.REDIS_URL, {
+if (redisUrl) {
+  client = new Redis(redisUrl, {
     maxRetriesPerRequest: 0,
     enableOfflineQueue: false,
     retryStrategy: (times) => Math.min(times * 50, 2000),
@@ -61,7 +62,7 @@ const redisClient = {
       }
     }
   },
-  
+
   // Added Sorted Set Methods for Alerts Feature
   zadd: async (key, score, member) => {
     if (isConnected && client) {
@@ -101,4 +102,4 @@ const redisClient = {
   getIsConnected: () => isConnected,
 };
 
-module.exports = redisClient;
+export default redisClient;

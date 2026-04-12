@@ -1,16 +1,12 @@
-const express = require("express");
+import express from "express";
 
-const {
+import {
   authenticateJWT,
   authenticateMessManagerJWT,
-} = require("../../middleware/authenticateJWT.js");
+} from "../../middleware/authenticateJWT.js";
 
-const {
-  uploadSingleToOnedrive,
-  sendDocument,
-} = require("./OnedriveController.js");
-
-const {
+import { uploadSingleToOnedrive, sendDocument } from "./OnedriveController.js";
+import {
   uploadMiddleware,
   applyForLeave,
   getApplications,
@@ -24,13 +20,12 @@ const {
   validateApply,
   validateGenerateFormOnly,
   generateStationLeaveFormOnly,
-} = require("./leaveController.js");
-
-const { runMessRebateJob } = require("./autoMessRebateScheduler.js");
+} from "./leaveController.js";
+import { runMessRebateJob } from "./autoMessRebateScheduler.js";
 
 const leaveRouter = express.Router();
 
-//User/Student Endpoint
+// User/Student Endpoint
 
 leaveRouter.post("/testScheduler", runMessRebateJob);
 
@@ -42,7 +37,7 @@ leaveRouter.post(
   applyForLeave,
 );
 
-/** PDF only — no Leave document, no bank/proof (student hostel form). */
+/** PDF only - no Leave document, no bank/proof (student hostel form). */
 leaveRouter.post(
   "/generate-form-only",
   authenticateJWT,
@@ -66,7 +61,7 @@ leaveRouter.post(
 
 leaveRouter.delete("/my-applications/:id", authenticateJWT, cancelApplication);
 
-//Hostel Office Endpoints
+// Hostel Office Endpoints
 leaveRouter.get(
   "/hostel/mess-applications",
   authenticateMessManagerJWT,
@@ -87,4 +82,4 @@ leaveRouter.post(
 
 leaveRouter.post("/download", authenticateMessManagerJWT, sendDocument);
 
-module.exports = leaveRouter;
+export default leaveRouter;

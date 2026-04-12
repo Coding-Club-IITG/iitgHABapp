@@ -1,12 +1,12 @@
-const mongoose = require("mongoose");
-const { User } = require("./userModel");
+import mongoose from "mongoose";
+import { User } from "./userModel.js";
 
 /**
  * Initialize anonymized user record for soft-deleted account references
  * This user is used to anonymize historical data (feedback, scan logs, etc.)
  * when accounts are deleted.
  */
-const initializeAnonymizedUser = async () => {
+export const initializeAnonymizedUser = async () => {
   try {
     const ANONYMIZED_USER_ID = new mongoose.Types.ObjectId(
       "000000000000000000000000",
@@ -33,8 +33,4 @@ const initializeAnonymizedUser = async () => {
     console.error("[ANONYMIZED USER] Error initializing:", error);
     // Don't throw - allow server to continue even if this fails
   }
-};
-
-module.exports = {
-  initializeAnonymizedUser,
 };

@@ -1,7 +1,5 @@
-const {
-  RoomCleaningBooking,
-} = require("../room_cleaning/roomCleaningBookingModel");
-const agenda = require("../../utils/agenda.js");
+import { RoomCleaningBooking } from "../room_cleaning/roomCleaningBookingModel.js";
+import agenda from "../../utils/agenda.js";
 
 const JOB_NAME = "room-cleaning-auto-resolve";
 
@@ -35,21 +33,23 @@ async function autoResolveUnresolvedBookings() {
   );
 }
 
-function initializeRoomCleaningAutoResolveScheduler() {
-  agenda.define(JOB_NAME, async (job) => {
-    try {
-      console.log("[ROOM CLEANING] Auto-resolve job fired");
-      await autoResolveUnresolvedBookings();
-    } catch (err) {
-      console.error("[ROOM CLEANING] Auto-resolve job failed:", err);
-      throw err;
-    }
-  }, { concurrency: 1 });
+export function initializeRoomCleaningAutoResolveScheduler() {
+  agenda.define(
+    JOB_NAME,
+    async (job) => {
+      try {
+        console.log("[ROOM CLEANING] Auto-resolve job fired");
+        await autoResolveUnresolvedBookings();
+      } catch (err) {
+        console.error("[ROOM CLEANING] Auto-resolve job failed:", err);
+        throw err;
+      }
+    },
+    { concurrency: 1 },
+  );
 
   // Every day at 00:30 AM IST
   agenda.every("30 0 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
 
   console.log("[ROOM CLEANING] Scheduled: every day at 00:30 AM IST");
 }
-
-module.exports = { initializeRoomCleaningAutoResolveScheduler };
