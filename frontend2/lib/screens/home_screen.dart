@@ -920,14 +920,12 @@ class _HomeScreenState extends State<HomeScreen>
     final variant = _weatherBackground.backgroundVariant;
     final group = _weatherBackground.weatherGroup;
 
-    // For morning, afternoon, and weekend use dark color
-    if (variant == 'morning' ||
-        variant == 'afternoon' ||
-        variant == 'weekend') {
+    // For morning and afternoon use dark color
+    if (variant == 'morning' || variant == 'afternoon') {
       return const Color(0xFF4C4EDB); // #4C4EDB
     }
 
-    // For evening and raining use light color
+    // For evening, raining, and weekend use light color
     return const Color(0xFFEDEDFB);
   }
 
