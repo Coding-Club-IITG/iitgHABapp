@@ -1,16 +1,22 @@
+import 'dart:async';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend2/apis/dio_client.dart';
+import 'package:frontend2/apis/mess/mess_menu.dart';
+import 'package:frontend2/constants/endpoint.dart';
+import 'package:frontend2/models/mess_menu_model.dart';
+import 'package:frontend2/screens/initial_setup_screen.dart'
+    show ProfilePictureProvider;
 import 'package:frontend2/screens/scan_status.dart';
-import 'package:frontend2/screens/initial_setup_screen.dart';
+import 'package:frontend2/utils/meal_countdown_text.dart';
 import 'package:frontend2/widgets/common/snack_bar.dart';
+import 'package:frontend2/widgets/common/squareQR.dart';
+import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:dio/dio.dart';
-import 'package:vibration/vibration.dart';
-import 'package:frontend2/widgets/common/squareQR.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend2/constants/endpoint.dart';
-import 'package:frontend2/widgets/microsoft_required_dialog.dart';
+import 'package:vibration/vibration.dart';
 
 final dio = DioClient().dio;
 
@@ -29,9 +35,30 @@ class _QrScanState extends State<QrScan> {
   bool _profilePicMissing = false;
   bool _isCheckingPermission = false;
 
+  Timer? _mealCountdownTimer;
+  String _mealSessionLine = '';
+
+  static const List<String> _messScanRuleBodies = [
+    'Scan only the official mess QR during the published meal hours for your mess.',
+    'One successful scan per meal is enough — scanning again may show as already entered.',
+    'Keep a clear profile photo on file; it may be required for mess entry.',
+    'Allow camera access and hold the code steady inside the frame.',
+  ];
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _refreshMealSessionCountdown();
+      _mealCountdownTimer?.cancel();
+      _mealCountdownTimer = Timer.periodic(
+        const Duration(seconds: 30),
+        (_) {
+          if (mounted) _refreshMealSessionCountdown();
+        },
+      );
+    });
     _checkMicrosoftLink().then((_) {
       // Only check profile pic if user is not a guest (widget still mounted)
       if (mounted) {
@@ -114,7 +141,7 @@ class _QrScanState extends State<QrScan> {
               'Profile Picture Required',
               style: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w600,
+                fontWeight: FontWeight.w500,
               ),
             ),
             content: const Text(
@@ -146,7 +173,7 @@ class _QrScanState extends State<QrScan> {
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -268,7 +295,7 @@ class _QrScanState extends State<QrScan> {
             'Camera Access Required',
             style: TextStyle(
               fontSize: 18,
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
             ),
           ),
           content: const Text(
@@ -305,7 +332,7 @@ class _QrScanState extends State<QrScan> {
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
               ),
             ),
@@ -315,8 +342,176 @@ class _QrScanState extends State<QrScan> {
     );
   }
 
+  String _weekdayName() {
+    const days = [
+      'Monday',
+      'Tuesday',
+      'Wednesday',
+      'Thursday',
+      'Friday',
+      'Saturday',
+      'Sunday',
+    ];
+    return days[DateTime.now().weekday - 1];
+  }
+
+  DateTime _parseMenuClock(String timeStr) {
+    final now = DateTime.now();
+    final parts = timeStr.split(':');
+    if (parts.length < 2) return now;
+    final h = int.tryParse(parts[0]) ?? 0;
+    final m = int.tryParse(parts[1]) ?? 0;
+    return DateTime(now.year, now.month, now.day, h, m);
+  }
+
+  Future<void> _refreshMealSessionCountdown() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final messId = prefs.getString('curr_subscribed_mess') ?? '';
+      if (messId.isEmpty) {
+        if (mounted) setState(() => _mealSessionLine = '');
+        return;
+      }
+      final menus = await fetchMenu(messId, _weekdayName());
+      if (!mounted) return;
+      final now = DateTime.now();
+      for (final MenuModel menu in menus) {
+        final start = _parseMenuClock(menu.startTime);
+        final end = _parseMenuClock(menu.endTime);
+        final ongoing = (now.isAfter(start) || now.isAtSameMomentAs(start)) &&
+            now.isBefore(end);
+        if (ongoing) {
+          final line =
+              '${menu.type} · ${mealTimeRemaining(end.difference(now))}';
+          setState(() => _mealSessionLine = line);
+          return;
+        }
+      }
+      setState(() => _mealSessionLine = '');
+    } catch (_) {
+      if (mounted) setState(() => _mealSessionLine = '');
+    }
+  }
+
+  void _showMessScanRulesSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final bottom = MediaQuery.paddingOf(ctx).bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE0E0E0),
+                    borderRadius: BorderRadius.all(Radius.circular(999)),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Mess QR scan',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                        height: 24 / 18,
+                        color: Color(0xFF2E2F31),
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close),
+                    color: Color(0xFF676767),
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(ctx).height * 0.42,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < _messScanRuleBodies.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 12),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 22,
+                              child: Text(
+                                '${i + 1}.',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  height: 20 / 14,
+                                  color: Color(0xFF676767),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                _messScanRuleBodies[i],
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 20 / 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: Color(0xFF2E2F31),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF2E2F31),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Got it',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   void dispose() {
+    _mealCountdownTimer?.cancel();
     controller.dispose();
     super.dispose();
   }
@@ -476,9 +671,29 @@ class _QrScanState extends State<QrScan> {
       child: Scaffold(
         backgroundColor: Colors.white,
         appBar: AppBar(
-          title: const Text('Scan QR'),
           backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: false,
+          titleSpacing: NavigationToolbar.kMiddleSpacing,
           foregroundColor: Colors.black,
+          title: const Text(
+            'Scan QR',
+            style: TextStyle(
+              color: Colors.black,
+              fontSize: 18,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          actions: [
+            IconButton(
+              tooltip: 'Mess QR tips',
+              onPressed: _showMessScanRulesSheet,
+              icon: const Icon(Icons.info_outline),
+              color: const Color(0xFF676767),
+            ),
+          ],
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () {
@@ -495,7 +710,7 @@ class _QrScanState extends State<QrScan> {
                 color: Colors.black,
                 child: const Center(
                   child: CircularProgressIndicator(
-                    color: Color(0xFF4C4EDB),
+                    color: Color(0xFFE5E7EB),
                   ),
                 ),
               )
@@ -521,7 +736,7 @@ class _QrScanState extends State<QrScan> {
                           color: Colors.black54,
                           child: const Center(
                             child: CircularProgressIndicator(
-                              color: Color(0xFF4C4EDB),
+                              color: Color(0xFFE5E7EB),
                             ),
                           ),
                         ),
@@ -543,7 +758,7 @@ class _QrScanState extends State<QrScan> {
               const Icon(
                 Icons.camera_alt_outlined,
                 size: 80,
-                color: Color(0xFF4C4EDB),
+                color: Color(0xFFE5E7EB),
               ),
               const SizedBox(height: 32),
               const Text(
@@ -551,7 +766,7 @@ class _QrScanState extends State<QrScan> {
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 24,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -567,7 +782,7 @@ class _QrScanState extends State<QrScan> {
               const SizedBox(height: 40),
               if (_isCheckingPermission)
                 const CircularProgressIndicator(
-                  color: Color(0xFF4C4EDB),
+                  color: Color(0xFFE5E7EB),
                 )
               else
                 ElevatedButton(
@@ -587,7 +802,7 @@ class _QrScanState extends State<QrScan> {
                     'Continue',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                     ),
                   ),
                 ),
@@ -601,56 +816,57 @@ class _QrScanState extends State<QrScan> {
   Widget _buildScannerUI() {
     return Column(
       children: [
-        const SizedBox(height: 80),
-        const Padding(
-        padding: EdgeInsets.symmetric(horizontal: 24),
+        const SizedBox(height: 28),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Align(
             alignment: Alignment.centerLeft,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 👇 FIRST LINE (same row)
-                Row(
-                  children: [
-                    Text(
-                      'Ready to Eat? ',
-                      style: TextStyle(
-                        color: Colors.white70,
-                        fontSize: 30,
-                        fontWeight: FontWeight.w500,
-                      ),
+                RichText(
+                  text: const TextSpan(
+                    style: TextStyle(
+                      fontSize: 28,
+                      height: 1.2,
+                      fontWeight: FontWeight.w500,
                     ),
-                    Text(
-                      'Scan to',
-                      style: TextStyle(
-                        color: Color(0xFF4C4EDB),
-                        fontSize: 30,
-                        fontWeight: FontWeight.w500,
+                    children: [
+                      TextSpan(
+                        text: 'Ready to Eat? ',
+                        style: TextStyle(color: Color(0xFFD1D5DB)),
                       ),
-                    ),
-                  ],
-                ),
-                SizedBox(height: 4),
-                Text(
-                  'Enter',
-                  style: TextStyle(
-                    color: Color(0xFF4C4EDB),
-                    fontSize: 30,
-                    fontWeight: FontWeight.w500,
+                      TextSpan(
+                        text: 'Scan to Enter',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ],
                   ),
                 ),
+                if (_mealSessionLine.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    _mealSessionLine,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      height: 20 / 15,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF6EE7B7),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
         ),
-        const SizedBox(height: 40),
+        const SizedBox(height: 28),
         Center(
           child: SizedBox(
             width: 250,
             height: 250,
             child: CustomPaint(
               size: const Size(250, 250),
-              painter: SquarePainter(),
+              painter: const SquarePainter(),
             ),
           ),
         ),
@@ -660,8 +876,10 @@ class _QrScanState extends State<QrScan> {
           child: Text(
             'Hold your QR code\nsteady within the frame',
             style: TextStyle(
-              color: Colors.white,
-              fontSize: 16,
+              color: Color(0xFFD1D5DB),
+              fontSize: 15,
+              height: 1.35,
+              fontWeight: FontWeight.w400,
             ),
             textAlign: TextAlign.center,
           ),

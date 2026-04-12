@@ -19,10 +19,12 @@ import 'package:frontend2/screens/account_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
+import 'package:frontend2/utils/meal_countdown_text.dart';
 import 'package:frontend2/utilities/alert_expirer.dart';
 import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
+import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 // import 'package:frontend2/widgets/countdown.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:provider/provider.dart';
@@ -41,8 +43,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> {
   static const bool _isWeatherBackgroundTesting = false;
   static const String _testingWeatherGroup = 'clear'; // clear, rainy
   static const bool _testingIsDay = false;
@@ -73,20 +74,11 @@ class _HomeScreenState extends State<HomeScreen>
           const _QuickActionStatusData(status: 'Closed', color: textMuted));
   Timer? _scanQrStatusTimer;
   Timer? _weatherBackgroundTimer;
-  late final AnimationController _shimmerController;
-  late final Animation<double> _shimmerAnimation;
   WeatherBackgroundData _weatherBackground = WeatherBackgroundData.fallback();
 
   @override
   void initState() {
     super.initState();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-    _shimmerAnimation = Tween<double>(begin: -1.5, end: 2.5).animate(
-      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
-    );
     fetchUserData();
     fetchMessIdAndToken();
     _loadWeatherBackground();
@@ -141,7 +133,6 @@ class _HomeScreenState extends State<HomeScreen>
     _scanQrStatusTimer?.cancel();
     _weatherBackgroundTimer?.cancel();
     _scanQrStatusNotifier.dispose();
-    _shimmerController.dispose();
     homeScreenRefreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
   }
@@ -289,17 +280,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  String _formatMealCountdown(Duration duration) {
-    if (duration.inSeconds <= 0) return '0 min left';
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) {
-      return '${hours}h ${minutes}m left';
-    }
-    final safeMinutes = minutes <= 0 ? 1 : minutes;
-    return '$safeMinutes min left';
-  }
-
   String _formatTimeWithMeridiem(String time) {
     final parts = time.split(':');
     if (parts.length != 2) return time;
@@ -348,7 +328,7 @@ class _HomeScreenState extends State<HomeScreen>
       } else {
         final mealEnd = _parseMenuTime(activeMeal.endTime);
         _scanQrStatusNotifier.value = _QuickActionStatusData(
-          status: _formatMealCountdown(mealEnd.difference(now)),
+          status: mealTimeRemaining(mealEnd.difference(now)),
           color: green,
         );
       }
@@ -520,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<String> _resolveMessName(BuildContext context) async {
+  String _subscribedMessDisplayName(BuildContext context) {
     final provider = context.read<MessInfoProvider>();
     if (provider.hostelMap.isEmpty) return 'Your Mess';
 
@@ -544,9 +524,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (now.isBefore(start)) {
         final diff = start.difference(now);
-        final hours = diff.inHours;
-        final minutes = diff.inMinutes.remainder(60);
-        statusText = 'In ${hours > 0 ? '${hours}h ' : ''}${minutes}m';
+        statusText = mealTimeUntilStart(diff);
         statusColor = green;
         currentMenu = menu;
         break;
@@ -556,7 +534,7 @@ class _HomeScreenState extends State<HomeScreen>
           now.isBefore(end);
       if (isOngoing) {
         final remaining = end.difference(now);
-        statusText = _formatMealCountdown(remaining).replaceAll(' left', '');
+        statusText = mealTimeRemaining(remaining);
         statusColor = green;
         currentMenu = menu;
         break;
@@ -639,117 +617,85 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildShimmerBlock({
-    required double height,
-    double? width,
-    BorderRadius radius = const BorderRadius.all(Radius.circular(8)),
-  }) {
-    return AnimatedBuilder(
-      animation: _shimmerAnimation,
-      builder: (context, child) {
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            gradient: LinearGradient(
-              begin: Alignment(_shimmerAnimation.value - 1, 0),
-              end: Alignment(_shimmerAnimation.value + 1, 0),
-              colors: const [
-                Color(0xFFF2F2F2),
-                Color(0xFFF9F9F9),
-                Color(0xFFF2F2F2),
-              ],
-              stops: const [0.1, 0.5, 0.9],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMenuShimmerPlaceholder() {
-    return Column(
+  Widget _buildMessSectionHeader(String messName) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _buildShimmerBlock(height: 28, width: 110),
-            const SizedBox(width: 8),
-            _buildShimmerBlock(height: 24, width: 84),
-            const Spacer(),
-            _buildShimmerBlock(height: 20, width: 110),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: _cardDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFFFFFFF), Color(0xFFFFFEF8)],
-            ),
-          ),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildShimmerBlock(
-                  height: 16, width: 48, radius: BorderRadius.circular(4)),
-              const SizedBox(height: 12),
-              _buildShimmerBlock(height: 18),
-              const SizedBox(height: 8),
-              _buildShimmerBlock(height: 18, width: 180),
-              const SizedBox(height: 12),
-              const Divider(height: 1, thickness: 1, color: Color(0xFFE6E6E6)),
-              const SizedBox(height: 20),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildShimmerBlock(
-                            height: 16,
-                            width: 96,
-                            radius: BorderRadius.circular(4),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildShimmerBlock(height: 18),
-                          const SizedBox(height: 8),
-                          _buildShimmerBlock(height: 18, width: 120),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      color: const Color(0xFFE6E6E6),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildShimmerBlock(
-                            height: 16,
-                            width: 60,
-                            radius: BorderRadius.circular(4),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildShimmerBlock(height: 18),
-                          const SizedBox(height: 8),
-                          _buildShimmerBlock(height: 18, width: 90),
-                        ],
-                      ),
-                    ),
-                  ],
+              Text('Mess', style: _sectionTitleStyle()),
+              const SizedBox(height: 2),
+              Text(
+                '$messName Mess',
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 20 / 14,
+                  color: textSecondary,
                 ),
               ),
             ],
+          ),
+        ),
+        InkWell(
+          onTap: () => widget.onNavigateToTab?.call(1),
+          borderRadius: BorderRadius.circular(16),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Text(
+                  'View Full Menu',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 20 / 14,
+                    fontWeight: FontWeight.w500,
+                    color: primary,
+                  ),
+                ),
+                SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMessSectionForMenus(
+    String messName,
+    List<MenuModel> menus,
+  ) {
+    if (currSubscribedMess.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMessSectionHeader(messName),
+        const SizedBox(height: 16),
+        _buildHomeMessMenuCard(menus),
+      ],
+    );
+  }
+
+  Widget _buildMessSectionError(String messName) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMessSectionHeader(messName),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: _cardDecoration(radius: 16),
+          child: const Text(
+            'Unable to fetch menu',
+            style: TextStyle(color: Colors.red),
           ),
         ),
       ],
@@ -1379,101 +1325,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildMessSection() {
-    if (currSubscribedMess.isEmpty) return const SizedBox.shrink();
-
-    return FutureBuilder<String>(
-      future: _resolveMessName(context),
-      builder: (context, snapshot) {
-        final messName = snapshot.data ?? 'Your Mess';
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Mess', style: _sectionTitleStyle()),
-                      const SizedBox(height: 2),
-                      Text(
-                        "$messName Mess",
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 20 / 14,
-                          color: textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                InkWell(
-                  onTap: () => widget.onNavigateToTab?.call(1),
-                  borderRadius: BorderRadius.circular(16),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Text(
-                          'View Full Menu',
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 20 / 14,
-                            fontWeight: FontWeight.w500,
-                            color: primary,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 20,
-                          color: primary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Consumer<MessInfoProvider>(
-              builder: (context, messProvider, child) {
-                if (messProvider.isLoading) {
-                  return _buildMenuShimmerPlaceholder();
-                }
-
-                return FutureBuilder<List<MenuModel>>(
-                  future: fetchMenu(currSubscribedMess, getTodayDay()),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _buildMenuShimmerPlaceholder();
-                    }
-
-                    if (snapshot.hasError) {
-                      return Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: _cardDecoration(radius: 16),
-                        child: const Text(
-                          'Unable to fetch menu',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      );
-                    }
-
-                    return _buildHomeMessMenuCard(snapshot.data ?? const []);
-                  },
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildSectionDivider() {
     return const SizedBox(
       width: double.infinity,
@@ -1526,28 +1377,64 @@ class _HomeScreenState extends State<HomeScreen>
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: pageBackground,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildWeatherHeroSection(),
-            _buildSectionDivider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-              child: ValueListenableBuilder<List<String>>(
-                valueListenable: HostelsNotifier.hostelNotifier,
-                builder: (context, _, __) => _buildQuickActionsSection(),
+      body: currSubscribedMess.isEmpty
+          ? SingleChildScrollView(
+              child: Column(
+                children: [
+                  _buildWeatherHeroSection(),
+                  _buildSectionDivider(),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+                    child: ValueListenableBuilder<List<String>>(
+                      valueListenable: HostelsNotifier.hostelNotifier,
+                      builder: (context, _, __) => _buildQuickActionsSection(),
+                    ),
+                  ),
+                ],
               ),
+            )
+          : Consumer<MessInfoProvider>(
+              builder: (context, messProvider, __) {
+                if (messProvider.isLoading) {
+                  return buildHomeScreenLoadingShimmer();
+                }
+                return FutureBuilder<List<MenuModel>>(
+                  future: fetchMenu(currSubscribedMess, getTodayDay()),
+                  builder: (context, menuSnap) {
+                    if (menuSnap.connectionState == ConnectionState.waiting) {
+                      return buildHomeScreenLoadingShimmer();
+                    }
+                    final messName = _subscribedMessDisplayName(context);
+                    return SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _buildWeatherHeroSection(),
+                          _buildSectionDivider(),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+                            child: ValueListenableBuilder<List<String>>(
+                              valueListenable: HostelsNotifier.hostelNotifier,
+                              builder: (context, _, __) =>
+                                  _buildQuickActionsSection(),
+                            ),
+                          ),
+                          _buildSectionDivider(),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+                            child: menuSnap.hasError
+                                ? _buildMessSectionError(messName)
+                                : _buildMessSectionForMenus(
+                                    messName,
+                                    menuSnap.data ?? const [],
+                                  ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                );
+              },
             ),
-            if (currSubscribedMess.isNotEmpty) ...[
-              _buildSectionDivider(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                child: _buildMessSection(),
-              ),
-            ],
-          ],
-        ),
-      ),
     );
   }
 }

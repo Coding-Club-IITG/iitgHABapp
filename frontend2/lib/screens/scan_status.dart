@@ -86,7 +86,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
           const Text(
             'Scan Successful!',
             style: TextStyle(
-              color: Color(0xFF1B5E20),
+              color: Color(0xFF15803D),
               fontSize: 25,
               fontWeight: FontWeight.w500,
             ),
@@ -175,7 +175,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF5B5FEF),
+                  backgroundColor: const Color(0xFF4C4EDB),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -185,7 +185,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 16,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),
@@ -217,7 +217,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
           const Text(
             'Scan Failed!',
             style: TextStyle(
-              color: Color.fromARGB(255, 177, 12, 12),
+              color: Color(0xFF2E2F31),
               fontSize: 25,
               fontWeight: FontWeight.w500,
             ),
@@ -234,17 +234,18 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                 padding:
                     const EdgeInsets.symmetric(vertical: 18, horizontal: 16),
                 decoration: BoxDecoration(
-                  color: const Color.fromARGB(
-                      255, 248, 226, 226), // light red/pink background
+                  color: const Color(0xFFF5F5F5),
                   borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
                 ),
                 child: Text(
                   data['message']?.toString() ?? 'Something went wrong',
                   textAlign: TextAlign.center,
                   style: const TextStyle(
-                    color: Color(0xFFC62828), // red text
-                    fontSize: 18,
-                    fontWeight: FontWeight.w500,
+                    color: Color(0xFF535353),
+                    fontSize: 16,
+                    height: 1.35,
+                    fontWeight: FontWeight.w400,
                   ),
                 ),
               ),
@@ -282,7 +283,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
                         elevation: 0,
-                        side: BorderSide(color: Colors.grey.shade300),
+                        side: const BorderSide(color: Color(0xFFE5E7EB)),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -290,8 +291,8 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                       child: const Text(
                         'Go Home',
                         style: TextStyle(
-                          color: Color(0xFF5B5FEF),
-                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF4C4EDB),
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -309,7 +310,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                         Navigator.of(context).pop();
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF5B5FEF),
+                        backgroundColor: const Color(0xFF4C4EDB),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
@@ -318,7 +319,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                         'Try again',
                         style: TextStyle(
                           color: Colors.white,
-                          fontWeight: FontWeight.w600,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ),
@@ -421,7 +422,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                   );
                 },
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFF5B5FEF),
+                  backgroundColor: const Color(0xFF4C4EDB),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
@@ -430,7 +431,7 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
                   'Go Home',
                   style: TextStyle(
                     color: Colors.white,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ),

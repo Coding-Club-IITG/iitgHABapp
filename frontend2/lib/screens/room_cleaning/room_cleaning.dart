@@ -3,8 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../providers/room_cleaning_provider.dart';
 import '../../apis/room_cleaning/room_cleaning_api.dart';
+import '../../providers/room_cleaning_provider.dart';
+import '../../widgets/common/page_loading_shimmer.dart';
 
 /// Slot letter to time range for display (replaces "Slot A" etc. with timing).
 const Map<String, String> _slotTimeRange = {
@@ -40,7 +41,7 @@ class RoomCleaningScreen extends StatelessWidget {
               title: const Text(
                 'Room Cleaning',
                 style: TextStyle(
-                  fontWeight: FontWeight.w600,
+                  fontWeight: FontWeight.w500,
                   fontSize: 18,
                   color: Colors.black,
                 ),
@@ -55,11 +56,11 @@ class RoomCleaningScreen extends StatelessWidget {
                     indicatorColor: Color(0xFF3754DB),
                     indicatorSize: TabBarIndicatorSize.label,
                     labelStyle: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 14,
                     ),
                     unselectedLabelStyle: TextStyle(
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w400,
                       fontSize: 14,
                     ),
                     tabs: [
@@ -98,7 +99,7 @@ class _BookSlotTabState extends State<_BookSlotTab> {
     return Consumer<RoomCleaningProvider>(
       builder: (context, provider, _) {
         if (provider.isAvailabilityLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return buildRoomCleaningLoadingShimmer();
         }
 
         final availability = provider.availability;
@@ -120,7 +121,7 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                   'Unable to load room-cleaning info',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     fontSize: 15,
                     color: Color(0xFF111827),
                   ),
@@ -154,7 +155,7 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                   child: const Text(
                     'Retry',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 14,
                     ),
                   ),
@@ -228,7 +229,7 @@ class _BookSlotTabState extends State<_BookSlotTab> {
                             child: const Text(
                               'View →',
                               style: TextStyle(
-                                fontWeight: FontWeight.w600,
+                                fontWeight: FontWeight.w500,
                                 fontSize: 13,
                                 color: Color(0xFF92400E),
                                 decoration: TextDecoration.underline,
@@ -313,7 +314,7 @@ class _DayCard extends StatelessWidget {
                     child: Text(
                       dateLabel,
                       style: const TextStyle(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: FontWeight.w500,
                         fontSize: 16,
                         color: Colors.black,
                       ),
@@ -411,7 +412,7 @@ class _SlotTile extends StatelessWidget {
                   const Text(
                     'Confirm room cleaning slot',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 17,
                       color: Color(0xFF111827),
                     ),
@@ -575,7 +576,7 @@ class _SlotTile extends StatelessWidget {
                   child: const Text(
                     'Go Back',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 14,
                     ),
                   ),
@@ -607,7 +608,7 @@ class _SlotTile extends StatelessWidget {
                   child: const Text(
                     'Book Slot',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 14,
                     ),
                   ),
@@ -817,7 +818,7 @@ class _MyBookingsTab extends StatelessWidget {
     return Consumer<RoomCleaningProvider>(
       builder: (context, provider, _) {
         if (provider.isBookingsLoading) {
-          return const Center(child: CircularProgressIndicator());
+          return buildRoomCleaningLoadingShimmer();
         }
 
         if (provider.bookingsError != null) {
@@ -1137,7 +1138,7 @@ class _FeedbackChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontWeight: FontWeight.w600,
+              fontWeight: FontWeight.w500,
               fontSize: 13,
               color: selected ? Colors.white : const Color(0xFF6B7280),
             ),
@@ -1171,7 +1172,7 @@ Future<void> _showFeedbackDialog(
             title: const Text(
               'Room cleaning feedback',
               style: TextStyle(
-                fontWeight: FontWeight.w700,
+                fontWeight: FontWeight.w500,
                 fontSize: 18,
                 color: Color(0xFF111827),
               ),
@@ -1185,7 +1186,7 @@ Future<void> _showFeedbackDialog(
                   const Text(
                     'Did the staff visit during your selected slot?',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 14,
                       color: Color(0xFF111827),
                     ),
@@ -1207,7 +1208,7 @@ Future<void> _showFeedbackDialog(
                   const Text(
                     'Was the staff polite and professional?',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 14,
                       color: Color(0xFF111827),
                     ),
@@ -1229,7 +1230,7 @@ Future<void> _showFeedbackDialog(
                   const Text(
                     'Overall, how satisfied are you?',
                     style: TextStyle(
-                      fontWeight: FontWeight.w600,
+                      fontWeight: FontWeight.w500,
                       fontSize: 14,
                       color: Color(0xFF111827),
                     ),
@@ -1259,6 +1260,7 @@ Future<void> _showFeedbackDialog(
                   const Text(
                     'Additional comments (optional)',
                     style: TextStyle(
+                      fontWeight: FontWeight.w500,
                       fontSize: 13,
                       color: Color(0xFF6B7280),
                     ),
@@ -1316,7 +1318,7 @@ Future<void> _showFeedbackDialog(
                 child: const Text(
                   'Skip',
                   style: TextStyle(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     fontSize: 14,
                   ),
                 ),
@@ -1337,7 +1339,7 @@ Future<void> _showFeedbackDialog(
                 child: const Text(
                   'Submit',
                   style: TextStyle(
-                    fontWeight: FontWeight.w600,
+                    fontWeight: FontWeight.w500,
                     fontSize: 14,
                   ),
                 ),

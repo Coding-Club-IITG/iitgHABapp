@@ -494,6 +494,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          centerTitle: false,
+          titleSpacing: NavigationToolbar.kMiddleSpacing,
           iconTheme: const IconThemeData(color: Colors.black),
           title: const Text(
             'Mess Rebate',
@@ -564,8 +567,12 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: false,
+        titleSpacing: NavigationToolbar.kMiddleSpacing,
         iconTheme: const IconThemeData(color: Colors.black),
         title: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(

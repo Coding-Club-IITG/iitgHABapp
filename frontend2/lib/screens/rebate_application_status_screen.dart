@@ -6,6 +6,7 @@ import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/utils/leave_pdf_download.dart';
+import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 import 'package:intl/intl.dart';
 
 /// Detail view for one mess rebate application: dates, downloads, late medical
@@ -257,6 +258,8 @@ class _RebateApplicationStatusScreenState
         scrolledUnderElevation: 0,
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
+        centerTitle: false,
+        titleSpacing: NavigationToolbar.kMiddleSpacing,
         iconTheme: const IconThemeData(color: Colors.black),
         title: const Text(
           'Application status',
@@ -267,8 +270,8 @@ class _RebateApplicationStatusScreenState
           ),
         ),
       ),
-      body: _loading && _app == null
-          ? const Center(child: CircularProgressIndicator())
+      body: _loading
+          ? buildRebateApplicationStatusLoadingShimmer()
           : _error != null && _app == null
               ? Center(
                   child: Padding(
@@ -284,9 +287,6 @@ class _RebateApplicationStatusScreenState
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        if (_loading)
-                          const LinearProgressIndicator(minHeight: 2),
-                        const SizedBox(height: 8),
                         Text(
                           _fmtRangeLine(),
                           style: const TextStyle(

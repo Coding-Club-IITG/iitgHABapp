@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/feedback_provider.dart';
+import '../../widgets/common/page_loading_shimmer.dart';
 import '../../widgets/feedback/custom_option.dart';
 import 'comment_page.dart';
 
@@ -13,6 +14,8 @@ class MessFeedbackPage extends StatefulWidget {
 }
 
 class _MessFeedbackPageState extends State<MessFeedbackPage> {
+  bool _loading = true;
+
   final List<String> options = [
     'Very Poor',
     'Poor',
@@ -58,19 +61,35 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
     );
   }
 
-  var loading = true;
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    final instance = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final provider = Provider.of<FeedbackProvider>(context, listen: false);
+    provider.isSMC = instance.getBool('isSMC') ?? false;
+    setState(() => _loading = false);
+  }
 
   @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<FeedbackProvider>(context);
-    if (loading) {
-      (SharedPreferences.getInstance()).then((instance) {
-        provider.isSMC = instance.getBool('isSMC') ?? false;
-        setState(() {
-          loading = false;
-        });
-      });
+    if (_loading) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          leading: const BackButton(),
+          backgroundColor: Colors.white,
+          elevation: 0,
+        ),
+        body: SafeArea(child: buildMessFeedbackLoadingShimmer()),
+      );
     }
+
+    final provider = Provider.of<FeedbackProvider>(context);
 
     return Scaffold(
       appBar: AppBar(

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:frontend2/apis/hostel/hmc.dart';
 import 'package:frontend2/constants/themes.dart';
+import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class HmcInfoScreen extends StatefulWidget {
@@ -93,7 +94,7 @@ class _HmcInfoScreenState extends State<HmcInfoScreen> {
         centerTitle: false,
       ),
       body: _loading
-          ? const _HmcLoadingSkeleton()
+          ? buildHmcInfoLoadingShimmer()
           : _error != null
               ? Center(
                   child: Column(
@@ -293,140 +294,6 @@ class _HmcMemberCard extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-class _HmcLoadingSkeleton extends StatelessWidget {
-  const _HmcLoadingSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 8),
-      children: const [
-        SizedBox(height: 16),
-        _HmcShimmerBlock(height: 24, width: 120),
-        SizedBox(height: 8),
-        _HmcMemberSkeletonCard(),
-        SizedBox(height: 8),
-        _HmcMemberSkeletonCard(),
-        SizedBox(height: 24),
-        _HmcShimmerBlock(height: 24, width: 140),
-        SizedBox(height: 8),
-        _HmcMemberSkeletonCard(),
-        SizedBox(height: 24),
-        _HmcShimmerBlock(height: 24, width: 100),
-        SizedBox(height: 8),
-        _HmcMemberSkeletonCard(),
-        SizedBox(height: 32),
-      ],
-    );
-  }
-}
-
-class _HmcMemberSkeletonCard extends StatelessWidget {
-  const _HmcMemberSkeletonCard();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(8, 4, 8, 0),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        child: const Row(
-          children: [
-            _HmcShimmerBlock(
-              height: 72,
-              width: 72,
-              radius: BorderRadius.all(Radius.circular(36)),
-            ),
-            SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  _HmcShimmerBlock(height: 20, width: 140),
-                  SizedBox(height: 6),
-                  _HmcShimmerBlock(height: 16, width: 180),
-                  SizedBox(height: 4),
-                  _HmcShimmerBlock(height: 16, width: 120),
-                ],
-              ),
-            ),
-            _HmcShimmerBlock(height: 24, width: 24),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _HmcShimmerBlock extends StatefulWidget {
-  final double height;
-  final double? width;
-  final BorderRadius radius;
-
-  const _HmcShimmerBlock({
-    required this.height,
-    this.width,
-    this.radius = const BorderRadius.all(Radius.circular(8)),
-  });
-
-  @override
-  State<_HmcShimmerBlock> createState() => _HmcShimmerBlockState();
-}
-
-class _HmcShimmerBlockState extends State<_HmcShimmerBlock>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-    _animation = Tween<double>(begin: -1.5, end: 2.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Container(
-          width: widget.width,
-          height: widget.height,
-          decoration: BoxDecoration(
-            borderRadius: widget.radius,
-            gradient: LinearGradient(
-              begin: Alignment(_animation.value - 1, 0),
-              end: Alignment(_animation.value + 1, 0),
-              colors: const [
-                Themes.shimmerBase,
-                Themes.shimmerHighlight,
-                Themes.shimmerBase,
-              ],
-              stops: const [0.1, 0.5, 0.9],
-            ),
-          ),
-        );
-      },
     );
   }
 }

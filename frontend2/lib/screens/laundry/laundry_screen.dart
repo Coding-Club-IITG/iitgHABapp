@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../apis/laundry/laundry_api.dart';
+import '../../widgets/common/page_loading_shimmer.dart';
 import '../../widgets/microsoft_required_dialog.dart';
 import 'laundry_qr_scan.dart';
 
@@ -160,7 +161,7 @@ class _LaundryScreenState extends State<LaundryScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _appPrimary))
+          ? buildLaundryServiceLoadingShimmer()
           : _error != null
               ? _buildError()
               : RefreshIndicator(

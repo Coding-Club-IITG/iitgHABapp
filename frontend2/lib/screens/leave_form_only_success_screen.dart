@@ -14,7 +14,6 @@ class LeaveFormOnlySuccessScreen extends StatelessWidget {
 
   static const Color _borderColor = Color(0xFFE6E6E6);
   static const Color _greyBg = Color(0xFFF5F5F5);
-  static const Color _subtitleMuted = Color(0xFF676767);
   static const Color _bodyText = Color(0xFF535353);
   static const Color _successGreen = Color(0xFF1F8441);
   static const Color _successIconBg = Color(0xFFE6F4EA);
@@ -48,26 +47,16 @@ class LeaveFormOnlySuccessScreen extends StatelessWidget {
           scrolledUnderElevation: 0,
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
+          centerTitle: false,
+          titleSpacing: NavigationToolbar.kMiddleSpacing,
           automaticallyImplyLeading: false,
-          title: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Generate leave form',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 20,
-                ),
-              ),
-              Text(
-                'PDF only · No mess rebate',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: _subtitleMuted,
-                ),
-              ),
-            ],
+          title: const Text(
+            'Generate leave form',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w500,
+              fontSize: 20,
+            ),
           ),
         ),
         body: Column(

@@ -651,15 +651,6 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'You can choose dates from today onward. This flow only generates the hostel leave PDF — it does not create a mess rebate application.',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.35,
-            color: Colors.grey[800],
-          ),
-        ),
-        const SizedBox(height: 20),
         const Text(
           'Student details',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
@@ -713,15 +704,6 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Dates can start from today. Review your leave period and emergency contacts, then accept the declaration.',
-          style: TextStyle(
-            fontSize: 12,
-            height: 1.35,
-            color: Colors.grey[800],
-          ),
-        ),
-        const SizedBox(height: 20),
         const Text(
           'Leave details',
           style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
@@ -965,27 +947,21 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
         appBar: AppBar(
           elevation: 0,
           backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          centerTitle: false,
+          titleSpacing: NavigationToolbar.kMiddleSpacing,
           iconTheme: const IconThemeData(color: Colors.black),
           leading: IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: () => Navigator.pop(context),
           ),
-          title: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Generate leave form',
-                style: TextStyle(
-                  color: Colors.black,
-                  fontWeight: FontWeight.w500,
-                  fontSize: 20,
-                ),
-              ),
-              Text(
-                'PDF only · No mess rebate',
-                style: TextStyle(fontSize: 12, color: Color(0xFF676767)),
-              ),
-            ],
+          title: const Text(
+            'Generate leave form',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w500,
+              fontSize: 20,
+            ),
           ),
         ),
         body: _profileLoadingBody(),
@@ -1001,6 +977,9 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
       appBar: AppBar(
         elevation: 0,
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: false,
+        titleSpacing: NavigationToolbar.kMiddleSpacing,
         iconTheme: const IconThemeData(color: Colors.black),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -1012,22 +991,13 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
             }
           },
         ),
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Generate leave form',
-              style: TextStyle(
-                color: Colors.black,
-                fontWeight: FontWeight.w500,
-                fontSize: 20,
-              ),
-            ),
-            Text(
-              'PDF only · No mess rebate',
-              style: TextStyle(fontSize: 12, color: Color(0xFF676767)),
-            ),
-          ],
+        title: const Text(
+          'Generate leave form',
+          style: TextStyle(
+            color: Colors.black,
+            fontWeight: FontWeight.w500,
+            fontSize: 20,
+          ),
         ),
       ),
       body: PopScope(

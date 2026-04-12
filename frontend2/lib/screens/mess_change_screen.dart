@@ -5,10 +5,9 @@ import 'package:frontend2/widgets/confirmation_dialog.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
 import 'package:frontend2/widgets/common/snack_bar.dart';
-import 'package:frontend2/widgets/common/custom_linear_progress.dart';
 import 'package:animated_custom_dropdown/custom_dropdown.dart';
+import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 import 'package:frontend2/providers/hostels.dart';
-import 'package:frontend2/widgets/common/shimmer_host.dart';
 
 class MessChangeScreen extends StatefulWidget {
   const MessChangeScreen({super.key});
@@ -142,6 +141,9 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final waitingHostelList =
+        !isSubmitted && correctDate && hostels.isEmpty;
+
     return Scaffold(
       backgroundColor: const Color.fromRGBO(237, 237, 237, 1),
       appBar: AppBar(
@@ -160,9 +162,8 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
               fontSize: 24),
         ),
       ),
-      body: _isloading
-          ? const CustomLinearProgress(
-              text: 'Loading your details, please wait....')
+      body: _isloading || waitingHostelList
+          ? buildMessChangeScreenLoadingShimmer()
           : RefreshIndicator(
               onRefresh: _onRefresh,
               child: SingleChildScrollView(
@@ -256,34 +257,21 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                               fontWeight: FontWeight.w400),
                         ),
                         const SizedBox(height: 8),
-                        if (hostels.isEmpty) ...[
-                          SizedBox(
-                            height: 52,
-                            child: ShimmerHost(
-                              builder: (context, box) => box(
-                                height: 48,
-                                width: double.infinity,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          ),
-                        ] else ...[
-                          CustomDropdown<String>(
-                            controller: hostelController,
-                            items: hostels
-                                .where((hostelName) =>
-                                    hostelName != calculateHostel(hostel))
-                                .toList(),
-                            onChanged: (value) {
-                              setState(() {
-                                newSelectedHostelfromList = value;
-                                selectedHostel = newSelectedHostelfromList;
-                              });
-                            },
-                            hintText:
-                                "Change Mess to: ${newSelectedHostelfromList ?? ''}",
-                          ),
-                        ],
+                        CustomDropdown<String>(
+                          controller: hostelController,
+                          items: hostels
+                              .where((hostelName) =>
+                                  hostelName != calculateHostel(hostel))
+                              .toList(),
+                          onChanged: (value) {
+                            setState(() {
+                              newSelectedHostelfromList = value;
+                              selectedHostel = newSelectedHostelfromList;
+                            });
+                          },
+                          hintText:
+                              "Change Mess to: ${newSelectedHostelfromList ?? ''}",
+                        ),
                         const SizedBox(height: 24),
                         const Text(
                           "Reason for changing",

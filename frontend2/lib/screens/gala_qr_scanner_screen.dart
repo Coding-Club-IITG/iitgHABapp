@@ -366,7 +366,7 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
             width: 250,
             height: 250,
             child: CustomPaint(
-                size: const Size(250, 250), painter: SquarePainter()),
+                size: const Size(250, 250), painter: const SquarePainter()),
           ),
         ),
         const SizedBox(height: 40),

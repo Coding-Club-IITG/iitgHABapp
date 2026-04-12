@@ -47,6 +47,9 @@ class _FeedbackCardState extends State<FeedbackCard> {
   }
 
   Future<void> _checkFeedbackStatus() async {
+    if (mounted && _windowOpen) {
+      setState(() => _loading = true);
+    }
     try {
       final dio = DioClient().dio;
 
@@ -124,17 +127,61 @@ class _FeedbackCardState extends State<FeedbackCard> {
 
   @override
   Widget build(BuildContext context) {
-    // Don't show the card if feedback window is closed
     if (!_windowOpen) {
       return const SizedBox.shrink();
     }
 
+    final shell = BoxDecoration(
+      border: Border.all(color: Colors.grey.shade300),
+      borderRadius: BorderRadius.circular(24),
+    );
+
+    if (_loading) {
+      return Container(
+        padding: const EdgeInsets.all(16),
+        decoration: shell,
+        child: ShimmerHost(
+          builder: (context, box) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              box(height: 20, width: 280),
+              const SizedBox(height: 12),
+              box(height: 14, width: double.infinity),
+              const SizedBox(height: 8),
+              box(height: 14, width: 240),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  box(
+                    height: 18,
+                    width: 18,
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: box(
+                      height: 16,
+                      width: double.infinity,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              box(
+                height: 48,
+                width: double.infinity,
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        border: Border.all(color: Colors.grey.shade300),
-        borderRadius: BorderRadius.circular(24),
-      ),
+      decoration: shell,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -158,65 +205,51 @@ class _FeedbackCardState extends State<FeedbackCard> {
             ],
           ),
           const SizedBox(height: 12),
-          _loading
-              ? SizedBox(
-                  width: double.infinity,
-                  height: 48,
-                  child: ShimmerHost(
-                    builder: (context, box) => box(
-                      height: 48,
-                      width: double.infinity,
-                      borderRadius: BorderRadius.circular(24),
-                    ),
-                  ),
-                )
-              : SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor:
-                          _submitted ? Colors.grey : const Color(0xFF3754DB),
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(24)),
-                    ),
-                    onPressed: _submitted
-                        ? null
-                        : () async {
-                            final prefs = await SharedPreferences.getInstance();
-                            final hasMicrosoftLinked =
-                                prefs.getBool('hasMicrosoftLinked') ?? false;
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor:
+                    _submitted ? Colors.grey : const Color(0xFF3754DB),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(24)),
+              ),
+              onPressed: _submitted
+                  ? null
+                  : () async {
+                      final prefs = await SharedPreferences.getInstance();
+                      final hasMicrosoftLinked =
+                          prefs.getBool('hasMicrosoftLinked') ?? false;
 
-                            if (!hasMicrosoftLinked) {
-                              if (!context.mounted) return;
-                              showDialog(
-                                context: context,
-                                builder: (context) =>
-                                    const MicrosoftRequiredDialog(
-                                  featureName: 'Mess Feedback',
-                                ),
-                              );
-                              return;
-                            }
+                      if (!hasMicrosoftLinked) {
+                        if (!context.mounted) return;
+                        showDialog(
+                          context: context,
+                          builder: (context) => const MicrosoftRequiredDialog(
+                            featureName: 'Mess Feedback',
+                          ),
+                        );
+                        return;
+                      }
 
-                            setState(() {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (context) =>
-                                      const MessFeedbackPage(),
-                                ),
-                              );
-                            });
-                          },
-                    child: Text(
-                      _submitted ? 'Already Submitted' : 'Give feedback',
-                      style: (_submitted
-                          ? const TextStyle(color: Colors.black54)
-                          : const TextStyle(color: Colors.white)),
-                    ),
-                  ),
-                ),
+                      setState(() {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const MessFeedbackPage(),
+                          ),
+                        );
+                      });
+                    },
+              child: Text(
+                _submitted ? 'Already Submitted' : 'Give feedback',
+                style: (_submitted
+                    ? const TextStyle(color: Colors.black54)
+                    : const TextStyle(color: Colors.white)),
+              ),
+            ),
+          ),
         ],
       ),
     );

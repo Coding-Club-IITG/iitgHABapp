@@ -413,6 +413,9 @@ class _LeaveApplicationListScreenState
         scrolledUnderElevation: 0,
         elevation: 0,
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: false,
+        titleSpacing: NavigationToolbar.kMiddleSpacing,
         shape: const Border(
           bottom: BorderSide(
             color: Color(0xFFE6E6E6), // Matches your card borders perfectly
@@ -562,12 +565,16 @@ class _LeaveApplicationListScreenState
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 0),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SvgPicture.asset(
-                                'assets/icon/info-circle.svg',
-                                width: 16,
-                                height: 16,
-                                color: const Color(0xFF2E2F31),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: SvgPicture.asset(
+                                  'assets/icon/info-circle.svg',
+                                  width: 16,
+                                  height: 16,
+                                  color: const Color(0xFF2E2F31),
+                                ),
                               ),
                               const SizedBox(width: 8),
                               const Expanded(
@@ -584,14 +591,31 @@ class _LeaveApplicationListScreenState
                           ),
                         ),
                         const SizedBox(height: 24),
-                        const Text(
-                          "If you don't want a rebate and want to generate a leave form immediately then please fill the form below.",
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 1.4,
-                            fontWeight: FontWeight.w500,
-                            color: Color(0xFF535353),
-                          ),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: SvgPicture.asset(
+                                'assets/icon/info-circle.svg',
+                                width: 16,
+                                height: 16,
+                                color: const Color(0xFF2E2F31),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                "If you don't want a rebate and want to generate a leave form immediately then please fill the form below.",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF535353),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         const SizedBox(height: 16),
                         _LeaveTypeCard(

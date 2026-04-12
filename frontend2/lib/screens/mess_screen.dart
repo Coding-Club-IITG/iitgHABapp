@@ -12,6 +12,7 @@ import '../models/mess_menu_model.dart';
 import '../providers/hostels.dart';
 import '../models/mess_info_model.dart';
 import '../utilities/startupitem.dart';
+import '../utils/meal_countdown_text.dart';
 import '../widgets/common/hostel_logo.dart';
 import '../widgets/common/shimmer_host.dart';
 import 'leave_application_list_screen.dart';
@@ -366,7 +367,8 @@ class _MenuSectionState extends State<_MenuSection> {
     _initializeFromProvider(hostelMap);
     _requestInitialMenuLoad();
 
-    final fullPageShimmer = _hostelTransitionLoading;
+    final fullPageShimmer =
+        _hostelTransitionLoading || _isMenuLoading;
 
     if (fullPageShimmer) {
       return ShimmerHost(
@@ -380,33 +382,7 @@ class _MenuSectionState extends State<_MenuSection> {
                 16,
                 _MessScreenState.sectionGap,
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text(
-                        'Menu',
-                        style: TextStyle(
-                          fontSize: 16,
-                          height: 24 / 16,
-                          fontWeight: FontWeight.w500,
-                          color: _MessScreenState.textSecondary,
-                        ),
-                      ),
-                      const Spacer(),
-                      _HostelSelector(
-                        selectedHostel: selectedHostel,
-                        hostelNames:
-                            hostelMap.keys.map((e) => e.toString()).toList(),
-                        onSelected: _updateMess,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 20),
-                  _MessMenuBodyLoadingSkeleton(box: box),
-                ],
-              ),
+              child: _MessMenuLoadingSkeleton(box: box),
             ),
             _MessLowerPageSkeleton(box: box),
           ],
@@ -469,12 +445,7 @@ class _MenuSectionState extends State<_MenuSection> {
                 ),
               ),
               const SizedBox(height: 20),
-              if (_isMenuLoading)
-                ShimmerHost(
-                  builder: (context, box) =>
-                      _MessMenuBodyLoadingSkeleton(box: box),
-                )
-              else if (_menuError != null)
+              if (_menuError != null)
                 const _MenuErrorCard()
               else if (_menus.isEmpty)
                 const _MenuEmptyCard()
@@ -501,6 +472,16 @@ class _MenuSectionState extends State<_MenuSection> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                Text(
+                  'Mess Forms',
+                  style: TextStyle(
+                    fontSize: 16,
+                    height: 24 / 16,
+                    fontWeight: FontWeight.w500,
+                    color: _MessScreenState.textSecondary,
+                  ),
+                ),
+                SizedBox(height: 20),
                 _MessChangeRow(),
                 SizedBox(height: _MessScreenState.sectionGap),
                 _MessRebateRow(),
@@ -919,19 +900,13 @@ class _MealCardState extends State<_MealCard> {
     final end = _parseTime(_menu.endTime);
 
     if (now.isBefore(start)) {
-      final diff = start.difference(now);
-      final hours = diff.inHours;
-      final minutes = diff.inMinutes.remainder(60);
-      return 'In ${hours > 0 ? '${hours}h ' : ''}${minutes}m';
+      return mealTimeUntilStart(start.difference(now));
     }
 
     final isOngoing =
         (now.isAfter(start) || now.isAtSameMomentAs(start)) && now.isBefore(end);
     if (isOngoing) {
-      final remaining = end.difference(now);
-      final hours = remaining.inHours;
-      final minutes = remaining.inMinutes.remainder(60);
-      return hours > 0 ? '${hours}h ${minutes}m left' : '${minutes <= 0 ? 1 : minutes}m left';
+      return mealTimeRemaining(end.difference(now));
     }
 
     return 'is over';
@@ -1383,6 +1358,8 @@ class _MessLowerPageSkeleton extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              box(height: 16, width: 100),
+              const SizedBox(height: 20),
               _MessActionRowSkeleton(box: box),
               const SizedBox(height: _MessScreenState.sectionGap),
               _MessActionRowSkeleton(box: box),

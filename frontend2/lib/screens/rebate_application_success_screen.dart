@@ -50,8 +50,11 @@ class RebateApplicationSuccessScreen extends StatelessWidget {
           scrolledUnderElevation: 0,
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
+          centerTitle: false,
+          titleSpacing: NavigationToolbar.kMiddleSpacing,
           automaticallyImplyLeading: false,
           title: const Column(
+            mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
