@@ -1,180 +1,193 @@
-const schedule = require("node-schedule");
 const { MessChangeSettings } = require("./messChangeSettingsModel");
+const { User } = require("../user/userModel");
 const {
   enableMessChangeAutomatic,
   disableMessChangeAutomatic,
 } = require("./controllers/schedulerController");
-const {
-  sendNotificationMessage,
-} = require("../notification/notificationController");
+const admin = require("../notification/firebase");
+const { FCMToken } = require("../notification/FCMToken");
+const { getMessChangeWindowDates } = require("../../utils/windowDates.js");
+const agenda = require("../../utils/agenda.js");
 
-// Helper to get mess change window dates for a given month
-// Server is already in IST timezone, so we use local time
-const getMessChangeWindowDates = (targetMonth = null, targetYear = null) => {
-  const now = new Date();
-  const year = targetYear || now.getFullYear();
-  const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
+const JOB_ENABLE = "messchange-enable-check";
+const JOB_DISABLE = "messchange-disable-check";
+const JOB_REMIND_12H = "messchange-reminder-12h";
+const JOB_REMIND_2H = "messchange-reminder-2h";
 
-  let startDay, endDay;
+/**
+ * Sends a targeted reminder only to students who haven't applied for a mess change
+ * @param {number} hoursLeft - The number of hours remaining in the window
+ */
+const sendMessChangeReminder = async (hoursLeft) => {
+  try {
+    // 1. Find all users who have NOT applied for a mess change this month
+    const slackers = await User.find({
+      applied_for_mess_changed: false,
+    }).select("_id");
 
-  if (month === 1) {
-    // February
-    startDay = 26;
-    endDay = 28;
-  } else {
-    // All other months
-    startDay = 28;
-    endDay = 30;
+    if (slackers.length === 0) {
+      console.log(`[MESS CHANGE] No reminders needed for ${hoursLeft}hr mark`);
+      return;
+    }
+
+    const userIds = slackers.map((u) => u._id);
+
+    // 2. Fetch all registered device tokens for those specific users
+    const tokens = await FCMToken.find({ user: { $in: userIds } }).select(
+      "token",
+    );
+    const tokenArray = tokens.map((t) => t.token);
+
+    if (tokenArray.length === 0) return;
+
+    // 3. Blast the Multicast using the correct Native Channel ID
+    const response = await admin.messaging().sendMulticast({
+      tokens: tokenArray,
+      notification: {
+        title: "Mess Change Window Closing! ⏳",
+        body: `You have ${hoursLeft} hours left to apply for a mess change for next month.`,
+      },
+      android: {
+        notification: {
+          channelId: "hab_mess_updates",
+        },
+      },
+    });
+
+    console.log(
+      `[MESS CHANGE] Sent ${hoursLeft}hr reminder to ${response.successCount} users`,
+    );
+  } catch (error) {
+    console.error("[MESS CHANGE] Error sending reminders:", error);
   }
-
-  // Create dates in local time (IST)
-  // Start: 9 AM IST
-  const startDate = new Date(year, month, startDay, 9, 0, 0);
-  // End: 23:59:59 IST (end of day)
-  const endDate = new Date(year, month, endDay, 23, 59, 59);
-
-  return { startDate, endDate };
 };
-
-// Use controller implementations for enable/disable so the scheduler
-// doesn't duplicate business logic. They are imported below.
 
 // Schedule reminder notifications
 const scheduleMessChangeReminders = async () => {
   try {
-    // Cancel any existing jobs for mess change reminders
-    const existingJobs = schedule.scheduledJobs;
-    Object.keys(existingJobs).forEach((jobName) => {
-      if (jobName.startsWith("messchange-reminder-")) {
-        existingJobs[jobName].cancel();
-      }
-    });
-
     const settings = await MessChangeSettings.findOne();
-    if (!settings?.isEnabled || !settings.enabledAt) {
-      return;
-    }
+    if (!settings?.isEnabled || !settings.enabledAt) return;
 
     // Get closing time
     const { endDate } = getMessChangeWindowDates();
     const closingTime = endDate;
-
     const now = new Date();
 
-    // 12 hours before closing (IST 11:59 AM on end day)
+    // Cancel any previously scheduled reminder jobs
+    await agenda.cancel({ name: { $in: [JOB_REMIND_12H, JOB_REMIND_2H] } });
+
+    // 12 hours before closing
     const reminder12h = new Date(closingTime.getTime() - 12 * 60 * 60 * 1000);
     if (reminder12h > now) {
-      const jobName12h = `messchange-reminder-12h-${Date.now()}`;
-      schedule.scheduleJob(jobName12h, reminder12h, () => {
-        sendNotificationMessage(
-          "MESS CHANGE",
-          "Mess change application form will close in 12 hours",
-          "All_Hostels",
-          { redirectType: "mess_change", isAlert: "true" },
-        ).catch((err) =>
-          console.error(
-            "📢 [MESS CHANGE] 12h mess change reminder send failed:",
-            err,
-          ),
-        );
-        console.log("📢 [MESS CHANGE] Sent 12h mess change reminder");
-      });
+      await agenda.schedule(reminder12h, JOB_REMIND_12H);
       console.log(
-        `📅 [MESS CHANGE] Scheduled 12h reminder for ${reminder12h.toLocaleString(
-          "en-IN",
-          {
-            timeZone: "Asia/Kolkata",
-          },
-        )}`,
+        `[MESS CHANGE] Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
     }
 
-    // 2 hours before closing (IST 9:59 PM on end day)
+    // 2 hours before closing
     const reminder2h = new Date(closingTime.getTime() - 2 * 60 * 60 * 1000);
     if (reminder2h > now) {
-      const jobName2h = `messchange-reminder-2h-${Date.now()}`;
-      schedule.scheduleJob(jobName2h, reminder2h, () => {
-        sendNotificationMessage(
-          "MESS CHANGE",
-          "Mess change application form will close in 2 hours",
-          "All_Hostels",
-          { redirectType: "mess_change", isAlert: "true" },
-        ).catch((err) =>
-          console.error(
-            "📢 [MESS CHANGE] 2h mess change reminder send failed:",
-            err,
-          ),
-        );
-        console.log("📢 [MESS CHANGE] Sent 2h mess change reminder");
-      });
+      await agenda.schedule(reminder2h, JOB_REMIND_2H);
       console.log(
-        `📅 [MESS CHANGE] Scheduled 2h reminder for ${reminder2h.toLocaleString(
-          "en-IN",
-          {
-            timeZone: "Asia/Kolkata",
-          },
-        )}`,
+        `[MESS CHANGE] Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
     }
   } catch (error) {
-    console.error("❌ Error scheduling mess change reminders:", error);
+    console.error("[MESS CHANGE] Error scheduling reminders:", error);
   }
 };
 
 // Initialize mess change scheduler
 const initializeMessChangeAutoScheduler = () => {
-  console.log("🚀 Initializing automatic mess change scheduler...");
+  // Runs daily at 9 AM IST
+  agenda.define(
+    JOB_ENABLE,
+    async (job) => {
+      try {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = now.getMonth();
+        const day = now.getDate();
 
-  // Schedule for mess change enable - runs daily at 9 AM IST
-  schedule.scheduleJob("0 9 * * *", async () => {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth();
-    const day = now.getDate();
+        const { startDate, endDate } = getMessChangeWindowDates(month, year);
 
-    let startDay;
-    if (month === 1) {
-      startDay = 26; // February
-    } else {
-      startDay = 28; // Other months
-    }
-
-    // Check if today is the start date
-    if (day === startDay) {
-      console.log(
-        `📅 Mess change start date detected: ${day}/${month + 1}/${year}`,
-      );
-      const { endDate } = getMessChangeWindowDates(month, year);
-      await enableMessChangeAutomatic(endDate);
-      await scheduleMessChangeReminders();
-    }
-  });
-
-  // Schedule to disable - runs daily at 12:01 AM IST
-  schedule.scheduleJob("1 0 * * *", async () => {
-    try {
-      const settings = await MessChangeSettings.findOne();
-      if (settings?.isEnabled && settings.currentWindowClosingTime) {
-        if (new Date() > new Date(settings.currentWindowClosingTime)) {
-          console.log(`📅 Mess change closing time reached, disabling now.`);
-          await disableMessChangeAutomatic();
+        if (day === startDate.getDate()) {
+          console.log(
+            `[MESS CHANGE] Start date detected: ${day}/${month + 1}/${year}`,
+          );
+          await enableMessChangeAutomatic(endDate);
+          await scheduleMessChangeReminders();
         }
+      } catch (e) {
+        console.error("[MESS CHANGE] Enable check job failed:", e);
+        throw e;
       }
-    } catch (e) {
-      console.error("❌ Error in automatic mess change closing job:", e);
-    }
-  });
+    },
+    { concurrency: 1 },
+  );
 
-  console.log("✅ Automatic mess change scheduler initialized");
-  // Schedule reminders if mess change is already enabled
-  MessChangeSettings.findOne().then(async (settings) => {
-    if (settings?.isEnabled) {
-      await scheduleMessChangeReminders();
-    }
-  });
+  // Runs daily at 12:01 AM IST
+  agenda.define(
+    JOB_DISABLE,
+    async (job) => {
+      try {
+        const settings = await MessChangeSettings.findOne();
+        if (settings?.isEnabled && settings.currentWindowClosingTime) {
+          if (new Date() > new Date(settings.currentWindowClosingTime)) {
+            console.log(`[MESS CHANGE] Closing time reached, disabling now.`);
+            await disableMessChangeAutomatic();
+          }
+        }
+      } catch (e) {
+        console.error("[MESS CHANGE] Disable check job failed:", e);
+        throw e;
+      }
+    },
+    { concurrency: 1 },
+  );
+
+  // 12h reminder
+  agenda.define(
+    JOB_REMIND_12H,
+    async (job) => {
+      await sendMessChangeReminder(12);
+    },
+    { concurrency: 1 },
+  );
+
+  // 2h reminder
+  agenda.define(
+    JOB_REMIND_2H,
+    async (job) => {
+      await sendMessChangeReminder(2);
+    },
+    { concurrency: 1 },
+  );
+
+  // Set up recurring schedules
+  agenda.every("0 9 * * *", JOB_ENABLE, {}, { timezone: "Asia/Kolkata" });
+  agenda.every("1 0 * * *", JOB_DISABLE, {}, { timezone: "Asia/Kolkata" });
+
+  console.log("[MESS CHANGE] Scheduler initialized");
+
+  // Restore reminders on boot if the window was already open before restart
+  MessChangeSettings.findOne()
+    .then(async (settings) => {
+      if (settings?.isEnabled) {
+        console.log(
+          "[MESS CHANGE] Mess change window already open, restoring reminder jobs",
+        );
+        await scheduleMessChangeReminders();
+      }
+    })
+    .catch((err) =>
+      console.error("[MESS CHANGE] Boot-time reminder restore failed:", err),
+    );
 };
 
 module.exports = {
   initializeMessChangeAutoScheduler,
+  scheduleMessChangeReminders,
   getMessChangeWindowDates,
 };

@@ -71,6 +71,30 @@ const hostelSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  hmcMembers: [
+    {
+      type: {
+        type: String,
+        enum: [
+          "General Secretary",
+          "Associate General Secretary",
+          "Literary Secretary",
+          "Cultural Secretary",
+          "Technical Secretary",
+          "Sports Secretary",
+          "Welfare Secretary",
+          "Maintenance Secretary",
+          "Service Secretary",
+        ],
+        required: true,
+      },
+      user: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: "User",
+        required: true,
+      },
+    },
+  ],
 });
 
 hostelSchema.methods.generateJWT = function () {

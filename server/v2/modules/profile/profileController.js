@@ -118,7 +118,17 @@ async function createOrganizationViewLink(token, itemId) {
 
 // POST /api/profile/picture/set
 async function setProfilePicture(req, res) {
+  let debugContext = {
+    apiVersion: "v1",
+    method: req.method,
+    url: req.originalUrl,
+    hasFile: !!req.file,
+    mimetype: req.file?.mimetype,
+    size: req.file?.size,
+  };
+
   try {
+    console.log("[Profile][v1] setProfilePicture start", debugContext);
     // Resolve user + roll (supports both authenticated and unauthenticated calls)
     let user = req.user;
     let roll = null;
@@ -144,6 +154,13 @@ async function setProfilePicture(req, res) {
       }
     }
 
+    debugContext = {
+      ...debugContext,
+      roll,
+      userId: user?._id?.toString(),
+      isSetupDone: user?.isSetupDone,
+    };
+
     // Feature flag: allow if (user.isSetupDone == false) OR (global toggle is enabled)
     const settings = await ProfileSettings.findOne();
     const allowPhotoChange = Boolean(settings?.allowProfilePhotoChange);
@@ -164,6 +181,11 @@ async function setProfilePicture(req, res) {
 
     const ext = extFromMime(file.mimetype);
     const targetName = `${roll}${ext}`;
+
+    debugContext = {
+      ...debugContext,
+      targetName,
+    };
 
     // Delegated token required to use /me/drive
     const token = await requireDelegatedToken();
@@ -234,6 +256,12 @@ async function setProfilePicture(req, res) {
     // Do NOT mark isSetupDone here; it will be set on explicit save action
     await user.save();
 
+    console.log("[Profile][v1] setProfilePicture success", {
+      ...debugContext,
+      itemId: uploaded.id,
+      hasPublicUrl: !!publicUrl,
+    });
+
     return res.status(200).json({
       message: "Profile picture updated",
       itemId: uploaded.id,
@@ -243,16 +271,25 @@ async function setProfilePicture(req, res) {
   } catch (err) {
     const status = err.response?.status;
     const msg = err.response?.data?.error?.message || err.message;
+
+    console.error("[Profile][v1] setProfilePicture error", {
+      ...debugContext,
+      status,
+      message: msg,
+      rawErrorMessage: err.message,
+      stack: err.stack,
+      graphError: err.response?.data,
+    });
+
     return res
       .status(status === 403 ? 403 : 500)
       .json({ message: "Failed to set profile picture", error: msg, status });
   }
 }
 
-// GET /api/profile/picture/get
-async function getProfilePicture(req, res) {
+// Internal helper: send profile picture bytes/URL for a given user document
+async function sendProfilePictureForUser(user, res) {
   try {
-    const user = req.user;
     if (!user.profilePictureItemId && !user.profilePictureUrl) {
       return res.status(404).json({ message: "No profile picture set" });
     }
@@ -328,6 +365,56 @@ async function getProfilePicture(req, res) {
   }
 }
 
+// GET /api/profile/picture/get (current authenticated user)
+async function getProfilePicture(req, res) {
+  const user = req.user;
+  return sendProfilePictureForUser(user, res);
+}
+
+// Mess-manager (HABit HQ): get profile picture for a mess user by userId
+async function getProfilePictureForManager(req, res) {
+  try {
+    const managerHostel = req.managerHostel;
+    const { userId } = req.params;
+
+    if (!managerHostel || !managerHostel._id) {
+      return res
+        .status(400)
+        .json({ message: "Manager hostel not found" });
+    }
+    if (!userId) {
+      return res.status(400).json({ message: "Missing userId" });
+    }
+
+    const hostelId = managerHostel._id.toString();
+
+    const user = await User.findById(userId)
+      .select("profilePictureItemId profilePictureUrl curr_subscribed_mess")
+      .populate("curr_subscribed_mess", "hostel_name");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    if (
+      !user.curr_subscribed_mess ||
+      user.curr_subscribed_mess._id.toString() !== hostelId
+    ) {
+      return res
+        .status(403)
+        .json({ message: "User does not belong to this mess" });
+    }
+
+    return sendProfilePictureForUser(user, res);
+  } catch (err) {
+    return res.status(500).json({
+      message: "Failed to fetch profile picture",
+      error: err.message,
+      status: err.response?.status,
+    });
+  }
+}
+
 // Mark setup complete for current user
 async function markSetupComplete(req, res) {
   try {
@@ -346,4 +433,9 @@ async function markSetupComplete(req, res) {
   }
 }
 
-module.exports = { setProfilePicture, getProfilePicture, markSetupComplete };
+module.exports = {
+  setProfilePicture,
+  getProfilePicture,
+  getProfilePictureForManager,
+  markSetupComplete,
+};

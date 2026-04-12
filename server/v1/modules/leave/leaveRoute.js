@@ -2,15 +2,17 @@ const express = require("express");
 
 const {
   authenticateJWT,
-  authenticateAdminJWT,
+  authenticateMessManagerJWT,
 } = require("../../middleware/authenticateJWT.js");
 
-const { uploadToOnedrive } = require('./uploadToOnedrive.js')
+const {
+  uploadSingleToOnedrive,
+  sendDocument,
+} = require("./OnedriveController.js");
 
 const {
   uploadMiddleware,
   applyForLeave,
-  conditionalUpload,
   getApplications,
   getApplicationByID,
   getApplicationProof,
@@ -22,34 +24,65 @@ const {
   approveApplication,
   rejectApplication,
   getRebateSummary,
-  validateApply
+  validateApply,
 } = require("./leaveController.js");
+
+const { runMessRebateJob } = require("./autoMessRebateScheduler.js");
 
 const leaveRouter = express.Router();
 
 //User/Student Endpoint
 
-leaveRouter.post('/apply', authenticateJWT, conditionalUpload, validateApply, applyForLeave);
+leaveRouter.post("/testScheduler", runMessRebateJob);
 
-leaveRouter.get('/my-applications', authenticateJWT, getApplications);
+leaveRouter.post(
+  "/apply",
+  authenticateJWT,
+  uploadMiddleware,
+  validateApply,
+  applyForLeave,
+);
 
-leaveRouter.get('/:id', authenticateJWT, getApplicationByID);
+leaveRouter.get("/my-applications", authenticateJWT, getApplications);
 
-leaveRouter.get('/:id/proof', authenticateJWT, getApplicationProof);
+leaveRouter.get("/:id", authenticateJWT, getApplicationByID);
 
-leaveRouter.post('/:id/upload-late-medical-document', authenticateJWT, validateUploadDoc , uploadMiddleware, uploadToOnedrive, uploadDocForMedicalLeave )
+leaveRouter.get("/:id/proof", authenticateJWT, getApplicationProof);
 
-leaveRouter.get('/:id/cancel-application', authenticateJWT, cancelApplication)
+leaveRouter.post(
+  "/my-applications/:id/upload-late-medical-document",
+  authenticateJWT,
+  validateUploadDoc,
+  uploadMiddleware,
+  uploadSingleToOnedrive,
+  uploadDocForMedicalLeave,
+);
+
+leaveRouter.delete("/my-applications/:id", authenticateJWT, cancelApplication);
 
 //Hostel Office Endpoints
-leaveRouter.get('/hostel/pending', authenticateAdminJWT, getAllPendingApplications);
+leaveRouter.get(
+  "/hostel/pending",
+  authenticateMessManagerJWT,
+  getAllPendingApplications,
+);
 
-leaveRouter.get('/hostel/all', authenticateAdminJWT, filterApplications);
+leaveRouter.get("/hostel/all", authenticateMessManagerJWT, filterApplications);
 
-leaveRouter.post('/:id/approve', authenticateAdminJWT, approveApplication);
+leaveRouter.post(
+  "/:id/approve",
+  authenticateMessManagerJWT,
+  approveApplication,
+);
 
-leaveRouter.post('/:id/reject', authenticateAdminJWT, rejectApplication);
+leaveRouter.post("/:id/reject", authenticateMessManagerJWT, rejectApplication);
 
-leaveRouter.get('/hostel/rebate-summary', authenticateAdminJWT, getRebateSummary);
+leaveRouter.get(
+  "/hostel/rebate-summary",
+  authenticateMessManagerJWT,
+  getRebateSummary,
+);
+
+leaveRouter.post("/download", authenticateMessManagerJWT, sendDocument);
 
 module.exports = leaveRouter;

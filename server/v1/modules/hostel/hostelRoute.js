@@ -20,6 +20,8 @@ const {
   markAsSMC,
   unmarkAsSMC,
   getSMCMembers,
+  getHMCMembers,
+  setHMCMembers,
 } = require("./hostelController.js");
 const { uploadData } = require("./hostelAlloc.js");
 const multer = require("multer");
@@ -140,7 +142,11 @@ hostelRouter.post("/", authenticateHabJWT, createHostel);
  *                   type: string
  *                   example: "Error occurred"
  */
-hostelRouter.get("/all/smc/:hostelId", authenticateUserOrAdminJWT, getHostelbyId);
+hostelRouter.get(
+  "/all/smc/:hostelId",
+  authenticateUserOrAdminJWT,
+  getHostelbyId,
+);
 hostelRouter.get("/all/hab/:hostelId", authenticateHabJWT, getHostelbyId);
 hostelRouter.get("/get", authenticateAdminJWT, getHostel);
 
@@ -209,12 +215,10 @@ hostelRouter.get(
 hostelRouter.get("/smc-members", authenticateAdminJWT, getSMCMembers);
 hostelRouter.post("/mark-smc", authenticateAdminJWT, markAsSMC);
 hostelRouter.post("/unmark-smc", authenticateAdminJWT, unmarkAsSMC);
+hostelRouter.get("/hmc-members", authenticateUserOrAdminJWT, getHMCMembers);
+hostelRouter.post("/hmc-members", authenticateAdminJWT, setHMCMembers);
 
 // HAB-only: set or update encrypted hostel password
 const { setHostelPassword } = require("./hostelController.js");
-hostelRouter.post(
-  "/set-password",
-  authenticateHabJWT,
-  setHostelPassword,
-);
+hostelRouter.post("/set-password", authenticateHabJWT, setHostelPassword);
 module.exports = hostelRouter;

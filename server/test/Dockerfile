@@ -15,6 +15,7 @@ COPY v1/package.json v1/package-lock.json ./v1/
 RUN cd v1 && npm install
 
 # Copy all source code
+ARG CACHEBUST=1
 COPY . .
 
 EXPOSE 3000

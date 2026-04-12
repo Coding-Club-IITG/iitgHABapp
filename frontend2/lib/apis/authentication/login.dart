@@ -15,6 +15,7 @@ import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/utilities/notifications.dart';
 // provider import removed (unused in this file)
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:frontend2/utilities/alert_manager.dart';
 
 import '../../screens/login_screen.dart';
 
@@ -48,6 +49,7 @@ Future<void> authenticate() async {
     // await registerFcmToken();
     await HostelsNotifier.init();
     ProfilePictureProvider.init();
+    await AlertsManager.syncAlerts();
   } on PlatformException catch (_) {
     rethrow;
   } catch (e) {
@@ -61,7 +63,7 @@ Future<void> authenticate() async {
 Future<void> guestAuthenticate() async {
   try {
     final dio = DioClient().dio;
-    // Send empty body - backend will handle guest login automatically
+     // Send empty body - backend will handle guest login automatically
     // Old app versions may send email/password, but backend accepts and ignores them
     final resp = await dio.post(
       '$baseUrl/auth/guest',
@@ -69,26 +71,32 @@ Future<void> guestAuthenticate() async {
       options: Options(headers: {'Content-Type': 'application/json'}),
     );
 
+    // FIX: Check for accessToken instead of token
     if (resp.statusCode != 200 ||
         resp.data == null ||
-        resp.data['token'] == null) {
-      throw ('Guest login failed');
+        resp.data['accessToken'] == null) {
+      throw ('Guest login failed: Missing access token');
     }
 
     final prefs = await SharedPreferences.getInstance();
     final accessToken = resp.data['accessToken'];
     final refreshToken = resp.data['refreshToken'];
 
-    prefs.setString('access_token', accessToken);
-    prefs.setString('refresh_token', refreshToken);
+    // Save tokens to local storage
+    await prefs.setString('access_token', accessToken);
+    if (refreshToken != null) {
+      await prefs.setString('refresh_token', refreshToken);
+    }
 
-    // Reuse post-login initialization
+    // Initialize required app data before navigating
     await fetchUserDetails();
     await getUserMessInfo();
-    // await registerFcmToken();
+    //debugPrint("Guest authentication successful");
     await HostelsNotifier.init();
     ProfilePictureProvider.init();
+    await AlertsManager.syncAlerts();
   } catch (e) {
+    debugPrint('Guest Auth Error: $e');
     rethrow;
   }
 }
@@ -100,7 +108,7 @@ Future<bool> refreshAccessToken() async {
     final refreshToken = prefs.getString('refresh_token');
 
     debugPrint('[refreshAccessToken] Refresh token: '
-        '${refreshToken != null ? refreshToken.substring(0, 8) + '...' : 'null'}');
+        '${refreshToken != null ? '${refreshToken.substring(0, 8)}...' : 'null'}');
 
     if (refreshToken == null) {
       debugPrint('[refreshAccessToken] No refresh token found');
@@ -146,6 +154,8 @@ Future<void> logoutHandler(context) async {
 
   final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
+  // Instantly wipe the local alerts cache and UI
+  await AlertsManager.clearAlerts();
   // Use the global navigator if available; the dialog's build context may be
   // deactivated after calling Navigator.pop() in the dialog. This avoids the
   // "Looking up a deactivated widget's ancestor is unsafe" error.
@@ -219,6 +229,7 @@ Future<void> signInWithApple() async {
     // await registerFcmToken();
     await HostelsNotifier.init();
     ProfilePictureProvider.init();
+    await AlertsManager.syncAlerts();
   } on SignInWithAppleAuthorizationException catch (e) {
     // Error code 1000 often means simulator limitation or missing configuration
     if (e.code == AuthorizationErrorCode.unknown) {
@@ -272,17 +283,20 @@ Future<void> linkMicrosoftAccount() async {
     prefs.setBool('hasMicrosoftLinked', true);
 
     // If accounts were merged, backend returns a new token - update it
-    if (response.data['token'] != null) {
-      prefs.setString('access_token', response.data['token']);
+    if (response.data['accessToken'] != null && response.data['refreshToken'] != null) {
+      prefs.setString('access_token', response.data['accessToken']);
+      prefs.setString('refresh_token', response.data['refreshToken']);
     }
 
     // Refresh user details to get updated name, roll number, hostel, etc.
     // This will update SharedPreferences with the latest user data
     await fetchUserDetails();
     await getUserMessInfo();
+    await fetchUserProfilePicture();
+    ProfilePictureProvider.init();
 
     // Re-register FCM token to subscribe to hostel/mess-specific topics
-    // await registerFcmToken();
+    await registerFcmToken();
 
     // Trigger home screen refresh to update displayed name
     homeScreenRefreshNotifier.value = true;

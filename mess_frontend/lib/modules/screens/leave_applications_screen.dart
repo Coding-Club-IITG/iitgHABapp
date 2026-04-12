@@ -294,6 +294,7 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
                       final app = _applications[index];
                       final user = app['user'] ?? {};
                       final docUrl = app['proofDocumentUrl'] as String?;
+                      final leaveUrl = app['leaveDocumentUrl'] as String?;
                       final leaveType = app['leaveType'] ?? 'Unknown';
                       final typeColors = _getLeaveTypeColors(leaveType);
 
@@ -401,39 +402,72 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
                               const SizedBox(height: 16),
                               
                               // --- UPDATED ACTION BUTTONS LAYOUT ---
+                              // --- UPDATED ACTION BUTTONS LAYOUT ---
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  // View Document on its own row
-                                  if (docUrl != null) ...[
-                                    Align(
-                                      alignment: Alignment.centerLeft,
-                                      child: InkWell(
-                                        onTap: () => _viewDocument(docUrl),
-                                        borderRadius: BorderRadius.circular(8),
-                                        child: Padding(
-                                          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                                          child: Row(
-                                            mainAxisSize: MainAxisSize.min,
-                                            children: [
-                                              Icon(Icons.description_outlined, size: 18, color: Colors.grey.shade800),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                'View Document',
-                                                style: TextStyle(
-                                                  color: Colors.grey.shade800,
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
+                                  // Row for Document Buttons
+                                  if (docUrl != null || leaveUrl != null) ...[
+                                    Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                      children: [
+                                        // Proof Document Button
+                                        if (docUrl != null)
+                                          InkWell(
+                                            onTap: () => _viewDocument(docUrl),
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.description_outlined, size: 18, color: Colors.grey.shade800),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    'View Proof',
+                                                    style: TextStyle(
+                                                      color: Colors.grey.shade800,
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ],
+                                            ),
                                           ),
-                                        ),
-                                      ),
+                                        
+                                        // Add spacing if both buttons exist
+                                        if (docUrl != null && leaveUrl != null) const SizedBox(width: 16),
+
+                                        // Leave Document Button (The new button)
+                                        if (leaveUrl != null)
+                                          InkWell(
+                                            onTap: () => _viewDocument(leaveUrl),
+                                            borderRadius: BorderRadius.circular(8),
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                                              child: Row(
+                                                mainAxisSize: MainAxisSize.min,
+                                                children: [
+                                                  Icon(Icons.assignment_outlined, size: 18, color: Colors.grey.shade800),
+                                                  const SizedBox(width: 6),
+                                                  Text(
+                                                    'Leave Document',
+                                                    style: TextStyle(
+                                                      color: Colors.grey.shade800,
+                                                      fontSize: 14,
+                                                      fontWeight: FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                      ],
                                     ),
                                     const SizedBox(height: 12),
                                   ],
-                                  
+
                                   // Accept and Reject taking up equal space on the bottom row
                                   Row(
                                     children: [
@@ -441,8 +475,8 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
                                         child: TextButton(
                                           onPressed: () => _handleAction(app['_id'], false),
                                           style: TextButton.styleFrom(
-                                            backgroundColor: const Color(0xFFFEE2E2), 
-                                            foregroundColor: const Color(0xFFB91C1C), 
+                                            backgroundColor: const Color(0xFFFEE2E2),
+                                            foregroundColor: const Color(0xFFB91C1C),
                                             padding: const EdgeInsets.symmetric(vertical: 12),
                                             shape: RoundedRectangleBorder(
                                               borderRadius: BorderRadius.circular(8),
@@ -459,8 +493,8 @@ class _LeaveApplicationsScreenState extends State<LeaveApplicationsScreen> {
                                         child: TextButton(
                                           onPressed: () => _handleAction(app['_id'], true),
                                           style: TextButton.styleFrom(
-                                            backgroundColor: const Color(0xFFDCFCE7), 
-                                            foregroundColor: const Color(0xFF15803D), 
+                                            backgroundColor: const Color(0xFFDCFCE7),
+                                            foregroundColor: const Color(0xFF15803D),
                                             padding: const EdgeInsets.symmetric(vertical: 12),
                                             shape: RoundedRectangleBorder(
                                               borderRadius: BorderRadius.circular(8),

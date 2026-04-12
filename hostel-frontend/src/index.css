@@ -8,3 +8,82 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
+
+/* Hide number input spinners on disabled/readonly inputs */
+input[type="number"]:disabled::-webkit-inner-spin-button,
+input[type="number"]:disabled::-webkit-outer-spin-button,
+input[type="number"][readonly]::-webkit-inner-spin-button,
+input[type="number"][readonly]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"]:disabled,
+input[type="number"][readonly] {
+  -moz-appearance: textfield;
+  appearance: textfield;
+}
+.ant-select {
+  font-family: inherit;
+}
+
+.ant-select-selector {
+  height: auto !important;
+  min-height: 38px !important;
+  padding: 4px 12px !important;
+}
+
+.ant-select-selection-search-input {
+  height: 30px !important;
+}
+
+.ant-select-dropdown {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+aside {
+  flex-shrink: 0;
+}
+
+.sidebar-menu-btn,
+.sidebar-tab-btn,
+.sidebar-logout-btn {
+  background-color: transparent;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: inherit;
+  color: inherit;
+}
+
+.sidebar-menu-btn {
+  width: auto;
+}
+
+.sidebar-tab-btn {
+  width: 100%;
+  text-align: left;
+}
+
+.sidebar-tab-btn:hover {
+  background-color: rgb(243 244 246);
+}
+
+.sidebar-tab-btn svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+}
+
+.sidebar-logout-btn {
+  width: 100%;
+}
+
+main .ant-select {
+  width: 100%;
+}
+
+main {
+  overflow-x: hidden;
+  position: relative;
+}

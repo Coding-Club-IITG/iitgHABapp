@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
@@ -15,6 +16,9 @@ class BottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const activeColor = Color(0xFF4C4EDB);
+    const inactiveColor = Color(0xFF676767);
+
     // return BottomNavigationBar(
     //   currentIndex: currentIndex,
     //   onTap: onTap,
@@ -54,20 +58,22 @@ class BottomNavBar extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.home_outlined,
-                        size: 22,
-                        color: currentIndex == 0
-                            ? const Color(0xFF4C4EDB)
-                            : const Color(0xFF676767),
+                      SvgPicture.asset(
+                        'assets/icon/home.svg',
+                        width: 22,
+                        height: 22,
+                        colorFilter: ColorFilter.mode(
+                          currentIndex == 0 ? activeColor : inactiveColor,
+                          BlendMode.srcIn,
+                        ),
                       ),
                       const SizedBox(height: 3),
                       Text("Home",
                           style: TextStyle(
                             fontSize: 12,
                             color: currentIndex == 0
-                                ? const Color(0xFF4C4EDB)
-                                : const Color(0xFF676767),
+                                ? activeColor
+                                : inactiveColor,
                           ))
                     ],
                   ),
@@ -81,12 +87,14 @@ class BottomNavBar extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(
-                        Icons.restaurant_menu,
-                        size: 22,
-                        color: currentIndex == 1
-                            ? const Color(0xFF4C4EDB)
-                            : const Color(0xFF676767),
+                      SvgPicture.asset(
+                        'assets/icon/salad.svg',
+                        width: 22,
+                        height: 22,
+                        colorFilter: ColorFilter.mode(
+                          currentIndex == 1 ? activeColor : inactiveColor,
+                          BlendMode.srcIn,
+                        ),
                       ),
                       const SizedBox(height: 3),
                       Text(
@@ -94,8 +102,8 @@ class BottomNavBar extends StatelessWidget {
                         style: TextStyle(
                             fontSize: 12,
                             color: currentIndex == 1
-                                ? const Color(0xFF4C4EDB)
-                                : const Color(0xFF676767)),
+                                ? activeColor
+                                : inactiveColor),
                       )
                     ],
                   ),
