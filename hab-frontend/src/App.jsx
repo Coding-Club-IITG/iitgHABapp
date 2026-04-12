@@ -11,6 +11,7 @@ import MessChangePage from "./pages/MessChangePage.jsx";
 import GalaDinnerPage from "./pages/GalaDinnerPage.jsx";
 import GalaDinnerDetailPage from "./pages/GalaDinnerDetailPage.jsx";
 import Notifications from "./pages/Notifications.jsx";
+import BillsPage from "./pages/BillsPage.jsx";
 import CreateMess from "./components/CreateMess";
 import MessDetails from "./components/MessDetails";
 import MessMenu from "./components/MessMenu";
@@ -32,9 +33,8 @@ function App() {
           position: "sticky",
           top: "24px",
         }}
-        className={`bg-white border border-gray-100 rounded-lg shadow-sm p-3 flex flex-col transition-all duration-200 ${
-          collapsed ? "w-16" : "w-72"
-        }`}
+        className={`bg-white border border-gray-100 rounded-lg shadow-sm p-3 flex flex-col transition-all duration-200 ${collapsed ? "w-16" : "w-72"
+          }`}
       >
         <Sidebar
           collapsed={collapsed}
@@ -82,6 +82,10 @@ function App() {
                           <Route
                             path="/gala-dinner"
                             element={<GalaDinnerPage />}
+                          />
+                          <Route
+                            path="/bills"
+                            element={<BillsPage />}
                           />
                           <Route
                             path="/gala-dinner/:galaDinnerId"

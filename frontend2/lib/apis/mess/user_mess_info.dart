@@ -2,6 +2,7 @@ import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:flutter/foundation.dart';
 import 'package:frontend2/constants/endpoint.dart';
+import 'package:frontend2/models/mess_info_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 
@@ -33,14 +34,17 @@ Future<void> getUserMessInfo() async {
       final String messID = userData['_id']?.toString() ?? "Not found";
       final String messName = userData['name']?.toString() ?? "Not found";
       final String hostelID = userData['hostelId']?.toString() ?? "Not found";
-      final int rating = (userData['rating'] as num?)?.toInt() ?? 0;
+      final double rating = truncateToTwoDecimals(userData['rating'] as num?);
       final int ranking = (userData['ranking'] as num?)?.toInt() ?? 0;
+      final double feedbackPercentage =
+          truncateToTwoDecimals(userData['feedbackPercentage'] as num?);
 
       prefs.setString('messID', messID);
       prefs.setString('messName', messName);
       prefs.setString('hostelID', hostelID);
-      prefs.setInt('rating', rating);
+      prefs.setDouble('rating', rating);
       prefs.setInt('ranking', ranking);
+      prefs.setDouble('feedbackPercentage', feedbackPercentage);
     }
   } catch (e) {
     if (kDebugMode) debugPrint('API Error in userMessInfo: $e');

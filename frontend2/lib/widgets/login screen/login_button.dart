@@ -6,20 +6,27 @@ class LoginButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return  Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          SvgPicture.asset('assets/fonts/microsoft.svg', height: 30),
-          const SizedBox(
-            width: 0,
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SvgPicture.asset(
+          'assets/fonts/microsoft.svg',
+          width: 24,
+          height: 24,
+        ),
+        const SizedBox(width: 16),
+        const Text(
+          'Sign in with Microsoft',
+          style: TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.w500,
+            fontSize: 14,
+            height: 20 / 14,
+            fontFamily: 'GeneralSans',
           ),
-          const Text(
-            'Sign in with Microsoft',
-            style: TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w500, fontSize: 14,fontFamily: 'GeneralSans'
-            ),
-          ),
-        ],
+        ),
+      ],
     );
   }
 }

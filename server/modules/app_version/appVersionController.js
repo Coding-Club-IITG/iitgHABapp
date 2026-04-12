@@ -1,5 +1,6 @@
-const fs = require("fs");
-const path = require("path");
+import fs from "fs";
+import path from "path";
+const __dirname = import.meta.dirname;
 
 // Common config files - same directory
 const mainConfigPath = path.join(__dirname, "./config/appVersion.json");
@@ -118,7 +119,7 @@ const saveRcVersionConfig = (config) => {
 /**
  * Get version info for a specific platform (returns both v1 and v2)
  */
-const getVersionInfo = (req, res) => {
+export const getVersionInfo = (req, res) => {
   try {
     const { platform } = req.params;
 
@@ -162,7 +163,7 @@ const getVersionInfo = (req, res) => {
 /**
  * Update version info for a specific platform (Admin only)
  */
-const updateVersionInfo = (req, res) => {
+export const updateVersionInfo = (req, res) => {
   try {
     const { platform } = req.params;
     const { minVersionv1, minVersionv2, storeUrl, updateMessage } = req.body;
@@ -207,7 +208,7 @@ const updateVersionInfo = (req, res) => {
 /**
  * Get all version info
  */
-const getAllVersionInfo = (req, res) => {
+export const getAllVersionInfo = (req, res) => {
   try {
     const config = getVersionConfig();
     return res.status(200).json({
@@ -227,7 +228,7 @@ const getAllVersionInfo = (req, res) => {
 /**
  * Get HABit HQ version info (Android only)
  */
-const getHqVersionInfo = (req, res) => {
+export const getHqVersionInfo = (req, res) => {
   try {
     const { platform } = req.params;
     if (platform.toLowerCase() !== "android") {
@@ -265,7 +266,7 @@ const getHqVersionInfo = (req, res) => {
 /**
  * Update HABit HQ version info (Android only, admin)
  */
-const updateHqVersionInfo = (req, res) => {
+export const updateHqVersionInfo = (req, res) => {
   try {
     const { platform } = req.params;
     if (platform.toLowerCase() !== "android") {
@@ -311,7 +312,7 @@ const updateHqVersionInfo = (req, res) => {
 /**
  * Get all HABit HQ version info
  */
-const getAllHqVersionInfo = (req, res) => {
+export const getAllHqVersionInfo = (req, res) => {
   try {
     const config = getHqVersionConfig();
     return res.status(200).json({
@@ -331,7 +332,7 @@ const getAllHqVersionInfo = (req, res) => {
 /**
  * Get HABit RC version info (Android only)
  */
-const getRcVersionInfo = (req, res) => {
+export const getRcVersionInfo = (req, res) => {
   try {
     const { platform } = req.params;
     if (platform.toLowerCase() !== "android") {
@@ -369,7 +370,7 @@ const getRcVersionInfo = (req, res) => {
 /**
  * Update HABit RC version info (Android only, admin)
  */
-const updateRcVersionInfo = (req, res) => {
+export const updateRcVersionInfo = (req, res) => {
   try {
     const { platform } = req.params;
     if (platform.toLowerCase() !== "android") {
@@ -415,7 +416,7 @@ const updateRcVersionInfo = (req, res) => {
 /**
  * Get all HABit RC version info
  */
-const getAllRcVersionInfo = (req, res) => {
+export const getAllRcVersionInfo = (req, res) => {
   try {
     const config = getRcVersionConfig();
     return res.status(200).json({
@@ -430,16 +431,4 @@ const getAllRcVersionInfo = (req, res) => {
       error: error.message,
     });
   }
-};
-
-module.exports = {
-  getVersionInfo,
-  updateVersionInfo,
-  getAllVersionInfo,
-  getHqVersionInfo,
-  updateHqVersionInfo,
-  getAllHqVersionInfo,
-  getRcVersionInfo,
-  updateRcVersionInfo,
-  getAllRcVersionInfo,
 };

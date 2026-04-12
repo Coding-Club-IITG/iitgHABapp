@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const messChangeSchema = new mongoose.Schema({
   userName: {
@@ -46,6 +46,4 @@ messChangeSchema.pre("save", function (next) {
   next();
 });
 
-const MessChange = mongoose.model("MessChange", messChangeSchema);
-
-module.exports = { MessChange };
+export const MessChange = mongoose.model("MessChange", messChangeSchema);

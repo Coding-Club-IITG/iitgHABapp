@@ -1,16 +1,17 @@
-const redisClient = require("../../utils/redisClient.js");
-const bcrypt = require("bcrypt");
-const { User } = require("../user/userModel.js");
-const { Hostel } = require("./hostelModel.js");
-const { Mess } = require("../mess/messModel.js");
-const UserAllocHostel = require("./hostelAllocModel.js");
-const { MessClosure } = require("./messClosureModel.js");
-const { getCurrentDate } = require("../../utils/date.js");
+import bcrypt from "bcrypt";
 
+import { User } from "../user/userModel.js";
+import { Hostel } from "./hostelModel.js";
+import { MessClosure } from "./messClosureModel.js";
 
+import { getCurrentDate } from "../../utils/date.js";
+import {
+  populateCurrSubscribedMess,
+  subscribedMessDisplayName,
+} from "../../utils/subscribedMessDisplay.js";
+import redisClient from "../../utils/redisClient.js";
 
-
-const createHostel = async (req, res) => {
+export const createHostel = async (req, res) => {
   try {
     const {
       hostel_name,
@@ -65,7 +66,7 @@ const createHostel = async (req, res) => {
  * HAB: Set or update the password for a hostel (encrypted with bcrypt).
  * Body: { hostelId, password }
  */
-const setHostelPassword = async (req, res) => {
+export const setHostelPassword = async (req, res) => {
   try {
     const { hostelId, password } = req.body;
 
@@ -100,7 +101,7 @@ const setHostelPassword = async (req, res) => {
   }
 };
 
-const getHostel = async (req, res) => {
+export const getHostel = async (req, res) => {
   try {
     // Fetch the hostel with populated messId
     const cacheKey = `hostel_${req.hostel._id}`;
@@ -108,9 +109,11 @@ const getHostel = async (req, res) => {
     if (cachedHostel) {
       return res.json({ hostel: JSON.parse(cachedHostel) });
     }
-    const hostel = await Hostel.findById(req.hostel._id).populate("messId").lean();
+    const hostel = await Hostel.findById(req.hostel._id)
+      .populate("messId")
+      .lean();
     // Cache the hostel data for 1 hour
-    await redisClient.set(cacheKey, JSON.stringify(hostel), 'EX', 3600);
+    await redisClient.set(cacheKey, JSON.stringify(hostel), "EX", 3600);
     return res.json({ hostel });
   } catch (err) {
     console.log(err);
@@ -118,7 +121,7 @@ const getHostel = async (req, res) => {
   }
 };
 
-const getAllHostels = async (req, res) => {
+export const getAllHostels = async (req, res) => {
   try {
     const cacheKey = "all_hostels";
 
@@ -137,7 +140,8 @@ const getAllHostels = async (req, res) => {
     const hostels = await Hostel.find().select("-managerPasswordHash").lean();
 
     try {
-      if (redisClient) await redisClient.set(cacheKey, JSON.stringify(hostels), 'EX', 3600);
+      if (redisClient)
+        await redisClient.set(cacheKey, JSON.stringify(hostels), "EX", 3600);
     } catch (redisErr) {
       console.error("Redis set error:", redisErr);
     }
@@ -149,24 +153,29 @@ const getAllHostels = async (req, res) => {
   }
 };
 
-const getAllHostelsWithMess = async (req, res) => {
+export const getAllHostelsWithMess = async (req, res) => {
   try {
     const cacheKey = "all_hostels_with_mess";
 
     try {
       if (redisClient) {
         const cachedHostels = await redisClient.get(cacheKey);
-        if (cachedHostels) return res.json({ hostels: JSON.parse(cachedHostels) });
+        if (cachedHostels)
+          return res.json({ hostels: JSON.parse(cachedHostels) });
       }
     } catch (redisErr) {
       console.error("Redis get error:", redisErr);
     }
 
     // CRITICAL FIX: Exclude the password hash!
-    const hostels = await Hostel.find().populate("messId").select("-managerPasswordHash").lean();
+    const hostels = await Hostel.find()
+      .populate("messId")
+      .select("-managerPasswordHash")
+      .lean();
 
     try {
-      if (redisClient) await redisClient.set(cacheKey, JSON.stringify(hostels), 'EX', 3600);
+      if (redisClient)
+        await redisClient.set(cacheKey, JSON.stringify(hostels), "EX", 3600);
     } catch (redisErr) {
       console.error("Redis set error:", redisErr);
     }
@@ -178,27 +187,31 @@ const getAllHostelsWithMess = async (req, res) => {
   }
 };
 
-const getHostelbyId = async (req, res) => {
+export const getHostelbyId = async (req, res) => {
   const { hostelId } = req.params;
   try {
     // Safe pagination parsing to prevent NaN or negative skip values
     let page = parseInt(req.query.page, 10);
     let limit = parseInt(req.query.limit, 10);
-    
-    page = (!isNaN(page) && page > 0) ? page : 1;
-    limit = (!isNaN(limit) && limit > 0) ? limit : 50;
-    
+
+    page = !isNaN(page) && page > 0 ? page : 1;
+    limit = !isNaN(limit) && limit > 0 ? limit : 50;
+
     const skip = (page - 1) * limit;
 
     const cacheKey = `hostel_by_id_${hostelId}_pg${page}_limit${limit}`;
     const cachedData = await redisClient.get(cacheKey);
     if (cachedData) {
-      return res.status(200).json({ message: "Hostel found", hostel: JSON.parse(cachedData) });
+      return res
+        .status(200)
+        .json({ message: "Hostel found", hostel: JSON.parse(cachedData) });
     }
 
     const usersQuery = User.find({ hostel: hostelId })
-      .select("name rollNumber email roomNumber phoneNumber degree curr_subscribed_mess")
-      .populate("curr_subscribed_mess", "hostel_name")
+      .select(
+        "name rollNumber email roomNumber phoneNumber degree curr_subscribed_mess",
+      )
+      .populate(populateCurrSubscribedMess)
       .sort({ rollNumber: 1 });
 
     if (limit > 0) {
@@ -208,7 +221,7 @@ const getHostelbyId = async (req, res) => {
     const [hostel, users, totalUsersCount] = await Promise.all([
       Hostel.findById(hostelId).populate("messId", "name").lean(),
       usersQuery.lean(),
-      User.countDocuments({ hostel: hostelId })
+      User.countDocuments({ hostel: hostelId }),
     ]);
 
     if (!hostel) {
@@ -226,7 +239,8 @@ const getHostelbyId = async (req, res) => {
         roomNumber: user.roomNumber || "N/A",
         phoneNumber: user.phoneNumber || "N/A",
         degree: user.degree,
-        curr_subscribed_mess_name: user.curr_subscribed_mess?.hostel_name || "N/A",
+        curr_subscribed_mess_name:
+          subscribedMessDisplayName(user.curr_subscribed_mess) || "N/A",
       },
     }));
     const hostelWithUsers = {
@@ -235,7 +249,12 @@ const getHostelbyId = async (req, res) => {
       users: formattedUsers,
     };
 
-    await redisClient.set(cacheKey, JSON.stringify(hostelWithUsers), 'EX', 3600);
+    await redisClient.set(
+      cacheKey,
+      JSON.stringify(hostelWithUsers),
+      "EX",
+      3600,
+    );
 
     return res
       .status(200)
@@ -248,7 +267,7 @@ const getHostelbyId = async (req, res) => {
 
 // Hostel deletion endpoint removed. Deleting hostels from the system is disallowed per new policy.
 
-const getAllHostelNameAndCaterer = async (req, res) => {
+export const getAllHostelNameAndCaterer = async (req, res) => {
   try {
     const cacheKey = "hostel_name_and_caterer";
     const cachedData = await redisClient.get(cacheKey);
@@ -256,33 +275,37 @@ const getAllHostelNameAndCaterer = async (req, res) => {
       return res.status(200).json(JSON.parse(cachedData));
     }
 
-    const hostelData = await Hostel.find(
-      {},
-      { hostel_name: 1, messId: 1 },
-    ).populate({
-      path: "messId",
-      select: "name -_id",
-    }).lean();
+    const hostelData = await Hostel.find({}, { hostel_name: 1, messId: 1 })
+      .populate({
+        path: "messId",
+        select: "name -_id",
+      })
+      .lean();
 
     // Use aggregation to group and count users per hostel in a single query
     const userCounts = await User.aggregate([
-      { $group: { _id: "$hostel", count: { $sum: 1 } } }
+      { $group: { _id: "$hostel", count: { $sum: 1 } } },
     ]);
 
     // Create a map for quick O(1) lookups in memory
     const countMap = {};
-    userCounts.forEach(item => {
+    userCounts.forEach((item) => {
       if (item._id) {
         countMap[item._id.toString()] = item.count;
       }
     });
 
-    const hostelDataWithUserCount = hostelData.map(hostel => ({
+    const hostelDataWithUserCount = hostelData.map((hostel) => ({
       ...hostel,
       user_count: countMap[hostel._id.toString()] || 0,
     }));
 
-    await redisClient.set(cacheKey, JSON.stringify(hostelDataWithUserCount), 'EX', 3600);
+    await redisClient.set(
+      cacheKey,
+      JSON.stringify(hostelDataWithUserCount),
+      "EX",
+      3600,
+    );
 
     res.status(200).json(hostelDataWithUserCount);
   } catch (err) {
@@ -291,14 +314,16 @@ const getAllHostelNameAndCaterer = async (req, res) => {
 };
 
 // Get caterer info for the logged-in hostel
-const getCatererInfo = async (req, res) => {
+export const getCatererInfo = async (req, res) => {
   try {
     const cacheKey = `hostel_${req.hostel._id}_caterer_info`;
     const cachedInfo = await redisClient.get(cacheKey);
     if (cachedInfo) {
       return res.json(JSON.parse(cachedInfo));
     }
-    const hostel = await Hostel.findById(req.hostel._id).populate("messId").lean();
+    const hostel = await Hostel.findById(req.hostel._id)
+      .populate("messId")
+      .lean();
     if (!hostel || !hostel.messId) {
       return res
         .status(404)
@@ -311,7 +336,12 @@ const getCatererInfo = async (req, res) => {
       catererName: mess.name,
       hostelName: hostel.hostel_name,
     };
-    await redisClient.set(cacheKey, JSON.stringify(responsePayload), 'EX', 3600);
+    await redisClient.set(
+      cacheKey,
+      JSON.stringify(responsePayload),
+      "EX",
+      3600,
+    );
     return res.status(200).json(responsePayload);
   } catch (err) {
     console.log(err);
@@ -320,16 +350,16 @@ const getCatererInfo = async (req, res) => {
 };
 
 // Get boarders (users in this hostel) with room numbers
-const getBoarders = async (req, res) => {
+export const getBoarders = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
     // Safe pagination parsing to prevent NaN or negative skip values
     let page = parseInt(req.query.page, 10);
     let limit = parseInt(req.query.limit, 10);
-    
-    page = (!isNaN(page) && page > 0) ? page : 1;
-    limit = (!isNaN(limit) && limit > 0) ? limit : 50;
-    
+
+    page = !isNaN(page) && page > 0 ? page : 1;
+    limit = !isNaN(limit) && limit > 0 ? limit : 50;
+
     const skip = (page - 1) * limit;
 
     const cacheKey = `hostel_${hostelId}_boarders_pg${page}_limit${limit}`;
@@ -348,7 +378,7 @@ const getBoarders = async (req, res) => {
 
     const [boarders, totalCount] = await Promise.all([
       boardersQuery.lean(),
-      User.countDocuments({ hostel: hostelId })
+      User.countDocuments({ hostel: hostelId }),
     ]);
 
     const responsePayload = {
@@ -365,7 +395,12 @@ const getBoarders = async (req, res) => {
       })),
     };
 
-    await redisClient.set(cacheKey, JSON.stringify(responsePayload), 'EX', 3600);
+    await redisClient.set(
+      cacheKey,
+      JSON.stringify(responsePayload),
+      "EX",
+      3600,
+    );
     return res.status(200).json(responsePayload);
   } catch (err) {
     console.log(err);
@@ -374,7 +409,7 @@ const getBoarders = async (req, res) => {
 };
 
 // Helper function to format and sort mess subscribers
-const formatMessSubscribers = (subscribers, hostelId) => {
+export const formatMessSubscribers = (subscribers, hostelId) => {
   const subscribersList = subscribers.map((sub) => {
     const isDifferentHostel =
       sub.hostel && sub.hostel._id.toString() !== hostelId.toString();
@@ -387,9 +422,8 @@ const formatMessSubscribers = (subscribers, hostelId) => {
       phoneNumber: sub.phoneNumber || "N/A",
       roomNumber: sub.roomNumber || "N/A",
       currentHostel: sub.hostel ? sub.hostel.hostel_name : "N/A",
-      currentSubscribedMess: sub.curr_subscribed_mess
-        ? sub.curr_subscribed_mess.hostel_name
-        : "N/A",
+      currentSubscribedMess:
+        subscribedMessDisplayName(sub.curr_subscribed_mess) || "N/A",
       isDifferentHostel: isDifferentHostel,
     };
   });
@@ -406,16 +440,16 @@ const formatMessSubscribers = (subscribers, hostelId) => {
 };
 
 // Get mess subscribers with their current hostel (highlight if different)
-const getMessSubscribers = async (req, res) => {
+export const getMessSubscribers = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
     // Safe pagination parsing to prevent NaN or negative skip values
     let page = parseInt(req.query.page, 10);
     let limit = parseInt(req.query.limit, 10);
-    
-    page = (!isNaN(page) && page > 0) ? page : 1;
-    limit = (!isNaN(limit) && limit > 0) ? limit : 50;
-    
+
+    page = !isNaN(page) && page > 0 ? page : 1;
+    limit = !isNaN(limit) && limit > 0 ? limit : 50;
+
     const skip = (page - 1) * limit;
 
     const cacheKey = `hostel_${hostelId}_mess_subscribers_pg${page}_limit${limit}`;
@@ -430,7 +464,7 @@ const getMessSubscribers = async (req, res) => {
         "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
       )
       .populate("hostel", "hostel_name")
-      .populate("curr_subscribed_mess", "hostel_name")
+      .populate(populateCurrSubscribedMess)
       .sort({ rollNumber: 1 });
 
     if (limit > 0) {
@@ -439,7 +473,7 @@ const getMessSubscribers = async (req, res) => {
 
     const [subscribers, totalCount] = await Promise.all([
       subscribersQuery.lean(),
-      User.countDocuments({ curr_subscribed_mess: hostelId })
+      User.countDocuments({ curr_subscribed_mess: hostelId }),
     ]);
 
     const subscribersList = formatMessSubscribers(subscribers, hostelId);
@@ -450,7 +484,12 @@ const getMessSubscribers = async (req, res) => {
       subscribers: subscribersList,
     };
 
-    await redisClient.set(cacheKey, JSON.stringify(responsePayload), 'EX', 3600);
+    await redisClient.set(
+      cacheKey,
+      JSON.stringify(responsePayload),
+      "EX",
+      3600,
+    );
     return res.status(200).json(responsePayload);
   } catch (err) {
     console.log(err);
@@ -459,7 +498,7 @@ const getMessSubscribers = async (req, res) => {
 };
 
 // Public variant: get mess subscribers by hostelId param
-const getMessSubscribersByHostelId = async (req, res) => {
+export const getMessSubscribersByHostelId = async (req, res) => {
   try {
     const { hostelId } = req.params;
     if (!hostelId) {
@@ -481,7 +520,7 @@ const getMessSubscribersByHostelId = async (req, res) => {
         "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
       )
       .populate("hostel", "hostel_name")
-      .populate("curr_subscribed_mess", "hostel_name")
+      .populate(populateCurrSubscribedMess)
       .sort({ rollNumber: 1 });
 
     if (limit > 0) {
@@ -490,7 +529,7 @@ const getMessSubscribersByHostelId = async (req, res) => {
 
     const [subscribers, totalCount] = await Promise.all([
       subscribersQuery.lean(),
-      User.countDocuments({ curr_subscribed_mess: hostelId })
+      User.countDocuments({ curr_subscribed_mess: hostelId }),
     ]);
 
     const subscribersList = formatMessSubscribers(subscribers, hostelId);
@@ -501,7 +540,12 @@ const getMessSubscribersByHostelId = async (req, res) => {
       subscribers: subscribersList,
     };
 
-    await redisClient.set(cacheKey, JSON.stringify(responsePayload), 'EX', 3600);
+    await redisClient.set(
+      cacheKey,
+      JSON.stringify(responsePayload),
+      "EX",
+      3600,
+    );
     return res.status(200).json(responsePayload);
   } catch (err) {
     console.log(err);
@@ -510,7 +554,7 @@ const getMessSubscribersByHostelId = async (req, res) => {
 };
 
 // Mark user as SMC member
-const markAsSMC = async (req, res) => {
+export const markAsSMC = async (req, res) => {
   try {
     const { userId } = req.body;
     const hostelId = req.hostel._id;
@@ -553,7 +597,7 @@ const markAsSMC = async (req, res) => {
 };
 
 // Unmark user as SMC member
-const unmarkAsSMC = async (req, res) => {
+export const unmarkAsSMC = async (req, res) => {
   try {
     const { userId } = req.body;
     const hostelId = req.hostel._id;
@@ -596,7 +640,7 @@ const unmarkAsSMC = async (req, res) => {
 };
 
 // Get SMC members for this hostel
-const getSMCMembers = async (req, res) => {
+export const getSMCMembers = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
     const cacheKey = `hostel_${hostelId}_smc_members`;
@@ -630,7 +674,13 @@ const getSMCMembers = async (req, res) => {
     };
 
     try {
-      if (redisClient) await redisClient.set(cacheKey, JSON.stringify(responsePayload), 'EX', 3600);
+      if (redisClient)
+        await redisClient.set(
+          cacheKey,
+          JSON.stringify(responsePayload),
+          "EX",
+          3600,
+        );
     } catch (redisErr) {
       console.error("Redis error:", redisErr);
     }
@@ -643,7 +693,7 @@ const getSMCMembers = async (req, res) => {
 };
 
 // Set the closure date for the current month
-const finalizeMessClosure = async (req, res) => {
+export const finalizeMessClosure = async (req, res) => {
   try {
     const { date } = req.body; // Expecting YYYY-MM-DD
     const hostelId = req.hostel._id;
@@ -673,7 +723,7 @@ const finalizeMessClosure = async (req, res) => {
 };
 
 // Get the current closure date for the hostel
-const getMessClosureDate = async (req, res) => {
+export const getMessClosureDate = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
     const officialDate = new Date(getCurrentDate());
@@ -694,21 +744,109 @@ const getMessClosureDate = async (req, res) => {
   }
 };
 
-module.exports = {
-  createHostel,
-  getHostel,
-  getAllHostels,
-  getAllHostelsWithMess,
-  getHostelbyId,
-  getAllHostelNameAndCaterer,
-  getCatererInfo,
-  getBoarders,
-  getMessSubscribers,
-  getMessSubscribersByHostelId,
-  markAsSMC,
-  unmarkAsSMC,
-  getSMCMembers,
-  finalizeMessClosure,
-  getMessClosureDate,
-  setHostelPassword,
+export const getHMCMembers = async (req, res) => {
+  try {
+    let hostelId;
+    if (req.hostel) {
+      hostelId = req.hostel._id;
+    } else if (req.user && req.user.hostel) {
+      hostelId = req.user.hostel;
+    } else {
+      return res.status(400).json({ message: "Hostel not found" });
+    }
+
+    const cacheKey = `hostel_${hostelId}_hmc_members`;
+
+    try {
+      if (redisClient) {
+        const cachedData = await redisClient.get(cacheKey);
+        if (cachedData) return res.status(200).json(JSON.parse(cachedData));
+      }
+    } catch (redisErr) {
+      console.error("Redis error:", redisErr);
+    }
+
+    const hostel = await Hostel.findById(hostelId)
+      .populate(
+        "hmcMembers.user",
+        "name email phoneNumber profilePictureUrl rollNumber roomNumber",
+      )
+      .lean();
+
+    if (!hostel) {
+      return res.status(404).json({ message: "Hostel not found" });
+    }
+
+    const responsePayload = {
+      count: hostel.hmcMembers?.length || 0,
+      hmcMembers: hostel.hmcMembers || [],
+    };
+
+    try {
+      if (redisClient)
+        await redisClient.set(
+          cacheKey,
+          JSON.stringify(responsePayload),
+          "EX",
+          3600,
+        );
+    } catch (redisErr) {
+      console.error("Redis error:", redisErr);
+    }
+
+    return res.status(200).json(responsePayload);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Error fetching HMC members" });
+  }
+};
+
+export const setHMCMembers = async (req, res) => {
+  try {
+    const hostelId = req.hostel._id;
+    const { hmcMembers } = req.body;
+
+    if (!Array.isArray(hmcMembers)) {
+      return res.status(400).json({ message: "hmcMembers must be an array" });
+    }
+
+    if (hmcMembers.length > 0) {
+      const userIds = hmcMembers.map((m) => m.user);
+      const users = await User.find({ _id: { $in: userIds } });
+
+      if (users.length !== userIds.length) {
+        return res
+          .status(400)
+          .json({ message: "One or more user IDs are invalid" });
+      }
+
+      for (const user of users) {
+        if (!user.hostel || user.hostel.toString() !== hostelId.toString()) {
+          return res.status(403).json({
+            message: `User ${user.name || user._id} does not belong to this hostel`,
+          });
+        }
+      }
+    }
+
+    const hostel = await Hostel.findByIdAndUpdate(
+      hostelId,
+      { hmcMembers },
+      { new: true },
+    ).populate(
+      "hmcMembers.user",
+      "name email phoneNumber profilePictureUrl rollNumber roomNumber",
+    );
+
+    await redisClient.del(`hostel_${hostelId}_hmc_members`);
+
+    return res.status(200).json({
+      message: "HMC members updated successfully",
+      count: hostel.hmcMembers?.length || 0,
+      hmcMembers: hostel.hmcMembers || [],
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ message: "Error updating HMC members" });
+  }
 };

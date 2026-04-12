@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 // Single collection for all room-cleaning bookings.
 // Fields are derived from ROOM_CLEANING_FLOW.md.
@@ -100,10 +100,7 @@ roomCleaningBookingSchema.index(
   },
 );
 
-const RoomCleaningBooking = mongoose.model(
+export const RoomCleaningBooking = mongoose.model(
   "RoomCleaningBooking",
   roomCleaningBookingSchema,
 );
-
-module.exports = { RoomCleaningBooking };
-

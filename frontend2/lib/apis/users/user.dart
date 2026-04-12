@@ -109,6 +109,7 @@ Future<Map<String, String>?> fetchUserDetails() async {
         prefs.setBool("isSetupDone", isSetupDone);
         ProfilePictureProvider.isSetupDone.value = isSetupDone;
       }
+      await fetchUserProfilePicture();
 
       // Only store email if it exists (null for Apple-only users without Microsoft linked)
       if (mail != null) {

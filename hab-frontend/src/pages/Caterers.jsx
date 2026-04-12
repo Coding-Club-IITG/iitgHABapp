@@ -814,17 +814,17 @@ export default function Caterers() {
         </div>
       )}
       <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
-        {/* Header card restored with white background and subtle border to match other frontends */}
         <div
           style={{
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
             backgroundColor: "#fff",
-            padding: "24px",
+            padding: "16px 24px",
             borderRadius: "8px",
             border: "1px solid #e5e7eb",
             marginBottom: "24px",
+            boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           }}
         >
           <Title level={2} style={{ margin: 0 }}>

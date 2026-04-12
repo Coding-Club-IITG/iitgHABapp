@@ -1,18 +1,19 @@
+import fs from "fs";
+import path from "path";
+const __dirname = import.meta.dirname;
+import mongoose from "mongoose";
+
+import { User } from "../modules/user/userModel.js";
+import { Hostel } from "../modules/hostel/hostelModel.js";
+
+import { mongodbUri } from "../config/default.js";
+
 // Run before Mess Change processing to test
-
-const mongoose = require("mongoose");
-const fs = require("fs");
-const path = require("path");
-const dotenv = require("dotenv");
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
-
-const { User } = require("../modules/user/userModel.js");
-const { Hostel } = require("../modules/hostel/hostelModel.js");
 
 async function exportCSV() {
   try {
     console.log("Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(mongodbUri);
     console.log("Connected successfully.");
 
     // Fetch hostels to map IDs to names

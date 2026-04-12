@@ -15,7 +15,7 @@ import 'package:frontend2/providers/notifications.dart';
 import 'package:frontend2/providers/room_cleaning_provider.dart';
 import 'package:frontend2/screens/laundry/laundry_screen.dart';
 import 'package:frontend2/screens/notification.dart';
-import 'package:frontend2/screens/profile_screen.dart';
+import 'package:frontend2/screens/account_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
@@ -878,7 +878,7 @@ class _HomeScreenState extends State<HomeScreen>
       onTap: () {
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const ProfileScreen()),
+          MaterialPageRoute(builder: (context) => const AccountScreen()),
         );
       },
       child: ValueListenableBuilder<String>(
@@ -888,7 +888,7 @@ class _HomeScreenState extends State<HomeScreen>
             width: 48,
             height: 48,
             decoration: const BoxDecoration(
-              color: const Color(0xFFC9D4DE),
+              color: Color(0xFFC9D4DE),
               shape: BoxShape.circle,
             ),
             clipBehavior: Clip.antiAlias,

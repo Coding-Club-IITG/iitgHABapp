@@ -8,7 +8,7 @@ import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/screens/gala_dinner_screen.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/mess_preference.dart';
-import 'package:frontend2/screens/profile_screen.dart';
+import 'package:frontend2/screens/account_screen.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/bottom_nav_bar.dart';
 import 'package:provider/provider.dart';
@@ -168,7 +168,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen>
           case 'profile_screen':
             navigator.push(
               MaterialPageRoute(
-                builder: (context) => const ProfileScreen(),
+                builder: (context) => const AccountScreen(),
               ),
             );
             break;

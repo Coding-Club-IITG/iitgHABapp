@@ -1,8 +1,11 @@
-const { User } = require("../modules/user/userModel.js");
-const { Hostel } = require("../modules/hostel/hostelModel.js");
-const AppError = require("../utils/appError.js");
-const jwt = require("jsonwebtoken");
-const redisClient = require("../utils/redisClient.js");
+import jwt from "jsonwebtoken";
+
+import { User } from "../modules/user/userModel.js";
+import { Hostel } from "../modules/hostel/hostelModel.js";
+
+import redisClient from "../utils/redisClient.js";
+import AppError from "../utils/appError.js";
+import { adminJwtSecret } from "../config/default.js";
 
 const extractAndCheckToken = async (req) => {
   let token = req.cookies?.token;
@@ -45,14 +48,15 @@ function auth(Schema, param) {
   };
 }
 
-const authenticateJWT = auth(User, "user");
-const authenticateAdminJWT = auth(Hostel, "hostel");
+export const authenticateJWT = auth(User, "user");
+export const authenticateAdminJWT = auth(Hostel, "hostel");
 
-const authenticateUserOrAdminJWT = async (req, res, next) => {
+export const authenticateUserOrAdminJWT = async (req, res, next) => {
   try {
     const token = await extractAndCheckToken(req);
     let lastError = null;
 
+    // First, try to treat the token as a normal user token
     try {
       const user = await User.findByAccessToken(token);
       if (user) {
@@ -63,9 +67,12 @@ const authenticateUserOrAdminJWT = async (req, res, next) => {
       if (err.name === "TokenExpiredError") {
         return next(new AppError(401, "Access token expired"));
       }
+      // For non-expiry JWT errors (e.g. invalid signature), fall through to
+      // try hostel token verification instead of immediately returning 500.
       lastError = err;
     }
 
+    // If not a valid user token, try to treat it as a hostel (admin) token
     try {
       const hostel = await Hostel.findByAccessToken(token);
       if (hostel) {
@@ -79,17 +86,22 @@ const authenticateUserOrAdminJWT = async (req, res, next) => {
       lastError = err;
     }
 
-    if (lastError) console.error("Error verifying token:", lastError);
+    if (lastError) {
+      console.error("Error verifying token:", lastError);
+    }
+
     return next(new AppError(403, "Not Authenticated"));
   } catch (err) {
-    return next(err);
+    if (err instanceof AppError) return next(err);
+    console.error("Error verifying token:", err);
+    return next(new AppError(500, "Server error during authentication"));
   }
 };
 
-const authenticateHabJWT = async (req, res, next) => {
+export const authenticateHabJWT = async (req, res, next) => {
   try {
     const token = await extractAndCheckToken(req);
-    const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
+    const decoded = jwt.verify(token, adminJwtSecret);
     if (!decoded?.hab) return next(new AppError(403, "Not Authenticated"));
 
     req.hab = decoded;
@@ -104,7 +116,7 @@ const authenticateHabJWT = async (req, res, next) => {
 // Dedicated middleware for HABit HQ
 // Validates a hostel JWT (same token as hostel frontend)
 // and attaches hostel document as `req.managerHostel`
-const authenticateMessManagerJWT = async (req, res, next) => {
+export const authenticateMessManagerJWT = async (req, res, next) => {
   try {
     const token = await extractAndCheckToken(req);
     const hostel = await Hostel.findByAccessToken(token);
@@ -119,13 +131,13 @@ const authenticateMessManagerJWT = async (req, res, next) => {
   }
 };
 
-const authenticateHabOrSMCJWT = async (req, res, next) => {
+export const authenticateHabOrSMCJWT = async (req, res, next) => {
   try {
     const token = await extractAndCheckToken(req);
     let lastError = null;
 
     try {
-      const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
+      const decoded = jwt.verify(token, adminJwtSecret);
       if (decoded?.hab) {
         req.hab = decoded;
         return next();
@@ -155,13 +167,4 @@ const authenticateHabOrSMCJWT = async (req, res, next) => {
   } catch (err) {
     return next(err);
   }
-};
-
-module.exports = {
-  authenticateJWT,
-  authenticateAdminJWT,
-  authenticateUserOrAdminJWT,
-  authenticateHabJWT,
-  authenticateMessManagerJWT,
-  authenticateHabOrSMCJWT,
 };

@@ -8,7 +8,12 @@
  */
 function installProcessHandlers() {
   process.on("unhandledRejection", (reason, promise) => {
-    console.error("[CRASH PREVENTION] Unhandled Rejection at:", promise, "reason:", reason);
+    console.error(
+      "[CRASH PREVENTION] Unhandled Rejection at:",
+      promise,
+      "reason:",
+      reason,
+    );
     // Don't exit - let the process keep running. Fix the code that caused this.
   });
 
@@ -19,4 +24,4 @@ function installProcessHandlers() {
   });
 }
 
-module.exports = { installProcessHandlers };
+export { installProcessHandlers };

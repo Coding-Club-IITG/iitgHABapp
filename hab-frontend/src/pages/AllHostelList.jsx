@@ -125,7 +125,7 @@ export default function AllHostelList() {
             justifyContent: "space-between",
             alignItems: "center",
             backgroundColor: "#fff",
-            padding: "24px",
+            padding: "16px 24px",
             borderRadius: "8px",
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
             marginBottom: "24px",

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const ratingOptions = ["Very Poor", "Poor", "Average", "Good", "Very Good"];
 
@@ -62,4 +62,4 @@ feedbackSchema.index({ feedbackWindowNumber: 1, caterer: 1 });
 
 const Feedback = mongoose.model("Feedback", feedbackSchema);
 
-module.exports = Feedback;
+export default Feedback;

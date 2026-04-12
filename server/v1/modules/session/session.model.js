@@ -1,5 +1,5 @@
-const mongoose = require("mongoose");
-const crypto = require("crypto");
+import mongoose from "mongoose";
+import crypto from "crypto";
 
 const sessionSchema = new mongoose.Schema({
   user: {
@@ -49,4 +49,4 @@ sessionSchema.pre("save", function (next) {
   next();
 });
 
-module.exports = mongoose.model("Session", sessionSchema);
+export default mongoose.model("Session", sessionSchema);

@@ -1,16 +1,17 @@
-const express = require("express");
+import express from "express";
 
-const {
+import {
   statsByDate,
   getTotalScanLogsCount,
   getManagerTodaySummary,
   // createLogs,
   // deleteall
-} = require("./ScanLogsController");
-const {
+} from "./ScanLogsController.js";
+
+import {
   authenticateHabJWT,
   authenticateMessManagerJWT,
-} = require("../../middleware/authenticateJWT");
+} from "../../middleware/authenticateJWT.js";
 
 const scanLogsRouter = express.Router();
 
@@ -25,4 +26,4 @@ scanLogsRouter.get(
 // scanLogsRouter.post("/make", createLogs)
 // scanLogsRouter.delete("/delete", deleteall)
 
-module.exports = scanLogsRouter;
+export default scanLogsRouter;
