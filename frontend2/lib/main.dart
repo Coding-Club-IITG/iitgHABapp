@@ -18,6 +18,8 @@ import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/constants/themes.dart';
 import 'package:frontend2/utilities/startupitem.dart';
 import 'package:frontend2/utilities/version_checker.dart';
+import 'package:frontend2/services/festival_mode_service.dart';
+import 'package:hive_flutter/hive_flutter.dart';
 import 'package:provider/provider.dart';
 
 /// Material 3 tints surfaces from [ColorScheme.surfaceTint], which often reads as pink/purple on white.
@@ -87,8 +89,16 @@ ThemeData buildAppTheme() {
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Hive for local caching
+  await Hive.initFlutter();
+
+  // Initialize Firebase
   await Firebase.initializeApp();
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+  // Initialize Festival Mode Service
+  await FestivalModeService().initialize();
 
   // Phase 1: run while native splash is visible (single logo screen)
   await VersionChecker.init();

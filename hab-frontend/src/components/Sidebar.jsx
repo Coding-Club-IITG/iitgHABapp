@@ -12,6 +12,7 @@ import {
   BookOutlined,
   NotificationOutlined,
   GiftOutlined,
+  FileImageOutlined,
   ContainerOutlined,
 } from "@ant-design/icons";
 
@@ -46,6 +47,12 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       name: "Mess Bills",
       path: "/bills",
       icon: <ContainerOutlined />,
+    },
+    {
+      key: "9",
+      name: "Festival Mode",
+      path: "/festival-mode",
+      icon: <FileImageOutlined />,
     },
   ];
 
@@ -104,15 +111,15 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
 
       <div
         className={`mt-auto ${collapsed
-            ? "flex justify-center py-4 border-t border-gray-100"
-            : "px-3 py-3 border-t border-gray-100"
+          ? "flex justify-center py-4 border-t border-gray-100"
+          : "px-3 py-3 border-t border-gray-100"
           }`}
       >
         <button
           onClick={logout}
           className={`${collapsed
-              ? "w-10 h-10 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
-              : "w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-100 rounded-md py-2 text-sm transition-colors"
+            ? "w-10 h-10 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
+            : "w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-100 rounded-md py-2 text-sm transition-colors"
             }`}
         >
           <svg

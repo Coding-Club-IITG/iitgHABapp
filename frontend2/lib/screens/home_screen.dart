@@ -27,6 +27,8 @@ import 'package:frontend2/widgets/common/name_trimmer.dart';
 import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 // import 'package:frontend2/widgets/countdown.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
+import 'package:frontend2/widgets/festival_background_widget.dart';
+import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -64,7 +66,6 @@ class _HomeScreenState extends State<HomeScreen> {
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
-
   String name = '';
   String currSubscribedMess = '';
   String? token;
@@ -75,10 +76,22 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _scanQrStatusTimer;
   Timer? _weatherBackgroundTimer;
   WeatherBackgroundData _weatherBackground = WeatherBackgroundData.fallback();
-
+  late Future<FestivalModeData> _festivalFuture;
   @override
   void initState() {
     super.initState();
+    _festivalFuture = Future.value(FestivalModeData.disabled());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final data = await FestivalModeService()
+          .fetchFestivalMode(context: context)
+          .catchError((_) => FestivalModeData.disabled());
+      if (!mounted) return;
+      setState(() {
+        _festivalFuture = Future.value(data);
+      });
+      await _loadWeatherBackground();
+    });
     fetchUserData();
     fetchMessIdAndToken();
     _loadWeatherBackground();
@@ -137,11 +150,18 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  void _onRefreshRequested() {
+  Future<void> _onRefreshRequested() async {
     if (homeScreenRefreshNotifier.value) {
+      final data = await FestivalModeService()
+          .fetchFestivalMode(context: context)
+          .catchError((_) => FestivalModeData.disabled());
+      if (!mounted) return;
+      setState(() {
+        _festivalFuture = Future.value(data);
+      });
       fetchUserData();
       fetchMessIdAndToken();
-      _loadWeatherBackground();
+      await _loadWeatherBackground();
       homeScreenRefreshNotifier.value = false;
     }
   }
@@ -171,6 +191,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadWeatherBackground() async {
+    final festivalData =
+        await _festivalFuture.catchError((_) => FestivalModeData.disabled());
+    if (festivalData.isEnabled) return;
     WeatherBackgroundData nextBackground;
 
     if (_isWeatherBackgroundTesting) {
@@ -186,7 +209,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final hasChanged =
         nextBackground.assetPath != _weatherBackground.assetPath ||
             nextBackground.isDay != _weatherBackground.isDay ||
-            nextBackground.weatherGroup != _weatherBackground.weatherGroup;
+            nextBackground.weatherGroup != _weatherBackground.weatherGroup ||
+            nextBackground.backgroundVariant !=
+                _weatherBackground.backgroundVariant;
     if (!hasChanged) return;
 
     setState(() {
@@ -195,62 +220,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String getGreeting() {
-    // Check if it's raining first
     if (_weatherBackground.weatherGroup == 'rainy') {
-      return 'Happy Raining';
+      return "It's Rainy";
     }
 
-    // Check if we're in weekend period (7PM Friday to 10PM Sunday)
-    if (_isWeekendPeriod()) {
-      return 'Happy Weekend';
-    }
-
-    final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final sunriseUnix = _weatherBackground.sunriseUnix;
-    final sunsetUnix = _weatherBackground.sunsetUnix;
-
-    if (sunriseUnix != null && sunsetUnix != null && sunriseUnix < sunsetUnix) {
-      final noonUnix = sunriseUnix + ((sunsetUnix - sunriseUnix) ~/ 2);
-
-      // morning: sunrise to 12PM (solar noon)
-      if (nowUnix >= sunriseUnix && nowUnix < noonUnix) {
+    // Match hero image: same `backgroundVariant` as WeatherBackgroundService.
+    switch (_weatherBackground.backgroundVariant) {
+      case 'weekend':
+        return "It's the Weekend";
+      case 'morning':
         return 'Good Morning';
-      }
-      // afternoon: 12PM to sunset
-      if (nowUnix >= noonUnix && nowUnix < sunsetUnix) {
+      case 'afternoon':
         return 'Good Afternoon';
+      case 'evening':
+      default:
+        return 'Good Evening';
+    }
+  }
+
+  String _weatherHeroGreeting(bool hasAlerts) {
+    final festivalData = FestivalModeService().currentData;
+    if (festivalData != null && festivalData.isEnabled) {
+      if (hasAlerts && festivalData.overlayTextWithAlerts.isNotEmpty) {
+        return festivalData.overlayTextWithAlerts;
+      } else if (!hasAlerts &&
+          festivalData.overlayTextWithoutAlerts.isNotEmpty) {
+        return festivalData.overlayTextWithoutAlerts;
       }
-      // evening: sunset to sunrise
-      return 'Good Evening';
     }
-
-    // Fallback to hour-based logic
-    final hour = DateTime.now().hour;
-    if (hour < 6 || hour >= 18) return 'Good Evening';
-    if (hour < 12) return 'Good Morning';
-    return 'Good Afternoon';
-  }
-
-  bool _isWeekendPeriod() {
-    final now = DateTime.now();
-    final hour = now.hour;
-
-    // Friday (5): 7PM (19:00) onwards
-    if (now.weekday == DateTime.friday && hour >= 19) {
-      return true;
-    }
-    // Saturday (6): entire day
-    if (now.weekday == DateTime.saturday) {
-      return true;
-    }
-    // Sunday (7): up to 10PM (22:00)
-    if (now.weekday == DateTime.sunday && hour < 22) {
-      return true;
-    }
-    return false;
-  }
-
-  String _weatherHeroGreeting() {
     return getGreeting();
   }
 
@@ -350,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _startWeatherBackgroundTicker() {
     _weatherBackgroundTimer?.cancel();
-    _weatherBackgroundTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+    _weatherBackgroundTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted) return;
       _loadWeatherBackground();
     });
@@ -869,7 +866,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Color _getTitleColor() {
     final variant = _weatherBackground.backgroundVariant;
-    final group = _weatherBackground.weatherGroup;
 
     // For morning, afternoon, and weekend use dark color
     if (variant == 'morning' ||
@@ -884,7 +880,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Color _getTextColor() {
     final variant = _weatherBackground.backgroundVariant;
-    final group = _weatherBackground.weatherGroup;
 
     // For morning, afternoon, and weekend use dark/black color
     if (variant == 'morning' ||
@@ -902,7 +897,7 @@ class _HomeScreenState extends State<HomeScreen> {
     required bool hasImportantMessages,
   }) {
     final displayName = name.isNotEmpty ? name : 'User';
-    final greeting = _weatherHeroGreeting();
+    final greeting = _weatherHeroGreeting(hasImportantMessages);
     final subtitleText = unreadCount == 1
         ? '1 notification today'
         : '$unreadCount notifications today';
@@ -1334,78 +1329,76 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildWeatherHeroSection() {
-    return ValueListenableBuilder<List<AlertModel>>(
-      valueListenable: AlertsManager.activeAlertsNotifier,
-      builder: (context, activeAlerts, child) {
-        return Column(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 400),
-              width: double.infinity,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(
-                      _getBackgroundAssetPath(_weatherBackground.assetPath)),
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-              ),
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x2A000000),
-                      Color(0x10000000),
-                      Color(0x04FFFFFF),
-                      Color(0xFFFFFFFF),
-                    ],
-                    stops: [0.0, 0.48, 0.88, 1.0],
-                  ),
-                ),
-                child: _buildAlertsSection(),
-              ),
+    final festivalOn = FestivalModeService().currentData?.isEnabled == true;
+    final DecorationImage? bgImage = festivalOn
+        ? null
+        : DecorationImage(
+            image: AssetImage(
+              _getBackgroundAssetPath(_weatherBackground.assetPath),
             ),
-          ],
-        );
-      },
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+          );
+
+    return Column(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          width: double.infinity,
+          decoration: BoxDecoration(image: bgImage),
+          child: Container(
+            decoration: festivalOn
+                ? null
+                : const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x2E000000),
+                        Color(0x12000000),
+                        Color(0x00FFFFFF),
+                        Color(0xFFFFFFFF),
+                      ],
+                      stops: [0.0, 0.34, 0.72, 1.0],
+                    ),
+                  ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                  child: _buildAlertsSection(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          height: 20,
+          decoration: BoxDecoration(
+            color: festivalOn ? Colors.transparent : pageBackground,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: pageBackground,
-      body: currSubscribedMess.isEmpty
-          ? SingleChildScrollView(
-              child: Column(
-                children: [
-                  _buildWeatherHeroSection(),
-                  _buildSectionDivider(),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                    child: ValueListenableBuilder<List<String>>(
-                      valueListenable: HostelsNotifier.hostelNotifier,
-                      builder: (context, _, __) => _buildQuickActionsSection(),
-                    ),
-                  ),
-                ],
-              ),
-            )
-          : Consumer<MessInfoProvider>(
-              builder: (context, messProvider, __) {
-                if (messProvider.isLoading) {
-                  return buildHomeScreenLoadingShimmer();
-                }
-                return FutureBuilder<List<MenuModel>>(
-                  future: fetchMenu(currSubscribedMess, getTodayDay()),
-                  builder: (context, menuSnap) {
-                    if (menuSnap.connectionState == ConnectionState.waiting) {
-                      return buildHomeScreenLoadingShimmer();
-                    }
-                    final messName = _subscribedMessDisplayName(context);
-                    return SingleChildScrollView(
+    return ValueListenableBuilder<List<AlertModel>>(
+      valueListenable: AlertsManager.activeAlertsNotifier,
+      builder: (context, activeAlerts, _) {
+        return FestivalBackgroundBuilder(
+          hasAlerts: activeAlerts.isNotEmpty,
+          builder: (context) {
+            final festivalOn =
+                FestivalModeService().currentData?.isEnabled ?? false;
+            return Scaffold(
+              backgroundColor:
+                  festivalOn ? Colors.transparent : pageBackground,
+              body: currSubscribedMess.isEmpty
+                  ? SingleChildScrollView(
                       child: Column(
                         children: [
                           _buildWeatherHeroSection(),
@@ -1418,23 +1411,61 @@ class _HomeScreenState extends State<HomeScreen> {
                                   _buildQuickActionsSection(),
                             ),
                           ),
-                          _buildSectionDivider(),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                            child: menuSnap.hasError
-                                ? _buildMessSectionError(messName)
-                                : _buildMessSectionForMenus(
-                                    messName,
-                                    menuSnap.data ?? const [],
-                                  ),
-                          ),
                         ],
                       ),
-                    );
-                  },
-                );
-              },
-            ),
+                    )
+                  : Consumer<MessInfoProvider>(
+                      builder: (context, messProvider, __) {
+                        if (messProvider.isLoading) {
+                          return buildHomeScreenLoadingShimmer();
+                        }
+                        return FutureBuilder<List<MenuModel>>(
+                          future: fetchMenu(currSubscribedMess, getTodayDay()),
+                          builder: (context, menuSnap) {
+                            if (menuSnap.connectionState ==
+                                ConnectionState.waiting) {
+                              return buildHomeScreenLoadingShimmer();
+                            }
+                            final messName =
+                                _subscribedMessDisplayName(context);
+                            return SingleChildScrollView(
+                              child: Column(
+                                children: [
+                                  _buildWeatherHeroSection(),
+                                  _buildSectionDivider(),
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 32, 16, 32),
+                                    child: ValueListenableBuilder<List<String>>(
+                                      valueListenable:
+                                          HostelsNotifier.hostelNotifier,
+                                      builder: (context, _, __) =>
+                                          _buildQuickActionsSection(),
+                                    ),
+                                  ),
+                                  _buildSectionDivider(),
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 32, 16, 32),
+                                    child: menuSnap.hasError
+                                        ? _buildMessSectionError(messName)
+                                        : _buildMessSectionForMenus(
+                                            messName,
+                                            menuSnap.data ??
+                                                const <MenuModel>[],
+                                          ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+            );
+          },
+        );
+      },
     );
   }
 }
