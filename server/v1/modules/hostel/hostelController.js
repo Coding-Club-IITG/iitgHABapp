@@ -6,6 +6,10 @@ const { Mess } = require("../mess/messModel.js");
 const UserAllocHostel = require("./hostelAllocModel.js");
 const { MessClosure } = require("./messClosureModel.js");
 const { getCurrentDate } = require("../../utils/date.js");
+const {
+  populateCurrSubscribedMess,
+  subscribedMessDisplayName,
+} = require("../../utils/subscribedMessDisplay.js");
 
 
 
@@ -198,7 +202,7 @@ const getHostelbyId = async (req, res) => {
 
     const usersQuery = User.find({ hostel: hostelId })
       .select("name rollNumber email roomNumber phoneNumber degree curr_subscribed_mess")
-      .populate("curr_subscribed_mess", "hostel_name")
+      .populate(populateCurrSubscribedMess)
       .sort({ rollNumber: 1 });
 
     if (limit > 0) {
@@ -226,7 +230,8 @@ const getHostelbyId = async (req, res) => {
         roomNumber: user.roomNumber || "N/A",
         phoneNumber: user.phoneNumber || "N/A",
         degree: user.degree,
-        curr_subscribed_mess_name: user.curr_subscribed_mess?.hostel_name || "N/A",
+        curr_subscribed_mess_name:
+          subscribedMessDisplayName(user.curr_subscribed_mess) || "N/A",
       },
     }));
     const hostelWithUsers = {
@@ -387,9 +392,8 @@ const formatMessSubscribers = (subscribers, hostelId) => {
       phoneNumber: sub.phoneNumber || "N/A",
       roomNumber: sub.roomNumber || "N/A",
       currentHostel: sub.hostel ? sub.hostel.hostel_name : "N/A",
-      currentSubscribedMess: sub.curr_subscribed_mess
-        ? sub.curr_subscribed_mess.hostel_name
-        : "N/A",
+      currentSubscribedMess:
+        subscribedMessDisplayName(sub.curr_subscribed_mess) || "N/A",
       isDifferentHostel: isDifferentHostel,
     };
   });
@@ -430,7 +434,7 @@ const getMessSubscribers = async (req, res) => {
         "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
       )
       .populate("hostel", "hostel_name")
-      .populate("curr_subscribed_mess", "hostel_name")
+      .populate(populateCurrSubscribedMess)
       .sort({ rollNumber: 1 });
 
     if (limit > 0) {
@@ -481,7 +485,7 @@ const getMessSubscribersByHostelId = async (req, res) => {
         "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
       )
       .populate("hostel", "hostel_name")
-      .populate("curr_subscribed_mess", "hostel_name")
+      .populate(populateCurrSubscribedMess)
       .sort({ rollNumber: 1 });
 
     if (limit > 0) {

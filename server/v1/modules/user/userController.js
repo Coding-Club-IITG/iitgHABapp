@@ -11,11 +11,26 @@ const { MessChange } = require("../mess_change/messChangeModel.js");
 const UserAllocHostel = require("../hostel/hostelAllocModel.js");
 const AppError = require("../../utils/appError.js");
 const { clearCacheByPattern } = require("../../utils/redisUtils.js");
+const {
+  populateCurrSubscribedMess,
+  subscribedMessDisplayName,
+} = require("../../utils/subscribedMessDisplay.js");
 
 
 const getUserData = async (req, res, next) => {
   if (req.user) {
-    return res.json(req.user);
+    const u = await User.findById(req.user._id)
+      .populate("hostel", "hostel_name")
+      .populate(populateCurrSubscribedMess)
+      .lean();
+    if (!u) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    return res.json({
+      ...u,
+      hostel_name: u.hostel?.hostel_name ?? null,
+      curr_subscribed_mess_name: subscribedMessDisplayName(u.curr_subscribed_mess),
+    });
   }
 
   if (req.hostel) {
@@ -238,13 +253,13 @@ const getAllUsers = async (req, res) => {
 
     const users = await User.find()
       .populate("hostel", "hostel_name")
-      .populate("curr_subscribed_mess", "hostel_name")
+      .populate(populateCurrSubscribedMess)
       .lean();
 
     const updatedUsers = users.map((user) => ({
       ...user,
       hostel_name: user.hostel?.hostel_name || null,
-      curr_subscribed_mess_name: user.curr_subscribed_mess?.hostel_name || null,
+      curr_subscribed_mess_name: subscribedMessDisplayName(user.curr_subscribed_mess),
     }));
 
     await redisClient.set(cacheKey, JSON.stringify(updatedUsers), 'EX', 3600 * 24);
@@ -302,7 +317,7 @@ const getUserForManager = async (req, res, next) => {
         "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
       )
       .populate("hostel", "hostel_name")
-      .populate("curr_subscribed_mess", "hostel_name")
+      .populate(populateCurrSubscribedMess)
       .lean();
 
     if (!user) {
@@ -317,7 +332,7 @@ const getUserForManager = async (req, res, next) => {
       roomNumber: user.roomNumber || "",
       phoneNumber: user.phoneNumber || "",
       hostelName: user.hostel?.hostel_name || "",
-      messName: user.curr_subscribed_mess?.hostel_name || "",
+      messName: subscribedMessDisplayName(user.curr_subscribed_mess) || "",
     };
 
     await redisClient.set(cacheKey, JSON.stringify(responsePayload), 'EX', 3600);
@@ -350,7 +365,7 @@ const getUsersByHostelForMess = async (req, res) => {
       User.countDocuments(query),
       User.find(query)
         .populate("hostel", "hostel_name")
-        .populate("curr_subscribed_mess", "hostel_name")
+        .populate(populateCurrSubscribedMess)
         .select("name rollNumber email hostel curr_subscribed_mess")
         .sort({ name: 1 })
         .skip(skip)
