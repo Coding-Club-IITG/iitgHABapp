@@ -14,7 +14,11 @@
 \usepackage{marvosym}
 \usepackage{amssymb}
 \usepackage{setspace}
-\setmainfont{TeX Gyre Termes}
+% TeX Gyre Termes is often not visible to fontspec on Debian unless fonts-texgyre is
+% installed and registered with fontconfig; the template already uses FreeSerif for
+% Devanagari (fonts-freefont-ttf / Docker image), so use the same family for Latin body.
+\defaultfontfeatures{Ligatures=TeX}
+\setmainfont{FreeSerif}
 \setlength{\parindent}{0pt}
 \setlength{\parskip}{0pt}
 \setlength{\arrayrulewidth}{0.4pt}
