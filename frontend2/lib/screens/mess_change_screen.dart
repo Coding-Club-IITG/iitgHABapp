@@ -8,6 +8,7 @@ import 'package:frontend2/widgets/common/snack_bar.dart';
 import 'package:frontend2/widgets/common/custom_linear_progress.dart';
 import 'package:animated_custom_dropdown/custom_dropdown.dart';
 import 'package:frontend2/providers/hostels.dart';
+import 'package:frontend2/widgets/common/shimmer_host.dart';
 
 class MessChangeScreen extends StatefulWidget {
   const MessChangeScreen({super.key});
@@ -265,7 +266,16 @@ class _MessChangeScreenState extends State<MessChangeScreen> {
                         ),
                         const SizedBox(height: 8),
                         if (hostels.isEmpty) ...[
-                          const Center(child: CircularProgressIndicator()),
+                          SizedBox(
+                            height: 52,
+                            child: ShimmerHost(
+                              builder: (context, box) => box(
+                                height: 48,
+                                width: double.infinity,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                          ),
                         ] else ...[
                           CustomDropdown<String>(
                             controller: hostelController,

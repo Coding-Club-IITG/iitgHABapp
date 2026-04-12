@@ -238,68 +238,85 @@ class _InteractiveMessMenuCardState extends State<InteractiveMessMenuCard> {
                       ],
                 const SizedBox(height: 10),
                 const Divider(thickness: 1, height: 24),
-                IntrinsicHeight(
-                  child: Row(
+                if (breadsRice.isEmpty)
+                  Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // BREADS & RICE
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "BREADS & RICE",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            ...breadsRice.isNotEmpty
-                                ? breadsRice
-                                    .map((item) => buildMenuItem(item))
-                                    .toList()
-                                : [
-                                    const Text("-",
-                                        style: TextStyle(fontSize: 15))
-                                  ],
-                          ],
+                      const Text(
+                        "OTHERS",
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          letterSpacing: 0.5,
                         ),
                       ),
-                      VerticalDivider(
-                        thickness: 1,
-                        width: 32,
-                        color: Colors.grey.shade300,
-                      ),
-                      // OTHERS
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              "OTHERS",
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                letterSpacing: 0.5,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            ...others.isNotEmpty
-                                ? others
-                                    .map((item) => buildMenuItem(item))
-                                    .toList()
-                                : [
-                                    const Text("-",
-                                        style: TextStyle(fontSize: 15))
-                                  ],
-                          ],
-                        ),
-                      ),
+                      const SizedBox(height: 4),
+                      ...others.isNotEmpty
+                          ? others
+                              .map((item) => buildMenuItem(item))
+                              .toList()
+                          : [
+                              const Text("-",
+                                  style: TextStyle(fontSize: 15))
+                            ],
                     ],
+                  )
+                else
+                  IntrinsicHeight(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "BREADS & RICE",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ...breadsRice
+                                  .map((item) => buildMenuItem(item))
+                                  ,
+                            ],
+                          ),
+                        ),
+                        VerticalDivider(
+                          thickness: 1,
+                          width: 32,
+                          color: Colors.grey.shade300,
+                        ),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                "OTHERS",
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              ...others.isNotEmpty
+                                  ? others
+                                      .map((item) => buildMenuItem(item))
+                                      .toList()
+                                  : [
+                                      const Text("-",
+                                          style: TextStyle(fontSize: 15))
+                                    ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
               ],
             ),
           ),

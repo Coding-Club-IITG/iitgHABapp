@@ -273,7 +273,7 @@ class _AccountScreenState extends State<AccountScreen> {
           Container(height: 24, color: Colors.white),
 
           // ── Hostel Info ───────────────────────────────────────────
-          _SectionHeader(title: 'Hostel Info'),
+          const _SectionHeader(title: 'Hostel Info'),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -281,10 +281,12 @@ class _AccountScreenState extends State<AccountScreen> {
               iconPath: "assets/icon/id.svg",
               iconColor: Themes.kAccent,
               label: 'Know Your HMC',
+              subtitle: null,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const HmcInfoScreen()),
               ),
+              roundBottom: true,
             ),
           ),
 
@@ -312,6 +314,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   label: 'App Feedback',
                   onTap: _openFeedbackSheet,
                   roundTop: false,
+                  roundBottom: true,
                 ),
               ],
             ),
@@ -466,20 +469,21 @@ class _CardSettingsRow extends StatelessWidget {
     required this.iconPath,
     required this.iconColor,
     required this.label,
-    required this.onTap,
     this.subtitle,
+    required this.onTap,
     this.roundTop = true,
     this.roundBottom = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    const radius = Radius.circular(12);
-    const borderRadius = BorderRadius.only(
-      topLeft: radius,
-      topRight: radius,
-      bottomLeft: radius,
-      bottomRight: radius,
+    const r = Radius.circular(12);
+    const z = Radius.zero;
+    final borderRadius = BorderRadius.only(
+      topLeft: roundTop ? r : z,
+      topRight: roundTop ? r : z,
+      bottomLeft: roundBottom ? r : z,
+      bottomRight: roundBottom ? r : z,
     );
 
     return Container(

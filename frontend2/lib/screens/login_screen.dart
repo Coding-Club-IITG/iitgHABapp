@@ -52,7 +52,8 @@ String _getErrorMessage(dynamic error) {
   return 'Something went wrong. Please try again.';
 }
 
-class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerProviderStateMixin {
+class _OnboardingScreenState extends State<OnboardingScreen>
+    with SingleTickerProviderStateMixin {
   bool _inprogress = false;
 
   late AnimationController _controller;
@@ -69,12 +70,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
 
     _curvedAnimation = CurvedAnimation(
       parent: _controller,
-      curve: Curves.decelerate, // This makes it start fast and slow down smoothly
-      reverseCurve: Curves.easeIn, // Optional: different curve for the reverse direction
+      curve:
+          Curves.decelerate, // This makes it start fast and slow down smoothly
+      reverseCurve:
+          Curves.easeIn, // Optional: different curve for the reverse direction
     );
 
     // Define the range of the value
-    _expand_animation = Tween<double>(begin: 0, end: 1).animate(_curvedAnimation);
+    _expand_animation =
+        Tween<double>(begin: 0, end: 1).animate(_curvedAnimation);
   }
 
   void _showLoader(BuildContext context) {
@@ -251,8 +255,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                         left: 16,
                         right: 16,
                         top: 16,
-                        bottom:
-                            MediaQuery.of(context).viewInsets.bottom + 36,
+                        bottom: MediaQuery.of(context).viewInsets.bottom + 36,
                       ),
                       child: SingleChildScrollView(
                         physics: const BouncingScrollPhysics(),
@@ -300,8 +303,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                               onTap: () async {
                                 _showLoader(context);
                                 final navigator = Navigator.of(context);
-                                final messenger =
-                                    ScaffoldMessenger.of(context);
+                                final messenger = ScaffoldMessenger.of(context);
                                 try {
                                   setModalState(() {
                                     _inprogress = true;
@@ -324,15 +326,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                         child: Text(
                                           'Successfully Logged In',
                                           textAlign: TextAlign.center,
-                                          style: TextStyle(
-                                              color: Colors.white),
+                                          style: TextStyle(color: Colors.white),
                                         ),
                                       ),
                                       backgroundColor: Colors.black,
                                       behavior: SnackBarBehavior.floating,
                                       margin: EdgeInsets.all(50),
-                                      duration:
-                                          Duration(milliseconds: 1000),
+                                      duration: Duration(milliseconds: 1000),
                                     ),
                                   );
                                 } catch (e) {
@@ -354,8 +354,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                       backgroundColor: Colors.black,
                                       behavior: SnackBarBehavior.floating,
                                       margin: const EdgeInsets.all(50),
-                                      duration: const Duration(
-                                          milliseconds: 3000),
+                                      duration:
+                                          const Duration(milliseconds: 3000),
                                     ),
                                   );
                                 }
@@ -363,19 +363,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                               child: const LoginButton(),
                             ),
                             const SizedBox(height: 20),
-                            Padding(
-                              padding:
-                                  const EdgeInsets.symmetric(vertical: 12),
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 12),
                               child: Row(
                                 children: [
-                                  const Expanded(
+                                  Expanded(
                                     child: Divider(
                                       height: 1,
                                       thickness: 1,
                                       color: Color(0xFFE8E8EB),
                                     ),
                                   ),
-                                  const Padding(
+                                  Padding(
                                     padding:
                                         EdgeInsets.symmetric(horizontal: 16),
                                     child: Text(
@@ -389,7 +388,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                       ),
                                     ),
                                   ),
-                                  const Expanded(
+                                  Expanded(
                                     child: Divider(
                                       height: 1,
                                       thickness: 1,
@@ -400,7 +399,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                               ),
                             ),
                             const SizedBox(height: 20),
-
                             if (_useAppleInsteadOfGuest)
                               _buildAppleSignInButton(context, setModalState)
                             else
@@ -437,16 +435,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                           child: Text(
                                             'Successfully Logged In as Guest',
                                             textAlign: TextAlign.center,
-                                            style: TextStyle(
-                                                color: Colors.white),
+                                            style:
+                                                TextStyle(color: Colors.white),
                                           ),
                                         ),
                                         backgroundColor: Colors.black,
-                                        behavior:
-                                            SnackBarBehavior.floating,
+                                        behavior: SnackBarBehavior.floating,
                                         margin: EdgeInsets.all(50),
-                                        duration:
-                                            Duration(milliseconds: 1000),
+                                        duration: Duration(milliseconds: 1000),
                                       ),
                                     );
                                   } catch (e) {
@@ -454,8 +450,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                     setModalState(() {
                                       _inprogress = false;
                                     });
-                                    final errorMessage =
-                                        _getErrorMessage(e);
+                                    final errorMessage = _getErrorMessage(e);
                                     messenger.showSnackBar(
                                       SnackBar(
                                         content: Center(
@@ -469,15 +464,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                         backgroundColor: Colors.black,
                                         behavior: SnackBarBehavior.floating,
                                         margin: const EdgeInsets.all(50),
-                                        duration: const Duration(
-                                            milliseconds: 3000),
+                                        duration:
+                                            const Duration(milliseconds: 3000),
                                       ),
                                     );
                                   }
                                 },
                                 child: Row(
-                                  mainAxisAlignment:
-                                      MainAxisAlignment.center,
+                                  mainAxisAlignment: MainAxisAlignment.center,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     SvgPicture.asset(
@@ -544,8 +538,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
-          gradient: LinearGradient(colors: [Color(0xFFCBC1EC), Color(0xFFFFFFFF)], begin: AlignmentGeometry.topCenter, end: AlignmentGeometry.bottomCenter)
-        ),
+            gradient: LinearGradient(
+                colors: [Color(0xFFCBC1EC), Color(0xFFFFFFFF)],
+                begin: AlignmentGeometry.topCenter,
+                end: AlignmentGeometry.bottomCenter)),
         child: SafeArea(
           child: Stack(
             children: [
@@ -567,8 +563,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                         width: screenSize.width * 0.9,
                         height: isSmallScreen ? 120.0 : 152.0,
                         child: Center(
-                          child: SvgPicture.asset("assets/images/Habit_logo_Purple_colored.svg")
-                        ),
+                            child: SvgPicture.asset(
+                                "assets/images/Habit_logo_Purple_colored.svg")),
                       ),
                     ),
                     AnimatedBuilder(
@@ -583,51 +579,54 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                               fit: StackFit.loose,
                               children: [
                                 Positioned(
-                                  left: (40 + 10 * _expand_animation.value) * scaleFactor,
-                                  top: (40 - 5 * _expand_animation.value) * scaleFactor,
-                                  child: Image.asset(
-                                        'assets/icon/LoginIcon4.png',
-                                        width: 49,
-                                        height: 49,
-                                  )
-                                ),
+                                    left: (40 + 10 * _expand_animation.value) *
+                                        scaleFactor,
+                                    top: (40 - 5 * _expand_animation.value) *
+                                        scaleFactor,
+                                    child: Image.asset(
+                                      'assets/icon/LoginIcon4.png',
+                                      width: 49,
+                                      height: 49,
+                                    )),
                                 Positioned(
-                                  right: (40 + 10 * _expand_animation.value) * scaleFactor,
-                                  top: (50 - 20 * _expand_animation.value) * scaleFactor,
-                                  child: Image.asset(
-                                        'assets/icon/LoginIcon2.png',
-                                        width: 49,
-                                        height: 49,
-                                  )
-                                ),
+                                    right: (40 + 10 * _expand_animation.value) *
+                                        scaleFactor,
+                                    top: (50 - 20 * _expand_animation.value) *
+                                        scaleFactor,
+                                    child: Image.asset(
+                                      'assets/icon/LoginIcon2.png',
+                                      width: 49,
+                                      height: 49,
+                                    )),
                                 Positioned(
-                                  left: (10 + 10 * _expand_animation.value) * scaleFactor,
-                                  top: (130 - 30 * _expand_animation.value) * scaleFactor,
-                                  child: Image.asset(
-                                        'assets/icon/LoginIcon3.png',
-                                        width: 49,
-                                        height: 49,
-                                  )
-                                ),
+                                    left: (10 + 10 * _expand_animation.value) *
+                                        scaleFactor,
+                                    top: (130 - 30 * _expand_animation.value) *
+                                        scaleFactor,
+                                    child: Image.asset(
+                                      'assets/icon/LoginIcon3.png',
+                                      width: 49,
+                                      height: 49,
+                                    )),
                                 Positioned(
-                                  right: (0 + 10 * _expand_animation.value) * scaleFactor,
-                                  top: (140 - 40 * _expand_animation.value) * scaleFactor,
-                                  child: Image.asset(
-                                        'assets/icon/LoginIcon1.png',
-                                        width: 49,
-                                        height: 49,
-                                  )
-                                ),
+                                    right: (0 + 10 * _expand_animation.value) *
+                                        scaleFactor,
+                                    top: (140 - 40 * _expand_animation.value) *
+                                        scaleFactor,
+                                    child: Image.asset(
+                                      'assets/icon/LoginIcon1.png',
+                                      width: 49,
+                                      height: 49,
+                                    )),
                                 Positioned(
-                                  left: 0,
-                                  right: 0,
-                                  top: 0 * scaleFactor,
-                                  child: Image.asset(
-                                        'assets/icon/LoginIcon5.png',
-                                        width: 49,
-                                        height: 49,
-                                  )
-                                ),
+                                    left: 0,
+                                    right: 0,
+                                    top: 0 * scaleFactor,
+                                    child: Image.asset(
+                                      'assets/icon/LoginIcon5.png',
+                                      width: 49,
+                                      height: 49,
+                                    )),
                                 // Positioned(
                                 //   left: 40 * scaleFactor,
                                 //   top: 160 * scaleFactor,
@@ -651,16 +650,16 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                 Positioned(
                                   right: 0,
                                   left: 0,
-                                  top: (120 - 45 * _expand_animation.value) * scaleFactor,
+                                  top: (120 - 45 * _expand_animation.value) *
+                                      scaleFactor,
                                   child: Text(
                                     'A space built\naround your\nhostel life',
                                     textAlign: TextAlign.center,
                                     style: TextStyle(
-                                      color: const Color(0xFF2E2F31),
-                                      fontSize: 28 * scaleFactor,
-                                      fontFamily: "GeneralSans",
-                                      fontWeight: FontWeight.w500
-                                    ),
+                                        color: const Color(0xFF2E2F31),
+                                        fontSize: 28 * scaleFactor,
+                                        fontFamily: "GeneralSans",
+                                        fontWeight: FontWeight.w500),
                                   ),
                                 ),
                               ],
@@ -673,15 +672,14 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                       'From mess feedback to shared\ncomplaints everything you need\nis now just a tap away.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        color: Color.lerp(
-                          const Color(0xFF2E2F31), // Original dark color
-                          const Color(0xFF535353), // Target grey color
-                          _expand_animation.value,  // The interpolation factor
-                        ),
-                        fontSize: 12,
-                        fontFamily: "GeneralSans",
-                        fontWeight: FontWeight.w500
-                      ),
+                          color: Color.lerp(
+                            const Color(0xFF2E2F31), // Original dark color
+                            const Color(0xFF535353), // Target grey color
+                            _expand_animation.value, // The interpolation factor
+                          ),
+                          fontSize: 12,
+                          fontFamily: "GeneralSans",
+                          fontWeight: FontWeight.w500),
                     ),
                     const Spacer(),
                     const Spacer(),
@@ -690,7 +688,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                         margin: const EdgeInsets.only(bottom: 60.0),
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Center(
-                          child: Container(
+                          child: SizedBox(
                             width: 220,
                             child: ElevatedButton(
                               onPressed: () => _showBottomSheet(context),
@@ -699,7 +697,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> with SingleTickerPr
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(12),
                                 ),
-                                padding: const EdgeInsets.symmetric(vertical: 16.0),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 16.0),
                               ),
                               child: const Text(
                                 'Get Started',
@@ -762,4 +761,3 @@ class FeatureButton extends StatelessWidget {
     );
   }
 }
-

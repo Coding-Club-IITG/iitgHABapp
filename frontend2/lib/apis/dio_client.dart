@@ -7,6 +7,44 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend2/apis/authentication/login.dart'; // for refreshAccessToken
 import 'package:frontend2/main.dart'; // for navigatorKey
 
+/// Matches server `AppError` JSON (`res.status(code).json({ message })` in server/v1/index.js)
+/// for failures that mean this device’s session is no longer valid — not role/permission 403s.
+bool _isAuthStyleForbidden403(DioException err) {
+  if (err.response?.statusCode != 403) return false;
+  final data = err.response?.data;
+  String? message;
+  if (data is Map) {
+    final m = data['message'];
+    final e = data['error'];
+    if (m != null) {
+      message = m.toString();
+    } else if (e != null) {
+      message = e.toString();
+    }
+  } else if (data is String) {
+    message = data;
+  }
+  if (message == null) return false;
+  const authSessionMessages = <String>{
+    'Invalid token',
+    'Not Authenticated',
+    'Session expired',
+    'User has been banned',
+  };
+  return authSessionMessages.contains(message.trim());
+}
+
+Future<void> _logoutAndShowLogin() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.clear();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    navigatorKey.currentState?.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (route) => false,
+    );
+  });
+}
+
 class DioClient {
   static final DioClient _instance = DioClient._internal();
   late final Dio _dio;
@@ -93,17 +131,19 @@ class DioClient {
             debugPrint("Refresh failed → logging out");
           }
 
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.clear();
+          await _logoutAndShowLogin();
+          return handler.reject(error);
+        }
 
-          // TODO: LOGIN SCREEN IS NOT SHOWING UP AFTER LOGOUT - FIX THIS
-
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            navigatorKey.currentState?.pushAndRemoveUntil(
-              MaterialPageRoute(builder: (_) => const LoginScreen()),
-              (route) => false,
+        // Auth-style 403 (e.g. invalid JWT signature / missing user) — session cannot be used.
+        if (_isAuthStyleForbidden403(error) &&
+            !error.requestOptions.uri.toString().contains('/auth/refresh')) {
+          if (kDebugMode) {
+            debugPrint(
+              '[DioClient] Auth-style 403 → logging out (${error.requestOptions.uri})',
             );
-          });
+          }
+          await _logoutAndShowLogin();
           return handler.reject(error);
         }
 

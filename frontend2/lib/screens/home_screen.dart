@@ -837,34 +837,40 @@ class _HomeScreenState extends State<HomeScreen>
                 child: _buildMenuCategory(title: 'DISH', items: dishItems),
               ),
               const SizedBox(height: 16),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.only(right: 16),
-                        decoration: const BoxDecoration(
-                          border: Border(right: BorderSide(color: border)),
-                        ),
-                        child: _buildMenuCategory(
-                          title: 'BREADS & RICE',
-                          items: breadsRiceItems,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 16),
-                        child: _buildMenuCategory(
-                          title: 'OTHERS',
-                          items: otherItems,
+              if (breadsRiceItems.isEmpty)
+                _buildMenuCategory(
+                  title: 'OTHERS',
+                  items: otherItems,
+                )
+              else
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.only(right: 16),
+                          decoration: const BoxDecoration(
+                            border: Border(right: BorderSide(color: border)),
+                          ),
+                          child: _buildMenuCategory(
+                            title: 'BREADS & RICE',
+                            items: breadsRiceItems,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: _buildMenuCategory(
+                            title: 'OTHERS',
+                            items: otherItems,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),

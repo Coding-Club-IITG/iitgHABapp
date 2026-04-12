@@ -9,6 +9,7 @@ import '../../constants/endpoint.dart';
 import '../../screens/mess_feedback/mess_feedback_page.dart';
 import '../../utilities/notifications.dart';
 import '../../widgets/microsoft_required_dialog.dart';
+import '../common/shimmer_host.dart';
 
 class FeedbackCard extends StatefulWidget {
   const FeedbackCard({super.key});
@@ -158,7 +159,17 @@ class _FeedbackCardState extends State<FeedbackCard> {
           ),
           const SizedBox(height: 12),
           _loading
-              ? const Center(child: CircularProgressIndicator())
+              ? SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ShimmerHost(
+                    builder: (context, box) => box(
+                      height: 48,
+                      width: double.infinity,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                  ),
+                )
               : SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(

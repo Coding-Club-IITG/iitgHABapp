@@ -40,7 +40,10 @@ class Themes {
         color: Colors.white,
       ),
     ),
-    colorScheme: ColorScheme.fromSwatch().copyWith(secondary: Colors.black),
+    colorScheme: ColorScheme.fromSwatch().copyWith(
+      secondary: Colors.black,
+      surfaceTint: Colors.transparent,
+    ),
   );
 
   static const darkTextTheme = TextTheme(
@@ -99,8 +102,8 @@ class Themes {
 List<Color> colors = const [
   Color.fromRGBO(219, 206, 255, 1),
   Color.fromRGBO(219, 206, 255, 1),
-  Color.fromRGBO(255, 167, 212, 1),
-  Color.fromRGBO(255, 167, 212, 1),
+  Color.fromRGBO(200, 210, 255, 1),
+  Color.fromRGBO(200, 210, 255, 1),
   Color.fromRGBO(111, 143, 254, 1),
   Color.fromRGBO(111, 143, 254, 1),
   Color.fromRGBO(237, 244, 146, 1),

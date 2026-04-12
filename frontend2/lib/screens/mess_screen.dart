@@ -449,8 +449,8 @@ class _MenuSectionState extends State<_MenuSection> {
           const _MessLowerPageSkeleton()
         else ...[
           const _MessScreenSectionDivider(),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
+          const Padding(
+            padding: EdgeInsets.fromLTRB(
               16,
               _MessScreenState.sectionGap,
               16,
@@ -459,9 +459,9 @@ class _MenuSectionState extends State<_MenuSection> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const _MessChangeRow(),
-                const SizedBox(height: _MessScreenState.sectionGap),
-                const _MessRebateRow(),
+                _MessChangeRow(),
+                SizedBox(height: _MessScreenState.sectionGap),
+                _MessRebateRow(),
               ],
             ),
           ),
@@ -1177,30 +1177,36 @@ class _MealCardState extends State<_MealCard> {
                     color: _MessScreenState.border,
                   ),
                   const SizedBox(height: 16),
-                  IntrinsicHeight(
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _buildSection(
-                            title: 'BREADS & RICE',
-                            items: breadsRiceItems,
+                  if (breadsRiceItems.isEmpty)
+                    _buildSection(
+                      title: 'OTHERS',
+                      items: otherItems,
+                    )
+                  else
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _buildSection(
+                              title: 'BREADS & RICE',
+                              items: breadsRiceItems,
+                            ),
                           ),
-                        ),
-                        Container(
-                          width: 1,
-                          margin: const EdgeInsets.symmetric(horizontal: 16),
-                          color: _MessScreenState.border,
-                        ),
-                        Expanded(
-                          child: _buildSection(
-                            title: 'OTHERS',
-                            items: otherItems,
+                          Container(
+                            width: 1,
+                            margin: const EdgeInsets.symmetric(horizontal: 16),
+                            color: _MessScreenState.border,
                           ),
-                        ),
-                      ],
+                          Expanded(
+                            child: _buildSection(
+                              title: 'OTHERS',
+                              items: otherItems,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                 ],
               ],
             ),
@@ -1326,12 +1332,12 @@ class _MessLowerPageSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
+    return const Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _MessScreenSectionDivider(),
+        _MessScreenSectionDivider(),
         Padding(
-          padding: const EdgeInsets.fromLTRB(
+          padding: EdgeInsets.fromLTRB(
             16,
             _MessScreenState.sectionGap,
             16,
@@ -1339,15 +1345,15 @@ class _MessLowerPageSkeleton extends StatelessWidget {
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: const [
+            children: [
               _MessActionRowSkeleton(),
               SizedBox(height: _MessScreenState.sectionGap),
               _MessActionRowSkeleton(),
             ],
           ),
         ),
-        const _MessScreenSectionDivider(),
-        const Padding(
+        _MessScreenSectionDivider(),
+        Padding(
           padding: EdgeInsets.fromLTRB(
             16,
             _MessScreenState.sectionGap,
@@ -1441,10 +1447,10 @@ class _MessInfoCardSkeleton extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    Expanded(
+                    const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
+                        children: [
                           _MessShimmerBlock(height: 14, width: 52),
                           SizedBox(height: 8),
                           _MessShimmerBlock(height: 36, width: 64),
@@ -1456,10 +1462,10 @@ class _MessInfoCardSkeleton extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(horizontal: 8),
                       color: _MessScreenState.border,
                     ),
-                    Expanded(
+                    const Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
+                        children: [
                           _MessShimmerBlock(height: 14, width: 40),
                           SizedBox(height: 8),
                           _MessShimmerBlock(height: 36, width: 48),

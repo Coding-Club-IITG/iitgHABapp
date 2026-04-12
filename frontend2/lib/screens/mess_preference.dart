@@ -9,6 +9,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/endpoint.dart';
 import '../widgets/microsoft_required_dialog.dart';
+import 'package:frontend2/widgets/common/shimmer_host.dart';
 
 class MessChangePreferenceScreen extends StatefulWidget {
   const MessChangePreferenceScreen({super.key});
@@ -270,7 +271,46 @@ class _MessChangePreferenceScreenState
       ),
       body: SafeArea(
         child: loadingStatus
-            ? const Center(child: CircularProgressIndicator())
+            ? ShimmerHost(
+                builder: (context, box) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 0),
+                  child: ListView(
+                    children: [
+                      box(height: 36, width: 220),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: box(
+                          height: 22,
+                          width: double.infinity,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: box(
+                          height: 18,
+                          width: double.infinity,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      for (int i = 0; i < 6; i++) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: box(
+                            height: 56,
+                            width: double.infinity,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              )
             : Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
@@ -301,7 +341,7 @@ class _MessChangePreferenceScreenState
                       padding: const EdgeInsets.all(12),
                       margin: const EdgeInsets.only(bottom: 12),
                       decoration: BoxDecoration(
-                        color: Color(0xFFE8F0FE),
+                        color: const Color(0xFFE8F0FE),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: const Column(

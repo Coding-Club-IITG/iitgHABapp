@@ -7,6 +7,7 @@ import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/apis/users/user.dart';
 import 'package:frontend2/screens/gala_qr_scanner_screen.dart';
 import 'package:frontend2/widgets/common/hostel_name.dart';
+import 'package:frontend2/widgets/common/shimmer_host.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final _dio = DioClient().dio;
@@ -220,9 +221,80 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
   @override
   Widget build(BuildContext context) {
     if (__isloading()) {
-      return const Scaffold(
+      return Scaffold(
         backgroundColor: Colors.white,
-        body: Center(child: CircularProgressIndicator()),
+        body: SafeArea(
+          child: ShimmerHost(
+            builder: (context, box) => SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  box(height: 36, width: 200, borderRadius: BorderRadius.circular(8)),
+                  const SizedBox(height: 20),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF7F7FB),
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        box(height: 14, width: 120),
+                        const SizedBox(height: 12),
+                        box(height: 22, width: 260),
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: box(
+                            height: 14,
+                            width: double.infinity,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        box(height: 14, width: 220),
+                        const SizedBox(height: 10),
+                        box(height: 16, width: 300),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  for (int i = 0; i < 3; i++) ...[
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        border: Border.all(color: const Color(0xFFE6E6E6)),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          box(height: 18, width: 140),
+                          const SizedBox(height: 10),
+                          SizedBox(
+                            width: double.infinity,
+                            child: box(
+                              height: 14,
+                              width: double.infinity,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          box(height: 14, width: 180),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
       );
     }
     if (_error != null) {
@@ -753,38 +825,47 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
           thickness: 1.8,
           height: 32,
         ),
-        IntrinsicHeight(
-          child: Row(
+        if (breads.isEmpty)
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text("BREADS & RICE", style: _sectionLabelStyle),
-                    ...breads.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
-                  ],
-                ),
-              ),
-              const VerticalDivider(
-                color: Color(0xFFE6E6E6),
-                thickness: 1.8,
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.only(left: 16),
+              const Text("OTHERS", style: _sectionLabelStyle),
+              ...others.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
+            ],
+          )
+        else
+          IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("OTHERS", style: _sectionLabelStyle),
-                      ...others.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
+                      const Text("BREADS & RICE", style: _sectionLabelStyle),
+                      ...breads.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
                     ],
                   ),
                 ),
-              ),
-            ],
+                const VerticalDivider(
+                  color: Color(0xFFE6E6E6),
+                  thickness: 1.8,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text("OTHERS", style: _sectionLabelStyle),
+                        ...others.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend2/apis/mess/menu_like.dart';
 import '../../apis/mess/mess_menu.dart';
 import '../../models/mess_menu_model.dart';
+import '../common/shimmer_host.dart';
 
 class HorizontalMenuBuilder extends StatefulWidget {
   final String messId;
@@ -89,10 +90,36 @@ class _HorizontalMenuBuilderState extends State<HorizontalMenuBuilder> {
       future: _menuFuture,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          // Use SizedBox to provide spacing while keeping the child centered
-          return const SizedBox(
+          return SizedBox(
             width: double.infinity,
-            child: Center(child: CircularProgressIndicator()),
+            height: 168,
+            child: ShimmerHost(
+              builder: (context, box) => Padding(
+                padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    box(height: 20, width: 120),
+                    const SizedBox(height: 14),
+                    Expanded(
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        children: [
+                          for (int i = 0; i < 4; i++) ...[
+                            if (i > 0) const SizedBox(width: 12),
+                            box(
+                              height: 110,
+                              width: 148,
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           );
         }
         if (snapshot.hasError) {
@@ -477,50 +504,65 @@ class _IndividualMealCardState extends State<IndividualMealCard>
                     thickness: 1.8,
                     height: 32,
                   ),
-                  IntrinsicHeight(
-                    child: Row(
+                  if (breads.isEmpty)
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text("BREADS & RICE",
-                                  style: TextStyle(
-                                      fontFamily: "Manrope_semibold",
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Color(0xFF676767))),
-                              ...breads.map((item) =>
-                                  _buildItem(item, _menu.items.indexOf(item))),
-                            ],
-                          ),
-                        ),
-                        const VerticalDivider(
-                          color: Color(0xFFE6E6E6),
-                          thickness: 1.8,
-                        ),
-                        Expanded(
-                          child: Padding(
-                            padding: const EdgeInsets.only(left: 16),
+                        const Text("OTHERS",
+                            style: TextStyle(
+                                fontFamily: "Manrope_semibold",
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF676767))),
+                        ...others.map((item) => _buildItem(
+                            item, _menu.items.indexOf(item))),
+                      ],
+                    )
+                  else
+                    IntrinsicHeight(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text("OTHERS",
+                                const Text("BREADS & RICE",
                                     style: TextStyle(
                                         fontFamily: "Manrope_semibold",
                                         fontSize: 12,
                                         fontWeight: FontWeight.w600,
                                         color: Color(0xFF676767))),
-                                ...others.map((item) => _buildItem(
+                                ...breads.map((item) => _buildItem(
                                     item, _menu.items.indexOf(item))),
                               ],
                             ),
                           ),
-                        ),
-                      ],
+                          const VerticalDivider(
+                            color: Color(0xFFE6E6E6),
+                            thickness: 1.8,
+                          ),
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.only(left: 16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text("OTHERS",
+                                      style: TextStyle(
+                                          fontFamily: "Manrope_semibold",
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Color(0xFF676767))),
+                                  ...others.map((item) => _buildItem(
+                                      item, _menu.items.indexOf(item))),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
                   // if (widget.isSubscribed)
                   //   const Padding(
                   //     padding: EdgeInsets.only(top: 8.0),

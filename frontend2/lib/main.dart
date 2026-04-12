@@ -19,6 +19,55 @@ import 'package:frontend2/utilities/startupitem.dart';
 import 'package:frontend2/utilities/version_checker.dart';
 import 'package:provider/provider.dart';
 
+/// Material 3 tints surfaces from [ColorScheme.surfaceTint], which often reads as pink/purple on white.
+ThemeData buildAppTheme() {
+  const primary = Color(0xFF4C4EDB);
+  // fromSeed alone gives lavender-tinted surfaces; keep brand hue on primary only.
+  final scheme = ColorScheme.fromSeed(
+    seedColor: primary,
+    brightness: Brightness.light,
+  ).copyWith(
+    surfaceTint: Colors.transparent,
+    surface: Colors.white,
+    surfaceContainerLowest: Colors.white,
+    surfaceContainerLow: const Color(0xFFF7F7F7),
+    surfaceContainer: const Color(0xFFF2F2F2),
+    surfaceContainerHigh: const Color(0xFFECECEC),
+    surfaceContainerHighest: const Color(0xFFE6E6E6),
+  );
+
+  final noTint = WidgetStateProperty.all(Colors.transparent);
+
+  return ThemeData(
+    useMaterial3: true,
+    colorScheme: scheme,
+    scaffoldBackgroundColor: Colors.white,
+    canvasColor: Colors.white,
+    appBarTheme: const AppBarTheme(
+      elevation: 0,
+      scrolledUnderElevation: 0,
+      surfaceTintColor: Colors.transparent,
+    ),
+    cardTheme: const CardThemeData(surfaceTintColor: Colors.transparent),
+    dialogTheme: const DialogThemeData(surfaceTintColor: Colors.transparent),
+    bottomSheetTheme: const BottomSheetThemeData(surfaceTintColor: Colors.transparent),
+    navigationBarTheme: const NavigationBarThemeData(surfaceTintColor: Colors.transparent),
+    drawerTheme: const DrawerThemeData(surfaceTintColor: Colors.transparent),
+    elevatedButtonTheme: ElevatedButtonThemeData(
+      style: ButtonStyle(surfaceTintColor: noTint),
+    ),
+    filledButtonTheme: FilledButtonThemeData(
+      style: ButtonStyle(surfaceTintColor: noTint),
+    ),
+    outlinedButtonTheme: OutlinedButtonThemeData(
+      style: ButtonStyle(surfaceTintColor: noTint),
+    ),
+    textButtonTheme: TextButtonThemeData(
+      style: ButtonStyle(surfaceTintColor: noTint),
+    ),
+  );
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp();
@@ -123,6 +172,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     );
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      theme: buildAppTheme(),
       navigatorKey: navigatorKey,
       home: widget.updateRequired
           ? const UpdateRequiredScreen()
