@@ -1,6 +1,7 @@
 // notification_card.dart
 
 import 'package:flutter/material.dart';
+import 'package:frontend2/constants/app_ui_tokens.dart';
 import 'package:frontend2/utilities/notifications.dart';
 
 class NotificationCard extends StatelessWidget {
@@ -8,8 +9,9 @@ class NotificationCard extends StatelessWidget {
   final String subtitle;
   final String description;
   final String? redirectType;
-  final int? notificationIndex; // Index to mark as read
+  final int? notificationIndex;
   final bool isRead;
+  final bool isAlert;
 
   const NotificationCard({
     super.key,
@@ -19,34 +21,42 @@ class NotificationCard extends StatelessWidget {
     this.redirectType,
     this.notificationIndex,
     this.isRead = false,
+    this.isAlert = false,
   });
 
+  IconData _iconForRedirect(String? type) {
+    switch (type) {
+      case 'mess_screen':
+        return Icons.restaurant_rounded;
+      case 'mess_change':
+        return Icons.swap_horiz_rounded;
+      case 'profile':
+        return Icons.person_rounded;
+      default:
+        return Icons.notifications_none_rounded;
+    }
+  }
+
   Future<void> _handleTap(BuildContext context) async {
-    // Mark as read if not already read and index is provided
     if (!isRead && notificationIndex != null) {
       await markNotificationAsRead(notificationIndex!);
     }
 
-    // Navigate based on redirect type
     if (redirectType == null) return;
 
     switch (redirectType) {
       case 'mess_screen':
-        // Switch to Mess tab (index 1)
         tabNavigationNotifier.value = 1;
         feedbackRefreshNotifier.value = !feedbackRefreshNotifier.value;
-        // Close any open bottom sheets (notification list)
         if (context.mounted) {
           Navigator.of(context).pop();
         }
         break;
       case 'mess_change':
-        // Navigate to Mess Change screen
         tabNavigationNotifier.value = 0;
         deepNavigationNotifier.value = 'mess_change_screen';
         break;
       case 'profile':
-        // Navigate to Profile screen
         tabNavigationNotifier.value = 0;
         deepNavigationNotifier.value = 'profile_screen';
         break;
@@ -55,55 +65,129 @@ class NotificationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Use different opacity for read notifications
-    final double opacity = isRead ? 0.6 : 1.0;
-
-    return InkWell(
-      onTap: redirectType != null ? () => _handleTap(context) : null,
-      borderRadius: BorderRadius.circular(12),
-      child: Opacity(
-        opacity: opacity,
-        child: Card(
-          color: Colors.white,
-          margin: const EdgeInsets.symmetric(vertical: 8),
-          elevation: 1,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Title and date/time
-                Row(children: [
-                  Expanded(
-                    child: Text(title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .headlineSmall
-                            ?.copyWith(color: Colors.grey[600], fontSize: 14)),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => _handleTap(context),
+        borderRadius: BorderRadius.circular(12),
+        child: Ink(
+          decoration: AppUi.cardDecoration(
+            radius: 12,
+            backgroundColor: AppUi.surface,
+            borderColor: AppUi.border,
+          ),
+          child: Opacity(
+            opacity: isRead ? 0.52 : 1.0,
+            child: Padding(
+              padding: const EdgeInsets.all(14.0),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    radius: 12,
+                    backgroundColor: AppUi.blueSoft,
+                    child: Icon(
+                      _iconForRedirect(redirectType),
+                      size: 16,
+                      color: AppUi.blue,
+                    ),
                   ),
-                ]),
-                Divider(color: Colors.grey[300], height: 16),
-                const SizedBox(height: 4),
-                Text(subtitle, style: TextStyle(color: Colors.grey[700])),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(color: Colors.grey[500], fontSize: 12),
-                ),
-                // Only show "View →" if redirect is available
-                if (redirectType != null) ...[
-                  const SizedBox(height: 12),
-                  const Row(
-                    children: [
-                      Text("View  ",
-                          style: TextStyle(color: Colors.blue, fontSize: 14)),
-                      Icon(Icons.arrow_forward, size: 14, color: Colors.blue),
-                    ],
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Text(
+                                title,
+                                style: TextStyle(
+                                  fontSize: 15,
+                                  height: 20 / 15,
+                                  fontWeight: isRead
+                                      ? FontWeight.w500
+                                      : FontWeight.w600,
+                                  color: AppUi.textPrimary,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              description,
+                              style: const TextStyle(
+                                fontSize: 12,
+                                height: 16 / 12,
+                                fontWeight: FontWeight.w500,
+                                color: AppUi.textMuted,
+                              ),
+                            ),
+                          ],
+                        ),
+                        if (isAlert) ...[
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: AppUi.yellowSoft,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: const Color(0xFFE5D9B4),
+                              ),
+                            ),
+                            child: const Text(
+                              'Alert',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: AppUi.yellow,
+                              ),
+                            ),
+                          ),
+                        ],
+                        if (subtitle.isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            subtitle,
+                            style: const TextStyle(
+                              fontSize: 14,
+                              height: 20 / 14,
+                              fontWeight: FontWeight.w400,
+                              color: Color(0xFF2E2F31),
+                            ),
+                          ),
+                        ],
+                        if (redirectType != null) ...[
+                          const SizedBox(height: 8),
+                          const Row(
+                            children: [
+                              Text(
+                                'Open',
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  height: 20 / 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: AppUi.primary,
+                                ),
+                              ),
+                              SizedBox(width: 2),
+                              Icon(
+                                Icons.chevron_right_rounded,
+                                size: 16,
+                                color: AppUi.primary,
+                              ),
+                            ],
+                          ),
+                        ],
+                      ],
+                    ),
                   ),
                 ],
-              ],
+              ),
             ),
           ),
         ),

@@ -17,6 +17,7 @@ const settings = {
   profilePicsFolderId: process.env.ONEDRIVE_PROFILE_PICS_FOLDER_ID,
   leaveFolderId: process.env.ONEDRIVE_LEAVE_FOLDER_ID,
   reportsFolderId: process.env.ONEDRIVE_REPORTS_FOLDER_ID,
+  festivalFolderId: process.env.ONEDRIVE_FESTIVAL_FOLDER_ID,
 };
 
 export default settings;

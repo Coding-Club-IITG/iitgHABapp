@@ -691,7 +691,7 @@ export const ScanMess = async (req, res) => {
 
     if (scanner_perms === false) {
       return res
-        .status(404)
+        .status(403)
         .json({ message: "Mess Rebate Active", success: false });
     }
 

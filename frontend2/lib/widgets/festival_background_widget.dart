@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
+
+/// Design canvas width 390; heights match admin exports.
+/// Used by [FestivalBackgroundBuilder] (layout) and Home scroll-embedded banner.
+double festivalBannerHeight(bool hasAlerts) => hasAlerts ? 385.0 : 305.0;
 
 /// Bulletproof Festival Background Widget
 /// Handles: flicker prevention, fallbacks, error states, offline mode
@@ -69,8 +72,7 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
           return _buildDefaultBackground(context);
         }
 
-        // Render with festival image and bulletproof error handling
-        return _buildFestivalBackground(context, festivalImageUrl);
+        return _buildFestivalBackground(context);
       },
     );
   }
@@ -92,64 +94,12 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
     );
   }
 
-  /// Build with festival image with bulletproof error handling
-  /// Build with festival image as a Hero Banner with a smooth fade
-  Widget _buildFestivalBackground(BuildContext context, String imageUrl) {
-    // This grabs your app's default background color (likely white or off-white)
+  /// Banner image is painted in Home's scroll view, not here.
+  Widget _buildFestivalBackground(BuildContext context) {
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
-
     return Container(
-      color: bgColor, // Solid color for the bottom part of the app
-      child: Stack(
-        children: [
-          // 1. The Hero Image pinned to the top
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 380, // Adjust this to match your sunset image height
-            child: CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              placeholder: (context, url) =>
-                  Container(color: const Color(0xFF1a1a2e)),
-              errorWidget: (context, url, error) {
-                debugPrint('[FestivalBG] CachedNetworkImage error: $error');
-                return _buildDefaultBackground(context);
-              },
-            ),
-          ),
-
-          // 2. The Fade Gradient (Mimics the sunset blend)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 385, // Slightly taller than the image to prevent hard edges
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withOpacity(
-                        0.4), // Dark top so top-bar text is readable
-                    Colors.transparent,
-                    bgColor, // Fades completely into the app's background color
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Your main app content sits on top
-          Positioned.fill(
-            child: widget.child,
-          ),
-        ],
-      ),
+      color: bgColor,
+      child: widget.child,
     );
   }
 
@@ -237,58 +187,10 @@ class _BackgroundContainer extends StatelessWidget {
     }
 
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
-
+    // Banner image is drawn inside Home's scroll view so it scrolls with content.
     return Container(
       color: bgColor,
-      child: Stack(
-        children: [
-          // 1. Hero Image
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 380, // Height of the header
-            child: CachedNetworkImage(
-              imageUrl: backgroundImage!,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              placeholder: (context, url) =>
-                  Container(color: const Color(0xFF1a1a2e)),
-              errorWidget: (context, url, error) {
-                debugPrint('[BG] Image failed to load: $url');
-                return _buildDefault(context);
-              },
-            ),
-          ),
-
-          // 2. Fade Gradient
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 385,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.4),
-                    Colors.transparent,
-                    bgColor,
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Content
-          Positioned.fill(
-            child: child,
-          ),
-        ],
-      ),
+      child: child,
     );
   }
 

@@ -184,7 +184,9 @@ class _AlertsCardState extends State<AlertsCard> {
             showModalBottomSheet(
               context: context,
               isScrollControlled: true,
+              isDismissible: true,
               backgroundColor: Colors.transparent,
+              barrierColor: Colors.black.withValues(alpha: 0.35),
               builder: (context) => const NotificationScreen(),
             );
           },

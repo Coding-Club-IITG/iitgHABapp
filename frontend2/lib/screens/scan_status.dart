@@ -93,14 +93,15 @@ class _ScanStatusPageState extends State<ScanStatusPage> {
       );
     } else {
       final message = (data['message'] ?? '').toString();
-      final isRebateActive =
-          statusCode == 404 && message.trim() == 'Mess Rebate Active';
+      final isRebateActive = (statusCode == 404 || statusCode == 403) &&
+          message.trim() == 'Mess Rebate Active';
       return _FailedView(
         showRebateBanner: isRebateActive,
         onGoHome: () => _goHome(context),
         onTryAgain: () => Navigator.of(context).maybePop(),
         onOpenRebate: () => Navigator.of(context).push(
-          MaterialPageRoute<void>(builder: (_) => const LeaveApplicationListScreen()),
+          MaterialPageRoute<void>(
+              builder: (_) => const LeaveApplicationListScreen()),
         ),
       );
     }
@@ -164,7 +165,7 @@ class _FeaturedIcon extends StatelessWidget {
       height: 96,
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(28),
+        borderRadius: BorderRadius.circular(6969),
         border: Border.all(color: ring, width: 17.143),
       ),
       alignment: Alignment.center,
@@ -221,14 +222,14 @@ class _SuccessView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const SizedBox(height: 118),
+        const SizedBox(height: 160),
         const _FeaturedIcon(
           bg: _ScanUi.green1,
           ring: _ScanUi.green0,
           icon: Icons.check_circle_outline_rounded,
           iconColor: _ScanUi.green,
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 16),
         const Text(
           'Scan Successful!',
           textAlign: TextAlign.center,
@@ -281,7 +282,8 @@ class _SuccessView extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 24),
-                    const Divider(height: 1, thickness: 1, color: _ScanUi.border),
+                    const Divider(
+                        height: 1, thickness: 1, color: _ScanUi.border),
                     const SizedBox(height: 24),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -381,7 +383,7 @@ class _AlreadyLoggedView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const SizedBox(height: 118),
+        const SizedBox(height: 160),
         const _FeaturedIcon(
           bg: _ScanUi.yellow1,
           ring: _ScanUi.yellow0,
@@ -483,7 +485,7 @@ class _FailedView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        const SizedBox(height: 118),
+        const SizedBox(height: 160),
         const _FeaturedIcon(
           bg: _ScanUi.red1,
           ring: _ScanUi.red0,
@@ -591,7 +593,7 @@ class _RebateActiveBanner extends StatelessWidget {
             child: Text(
               _body,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: 16,
                 height: 20 / 14,
                 fontWeight: FontWeight.w500,
                 color: _ScanUi.red,

@@ -48,7 +48,7 @@ export default function GalaDinnerDetailPage() {
     const fetchHostels = async () => {
       try {
         setHostelsLoading(true);
-        const response = await fetch(`${BACKEND_URL}/hostel/allhostel`, {
+        const response = await fetch(`${BACKEND_URL}/hostel/all`, {
           headers: { ...authHeaders },
         });
         if (!response.ok) throw new Error("Fetch failed");

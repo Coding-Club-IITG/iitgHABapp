@@ -15,7 +15,9 @@ export const getAllHostels = async () => {
 // Get all hostel names and caterer info
 export const getAllHostelNamesAndCaterers = async () => {
   try {
-    const response = await axios.post(`${BACKEND_URL}/hostel/gethnc`);
+    const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await axios.post(`${BACKEND_URL}/hostel/gethnc`, {}, { headers });
     return response.data;
   } catch (error) {
     console.error("Error fetching hostel names and caterers:", error);

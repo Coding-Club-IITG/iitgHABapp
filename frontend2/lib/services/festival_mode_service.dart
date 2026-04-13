@@ -4,6 +4,48 @@ import 'package:hive/hive.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:frontend2/constants/endpoint.dart';
 
+/// Default palette (web admin quick-picks). Server may send any valid hex; we use it as-is.
+class FestivalThemePalette {
+  FestivalThemePalette._();
+
+  static const List<String> hexStrings = [
+    '#4C4EDB',
+    '#7C3AED',
+    '#DB2777',
+    '#DC2626',
+    '#EA580C',
+    '#D97706',
+    '#16A34A',
+    '#0EA5E9',
+    '#2563EB',
+    '#111827',
+  ];
+
+  static Color _colorFromHex6(String hex6) {
+    final v = int.parse(hex6, radix: 16);
+    return Color(0xFF000000 | v);
+  }
+
+  static Color? _tryParseServerColor(String? raw) {
+    if (raw == null) return null;
+    final s = raw.trim();
+    if (s.isEmpty) return null;
+    final n = s.startsWith('#') ? s.substring(1) : s;
+    if (n.length != 6 && n.length != 8) return null;
+    final withAlpha = n.length == 6 ? 'FF$n' : n;
+    final value = int.tryParse(withAlpha, radix: 16);
+    if (value == null) return null;
+    return Color(value);
+  }
+
+  /// Uses the exact hex from the server when valid; otherwise the default swatch.
+  static Color resolveColor(String? serverHex) {
+    final parsed = _tryParseServerColor(serverHex);
+    if (parsed != null) return parsed;
+    return _colorFromHex6(hexStrings.first.substring(1));
+  }
+}
+
 class FestivalModeData {
   final String?
       festivalId; // MongoDB document ID for caching by festival instance
@@ -12,6 +54,15 @@ class FestivalModeData {
   final String? imageWithoutAlerts;
   final String overlayTextWithAlerts;
   final String overlayTextWithoutAlerts;
+  final List<String> imagesWithAlerts;
+  final List<String> imagesWithoutAlerts;
+  final List<String> textsWithAlerts;
+  final List<String> textsWithoutAlerts;
+  final String themeColor; // hex color like "#4C4EDB"
+  /// Greeting prefix ("Good morning, ") — empty means use weather [_getTextColor].
+  final String greetingTextColor;
+  /// "N notifications today" — empty means use weather [_getTextColor].
+  final String notificationSubtitleColor;
   final DateTime lastUpdatedAt;
   final DateTime cacheUntil;
 
@@ -22,6 +73,13 @@ class FestivalModeData {
     this.imageWithoutAlerts,
     this.overlayTextWithAlerts = '',
     this.overlayTextWithoutAlerts = '',
+    this.imagesWithAlerts = const [],
+    this.imagesWithoutAlerts = const [],
+    this.textsWithAlerts = const [],
+    this.textsWithoutAlerts = const [],
+    this.themeColor = '#4C4EDB',
+    this.greetingTextColor = '',
+    this.notificationSubtitleColor = '',
     required this.lastUpdatedAt,
     required this.cacheUntil,
   });
@@ -42,6 +100,48 @@ class FestivalModeData {
   }
 
   factory FestivalModeData.fromJson(Map<String, dynamic> json) {
+    final rawImagesWith = (json['imagesWithAlerts'] is List)
+        ? List<dynamic>.from(json['imagesWithAlerts'])
+        : const <dynamic>[];
+    final rawImagesWithout = (json['imagesWithoutAlerts'] is List)
+        ? List<dynamic>.from(json['imagesWithoutAlerts'])
+        : const <dynamic>[];
+    final rawTextsWith = (json['textsWithAlerts'] is List)
+        ? List<dynamic>.from(json['textsWithAlerts'])
+        : const <dynamic>[];
+    final rawTextsWithout = (json['textsWithoutAlerts'] is List)
+        ? List<dynamic>.from(json['textsWithoutAlerts'])
+        : const <dynamic>[];
+
+    final imagesWithAlerts = rawImagesWith
+        .whereType<String>()
+        .map((u) => _getFullUrl(u))
+        .whereType<String>()
+        .toList();
+    final imagesWithoutAlerts = rawImagesWithout
+        .whereType<String>()
+        .map((u) => _getFullUrl(u))
+        .whereType<String>()
+        .toList();
+
+    final textsWithAlerts =
+        rawTextsWith.whereType<String>().map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+    final textsWithoutAlerts =
+        rawTextsWithout.whereType<String>().map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+
+    final themeColor = (json['themeColor'] is String &&
+            (json['themeColor'] as String).trim().isNotEmpty)
+        ? (json['themeColor'] as String).trim()
+        : FestivalThemePalette.hexStrings.first;
+
+    final greetingTextColor = json['greetingTextColor'] is String
+        ? (json['greetingTextColor'] as String).trim()
+        : '';
+    final notificationSubtitleColor =
+        json['notificationSubtitleColor'] is String
+            ? (json['notificationSubtitleColor'] as String).trim()
+            : '';
+
     return FestivalModeData(
       festivalId: json['festivalId'],
       isEnabled: json['isEnabled'] ?? false,
@@ -50,6 +150,13 @@ class FestivalModeData {
       overlayTextWithAlerts: _overlayFromJson(json['overlayTextWithAlerts']),
       overlayTextWithoutAlerts:
           _overlayFromJson(json['overlayTextWithoutAlerts']),
+      imagesWithAlerts: imagesWithAlerts,
+      imagesWithoutAlerts: imagesWithoutAlerts,
+      textsWithAlerts: textsWithAlerts,
+      textsWithoutAlerts: textsWithoutAlerts,
+      themeColor: themeColor,
+      greetingTextColor: greetingTextColor,
+      notificationSubtitleColor: notificationSubtitleColor,
       lastUpdatedAt: DateTime.parse(
           json['lastUpdatedAt'] ?? DateTime.now().toIso8601String()),
       cacheUntil: DateTime.parse(json['cacheUntil'] ??
@@ -65,6 +172,13 @@ class FestivalModeData {
       imageWithoutAlerts: null,
       overlayTextWithAlerts: '',
       overlayTextWithoutAlerts: '',
+      imagesWithAlerts: const [],
+      imagesWithoutAlerts: const [],
+      textsWithAlerts: const [],
+      textsWithoutAlerts: const [],
+      themeColor: FestivalThemePalette.hexStrings.first,
+      greetingTextColor: '',
+      notificationSubtitleColor: '',
       lastUpdatedAt: DateTime.now(),
       cacheUntil: DateTime.now().add(Duration(hours: 6)),
     );
@@ -78,6 +192,13 @@ class FestivalModeData {
       'imageWithoutAlerts': imageWithoutAlerts,
       'overlayTextWithAlerts': overlayTextWithAlerts,
       'overlayTextWithoutAlerts': overlayTextWithoutAlerts,
+      'imagesWithAlerts': imagesWithAlerts,
+      'imagesWithoutAlerts': imagesWithoutAlerts,
+      'textsWithAlerts': textsWithAlerts,
+      'textsWithoutAlerts': textsWithoutAlerts,
+      'themeColor': themeColor,
+      'greetingTextColor': greetingTextColor,
+      'notificationSubtitleColor': notificationSubtitleColor,
       'lastUpdatedAt': lastUpdatedAt.toIso8601String(),
       'cacheUntil': cacheUntil.toIso8601String(),
     };
@@ -103,7 +224,8 @@ class FestivalModeService {
   final ValueNotifier<FestivalModeData> festivalVisualNotifier =
       ValueNotifier<FestivalModeData>(FestivalModeData.disabled());
 
-  /// After [bootstrapBeforeHome], full `/status` fetch is deferred to Home's 60s timer.
+  /// After [bootstrapBeforeHome], full `/status` fetch is deferred until Home runs
+  /// [_syncFestivalConfigFromServerIfPending] on the first frame (not after a long delay).
   bool _needsDeferredFullFestivalFetch = false;
 
   bool get needsDeferredFullFestivalFetch => _needsDeferredFullFestivalFetch;
@@ -140,6 +262,15 @@ class FestivalModeService {
 
   String? _lastKnownFestivalId; // Track festival ID to detect config changes
   bool _isInitialized = false;
+
+  static DateTime? _parseIso(dynamic v) {
+    if (v == null) return null;
+    try {
+      return DateTime.parse(v.toString());
+    } catch (_) {
+      return null;
+    }
+  }
 
   Future<void> initialize() async {
     if (_isInitialized) return;
@@ -188,6 +319,7 @@ class FestivalModeService {
       final data = Map<String, dynamic>.from(response.data as Map);
       final remoteId = data['festivalId']?.toString();
       final remoteEnabled = data['isEnabled'] == true;
+      final remoteLastUpdated = _parseIso(data['lastUpdatedAt']);
 
       if (!remoteEnabled) {
         _needsDeferredFullFestivalFetch = false;
@@ -197,13 +329,26 @@ class FestivalModeService {
         return;
       }
 
-      final cacheHit = hiveCurrent != null &&
+      // Same MongoDB doc id — admin can still change theme/text/images; use server lastUpdatedAt.
+      // Require server time to be clearly after Hive (tolerance for clock skew), not "almost any" newer.
+      final hiveLastUpdated = hiveCurrent?.lastUpdatedAt;
+      final serverHasNewerConfig = remoteLastUpdated != null &&
+          hiveLastUpdated != null &&
+          remoteLastUpdated.isAfter(hiveLastUpdated.add(const Duration(seconds: 2)));
+
+      final hasAnyImageCache = hiveCurrent != null &&
+          (hiveCurrent.imageWithAlerts != null ||
+              hiveCurrent.imageWithoutAlerts != null ||
+              hiveCurrent.imagesWithAlerts.isNotEmpty ||
+              hiveCurrent.imagesWithoutAlerts.isNotEmpty);
+
+      final cacheHit = !serverHasNewerConfig &&
+          hiveCurrent != null &&
           hiveCurrent.festivalId != null &&
           remoteId != null &&
           hiveCurrent.festivalId == remoteId &&
           !hiveCurrent.isCacheExpired() &&
-          (hiveCurrent.imageWithAlerts != null ||
-              hiveCurrent.imageWithoutAlerts != null);
+          hasAnyImageCache;
 
       if (cacheHit) {
         _currentData = hiveCurrent;
@@ -214,20 +359,32 @@ class FestivalModeService {
         return;
       }
 
-      _currentData = FestivalModeData.disabled();
+      // Stale config or missing full /status payload: keep Hive visuals if any until fetch completes.
+      if (hiveCurrent != null && hasAnyImageCache) {
+        _currentData = hiveCurrent;
+        _lastKnownFestivalId = hiveCurrent.festivalId;
+      } else {
+        _currentData = FestivalModeData.disabled();
+      }
       _needsDeferredFullFestivalFetch = true;
       _publishFestivalVisual();
-      debugPrint('[FestivalMode] bootstrap cache miss; deferred full fetch');
+      debugPrint(
+        '[FestivalMode] bootstrap: full /status sync needed (serverUpdated=$serverHasNewerConfig)');
+
     } catch (e) {
       debugPrint('[FestivalMode] bootstrap network error: $e');
+      final hiveHasImages = hiveCurrent != null &&
+          (hiveCurrent.imageWithAlerts != null ||
+              hiveCurrent.imageWithoutAlerts != null ||
+              hiveCurrent.imagesWithAlerts.isNotEmpty ||
+              hiveCurrent.imagesWithoutAlerts.isNotEmpty);
       if (hiveCurrent != null &&
           hiveCurrent.isEnabled &&
           !hiveCurrent.isCacheExpired() &&
-          (hiveCurrent.imageWithAlerts != null ||
-              hiveCurrent.imageWithoutAlerts != null)) {
+          hiveHasImages) {
         _currentData = hiveCurrent;
         _lastKnownFestivalId = hiveCurrent.festivalId;
-        _needsDeferredFullFestivalFetch = false;
+        _needsDeferredFullFestivalFetch = true;
       } else {
         _currentData = FestivalModeData.disabled();
         _needsDeferredFullFestivalFetch = true;
@@ -351,9 +508,11 @@ class FestivalModeService {
   Future<void> _preCacheImages(
       FestivalModeData data, BuildContext context) async {
     try {
-      final urls = [
+      final urls = <String>[
         if (data.imageWithAlerts != null) data.imageWithAlerts!,
         if (data.imageWithoutAlerts != null) data.imageWithoutAlerts!,
+        ...data.imagesWithAlerts,
+        ...data.imagesWithoutAlerts,
       ];
 
       for (final url in urls) {
@@ -392,8 +551,11 @@ class FestivalModeService {
     if (!data.isEnabled) return null;
 
     if (hasAlerts) {
+      // Prefer multi-image list; fall back to legacy single field.
+      if (data.imagesWithAlerts.isNotEmpty) return data.imagesWithAlerts.first;
       return data.imageWithAlerts;
     } else {
+      if (data.imagesWithoutAlerts.isNotEmpty) return data.imagesWithoutAlerts.first;
       return data.imageWithoutAlerts;
     }
   }
@@ -401,11 +563,16 @@ class FestivalModeService {
   /// Invalidate cache (call after admin updates)
   Future<void> invalidateCache() async {
     _currentData = null;
-    if (_festivalBox.isOpen && _lastKnownFestivalId != null) {
-      final cacheKey = 'festival_${_lastKnownFestivalId}';
-      await _festivalBox.delete(cacheKey);
-      debugPrint(
-          '[FestivalMode] Cache invalidated for festival: $_lastKnownFestivalId');
+    if (_festivalBox.isOpen) {
+      try {
+        await _festivalBox.delete('current_festival_config');
+      } catch (_) {}
+      if (_lastKnownFestivalId != null) {
+        final cacheKey = 'festival_${_lastKnownFestivalId}';
+        await _festivalBox.delete(cacheKey);
+        debugPrint(
+            '[FestivalMode] Cache invalidated for festival: $_lastKnownFestivalId');
+      }
     }
     _publishFestivalVisual();
   }

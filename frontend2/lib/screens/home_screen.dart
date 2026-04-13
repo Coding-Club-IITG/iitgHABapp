@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:frontend2/apis/mess/mess_menu.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:frontend2/models/alert_model.dart';
@@ -45,7 +46,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const bool _isWeatherBackgroundTesting = false;
   static const String _testingWeatherGroup = 'clear'; // clear, rainy
   static const bool _testingIsDay = false;
@@ -78,13 +79,38 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _deferredHomeNetworkTimer;
   /// First weather + optional deferred festival hit server after this delay (not on Home mount).
   static const Duration _kDeferredHomeNetworkDelay = Duration(seconds: 60);
-  static const Duration _kDeferredFestivalAfterWeatherStagger =
-      Duration(seconds: 3);
   WeatherBackgroundData _weatherBackground =
       WeatherBackgroundData.localTimeDefault();
+
+  /// When festival mode is off (or rain backdrop): morning & afternoon = purple;
+  /// evening & rain = white. Weekend title/username are split in [_getTitleColor] /
+  /// [_heroUserNameColor] (white + purple).
+  Color _heroAccentColor() {
+    final variant = _weatherBackground.backgroundVariant;
+    switch (variant) {
+      case 'morning':
+      case 'afternoon':
+        return primary;
+      case 'weekend':
+      case 'evening':
+      case 'rainy':
+      default:
+        return Colors.white;
+    }
+  }
+
+  Color _festivalPrimaryColor() {
+    final data = FestivalModeService().currentData;
+    if (data != null && data.isEnabled) {
+      return FestivalThemePalette.resolveColor(data.themeColor);
+    }
+    return primary;
+  }
+
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     fetchUserData();
     fetchMessIdAndToken();
     _startScanQrStatusTicker();
@@ -93,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _syncFestivalConfigFromServerIfPending();
 
       // Add dummy alerts for testing extended background
       if (_isTestingNotifications) {
@@ -134,8 +161,61 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  /// Admin changes (theme/text) update `lastUpdatedAt` — [bootstrapBeforeHome] sets a deferred
+  /// full `/status` fetch. Run it on first frame instead of waiting for the 60s home timer.
+  Future<void> _syncFestivalConfigFromServerIfPending() async {
+    if (!mounted) return;
+    if (!FestivalModeService().tryConsumeDeferredFestivalFetch()) return;
+    try {
+      await FestivalModeService()
+          .fetchFestivalMode(context: context, forceRefresh: true);
+    } catch (_) {
+      // [fetchFestivalMode] already falls back to Hive / disabled
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Reload notifications and alerts from SharedPreferences when app comes to foreground
+      // This ensures notifications/alerts received in background are displayed
+      _reloadNotificationsFromPrefs();
+      _reloadAlertsFromPrefs();
+    }
+  }
+
+  Future<void> _reloadAlertsFromPrefs() async {
+    try {
+      await AlertsManager.filterAndLoadLocalAlerts();
+      if (kDebugMode) {
+        debugPrint('✅ Reloaded alerts from prefs on app resume');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Error reloading alerts on app resume: $e');
+      }
+    }
+  }
+
+  Future<void> _reloadNotificationsFromPrefs() async {
+    try {
+      final notifications = await getNotificationHistory();
+      notificationHistoryNotifier.value = notifications;
+      if (kDebugMode) {
+        debugPrint('✅ Reloaded ${notifications.length} notifications from prefs on app resume');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Error reloading notifications on app resume: $e');
+      }
+    }
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scanQrStatusTimer?.cancel();
     _weatherBackgroundTimer?.cancel();
     _deferredHomeNetworkTimer?.cancel();
@@ -154,6 +234,8 @@ class _HomeScreenState extends State<HomeScreen> {
       fetchUserData();
       fetchMessIdAndToken();
       await _loadWeatherBackground();
+      await _reloadNotificationsFromPrefs();
+      await _reloadAlertsFromPrefs();
       homeScreenRefreshNotifier.value = false;
     }
   }
@@ -186,14 +268,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     try {
       await _loadWeatherBackground();
-      if (!mounted) return;
-      await Future<void>.delayed(_kDeferredFestivalAfterWeatherStagger);
-      if (!mounted) return;
-      if (FestivalModeService().tryConsumeDeferredFestivalFetch()) {
-        await FestivalModeService()
-            .fetchFestivalMode(context: context, forceRefresh: true)
-            .catchError((_) => FestivalModeData.disabled());
-      }
+      // Festival full sync is triggered from [_syncFestivalConfigFromServerIfPending]
+      // on first frame when bootstrap marks it pending — do not wait 60s.
     } finally {
       if (mounted) {
         setState(() {});
@@ -253,11 +329,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final festivalData = FestivalModeService().currentData;
     if (festivalData != null && festivalData.isEnabled) {
-      if (hasAlerts && festivalData.overlayTextWithAlerts.isNotEmpty) {
-        return festivalData.overlayTextWithAlerts;
-      } else if (!hasAlerts &&
-          festivalData.overlayTextWithoutAlerts.isNotEmpty) {
-        return festivalData.overlayTextWithoutAlerts;
+      if (hasAlerts) {
+        if (festivalData.textsWithAlerts.isNotEmpty) {
+          return festivalData.textsWithAlerts.first;
+        }
+        if (festivalData.overlayTextWithAlerts.isNotEmpty) {
+          return festivalData.overlayTextWithAlerts;
+        }
+      } else {
+        if (festivalData.textsWithoutAlerts.isNotEmpty) {
+          return festivalData.textsWithoutAlerts.first;
+        }
+        if (festivalData.overlayTextWithoutAlerts.isNotEmpty) {
+          return festivalData.overlayTextWithoutAlerts;
+        }
       }
     }
     return getGreeting();
@@ -389,7 +474,9 @@ class _HomeScreenState extends State<HomeScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
       backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
       builder: (context) => const NotificationScreen(),
     );
   }
@@ -627,6 +714,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMessSectionHeader(String messName) {
+    const accent = primary;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -650,8 +738,8 @@ class _HomeScreenState extends State<HomeScreen> {
         InkWell(
           onTap: () => widget.onNavigateToTab?.call(1),
           borderRadius: BorderRadius.circular(16),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 2),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
             child: Row(
               children: [
                 Text(
@@ -660,14 +748,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontSize: 14,
                     height: 20 / 14,
                     fontWeight: FontWeight.w500,
-                    color: primary,
+                    color: accent,
                   ),
                 ),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
-                  color: primary,
+                  color: accent,
                 ),
               ],
             ),
@@ -877,17 +965,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Color _getTitleColor() {
-    final variant = _weatherBackground.backgroundVariant;
-
-    // For morning, afternoon, and weekend use dark color
-    if (variant == 'morning' ||
-        variant == 'afternoon' ||
-        variant == 'weekend') {
-      return const Color(0xFF4C4EDB); // #4C4EDB
+    if (_weatherBackground.backgroundVariant == 'weekend') {
+      return Colors.white;
     }
-
-    // For evening and raining use light color
-    return const Color(0xFFEDEDFB);
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null && festivalData.isEnabled && !rainPriority) {
+      return _festivalPrimaryColor();
+    }
+    return _heroAccentColor();
   }
 
   Color _getTextColor() {
@@ -904,6 +990,46 @@ class _HomeScreenState extends State<HomeScreen> {
     return Colors.white;
   }
 
+  /// Greeting prefix ("…, ") — server [FestivalModeData.greetingTextColor] when set.
+  Color _heroGreetingPrefixColor() {
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null &&
+        festivalData.isEnabled &&
+        !rainPriority &&
+        festivalData.greetingTextColor.trim().isNotEmpty) {
+      return FestivalThemePalette.resolveColor(festivalData.greetingTextColor);
+    }
+    return _getTextColor();
+  }
+
+  /// "N notifications today" — server [FestivalModeData.notificationSubtitleColor] when set.
+  Color _heroNotificationSubtitleColor() {
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null &&
+        festivalData.isEnabled &&
+        !rainPriority &&
+        festivalData.notificationSubtitleColor.trim().isNotEmpty) {
+      return FestivalThemePalette.resolveColor(
+          festivalData.notificationSubtitleColor);
+    }
+    return _getTextColor();
+  }
+
+  /// First name: weekend uses [primary]; else festival or [_heroAccentColor].
+  Color _heroUserNameColor() {
+    if (_weatherBackground.backgroundVariant == 'weekend') {
+      return primary;
+    }
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null && festivalData.isEnabled && !rainPriority) {
+      return _festivalPrimaryColor();
+    }
+    return _heroAccentColor();
+  }
+
   Widget _buildWeatherHeroHeader({
     required int unreadCount,
     required bool hasImportantMessages,
@@ -915,7 +1041,7 @@ class _HomeScreenState extends State<HomeScreen> {
         : '$unreadCount notifications today';
 
     final titleColor = _getTitleColor();
-    final textColor = _getTextColor();
+    final subtitleColor = _heroNotificationSubtitleColor();
 
     final greetingFontSize = hasImportantMessages ? 16.0 : 24.0;
     final greetingLineHeight =
@@ -975,11 +1101,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontSize: greetingFontSize,
                         height: greetingLineHeight,
                         fontWeight: FontWeight.w500,
-                        color: textColor,
+                        color: _heroGreetingPrefixColor(),
                       ),
                       children: [
                         TextSpan(text: '$greeting, '),
-                        TextSpan(text: displayName),
+                        TextSpan(
+                          text: displayName,
+                          style: TextStyle(color: _heroUserNameColor()),
+                        ),
                       ],
                     ),
                   ),
@@ -994,7 +1123,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   fontSize: 12,
                   height: 16 / 12,
                   fontWeight: FontWeight.w500,
-                  color: textColor,
+                  color: subtitleColor,
                 ),
               ),
             ],
@@ -1082,12 +1211,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildUpdatesCard(int unreadCount) {
+    const accent = primary;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        // CLEAR THE ALERTS BADGE when they open the sheet
-        AlertsManager.markAllAlertsAsRead();
-        markAllNotificationsAsRead();
+      onTap: () async {
+        // Clear alert badges; notification read state is updated from the sheet
+        // (Mark all read / per-item tap), not when opening.
+        await AlertsManager.markAllAlertsAsRead();
         _openNotificationsSheet();
       },
       child: Container(
@@ -1116,7 +1246,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Spacer(),
-            const Icon(Icons.chevron_right_rounded, size: 16, color: primary),
+            Icon(Icons.chevron_right_rounded, size: 16, color: accent),
           ],
         ),
       ),
@@ -1127,25 +1257,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return ValueListenableBuilder<List<AlertModel>>(
       valueListenable: AlertsManager.activeAlertsNotifier,
       builder: (context, activeAlerts, child) {
-        return ValueListenableBuilder<List<dynamic>>(
-          valueListenable: NotificationProvider.notificationProvider,
-          builder: (context, storedNotifications, child) {
-            final notifications = storedNotifications.map((item) {
-              if (item is NotificationModel) return item;
-              return NotificationModel.fromLegacyString(item.toString());
-            }).toList();
-
-            final unreadNotifCount =
-                notifications.where((n) => !n.isRead).length;
-            final unreadAlertsCount =
-                activeAlerts.where((a) => !a.isRead).length;
+            return ValueListenableBuilder<List<NotificationModel>>(
+              valueListenable: NotificationProvider.notificationProvider,
+              builder: (context, storedNotifications, child) {
+                final notifications = storedNotifications;
+                // notifications.forEach((notification) {print(notification.timestamp);});
+                // notifications.forEach((notification) {print(notification.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)));});
+              final unreadNotifCount = notifications.where((n) => !n.isRead && !n.isAlert).length;
+              final unreadAlertsCount =
+                  activeAlerts.where((a) => !a.isRead).length;
             final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
+            final updatesCount = unreadNotifCount;
+            final todayNotificationCount = notifications.where((n) => (!n.isAlert) && n.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day))).length;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildWeatherHeroHeader(
-                  unreadCount: totalUnreadCount,
+                  unreadCount: todayNotificationCount,
                   hasImportantMessages: activeAlerts.isNotEmpty,
                 ),
                 const SizedBox(height: 32),
@@ -1154,11 +1283,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _buildImportantMessagesCard(activeAlerts),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
                 ],
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildUpdatesCard(totalUnreadCount),
+                  child: _buildUpdatesCard(updatesCount),
                 ),
                 const SizedBox(height: 32),
               ],
@@ -1170,14 +1299,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildQuickActionCard(_QuickActionData action) {
+    const accent = primary;
     final iconChild = action.iconAsset != null
         ? SvgPicture.asset(
             action.iconAsset!,
             width: 24,
             height: 24,
-            colorFilter: const ColorFilter.mode(primary, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(accent, BlendMode.srcIn),
           )
-        : Icon(action.icon, color: primary, size: 24);
+        : Icon(action.icon, color: accent, size: 24);
 
     return Expanded(
       child: InkWell(
@@ -1338,34 +1468,78 @@ class _HomeScreenState extends State<HomeScreen> {
         FestivalModeService().currentData?.isEnabled == true;
     final rainPriority = _weatherBackground.weatherGroup == 'rainy';
     final festivalOn = festivalModeOn && !rainPriority;
-    final DecorationImage? bgImage = festivalOn
-        ? null
-        : DecorationImage(
-            image: AssetImage(
-              _getBackgroundAssetPath(_weatherBackground.assetPath),
-            ),
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
+
+    if (festivalOn) {
+      return ValueListenableBuilder<FestivalModeData>(
+        valueListenable: FestivalModeService().festivalVisualNotifier,
+        builder: (context, festData, _) {
+          return ValueListenableBuilder<List<AlertModel>>(
+            valueListenable: AlertsManager.activeAlertsNotifier,
+            builder: (context, activeAlerts, _) {
+              final hasAlerts = activeAlerts.isNotEmpty;
+              final url = FestivalModeService()
+                  .getAppropriateFestivalImage(festData, hasAlerts)
+                  ?.replaceAll('localhost', '10.0.2.2');
+              final bannerH = festivalBannerHeight(hasAlerts);
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                width: double.infinity,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    if (url != null)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: bannerH,
+                        child: CachedNetworkImage(
+                          imageUrl: url,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          placeholder: (context, _) =>
+                              Container(color: const Color(0xFF1a1a2e)),
+                          errorWidget: (context, _, __) =>
+                              const SizedBox.shrink(),
+                        ),
+                      ),
+                    Container(
+                      child: _buildAlertsSection(),
+                    ),
+                  ],
+                ),
+              );
+            },
           );
+        },
+      );
+    }
+
+    final DecorationImage bgImage = DecorationImage(
+      image: AssetImage(
+        _getBackgroundAssetPath(_weatherBackground.assetPath),
+      ),
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+    );
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       width: double.infinity,
       decoration: BoxDecoration(image: bgImage),
       child: Container(
-        decoration: festivalOn
-            ? null
-            : const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x00FFFFFF),
-                    Color(0xFFFFFFFF),
-                  ],
-                  stops: [0.59, 1.0],
-                ),
-              ),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0x00FFFFFF),
+              Color(0xFFFFFFFF),
+            ],
+            stops: [0.59, 1.0],
+          ),
+        ),
         child: _buildAlertsSection(),
       ),
     );
@@ -1392,13 +1566,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         children: [
                           _buildWeatherHeroSection(),
-                          _buildSectionDivider(),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                            child: ValueListenableBuilder<List<String>>(
-                              valueListenable: HostelsNotifier.hostelNotifier,
-                              builder: (context, _, __) =>
-                                  _buildQuickActionsSection(),
+                          ColoredBox(
+                            color: pageBackground,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildSectionDivider(),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 32, 16, 32),
+                                  child:
+                                      ValueListenableBuilder<List<String>>(
+                                    valueListenable:
+                                        HostelsNotifier.hostelNotifier,
+                                    builder: (context, _, __) =>
+                                        _buildQuickActionsSection(),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -1422,28 +1607,39 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Column(
                                 children: [
                                   _buildWeatherHeroSection(),
-                                  _buildSectionDivider(),
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        16, 32, 16, 32),
-                                    child: ValueListenableBuilder<List<String>>(
-                                      valueListenable:
-                                          HostelsNotifier.hostelNotifier,
-                                      builder: (context, _, __) =>
-                                          _buildQuickActionsSection(),
-                                    ),
-                                  ),
-                                  _buildSectionDivider(),
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        16, 32, 16, 32),
-                                    child: menuSnap.hasError
-                                        ? _buildMessSectionError(messName)
-                                        : _buildMessSectionForMenus(
-                                            messName,
-                                            menuSnap.data ??
-                                                const <MenuModel>[],
+                                  ColoredBox(
+                                    color: pageBackground,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        _buildSectionDivider(),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                              16, 32, 16, 32),
+                                          child: ValueListenableBuilder<
+                                              List<String>>(
+                                            valueListenable: HostelsNotifier
+                                                .hostelNotifier,
+                                            builder: (context, _, __) =>
+                                                _buildQuickActionsSection(),
                                           ),
+                                        ),
+                                        _buildSectionDivider(),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                              16, 32, 16, 32),
+                                          child: menuSnap.hasError
+                                              ? _buildMessSectionError(
+                                                  messName)
+                                              : _buildMessSectionForMenus(
+                                                  messName,
+                                                  menuSnap.data ??
+                                                      const <MenuModel>[],
+                                                ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),

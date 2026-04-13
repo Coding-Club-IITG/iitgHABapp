@@ -1,5 +1,15 @@
 import mongoose from "mongoose";
 
+const festivalImageSchema = new mongoose.Schema(
+  {
+    url: { type: String, required: false },
+    itemId: { type: String, required: false },
+    overlayText: { type: String, required: false, default: "Happy Diwali" },
+    createdAt: { type: Date, default: Date.now },
+  },
+  { _id: false },
+);
+
 const festivalModeSchema = new mongoose.Schema({
   isEnabled: {
     type: Boolean,
@@ -34,6 +44,38 @@ const festivalModeSchema = new mongoose.Schema({
       required: false,
       default: "Happy Diwali",
     },
+  },
+  // New fields (backward-compatible): support multiple images and texts.
+  imagesWithAlerts: {
+    type: [festivalImageSchema],
+    default: [],
+  },
+  imagesWithoutAlerts: {
+    type: [festivalImageSchema],
+    default: [],
+  },
+  textsWithAlerts: {
+    type: [String],
+    default: [],
+  },
+  textsWithoutAlerts: {
+    type: [String],
+    default: [],
+  },
+  // Admin-selectable theme color (hex string like "#4C4EDB")
+  themeColor: {
+    type: String,
+    default: "#4C4EDB",
+  },
+  /** Hero greeting prefix ("Good morning, ") — empty = app uses weather default */
+  greetingTextColor: {
+    type: String,
+    default: "",
+  },
+  /** "N notifications today" line — empty = app uses weather default */
+  notificationSubtitleColor: {
+    type: String,
+    default: "",
   },
   lastUpdatedBy: {
     type: mongoose.Schema.Types.ObjectId,
