@@ -310,10 +310,11 @@ class FestivalModeService {
       }
 
       // Same MongoDB doc id — admin can still change theme/text/images; use server lastUpdatedAt.
+      // Require server time to be clearly after Hive (tolerance for clock skew), not "almost any" newer.
       final hiveLastUpdated = hiveCurrent?.lastUpdatedAt;
       final serverHasNewerConfig = remoteLastUpdated != null &&
           hiveLastUpdated != null &&
-          remoteLastUpdated.isAfter(hiveLastUpdated.subtract(const Duration(seconds: 2)));
+          remoteLastUpdated.isAfter(hiveLastUpdated.add(const Duration(seconds: 2)));
 
       final hasAnyImageCache = hiveCurrent != null &&
           (hiveCurrent.imageWithAlerts != null ||
