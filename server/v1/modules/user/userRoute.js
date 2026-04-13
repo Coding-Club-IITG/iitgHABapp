@@ -1,19 +1,20 @@
-const express = require("express");
-const {
+import express from "express";
+
+import {
   authenticateJWT,
   authenticateHabJWT,
   authenticateUserOrAdminJWT,
   authenticateMessManagerJWT,
-} = require("../../middleware/authenticateJWT.js");
+} from "../../middleware/authenticateJWT.js";
 
-const {
+import {
   getUserData,
   saveUserProfile,
   getAllUsers,
   getUserCount,
   deleteUserAccount,
   getUserForManager,
-} = require("./userController.js");
+} from "./userController.js";
 
 const userRouter = express.Router();
 
@@ -125,4 +126,4 @@ userRouter.get(
   getUserForManager,
 );
 
-module.exports = userRouter;
+export default userRouter;

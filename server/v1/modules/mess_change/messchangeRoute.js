@@ -1,24 +1,20 @@
-const express = require("express");
+import express from "express";
 
-// Import from modular controllers
-const {
+import {
   messChangeRequest,
   messChangeStatus,
-} = require("./controllers/requestController.js");
-
-const {
+} from "./controllers/requestController.js";
+import {
   getAllMessChangeRequestsForAllHostels,
   messChangeStatusForAdmin,
   getMessChangeScheduleInfo,
-} = require("./controllers/adminController.js");
+} from "./controllers/adminController.js";
 
-const {
+import {
   authenticateJWT,
   authenticateHabJWT,
-} = require("../../middleware/authenticateJWT.js");
-const {
-  requireMicrosoftAuth,
-} = require("../../middleware/requireMicrosoftAuth.js");
+} from "../../middleware/authenticateJWT.js";
+import { requireMicrosoftAuth } from "../../middleware/requireMicrosoftAuth.js";
 
 const messChangeRouter = express.Router();
 
@@ -49,4 +45,4 @@ messChangeRouter.get(
   getMessChangeScheduleInfo,
 );
 
-module.exports = messChangeRouter;
+export default messChangeRouter;

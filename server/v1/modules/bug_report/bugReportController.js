@@ -1,7 +1,9 @@
-const BugReport = require("./bugReportModel");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
+import fs from "fs";
+import path from "path";
+const __dirname = import.meta.dirname;
+
+import multer from "multer";
+import BugReport from "./bugReportModel.js";
 
 // Configure multer for screenshot uploads
 const uploadDir = path.join(__dirname, "../../../uploads/bug-reports");
@@ -25,7 +27,7 @@ const upload = multer({
   fileFilter: (req, file, cb) => {
     const allowedTypes = /jpeg|jpg|png|gif|webp/;
     const extname = allowedTypes.test(
-      path.extname(file.originalname).toLowerCase()
+      path.extname(file.originalname).toLowerCase(),
     );
     const mimetype = allowedTypes.test(file.mimetype);
 
@@ -38,9 +40,9 @@ const upload = multer({
 });
 
 // Middleware for handling multiple file uploads
-const uploadMiddleware = upload.array("screenshots", 5); // Max 5 screenshots
+export const uploadMiddleware = upload.array("screenshots", 5); // Max 5 screenshots
 
-const createBugReport = async (req, res) => {
+export const createBugReport = async (req, res) => {
   try {
     const { title, description, email, deviceInfo, frequency, type } = req.body;
 
@@ -98,7 +100,7 @@ const createBugReport = async (req, res) => {
   }
 };
 
-const getBugReports = async (req, res) => {
+export const getBugReports = async (req, res) => {
   try {
     // Only admins can view bug reports
     const bugReports = await BugReport.find()
@@ -117,7 +119,7 @@ const getBugReports = async (req, res) => {
   }
 };
 
-const updateBugReportStatus = async (req, res) => {
+export const updateBugReportStatus = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
@@ -131,7 +133,7 @@ const updateBugReportStatus = async (req, res) => {
     const bugReport = await BugReport.findByIdAndUpdate(
       id,
       { status },
-      { new: true }
+      { new: true },
     );
 
     if (!bugReport) {
@@ -152,11 +154,3 @@ const updateBugReportStatus = async (req, res) => {
     });
   }
 };
-
-module.exports = {
-  createBugReport,
-  getBugReports,
-  updateBugReportStatus,
-  uploadMiddleware,
-};
-

@@ -1,9 +1,10 @@
 {
   "name": "server",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "pm2 start ecosystem.config.js",
+    "start": "pm2 start ecosystem.config.cjs",
     "stop": "pm2 stop all",
     "logs": "pm2 logs",
     "dev": "concurrently \"nodemon index.js\" \"cd v1 && nodemon index.js\" \"cd v2 && nodemon index.js\"",
@@ -16,16 +17,16 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "axios": "^1.13.6",
-    "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
+    "axios": "^1.15.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "http-proxy-middleware": "^3.0.5",
     "uuid": "^13.0.0"
   },
   "devDependencies": {
     "concurrently": "^9.2.1",
-    "nodemon": "^3.1.10",
+    "nodemon": "^3.1.14",
     "pm2": "^6.0.14"
   }
 }

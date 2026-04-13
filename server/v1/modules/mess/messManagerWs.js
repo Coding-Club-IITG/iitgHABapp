@@ -1,6 +1,6 @@
-const url = require("url");
-const { Server: WebSocketServer } = require("ws");
-const { Hostel } = require("../hostel/hostelModel.js");
+import url from "url";
+import { WebSocketServer } from "ws";
+import { Hostel } from "../hostel/hostelModel.js";
 
 // In-memory set of connected manager clients
 // Each entry: { ws, hostelId, messId, meal } where meal is "breakfast" | "lunch" | "dinner" | null
@@ -15,7 +15,7 @@ function normalizeMeal(meal) {
   return null;
 }
 
-function initMessManagerWs(server) {
+export function initMessManagerWs(server) {
   const wss = new WebSocketServer({
     server,
     path: "/api/mess/manager/scan-logs",
@@ -76,7 +76,7 @@ function initMessManagerWs(server) {
  * @param {Object} params.user - { _id, name, rollNumber }
  * @param {Date|string} params.time - JS Date or ISO/string
  */
-function broadcastMessScanToManagers({
+export function broadcastMessScanToManagers({
   hostelId,
   messId,
   mealType,
@@ -110,8 +110,3 @@ function broadcastMessScanToManagers({
     }
   }
 }
-
-module.exports = {
-  initMessManagerWs,
-  broadcastMessScanToManagers,
-};

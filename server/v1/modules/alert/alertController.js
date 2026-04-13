@@ -1,22 +1,19 @@
-//alert/alertcontroller.js
+import { Hostel } from "../hostel/hostelModel.js";
+import Alert from "./alertModel.js";
+import admin from "../notification/firebase.js";
+import redisClient from "../../utils/redisClient.js";
 
-const Alert = require("./alertModel");
-const { Hostel } = require("../hostel/hostelModel");
-const admin = require("../notification/firebase");
-const redisClient = require("../../utils/redisClient"); // Adjust path to your redis client
-
-/**
- * Helper to determine Redis Key based on target type and ID
- */
-const getRedisKey = (type, id) => `alerts:${type}${id ? ':' + id : ':all'}`;
+// Helper to determine Redis Key based on target type and ID
+const getRedisKey = (type, id) => `alerts:${type}${id ? ":" + id : ":all"}`;
 
 /**
  * POST /alerts/create
  * Creates an alert, saves to DB, caches in Redis, and fires FCM Push
  */
-const createAlert = async (req, res) => {
+export const createAlert = async (req, res) => {
   try {
-    const { title, body, ttlSeconds, targetType, targetIds, hasCountdown } = req.body;
+    const { title, body, ttlSeconds, targetType, targetIds, hasCountdown } =
+      req.body;
 
     if (!title || !body || !ttlSeconds || !targetType) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -43,7 +40,7 @@ const createAlert = async (req, res) => {
       body,
       hasCountdown: hasCountdown ? "true" : "false",
       expiresAt: expiresAtMs.toString(),
-      targetType
+      targetType,
     });
 
     // 2. Cache in Redis (using Sorted Sets for multiple alerts) & Fire FCM
@@ -51,11 +48,16 @@ const createAlert = async (req, res) => {
 
     for (const targetId of targets) {
       // Add to Redis ZSET. Score = expiresAt, Member = alert JSON string
-      const redisKey = getRedisKey(targetType, targetType === "global" ? null : targetId);
+      const redisKey = getRedisKey(
+        targetType,
+        targetType === "global" ? null : targetId,
+      );
       await redisClient.zadd(redisKey, expiresAtMs, alertData);
-      
+
       // Cleanup old expired alerts from this specific ZSET asynchronously
-      redisClient.zremrangebyscore(redisKey, 0, Date.now()).catch(console.error);
+      redisClient
+        .zremrangebyscore(redisKey, 0, Date.now())
+        .catch(console.error);
 
       // 3. Resolve FCM Topic mapping based on existing system standards
       let fcmTopic = "All_Hostels";
@@ -63,9 +65,10 @@ const createAlert = async (req, res) => {
         const hostelDoc = await Hostel.findById(targetId);
         if (hostelDoc) {
           const formattedName = hostelDoc.hostel_name.replaceAll(" ", "_");
-          fcmTopic = targetType === "hostel" 
-            ? `Boarders_${formattedName}` 
-            : `Subscribers_${formattedName}`;
+          fcmTopic =
+            targetType === "hostel"
+              ? `Boarders_${formattedName}`
+              : `Subscribers_${formattedName}`;
         }
       }
 
@@ -79,7 +82,7 @@ const createAlert = async (req, res) => {
       await admin.messaging().send({
         notification: {
           title: title,
-          body: body
+          body: body,
         },
         data: {
           id: newAlert._id.toString(),
@@ -88,19 +91,21 @@ const createAlert = async (req, res) => {
           expiresAt: expiresAtMs.toString(),
           hasCountdown: hasCountdown ? "true" : "false",
           alert: "true",
-          targetType
+          targetType,
         },
         topic: fcmTopic,
         android: {
           ttl: ttlSeconds * 1000,
           notification: {
-            channelId: nativeChannelId // This links to the Android OS settings!
-          }
+            channelId: nativeChannelId, // This links to the Android OS settings!
+          },
         },
       });
     }
 
-    res.status(201).json({ message: "Alert created successfully", alert: newAlert });
+    res
+      .status(201)
+      .json({ message: "Alert created successfully", alert: newAlert });
   } catch (err) {
     console.error("Error creating alert:", err);
     res.status(500).json({ error: "Internal Server Error" });
@@ -111,7 +116,7 @@ const createAlert = async (req, res) => {
  * GET /alerts
  * Fetches relevant active alerts for the logged-in user
  */
-const getAlerts = async (req, res) => {
+export const getAlerts = async (req, res) => {
   try {
     const now = Date.now();
     const user = req.user;
@@ -120,7 +125,7 @@ const getAlerts = async (req, res) => {
     const targetKeys = [
       getRedisKey("global"),
       getRedisKey("hostel", user.hostel?.toString()),
-      getRedisKey("mess", user.curr_subscribed_mess?.toString())
+      getRedisKey("mess", user.curr_subscribed_mess?.toString()),
     ].filter(Boolean);
 
     let allAlerts = [];
@@ -129,13 +134,13 @@ const getAlerts = async (req, res) => {
     for (const key of targetKeys) {
       // O(log N) fetch of non-expired alerts
       const cachedAlerts = await redisClient.zrangebyscore(key, now, "+inf");
-      
+
       if (cachedAlerts && cachedAlerts.length > 0) {
-        allAlerts.push(...cachedAlerts.map(a => JSON.parse(a)));
+        allAlerts.push(...cachedAlerts.map((a) => JSON.parse(a)));
       } else {
         // Cache Miss or Empty: Fallback to DB (Architecture PDF Requirement 4.2.8)
-        const targetType = key.split(':')[1];
-        const targetId = key.split(':')[2];
+        const targetType = key.split(":")[1];
+        const targetId = key.split(":")[2];
 
         const query = { expiresAt: { $gt: new Date(now) }, targetType };
         if (targetType !== "global" && targetId) {
@@ -144,19 +149,23 @@ const getAlerts = async (req, res) => {
 
         const dbAlerts = await Alert.find(query).lean();
         if (dbAlerts.length > 0) {
-          const parsedAlerts = dbAlerts.map(alert => ({
+          const parsedAlerts = dbAlerts.map((alert) => ({
             id: alert._id.toString(),
             title: alert.title,
             body: alert.body,
             hasCountdown: alert.hasCountdown ? "true" : "false",
             expiresAt: new Date(alert.expiresAt).getTime().toString(),
-            targetType: alert.targetType
+            targetType: alert.targetType,
           }));
           allAlerts.push(...parsedAlerts);
 
           // Re-hydrate cache
           for (const parsed of parsedAlerts) {
-             await redisClient.zadd(key, Number(parsed.expiresAt), JSON.stringify(parsed));
+            await redisClient.zadd(
+              key,
+              Number(parsed.expiresAt),
+              JSON.stringify(parsed),
+            );
           }
         }
       }
@@ -171,5 +180,3 @@ const getAlerts = async (req, res) => {
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
-
-module.exports = { createAlert, getAlerts };

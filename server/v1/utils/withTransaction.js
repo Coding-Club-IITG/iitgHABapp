@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 /**
  * Runs `fn(session)` inside a MongoDB multi-document transaction.
@@ -20,7 +20,7 @@ const mongoose = require("mongoose");
  * @returns {Promise<T>}
  */
 
-async function withTransaction(fn) {
+export async function withTransaction(fn) {
   const session = await mongoose.startSession();
   try {
     let result;
@@ -32,5 +32,3 @@ async function withTransaction(fn) {
     await session.endSession();
   }
 }
-
-module.exports = { withTransaction };

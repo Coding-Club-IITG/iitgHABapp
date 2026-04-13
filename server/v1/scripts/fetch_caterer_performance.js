@@ -1,24 +1,16 @@
+import mongoose from "mongoose";
+
+import { Mess } from "../modules/mess/messModel.js";
+
+import { mongodbUri } from "../config/default.js";
+
 /**
  * Reads rating, rank, and subscriber feedback % from all Mess documents.
- *
- * Usage: node server/v1/scripts/fetch_caterer_performance.js
- * Requires MONGODB_URI in server/.env
  */
-
-const mongoose = require("mongoose");
-const path = require("path");
-const dotenv = require("dotenv");
-
-dotenv.config({ path: path.resolve(__dirname, "../../../server/.env") });
-
-const { Mess } = require("../modules/mess/messModel.js");
-
 async function main() {
-  if (!process.env.MONGODB_URI) {
-    console.error("Missing MONGODB_URI");
-    process.exit(1);
-  }
-  await mongoose.connect(process.env.MONGODB_URI);
+  console.log("Connecting to MongoDB...");
+  await mongoose.connect(mongodbUri);
+  console.log("Connected successfully.");
 
   const rows = await Mess.find({})
     .select({ name: 1, rating: 1, ranking: 1, feedbackPercentage: 1 })

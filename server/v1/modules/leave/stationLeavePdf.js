@@ -1,5 +1,5 @@
 /**
- * Hostel/05 Station Leave PDF — Docker + XeLaTeX (`latex/station_leave.tex`).
+ * Hostel/05 Station Leave PDF - Docker + XeLaTeX (`latex/station_leave.tex`).
  *
  * Requires:
  *   - Docker on the host running Node
@@ -10,11 +10,14 @@
  *   - latex/iitg_logo.png or latex/IITG_logo.png (copied as iitg_logo.png for TeX; else placeholder rule)
  */
 
-const fs = require("fs");
-const fsp = require("fs").promises;
-const path = require("path");
-const os = require("os");
-const { spawn } = require("child_process");
+import fs from "fs";
+import fs_725 from "fs";
+const fsp = fs_725.promises;
+import path from "path";
+const __dirname = import.meta.dirname;
+import os from "os";
+import { spawn } from "child_process";
+import { stationLeave } from "../../config/default.js";
 
 const TEMPLATE_PATH = path.join(__dirname, "latex", "station_leave.tex");
 const LATEX_DIR = path.join(__dirname, "latex");
@@ -32,11 +35,10 @@ function resolveLogoSourcePath() {
   return null;
 }
 
-const COMPILE_TIMEOUT_MS =
-  Number(process.env.STATION_LEAVE_LATEX_TIMEOUT_MS) || 120000;
+const COMPILE_TIMEOUT_MS = Number(stationLeave.latexTimeout) || 120000;
 
 /** Escape user-supplied text for LaTeX (tables / parbox). */
-function latexEscape(s) {
+export function latexEscape(s) {
   if (s == null || s === undefined) return "";
   let t = String(s);
   t = t.replace(/\\/g, "\\textbackslash{}");
@@ -56,12 +58,7 @@ function latexEscape(s) {
 function latexBankAccountField(v) {
   if (v == null || v === undefined) return latexEscape("Not Applicable");
   const t = String(v).trim();
-  if (
-    t === "" ||
-    t === "--" ||
-    t === "—" ||
-    /^[\s\-–—]+$/.test(t)
-  ) {
+  if (t === "" || t === "--" || t === "-" || /^[\s\-–-]+$/.test(t)) {
     return latexEscape("Not Applicable");
   }
   return latexEscape(t);
@@ -116,17 +113,17 @@ function runDockerCompile(workDir, image, dockerBin) {
 }
 
 /**
- * @param {Record<string, unknown>} data — same fields as `leaveController` pdfPayload
+ * @param {Record<string, unknown>} data - same fields as `leaveController` pdfPayload
  * @returns {Promise<Buffer>}
  */
-async function buildStationLeavePdf(data) {
-  const image = process.env.STATION_LEAVE_LATEX_IMAGE;
+export async function buildStationLeavePdf(data) {
+  const image = stationLeave.latexImage;
   if (!image || !String(image).trim()) {
     throw new Error(
       "STATION_LEAVE_LATEX_IMAGE must be set (Docker image tag for XeLaTeX). Example: iitg-station-leave-latex:local",
     );
   }
-  const dockerBin = process.env.STATION_LEAVE_DOCKER_BIN || "docker";
+  const dockerBin = stationLeave.dockerBin;
 
   let tex = await fsp.readFile(TEMPLATE_PATH, "utf8");
 
@@ -136,17 +133,14 @@ async function buildStationLeavePdf(data) {
 
   const contactRaw = String(data.contactDuringLeave || "").trim();
   const lines = contactRaw.split(/\r?\n/).filter(Boolean);
-  const contactLine1 = lines[0] ? latexEscape(lines[0]) : latexEscape("—");
+  const contactLine1 = lines[0] ? latexEscape(lines[0]) : latexEscape("-");
 
   /** Second address row: omit placeholder dashes; use invisible strut if unused. */
   let contactLine2 = "\\strut";
   if (lines.length > 1) {
     const tail = lines.slice(1).join(" ").trim();
     const isPlaceholder =
-      tail === "" ||
-      tail === "--" ||
-      tail === "—" ||
-      /^[\s\-–—]+$/.test(tail);
+      tail === "" || tail === "--" || tail === "-" || /^[\s\-–-]+$/.test(tail);
     if (!isPlaceholder) {
       contactLine2 = latexEscape(tail);
     }
@@ -209,4 +203,4 @@ async function buildStationLeavePdf(data) {
   }
 }
 
-module.exports = { buildStationLeavePdf, latexEscape };
+export {};

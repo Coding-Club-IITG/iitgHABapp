@@ -1,23 +1,23 @@
-const redisClient = require("../../utils/redisClient.js");
-const { User } = require("./userModel.js");
-const { Hostel } = require("../hostel/hostelModel.js");
-const mongoose = require("mongoose");
-const Feedback = require("../feedback/feedbackModel.js");
-const { ScanLogs } = require("../mess/ScanLogsModel.js");
-const FCMToken = require("../notification/FCMToken.js");
-const Notification = require("../notification/notificationModel.js");
-const { MenuItem } = require("../mess/menuItemModel.js");
-const { MessChange } = require("../mess_change/messChangeModel.js");
-const UserAllocHostel = require("../hostel/hostelAllocModel.js");
-const AppError = require("../../utils/appError.js");
-const { clearCacheByPattern } = require("../../utils/redisUtils.js");
-const {
+import mongoose from "mongoose";
+
+import { User } from "./userModel.js";
+import Feedback from "../feedback/feedbackModel.js";
+import { ScanLogs } from "../mess/ScanLogsModel.js";
+import FCMToken from "../notification/FCMToken.js";
+import Notification from "../notification/notificationModel.js";
+import { MenuItem } from "../mess/menuItemModel.js";
+import { MessChange } from "../mess_change/messChangeModel.js";
+import UserAllocHostel from "../hostel/hostelAllocModel.js";
+
+import {
   populateCurrSubscribedMess,
   subscribedMessDisplayName,
-} = require("../../utils/subscribedMessDisplay.js");
+} from "../../utils/subscribedMessDisplay.js";
+import AppError from "../../utils/appError.js";
+import redisClient from "../../utils/redisClient.js";
+import { clearCacheByPattern } from "../../utils/redisUtils.js";
 
-
-const getUserData = async (req, res, next) => {
+export const getUserData = async (req, res, next) => {
   if (req.user) {
     const u = await User.findById(req.user._id)
       .populate("hostel", "hostel_name")
@@ -29,7 +29,9 @@ const getUserData = async (req, res, next) => {
     return res.json({
       ...u,
       hostel_name: u.hostel?.hostel_name ?? null,
-      curr_subscribed_mess_name: subscribedMessDisplayName(u.curr_subscribed_mess),
+      curr_subscribed_mess_name: subscribedMessDisplayName(
+        u.curr_subscribed_mess,
+      ),
     });
   }
 
@@ -47,14 +49,16 @@ const getUserData = async (req, res, next) => {
   return res.status(401).json({ message: "Unauthorized" });
 };
 
-const getUserByRoll = async (req, res) => {
+export const getUserByRoll = async (req, res) => {
   const { qr } = req.params;
 
   try {
     const cacheKey = `user_by_roll_${qr}`;
     const cachedUser = await redisClient.get(cacheKey);
     if (cachedUser) {
-      return res.status(200).json({ message: "User found", user: JSON.parse(cachedUser) });
+      return res
+        .status(200)
+        .json({ message: "User found", user: JSON.parse(cachedUser) });
     }
 
     const user = await User.findOne({ rollNumber: qr }).lean();
@@ -63,7 +67,7 @@ const getUserByRoll = async (req, res) => {
       return res.status(400).json({ message: "No such roll exists" });
     }
 
-    await redisClient.set(cacheKey, JSON.stringify(user), 'EX', 3600);
+    await redisClient.set(cacheKey, JSON.stringify(user), "EX", 3600);
     return res.status(200).json({ message: "User found", user: user });
   } catch (err) {
     console.log(err);
@@ -71,7 +75,7 @@ const getUserByRoll = async (req, res) => {
   }
 };
 
-const createUser = async (req, res) => {
+export const createUser = async (req, res) => {
   try {
     const fetchedUser = await User.findOne({ email: req.body.email });
     if (fetchedUser) {
@@ -96,7 +100,7 @@ const createUser = async (req, res) => {
   }
 };
 
-const deleteUser = async (req, res) => {
+export const deleteUser = async (req, res) => {
   const { outlook } = req.params;
   try {
     const deletedUser = await User.findOneAndDelete({ outlookID: outlook });
@@ -109,7 +113,7 @@ const deleteUser = async (req, res) => {
     await redisClient.del("user_count");
     await redisClient.del(`user_by_roll_${deletedUser.rollNumber}`);
     await redisClient.del(`user_for_manager_${deletedUser._id}`);
-    
+
     if (deletedUser.hostel) {
       await clearCacheByPattern(`hostel_${deletedUser.hostel}*`);
     }
@@ -122,7 +126,8 @@ const deleteUser = async (req, res) => {
     res.status(500).json({ message: "Error deleting user" });
   }
 };
-const updateUser = async (req, res) => {
+
+export const updateUser = async (req, res) => {
   const { outlook } = req.params;
   try {
     const updatedUser = await User.findOneAndUpdate(
@@ -138,7 +143,7 @@ const updateUser = async (req, res) => {
     await redisClient.del("all_users");
     await redisClient.del(`user_by_roll_${updatedUser.rollNumber}`);
     await redisClient.del(`user_for_manager_${updatedUser._id}`);
-    
+
     // Invalidate related hostel caches if necessary
     if (updatedUser.hostel) {
       await clearCacheByPattern(`hostel_${updatedUser.hostel}*`);
@@ -155,7 +160,7 @@ const updateUser = async (req, res) => {
 };
 
 // Update roomNumber and phoneNumber for the authenticated user
-const saveUserProfile = async (req, res) => {
+export const saveUserProfile = async (req, res) => {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ message: "Unauthorized" });
@@ -182,7 +187,7 @@ const saveUserProfile = async (req, res) => {
       await redisClient.del("all_users");
       await redisClient.del(`user_by_roll_${user.rollNumber}`);
       await redisClient.del(`user_for_manager_${user._id}`);
-      
+
       if (user.hostel) {
         await clearCacheByPattern(`hostel_${user.hostel}*`);
       }
@@ -202,10 +207,13 @@ const saveUserProfile = async (req, res) => {
   }
 };
 
-const getUserComplaints = async (req, res) => {
+export const getUserComplaints = async (req, res) => {
   const { outlook } = req.params;
   try {
-    const user = await User.findOne({ outlookID: outlook }, "complaints").lean();
+    const user = await User.findOne(
+      { outlookID: outlook },
+      "complaints",
+    ).lean();
     if (!user) {
       return res.status(404).json({ message: "User not found" });
     }
@@ -243,7 +251,7 @@ const getUserComplaints = async (req, res) => {
 //     }
 // };
 
-const getAllUsers = async (req, res) => {
+export const getAllUsers = async (req, res) => {
   try {
     const cacheKey = "all_users";
     const cachedUsers = await redisClient.get(cacheKey);
@@ -259,10 +267,17 @@ const getAllUsers = async (req, res) => {
     const updatedUsers = users.map((user) => ({
       ...user,
       hostel_name: user.hostel?.hostel_name || null,
-      curr_subscribed_mess_name: subscribedMessDisplayName(user.curr_subscribed_mess),
+      curr_subscribed_mess_name: subscribedMessDisplayName(
+        user.curr_subscribed_mess,
+      ),
     }));
 
-    await redisClient.set(cacheKey, JSON.stringify(updatedUsers), 'EX', 3600 * 24);
+    await redisClient.set(
+      cacheKey,
+      JSON.stringify(updatedUsers),
+      "EX",
+      3600 * 24,
+    );
     res.status(200).json(updatedUsers);
   } catch (err) {
     console.error(err);
@@ -270,7 +285,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-const getUserCount = async (req, res) => {
+export const getUserCount = async (req, res) => {
   try {
     const cacheKey = "user_count";
     const cachedCount = await redisClient.get(cacheKey);
@@ -279,7 +294,7 @@ const getUserCount = async (req, res) => {
     }
 
     const count = await User.countDocuments();
-    await redisClient.set(cacheKey, count.toString(), 'EX', 3600 * 24);
+    await redisClient.set(cacheKey, count.toString(), "EX", 3600 * 24);
 
     return res.status(200).json({ count });
   } catch (err) {
@@ -290,15 +305,13 @@ const getUserCount = async (req, res) => {
 
 // Mess-manager (HABit HQ): get basic user profile by ID, restricted to users
 // whose curr_subscribed_mess matches the manager's hostel (hostel _id).
-const getUserForManager = async (req, res, next) => {
+export const getUserForManager = async (req, res, next) => {
   try {
     const managerHostel = req.managerHostel;
     const { userId } = req.params;
 
     if (!managerHostel || !managerHostel._id) {
-      return res
-        .status(400)
-        .json({ message: "Manager hostel not found" });
+      return res.status(400).json({ message: "Manager hostel not found" });
     }
     if (!mongoose.Types.ObjectId.isValid(userId)) {
       return res.status(400).json({ message: "Invalid userId" });
@@ -335,7 +348,12 @@ const getUserForManager = async (req, res, next) => {
       messName: subscribedMessDisplayName(user.curr_subscribed_mess) || "",
     };
 
-    await redisClient.set(cacheKey, JSON.stringify(responsePayload), 'EX', 3600);
+    await redisClient.set(
+      cacheKey,
+      JSON.stringify(responsePayload),
+      "EX",
+      3600,
+    );
     return res.status(200).json(responsePayload);
   } catch (err) {
     console.error("getUserForManager error:", err);
@@ -343,7 +361,7 @@ const getUserForManager = async (req, res, next) => {
   }
 };
 
-const getUsersByHostelForMess = async (req, res) => {
+export const getUsersByHostelForMess = async (req, res) => {
   try {
     const { hostelId } = req.params;
     const { page = 1, limit = 10 } = req.query;
@@ -370,7 +388,7 @@ const getUsersByHostelForMess = async (req, res) => {
         .sort({ name: 1 })
         .skip(skip)
         .limit(limitNum)
-        .lean()
+        .lean(),
     ]);
 
     console.log(`Found ${users.length} users for hostel ${hostelId}`);
@@ -391,7 +409,7 @@ const getUsersByHostelForMess = async (req, res) => {
 };
 
 // Delete user account (hard delete after anonymization)
-const deleteUserAccount = async (req, res, next) => {
+export const deleteUserAccount = async (req, res, next) => {
   try {
     const userId = req.user._id;
     const user = await User.findById(userId);
@@ -501,14 +519,14 @@ const deleteUserAccount = async (req, res, next) => {
       // Clear related cache data
       await redisClient.del("all_users");
       await redisClient.del("user_count");
-      
+
       if (user.rollNumber) {
         await redisClient.del(`user_by_roll_${user.rollNumber}`);
       }
       if (userId) {
         await redisClient.del(`user_for_manager_${userId}`);
       }
-      
+
       if (user.hostel) {
         await clearCacheByPattern(`hostel_${user.hostel}*`);
       }
@@ -531,21 +549,4 @@ const deleteUserAccount = async (req, res, next) => {
     console.error("Error deleting user account:", err);
     return next(new AppError(500, "Account deletion failed"));
   }
-};
-
-module.exports = {
-  getUserData,
-  createUser,
-  deleteUser,
-  updateUser,
-  saveUserProfile,
-  // getEmailsOfHABUsers,
-  // getEmailsOfSecyUsers,
-  getUserComplaints,
-  getUserByRoll,
-  getAllUsers,
-  getUserCount,
-  getUsersByHostelForMess,
-  deleteUserAccount,
-  getUserForManager,
 };

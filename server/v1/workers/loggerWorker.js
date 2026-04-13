@@ -1,33 +1,28 @@
-const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "../../.env") });
-
-// Ensure worker can find modules in the parent's node_modules directory
-module.paths.push(path.resolve(__dirname, "../node_modules"));
-const pg = require("pg");
+import pg from "pg";
 const { Pool } = pg;
+import Redis from "ioredis";
+import { redisUrl, postgresUrl } from "../config/default.js";
 
 /* Redis */
-const { createClient } = require("redis");
-const redis = createClient({
-  url: process.env.REDIS_URL || "redis://127.0.0.1:6379",
+
+const redis = new Redis(redisUrl, {
+  maxRetriesPerRequest: null,
+  enableOfflineQueue: true,
+  retryStrategy: (times) => Math.min(times * 100, 3000),
+  lazyConnect: true,
 });
 
-(async () => {
-  try {
-    await redis.connect();
-    console.log("[Worker] Redis Connected");
-    /* Worker loop - start only after connection */
-    setInterval(flush, 1000);
-  } catch (err) {
-    console.error("[Worker] Redis Connection Error:", err);
-  }
-})();
+redis.on("error", (err) => console.error("[Worker] Redis error:", err.message));
+redis.on("ready", () => console.log("[Worker] Redis connected"));
+
+await redis.connect().catch((err) => {
+  console.error("[Worker] Redis connection failed:", err.message);
+});
 
 /* Postgres */
+
 const pool = new Pool({
-  connectionString:
-    process.env.POSTGRES_URL ||
-    "postgresql://postgres:postgres@localhost:5433/postgres",
+  connectionString: postgresUrl,
 });
 
 const BATCH = 20;

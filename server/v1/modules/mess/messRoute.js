@@ -1,15 +1,14 @@
-const express = require("express");
-const {
+import express from "express";
+
+import {
   authenticateJWT,
   authenticateHabJWT,
   authenticateUserOrAdminJWT,
   authenticateAdminJWT,
-} = require("../../middleware/authenticateJWT.js");
-const {
-  requireMicrosoftAuth,
-} = require("../../middleware/requireMicrosoftAuth.js");
+} from "../../middleware/authenticateJWT.js";
+import { requireMicrosoftAuth } from "../../middleware/requireMicrosoftAuth.js";
 
-const {
+import {
   createMess,
   createMessWithoutHostel,
   deleteMenu,
@@ -33,12 +32,12 @@ const {
   generateMessBill,
   getMessBill,
   getAllMessBillsByMonth,
-} = require("./messController");
-const {
+} from "./messController.js";
+import {
   getMessMenuByDayForSMC,
   modifyMenuItemSMC,
   updateTimeSMC,
-} = require("./messAdminController.js");
+} from "./messAdminController.js";
 
 const messRouter = express.Router();
 
@@ -133,4 +132,4 @@ messRouter.post(
 
 // Bill routes moved above /:id to prevent route shadowing
 
-module.exports = messRouter;
+export default messRouter;

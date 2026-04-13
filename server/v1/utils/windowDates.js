@@ -1,6 +1,9 @@
 // Helper to get feedback window dates for a given month
 // Server is already in IST timezone, so we use local time
-const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
+export const getFeedbackWindowDates = (
+  targetMonth = null,
+  targetYear = null,
+) => {
   const now = new Date();
   const year = targetYear !== null ? targetYear : now.getFullYear();
   const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
@@ -28,7 +31,10 @@ const getFeedbackWindowDates = (targetMonth = null, targetYear = null) => {
 
 // Helper to get mess change window dates for a given month
 // Server is already in IST timezone, so we use local time
-const getMessChangeWindowDates = (targetMonth = null, targetYear = null) => {
+export const getMessChangeWindowDates = (
+  targetMonth = null,
+  targetYear = null,
+) => {
   const now = new Date();
   const year = targetYear !== null ? targetYear : now.getFullYear();
   const month = targetMonth !== null ? targetMonth : now.getMonth(); // 0-11
@@ -54,7 +60,7 @@ const getMessChangeWindowDates = (targetMonth = null, targetYear = null) => {
   return { startDate, endDate, startDay, endDay };
 };
 
-const getOrdinalSuffix = (i) => {
+export const getOrdinalSuffix = (i) => {
   let j = i % 10,
     k = i % 100;
   if (j === 1 && k !== 11) {
@@ -67,10 +73,4 @@ const getOrdinalSuffix = (i) => {
     return i + "rd";
   }
   return i + "th";
-};
-
-module.exports = {
-  getFeedbackWindowDates,
-  getMessChangeWindowDates,
-  getOrdinalSuffix,
 };

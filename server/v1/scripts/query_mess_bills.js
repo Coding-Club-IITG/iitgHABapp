@@ -1,13 +1,20 @@
-const mongoose = require("mongoose");
-const path = require("path");
-const dotenv = require("dotenv");
-dotenv.config({ path: path.resolve(__dirname, "../../.env") });
-const MessBill = require("../modules/mess/messBillModel.js");
+import mongoose from "mongoose";
 
-mongoose.connect(process.env.DB_URL, { useNewUrlParser: true, useUnifiedTopology: true })
+import MessBill from "../modules/mess/messBillModel.js";
+
+import { mongodbUri } from "../config/default.js";
+
+mongoose
+  .connect(mongodbUri, {
+    useNewUrlParser: true,
+    useUnifiedTopology: true,
+  })
   .then(async () => {
     const bills = await MessBill.find({});
     console.log(JSON.stringify(bills, null, 2));
     process.exit(0);
   })
-  .catch(err => { console.error(err); process.exit(1); });
+  .catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });

@@ -1,12 +1,12 @@
-const url = require("url");
-const { Server: WebSocketServer } = require("ws");
-const { Hostel } = require("../hostel/hostelModel.js");
+import url from "url";
+import { WebSocketServer } from "ws";
+import { Hostel } from "../hostel/hostelModel.js";
 
 // Connected gala manager clients per hostel
 // Each entry: { ws, hostelId }
 const galaManagerClients = new Set();
 
-function initGalaManagerWs(server) {
+export function initGalaManagerWs(server) {
   const wss = new WebSocketServer({
     server,
     path: "/api/gala/manager/scan-logs",
@@ -61,7 +61,7 @@ function initGalaManagerWs(server) {
  * @param {string} params.time - time string (e.g. "HH:mm")
  * @param {boolean} params.alreadyScanned
  */
-function broadcastGalaScanToManagers({
+export function broadcastGalaScanToManagers({
   hostelId,
   mealType,
   user,
@@ -90,8 +90,3 @@ function broadcastGalaScanToManagers({
     }
   }
 }
-
-module.exports = {
-  initGalaManagerWs,
-  broadcastGalaScanToManagers,
-};

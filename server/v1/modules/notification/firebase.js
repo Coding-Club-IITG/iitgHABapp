@@ -1,11 +1,16 @@
-const admin = require("firebase-admin");
-const path = require("path");
-const serviceAccount = require(
-  path.join(__dirname, "../../../modules/notification/serviceAccountKey.json"),
+import admin from "firebase-admin";
+import { readFileSync } from "fs";
+const serviceAccount = JSON.parse(
+  readFileSync(
+    new URL(
+      "../../../modules/notification/serviceAccountKey.json",
+      import.meta.url,
+    ),
+  ),
 );
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
 });
 
-module.exports = admin;
+export default admin;

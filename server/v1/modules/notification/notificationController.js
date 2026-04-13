@@ -1,10 +1,9 @@
-const admin = require("./firebase.js");
-const FCMToken = require("./FCMToken.js");
-const User = require("../user/userModel.js");
-const { Hostel } = require("../hostel/hostelModel.js");
+import { Hostel } from "../hostel/hostelModel.js";
+import admin from "./firebase.js";
+import FCMToken from "./FCMToken.js";
 
 // Register (or update) FCM token for a user
-const registerToken = async (req, res) => {
+export const registerToken = async (req, res) => {
   try {
     if (!req.user)
       return res.status(403).json({ error: "Only users can register tokens" });
@@ -72,16 +71,16 @@ const registerToken = async (req, res) => {
 };
 
 // Generalized broadcast function (Updated for Mixed Payloads & Native Channels)
-async function sendNotificationMessage(
+export async function sendNotificationMessage(
   title,
   body,
   topic,
   data = {},
   isAlert = false,
-  channelId = "hab_general_alerts" // Added Native Channel support
+  channelId = "hab_general_alerts", // Added Native Channel support
 ) {
   const payloadData = { ...data };
-  
+
   if (isAlert) {
     payloadData.alert = "true";
     payloadData.title = title;
@@ -95,9 +94,9 @@ async function sendNotificationMessage(
     topic: topic,
     android: {
       notification: {
-        channelId: channelId // Connects to OS settings
-      }
-    }
+        channelId: channelId, // Connects to OS settings
+      },
+    },
   };
 
   console.log("Broadcasting message:", message);
@@ -106,21 +105,26 @@ async function sendNotificationMessage(
 
 // Send a notification directly to a specific user's FCM token
 // Added channelId parameter for granular control
-const sendNotificationToUser = async (userId, title, body, channelId = "hab_general_alerts") => {
+export const sendNotificationToUser = async (
+  userId,
+  title,
+  body,
+  channelId = "hab_general_alerts",
+) => {
   try {
     const tokenDoc = await FCMToken.findOne({ user: userId });
     if (!tokenDoc || !tokenDoc.token) return;
-    
+
     const message = {
       token: tokenDoc.token,
       notification: { title, body },
       android: {
         notification: {
-          channelId: channelId // Connects to OS settings
-        }
-      }
+          channelId: channelId, // Connects to OS settings
+        },
+      },
     };
-    
+
     await admin.messaging().send(message);
   } catch (e) {
     console.error("Error sending user notification:", e);
@@ -128,17 +132,17 @@ const sendNotificationToUser = async (userId, title, body, channelId = "hab_gene
 };
 
 // REST API Endpoint: Send notification to all users of a topic
-const sendNotification = async (req, res) => {
+export const sendNotification = async (req, res) => {
   try {
     // Admin can specify channelId via portal, or it defaults to general
     const { title, body, topic, isAlert, channelId } = req.body;
     await sendNotificationMessage(
-      title, 
-      body, 
-      topic, 
-      {}, 
-      isAlert || false, 
-      channelId || "hab_general_alerts"
+      title,
+      body,
+      topic,
+      {},
+      isAlert || false,
+      channelId || "hab_general_alerts",
     );
     res.status(200).json({ message: "Notification sent" });
   } catch (err) {
@@ -149,7 +153,7 @@ const sendNotification = async (req, res) => {
 
 // Send welcome notification to the authenticated user
 // Called from frontend after FCM token registration
-const sendWelcomeNotification = async (req, res) => {
+export const sendWelcomeNotification = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(403).json({ error: "Authentication required" });
@@ -176,12 +180,4 @@ const sendWelcomeNotification = async (req, res) => {
     console.error("Error sending welcome notification:", err);
     res.status(500).json({ error: "Failed to send welcome notification" });
   }
-};
-
-module.exports = {
-  registerToken,
-  sendNotification,
-  sendNotificationMessage,
-  sendNotificationToUser,
-  sendWelcomeNotification,
 };

@@ -1,6 +1,6 @@
-const ExcelJS = require("exceljs");
+import ExcelJS from "exceljs";
 
-const generateMessChangeReport = async ({
+export const generateMessChangeReport = async ({
   users,
   acceptedUsers,
   rejectedUsers,
@@ -322,5 +322,3 @@ const generateMessChangeReport = async ({
   const buffer = await wb.xlsx.writeBuffer();
   return buffer;
 };
-
-module.exports = { generateMessChangeReport };

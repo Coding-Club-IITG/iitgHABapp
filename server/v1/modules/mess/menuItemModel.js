@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const menuItemSchema = new mongoose.Schema({
   menuId: {
@@ -38,6 +38,4 @@ menuItemSchema.pre("validate", function (next) {
   }
 });
 
-const MenuItem = mongoose.model("MenuItem", menuItemSchema);
-
-module.exports = { MenuItem };
+export const MenuItem = mongoose.model("MenuItem", menuItemSchema);

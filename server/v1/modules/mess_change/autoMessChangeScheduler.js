@@ -1,13 +1,15 @@
-const { MessChangeSettings } = require("./messChangeSettingsModel");
-const { User } = require("../user/userModel");
-const {
+import { MessChangeSettings } from "./messChangeSettingsModel.js";
+import { User } from "../user/userModel.js";
+
+import {
   enableMessChangeAutomatic,
   disableMessChangeAutomatic,
-} = require("./controllers/schedulerController");
-const admin = require("../notification/firebase");
-const { FCMToken } = require("../notification/FCMToken");
-const { getMessChangeWindowDates } = require("../../utils/windowDates.js");
-const agenda = require("../../utils/agenda.js");
+} from "./controllers/schedulerController.js";
+import admin from "../notification/firebase.js";
+import FCMToken from "../notification/FCMToken.js";
+
+import { getMessChangeWindowDates } from "../../utils/windowDates.js";
+import agenda from "../../utils/agenda.js";
 
 const JOB_ENABLE = "messchange-enable-check";
 const JOB_DISABLE = "messchange-disable-check";
@@ -99,7 +101,7 @@ const scheduleMessChangeReminders = async () => {
 };
 
 // Initialize mess change scheduler
-const initializeMessChangeAutoScheduler = () => {
+export const initializeMessChangeAutoScheduler = () => {
   // Runs daily at 9 AM IST
   agenda.define(
     JOB_ENABLE,
@@ -184,10 +186,4 @@ const initializeMessChangeAutoScheduler = () => {
     .catch((err) =>
       console.error("[MESS CHANGE] Boot-time reminder restore failed:", err),
     );
-};
-
-module.exports = {
-  initializeMessChangeAutoScheduler,
-  scheduleMessChangeReminders,
-  getMessChangeWindowDates,
 };

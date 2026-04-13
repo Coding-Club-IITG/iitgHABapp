@@ -1,18 +1,19 @@
+import path from "path";
+import dotenv from "dotenv";
+const __dirname = import.meta.dirname;
+dotenv.config({ path: path.join(__dirname, "../../.env") });
+import mongoose from "mongoose";
+
+import { Hostel } from "../modules/hostel/hostelModel.js";
+import { Mess } from "../modules/mess/messModel.js";
+import { User } from "../modules/user/userModel.js";
+import UserAllocHostel from "../modules/hostel/hostelAllocModel.js";
+import { Menu } from "../modules/mess/menuModel.js";
+import { MenuItem } from "../modules/mess/menuItemModel.js";
+
 // Login via Microsoft with REAL_ROLL_NUMBER after running script
-
-const mongoose = require("mongoose");
-const path = require("path");
-const dotenv = require("dotenv");
-dotenv.config({ path: path.resolve(__dirname, "../../../server/.env") });
-
-const { Hostel } = require("../modules/hostel/hostelModel");
-const { Mess } = require("../modules/mess/messModel");
-const { User } = require("../modules/user/userModel");
-const UserAllocHostel = require("../modules/hostel/hostelAllocModel");
-const { Menu } = require("../modules/mess/menuModel");
-const { MenuItem } = require("../modules/mess/menuItemModel");
-
 const REAL_ROLL_NUMBER = process.env.REAL_ROLL_NUMBER;
+import { mongodbUri } from "../config/default.js";
 
 const daysOfWeek = [
   "Monday",
@@ -28,7 +29,7 @@ const mealTypes = ["Breakfast", "Lunch", "Dinner"];
 const seedDatabase = async () => {
   try {
     console.log("Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(mongodbUri);
     console.log("Connected successfully.\n");
 
     console.log("Clearing old data to prevent duplicates...");

@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const messBillSchema = new mongoose.Schema(
   {
@@ -113,10 +113,10 @@ const messBillSchema = new mongoose.Schema(
       ref: "User",
     },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Ensure only one bill per hostel per month-year combination
 messBillSchema.index({ hostel: 1, month: 1, year: 1 }, { unique: true });
 
-module.exports = mongoose.model("MessBill", messBillSchema);
+export default mongoose.model("MessBill", messBillSchema);

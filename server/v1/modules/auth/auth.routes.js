@@ -1,8 +1,7 @@
-const express = require("express");
+import express from "express";
 const router = express.Router();
-const scope = "User.read offline_access Mail.read"; // Fixed the typo in 'offline_access'
-const catchAsync = require("../../utils/catchAsync.js");
-const {
+
+import {
   mobileRedirectHandler,
   logoutHandler,
   guestLoginHandler,
@@ -12,8 +11,8 @@ const {
   linkMicrosoftAccount,
   managerLoginHandler,
   refreshTokenHandler,
-} = require("./auth.controller.js");
-const { authenticateJWT } = require("../../middleware/authenticateJWT.js");
+} from "./auth.controller.js";
+import { authenticateJWT } from "../../middleware/authenticateJWT.js";
 
 /**
  * @swagger
@@ -107,5 +106,4 @@ router.post("/link-microsoft", authenticateJWT, linkMicrosoftAccount);
 // Refresh token endpoint
 router.post("/refresh", refreshTokenHandler);
 
-// Exporting the router
-module.exports = router;
+export default router;

@@ -1,36 +1,33 @@
-const xlsx = require("xlsx");
-const fs = require("fs");
-const path = require("path");
+import xlsx from "xlsx";
+import fs from "fs";
+import path from "path";
+const __dirname = import.meta.dirname;
 const backupDir = path.join(__dirname, "../../../../backup");
 
-const { User } = require("../../user/userModel.js");
-const { Hostel } = require("../../hostel/hostelModel.js");
-const UserAllocHostel = require("../../hostel/hostelAllocModel.js");
-const { MessChange } = require("../messChangeModel.js");
-const { MessChangeSettings } = require("../messChangeSettingsModel.js");
+import { User } from "../../user/userModel.js";
+import { Hostel } from "../../hostel/hostelModel.js";
+import UserAllocHostel from "../../hostel/hostelAllocModel.js";
+import { MessChange } from "../messChangeModel.js";
+import { MessChangeSettings } from "../messChangeSettingsModel.js";
 
-const {
+import {
   sendNotificationMessage,
   sendNotificationToUser,
-} = require("../../notification/notificationController.js");
-const {
+} from "../../notification/notificationController.js";
+import {
   initializeCapacityTracker,
   processUsersInIterations,
-} = require("../utils/messChangeLogic.js");
-const {
-  generateMessChangeReport,
-} = require("../utils/messChangeReportGenerator.js");
-const {
-  uploadReportToOnedrive,
-} = require("../../../utils/onedriveController.js");
-const { withTransaction } = require("../../../utils/withTransaction.js");
+} from "../utils/messChangeLogic.js";
+import { generateMessChangeReport } from "../utils/messChangeReportGenerator.js";
+import { uploadReportToOnedrive } from "../../../utils/onedriveController.js";
+import { withTransaction } from "../../../utils/withTransaction.js";
 
 // Helper Functions
 
 /**
  * Reset all users back to hostel
  */
-const resetAllUsersToHostel = async (session = null) => {
+export const resetAllUsersToHostel = async (session = null) => {
   const opts = session ? { session } : {};
 
   const allocations = await UserAllocHostel.find({})
@@ -63,7 +60,12 @@ const resetAllUsersToHostel = async (session = null) => {
 /**
  * Update accepted users
  */
-const updateAcceptedUsers = async (acceptedUsers, users, hostels, session) => {
+export const updateAcceptedUsers = async (
+  acceptedUsers,
+  users,
+  hostels,
+  session,
+) => {
   if (!acceptedUsers.length) return;
 
   const hostelMap = hostels.reduce((acc, h) => {
@@ -123,7 +125,7 @@ const updateAcceptedUsers = async (acceptedUsers, users, hostels, session) => {
 /**
  * Update rejected users
  */
-const updateRejectedUsers = async (rejectedUsers, users, session) => {
+export const updateRejectedUsers = async (rejectedUsers, users, session) => {
   if (!rejectedUsers.length) return;
 
   const userOps = rejectedUsers
@@ -155,7 +157,7 @@ const updateRejectedUsers = async (rejectedUsers, users, session) => {
 /**
  * Update last processed timestamp
  */
-const updateLastProcessedTimestamp = async (session) => {
+export const updateLastProcessedTimestamp = async (session) => {
   let settings = await MessChangeSettings.findOne().session(session);
   if (!settings) settings = new MessChangeSettings();
   settings.isEnabled = false;
@@ -167,7 +169,7 @@ const updateLastProcessedTimestamp = async (session) => {
 /**
  * Mess change flow
  */
-const createBackup = (users, hostels) => {
+export const createBackup = (users, hostels) => {
   try {
     if (!fs.existsSync(backupDir)) {
       fs.mkdirSync(backupDir, { recursive: true });
@@ -203,7 +205,7 @@ const createBackup = (users, hostels) => {
   }
 };
 
-const generateAndUploadReport = async (
+export const generateAndUploadReport = async (
   users,
   acceptedUsers,
   rejectedUsers,
@@ -240,7 +242,7 @@ const generateAndUploadReport = async (
 
 // Controllers
 
-const processAllMessChangeRequests = async (req, res) => {
+export const processAllMessChangeRequests = async (req, res) => {
   try {
     const users = await User.find({ applied_for_mess_changed: true });
 
@@ -321,10 +323,4 @@ const processAllMessChangeRequests = async (req, res) => {
     console.error("[MESS CHANGE] processAllMessChangeRequests failed:", err);
     if (res) res.status(500).json({ message: "Internal server error" });
   }
-};
-
-module.exports = {
-  processAllMessChangeRequests,
-  resetAllUsersToHostel,
-  updateLastProcessedTimestamp,
 };

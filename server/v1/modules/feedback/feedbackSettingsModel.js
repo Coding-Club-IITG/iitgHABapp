@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const feedbackSettingsSchema = new mongoose.Schema({
   isEnabled: { type: Boolean, default: false },
@@ -12,9 +12,7 @@ const feedbackSettingsSchema = new mongoose.Schema({
   },
 });
 
-const FeedbackSettings = mongoose.model(
+export const FeedbackSettings = mongoose.model(
   "FeedbackSettings",
-  feedbackSettingsSchema
+  feedbackSettingsSchema,
 );
-
-module.exports = { FeedbackSettings };

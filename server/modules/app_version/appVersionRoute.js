@@ -1,8 +1,9 @@
-const express = require("express");
-const appVersionRouter = express.Router();
-const hqAppVersionRouter = express.Router();
-const rcAppVersionRouter = express.Router();
-const {
+import express from "express";
+export const appVersionRouter = express.Router();
+export const hqAppVersionRouter = express.Router();
+export const rcAppVersionRouter = express.Router();
+
+import {
   getVersionInfo,
   updateVersionInfo,
   getAllVersionInfo,
@@ -12,7 +13,7 @@ const {
   getRcVersionInfo,
   updateRcVersionInfo,
   getAllRcVersionInfo,
-} = require("./appVersionController");
+} from "./appVersionController.js";
 
 /**
  * HABit main app version routes
@@ -49,9 +50,3 @@ hqAppVersionRouter.get("/", getAllHqVersionInfo);
 rcAppVersionRouter.get("/:platform", getRcVersionInfo);
 rcAppVersionRouter.put("/:platform", updateRcVersionInfo);
 rcAppVersionRouter.get("/", getAllRcVersionInfo);
-
-module.exports = {
-  appVersionRouter,
-  hqAppVersionRouter,
-  rcAppVersionRouter,
-};

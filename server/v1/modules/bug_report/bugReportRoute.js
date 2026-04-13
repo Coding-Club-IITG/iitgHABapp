@@ -1,19 +1,21 @@
-const express = require("express");
-const path = require("path");
-const {
+import path from "path";
+const __dirname = import.meta.dirname;
+import express from "express";
+
+import { authenticateAdminJWT } from "../../middleware/authenticateJWT.js";
+import {
   createBugReport,
   getBugReports,
   updateBugReportStatus,
   uploadMiddleware,
-} = require("./bugReportController");
-const { authenticateJWT, authenticateAdminJWT } = require("../../middleware/authenticateJWT");
+} from "./bugReportController.js";
 
 const router = express.Router();
 
 // Serve uploaded files
 router.use(
   "/files",
-  express.static(path.join(__dirname, "../../../uploads/bug-reports"))
+  express.static(path.join(__dirname, "../../../uploads/bug-reports")),
 );
 
 /**
@@ -86,5 +88,4 @@ router.get("/", authenticateAdminJWT, getBugReports);
  */
 router.patch("/:id/status", authenticateAdminJWT, updateBugReportStatus);
 
-module.exports = router;
-
+export default router;

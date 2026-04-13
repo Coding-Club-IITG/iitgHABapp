@@ -1,12 +1,15 @@
-const { GalaDinner } = require("./galaDinnerModel");
-const { GalaDinnerMenu, GALA_CATEGORIES } = require("./galaDinnerMenuModel");
-const { GalaDinnerScanLog } = require("./galaDinnerScanLogModel");
-const { Hostel } = require("../hostel/hostelModel");
-const { User } = require("../user/userModel");
-const { MenuItem } = require("../mess/menuItemModel");
-const { QR } = require("../qr/qrModel");
-const qrcode = require("qrcode");
-const { getCurrentTime } = require("../../utils/date.js");
+import qrcode from "qrcode";
+
+import { GalaDinner } from "./galaDinnerModel.js";
+import { GalaDinnerMenu, GALA_CATEGORIES } from "./galaDinnerMenuModel.js";
+import { GalaDinnerScanLog } from "./galaDinnerScanLogModel.js";
+import { Hostel } from "../hostel/hostelModel.js";
+import { User } from "../user/userModel.js";
+import { MenuItem } from "../mess/menuItemModel.js";
+import { QR } from "../qr/qrModel.js";
+
+import { publishGalaScan } from "../../utils/scanBroadcast.js";
+import { getCurrentTime } from "../../utils/date.js";
 
 const QR_CODE_DATA_URL_OPTIONS = {
   width: 1024,
@@ -18,7 +21,7 @@ const QR_CODE_DATA_URL_OPTIONS = {
  * HAB: Schedule a new Gala Dinner. Creates one GalaDinner and for each hostel
  * 3 GalaDinnerMenus (Starters, Main Course, Desserts) each with a QR code.
  */
-const scheduleGalaDinner = async (req, res) => {
+export const scheduleGalaDinner = async (req, res) => {
   try {
     const { date, startersServingStartTime, dinnerServingStartTime } = req.body;
     if (!date) {
@@ -26,7 +29,8 @@ const scheduleGalaDinner = async (req, res) => {
     }
     if (!startersServingStartTime || !dinnerServingStartTime) {
       return res.status(400).json({
-        message: "Starters serving start time and Dinner serving start time are required",
+        message:
+          "Starters serving start time and Dinner serving start time are required",
       });
     }
     const galaDate = new Date(date);
@@ -68,7 +72,7 @@ const scheduleGalaDinner = async (req, res) => {
         const qrPayload = menuDoc._id.toString();
         const qrDataUrl = await qrcode.toDataURL(
           qrPayload,
-          QR_CODE_DATA_URL_OPTIONS
+          QR_CODE_DATA_URL_OPTIONS,
         );
         const qrRecord = new QR({
           qr_string: qrPayload,
@@ -102,7 +106,7 @@ const scheduleGalaDinner = async (req, res) => {
 /**
  * HAB: Delete a Gala Dinner and all related data (menus, items, scan logs, QRs).
  */
-const deleteGalaDinner = async (req, res) => {
+export const deleteGalaDinner = async (req, res) => {
   try {
     const { galaDinnerId } = req.params;
     if (!galaDinnerId) {
@@ -124,7 +128,9 @@ const deleteGalaDinner = async (req, res) => {
     await QR.deleteMany({ _id: { $in: qrIds } });
     await GalaDinner.findByIdAndDelete(gala._id);
 
-    return res.status(200).json({ message: "Gala Dinner cleared successfully" });
+    return res
+      .status(200)
+      .json({ message: "Gala Dinner cleared successfully" });
   } catch (error) {
     console.error("deleteGalaDinner:", error);
     return res
@@ -137,7 +143,7 @@ const deleteGalaDinner = async (req, res) => {
  * HAB: Get Gala Dinner detail for a hostel: scan counts (Starters, Main Course, Dessert)
  * and the 3 menus with items.
  */
-const getGalaDinnerDetailForHostel = async (req, res) => {
+export const getGalaDinnerDetailForHostel = async (req, res) => {
   try {
     const { galaDinnerId } = req.params;
     const hostelId = req.query.hostelId || req.params.hostelId;
@@ -156,9 +162,15 @@ const getGalaDinnerDetailForHostel = async (req, res) => {
       galaDinnerId,
     }).lean();
 
-    const startersUserIds = logs.filter((l) => l.startersScanned).map((l) => l.userId);
-    const mainCourseUserIds = logs.filter((l) => l.mainCourseScanned).map((l) => l.userId);
-    const dessertsUserIds = logs.filter((l) => l.dessertsScanned).map((l) => l.userId);
+    const startersUserIds = logs
+      .filter((l) => l.startersScanned)
+      .map((l) => l.userId);
+    const mainCourseUserIds = logs
+      .filter((l) => l.mainCourseScanned)
+      .map((l) => l.userId);
+    const dessertsUserIds = logs
+      .filter((l) => l.dessertsScanned)
+      .map((l) => l.userId);
 
     const [startersCount, mainCourseCount, dessertsCount] = await Promise.all([
       User.countDocuments({
@@ -186,7 +198,7 @@ const getGalaDinnerDetailForHostel = async (req, res) => {
       menus.map(async (m) => {
         const items = await MenuItem.find({ galaMenuId: m._id }).lean();
         return { ...m, items };
-      })
+      }),
     );
 
     return res.status(200).json({
@@ -210,11 +222,9 @@ const getGalaDinnerDetailForHostel = async (req, res) => {
 /**
  * HAB: List all Gala Dinners (scheduled and completed), sorted by date desc.
  */
-const listGalaDinners = async (req, res) => {
+export const listGalaDinners = async (req, res) => {
   try {
-    const list = await GalaDinner.find()
-      .sort({ date: -1 })
-      .lean();
+    const list = await GalaDinner.find().sort({ date: -1 }).lean();
     return res.status(200).json(list);
   } catch (error) {
     console.error("listGalaDinners:", error);
@@ -227,10 +237,14 @@ const listGalaDinners = async (req, res) => {
 /**
  * Get the next upcoming Gala Dinner (date >= today). For app and SMC.
  */
-const getUpcomingGalaDinner = async (req, res) => {
+export const getUpcomingGalaDinner = async (req, res) => {
   try {
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
 
     const upcoming = await GalaDinner.findOne({
       date: { $gte: startOfToday },
@@ -255,7 +269,7 @@ const getUpcomingGalaDinner = async (req, res) => {
  * For SMC: hostelId from req.hostel (hostel token) or req.user.hostel (user token).
  * For app: pass hostelId in query.
  */
-const getUpcomingGalaWithMenusForHostel = async (req, res) => {
+export const getUpcomingGalaWithMenusForHostel = async (req, res) => {
   try {
     const hostelId =
       req.query.hostelId ||
@@ -267,7 +281,11 @@ const getUpcomingGalaWithMenusForHostel = async (req, res) => {
     }
 
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
 
     const gala = await GalaDinner.findOne({
       date: { $gte: startOfToday },
@@ -290,7 +308,7 @@ const getUpcomingGalaWithMenusForHostel = async (req, res) => {
       menus.map(async (m) => {
         const items = await MenuItem.find({ galaMenuId: m._id }).lean();
         return { ...m, items };
-      })
+      }),
     );
 
     return res.status(200).json({
@@ -310,9 +328,7 @@ const getUpcomingGalaWithMenusForHostel = async (req, res) => {
  * galaDinnerMenuId is the payload from the QR (GalaDinnerMenu._id).
  * expectedCategory: "Starters" | "Main Course" | "Desserts".
  */
-const { publishGalaScan } = require("../../utils/scanBroadcast.js");
-
-const galaScan = async (req, res) => {
+export const galaScan = async (req, res) => {
   try {
     const { userId, galaDinnerMenuId, expectedCategory } = req.body;
 
@@ -330,9 +346,8 @@ const galaScan = async (req, res) => {
       });
     }
 
-    const galaMenu = await GalaDinnerMenu.findById(galaDinnerMenuId).populate(
-      "galaDinnerId"
-    );
+    const galaMenu =
+      await GalaDinnerMenu.findById(galaDinnerMenuId).populate("galaDinnerId");
     if (!galaMenu) {
       return res.status(404).json({
         message: "Invalid QR code",
@@ -461,7 +476,7 @@ const galaScan = async (req, res) => {
 /**
  * App: Get scan status for a user and upcoming Gala Dinner (for tick + time).
  */
-const getGalaScanStatus = async (req, res) => {
+export const getGalaScanStatus = async (req, res) => {
   try {
     const userId =
       req.params.userId ||
@@ -471,7 +486,11 @@ const getGalaScanStatus = async (req, res) => {
     }
 
     const now = new Date();
-    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    );
 
     const gala = await GalaDinner.findOne({
       date: { $gte: startOfToday },
@@ -505,7 +524,7 @@ const getGalaScanStatus = async (req, res) => {
  * manager's hostel: total scans per course and recent scans per course.
  * Requires authenticateMessManagerJWT to set req.managerHostel.
  */
-const getManagerGalaSummary = async (req, res) => {
+export const getManagerGalaSummary = async (req, res) => {
   try {
     const managerHostel = req.managerHostel;
     if (!managerHostel) {
@@ -626,7 +645,7 @@ const getManagerGalaSummary = async (req, res) => {
 /**
  * SMC: Create a Gala menu item. Body: { galaMenuId, name, type }.
  */
-const createGalaMenuItem = async (req, res) => {
+export const createGalaMenuItem = async (req, res) => {
   try {
     const { galaMenuId, name, type } = req.body;
     if (!galaMenuId || !name || !type) {
@@ -673,7 +692,7 @@ const createGalaMenuItem = async (req, res) => {
 /**
  * Get menu items for a single Gala menu (by galaDinnerMenuId). Used to refresh one menu after add/update/delete.
  */
-const getGalaMenuItems = async (req, res) => {
+export const getGalaMenuItems = async (req, res) => {
   try {
     const { galaDinnerMenuId } = req.params;
     if (!galaDinnerMenuId) {
@@ -693,7 +712,7 @@ const getGalaMenuItems = async (req, res) => {
 /**
  * SMC: Update a Gala menu item. Body: { _Id, name?, type? }.
  */
-const updateGalaMenuItem = async (req, res) => {
+export const updateGalaMenuItem = async (req, res) => {
   try {
     const { _Id, name, type } = req.body;
     if (!_Id) {
@@ -743,7 +762,7 @@ const updateGalaMenuItem = async (req, res) => {
 /**
  * SMC: Delete a Gala menu item.
  */
-const deleteGalaMenuItem = async (req, res) => {
+export const deleteGalaMenuItem = async (req, res) => {
   try {
     const _Id = req.body._Id || req.params._Id;
     if (!_Id) {
@@ -782,20 +801,4 @@ const deleteGalaMenuItem = async (req, res) => {
       .status(500)
       .json({ message: "Internal server error", error: error.message });
   }
-};
-
-module.exports = {
-  scheduleGalaDinner,
-  deleteGalaDinner,
-  listGalaDinners,
-  getGalaDinnerDetailForHostel,
-  getUpcomingGalaDinner,
-  getUpcomingGalaWithMenusForHostel,
-  galaScan,
-  getGalaScanStatus,
-  createGalaMenuItem,
-  getGalaMenuItems,
-  updateGalaMenuItem,
-  deleteGalaMenuItem,
-  getManagerGalaSummary,
 };

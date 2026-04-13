@@ -1,14 +1,16 @@
-const Leave = require("./leaveModel.js");
-const { buildStationLeavePdf } = require("./stationLeavePdf.js");
-const { uploadBufferToLeaveFolder } = require("../../utils/onedriveController.js");
-const multer = require("multer");
-const path = require("path");
-const fs = require("fs");
-const mongoose = require("mongoose");
-const { User } = require("../user/userModel.js");
-const {
-  sendNotificationToUser,
-} = require("../notification/notificationController.js");
+import fs from "fs";
+import path from "path";
+const __dirname = import.meta.dirname;
+import multer from "multer";
+import mongoose from "mongoose";
+
+import Leave from "./leaveModel.js";
+import { User } from "../user/userModel.js";
+
+import { buildStationLeavePdf } from "./stationLeavePdf.js";
+import { sendNotificationToUser } from "../notification/notificationController.js";
+import { uploadBufferToLeaveFolder } from "../../utils/onedriveController.js";
+
 const uploadDir = path.join(__dirname, ".", "uploads");
 
 if (!fs.existsSync(uploadDir)) {
@@ -43,7 +45,7 @@ const upload = multer({
   },
 });
 
-const uploadMiddleware = async (req, res, next) => {
+export const uploadMiddleware = async (req, res, next) => {
   upload.fields([{ name: "proofDocument", maxCount: 1 }])(req, res, (err) => {
     if (err) {
       if (err.message == "UNSUPPORTED_FILE_TYPE") {
@@ -112,7 +114,7 @@ async function getRebateDaysForMonth(messHostelId, month, year) {
  * After a mess bill is generated for a calendar month, mark overlapping
  * Acknowledged rebate applications as Processed.
  */
-async function markRebateApplicationsProcessedForMessBill(
+export async function markRebateApplicationsProcessedForMessBill(
   messHostelId,
   billMonth,
   billYear,
@@ -129,14 +131,16 @@ async function markRebateApplicationsProcessedForMessBill(
     {
       messHostel: messHostelId,
       status: "Acknowledged",
-      $or: [{ startDate: { $lte: endOfMonth }, endDate: { $gte: startOfMonth } }],
+      $or: [
+        { startDate: { $lte: endOfMonth }, endDate: { $gte: startOfMonth } },
+      ],
     },
     { $set: { status: "Processed", processedAt: now } },
   );
 }
 
-//Validation of presence of all fields before uploading file to onedrive
-const validateApply = async (req, res, next) => {
+// Validation of presence of all fields before uploading file to onedrive
+export const validateApply = async (req, res, next) => {
   const fields = [
     "leaveType",
     "startDate",
@@ -185,9 +189,10 @@ function formatDdMmYyyy(d) {
 const LOG_FORM_ONLY = "[Leave][generate-form-only]";
 
 /** Form-only: no Leave row, no bank/proof. Relaxed advance notice; min 1 calendar day inclusive. */
-const validateGenerateFormOnly = async (req, res, next) => {
+export const validateGenerateFormOnly = async (req, res, next) => {
   const userId = req.user?._id?.toString?.() ?? String(req.user?._id ?? "");
-  const bodyKeys = req.body && typeof req.body === "object" ? Object.keys(req.body) : [];
+  const bodyKeys =
+    req.body && typeof req.body === "object" ? Object.keys(req.body) : [];
   console.log(`${LOG_FORM_ONLY} validate: start`, {
     userId: userId || "(none)",
     bodyKeys,
@@ -217,7 +222,10 @@ const validateGenerateFormOnly = async (req, res, next) => {
   ];
   const missingFields = fields.filter((field) => !req.body[field]);
   if (missingFields.length > 0) {
-    console.warn(`${LOG_FORM_ONLY} validate: missing fields`, { userId, missingFields });
+    console.warn(`${LOG_FORM_ONLY} validate: missing fields`, {
+      userId,
+      missingFields,
+    });
     return res.status(400).json({
       message: "Fields cannot be empty",
       emptyFields: missingFields,
@@ -227,7 +235,7 @@ const validateGenerateFormOnly = async (req, res, next) => {
   next();
 };
 
-const generateStationLeaveFormOnly = async (req, res) => {
+export const generateStationLeaveFormOnly = async (req, res) => {
   const userId = req.user?._id?.toString?.() ?? String(req.user?._id ?? "");
   try {
     const {
@@ -264,7 +272,9 @@ const generateStationLeaveFormOnly = async (req, res) => {
       declarationAccepted === "true" ||
       declarationAccepted === "1";
     if (!decl) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 declaration not accepted`, { userId });
+      console.warn(`${LOG_FORM_ONLY} handler: 400 declaration not accepted`, {
+        userId,
+      });
       return res.status(400).json({
         message: "You must accept the declaration to continue",
       });
@@ -283,20 +293,30 @@ const generateStationLeaveFormOnly = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (start < today) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 start before today`, { userId, startDate });
+      console.warn(`${LOG_FORM_ONLY} handler: 400 start before today`, {
+        userId,
+        startDate,
+      });
       return res.status(400).json({
         message: "Start date cannot be before today",
       });
     }
     const latestStartOk = latestRebateStartDateAllowed();
     if (start > latestStartOk) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 start too far ahead`, { userId, startDate });
+      console.warn(`${LOG_FORM_ONLY} handler: 400 start too far ahead`, {
+        userId,
+        startDate,
+      });
       return res.status(400).json({
         message: `Start date cannot be more than ${REBATE_START_MAX_DAYS_AHEAD} days from today`,
       });
     }
     if (end < start) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 invalid range`, { userId, startDate, endDate });
+      console.warn(`${LOG_FORM_ONLY} handler: 400 invalid range`, {
+        userId,
+        startDate,
+        endDate,
+      });
       return res.status(400).json({
         message: "Start, end date combination is invalid",
       });
@@ -306,16 +326,23 @@ const generateStationLeaveFormOnly = async (req, res) => {
     const numberOfDays = Math.floor(diffBtwDates / (1000 * 60 * 60 * 24));
     const inclusiveLeaveDays = numberOfDays + 1;
     if (inclusiveLeaveDays < 1) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 invalid duration`, { userId, inclusiveLeaveDays });
+      console.warn(`${LOG_FORM_ONLY} handler: 400 invalid duration`, {
+        userId,
+        inclusiveLeaveDays,
+      });
       return res.status(400).json({ message: "Invalid leave duration" });
     }
 
     if (!(req.user && req.user.curr_subscribed_mess)) {
       if (req.user && !req.user.curr_subscribed_mess) {
-        console.warn(`${LOG_FORM_ONLY} handler: 400 no subscribed mess`, { userId });
+        console.warn(`${LOG_FORM_ONLY} handler: 400 no subscribed mess`, {
+          userId,
+        });
         return res.status(400).json({ message: "Hostel not provided" });
       }
-      console.warn(`${LOG_FORM_ONLY} handler: 400 not logged in / no user`, { userId });
+      console.warn(`${LOG_FORM_ONLY} handler: 400 not logged in / no user`, {
+        userId,
+      });
       return res.status(400).json({ message: "Please login first" });
     }
 
@@ -350,7 +377,10 @@ const generateStationLeaveFormOnly = async (req, res) => {
       contactPhone: String(contactDuringLeavePhone || "").trim(),
     };
 
-    console.log(`${LOG_FORM_ONLY} handler: building PDF`, { userId, inclusiveLeaveDays });
+    console.log(`${LOG_FORM_ONLY} handler: building PDF`, {
+      userId,
+      inclusiveLeaveDays,
+    });
     const pdfBuffer = await buildStationLeavePdf(pdfPayload);
     console.log(`${LOG_FORM_ONLY} handler: PDF built`, {
       userId,
@@ -358,7 +388,10 @@ const generateStationLeaveFormOnly = async (req, res) => {
     });
 
     const leavePdfName = `station-leave-form-${req.user._id}-${Date.now()}.pdf`;
-    console.log(`${LOG_FORM_ONLY} handler: uploading`, { userId, leavePdfName });
+    console.log(`${LOG_FORM_ONLY} handler: uploading`, {
+      userId,
+      leavePdfName,
+    });
     const leaveUp = await uploadBufferToLeaveFolder(
       pdfBuffer,
       "application/pdf",
@@ -529,8 +562,7 @@ function splitLeaveRangeByCalendarMonth(leaveStart, leaveEnd) {
     const y = cur.getFullYear();
     const m = cur.getMonth();
     const lastOfMonth = new Date(y, m + 1, 0);
-    const segEnd =
-      end.getTime() <= lastOfMonth.getTime() ? end : lastOfMonth;
+    const segEnd = end.getTime() <= lastOfMonth.getTime() ? end : lastOfMonth;
     segments.push({ start: new Date(cur), end: new Date(segEnd) });
     const nextDay = new Date(segEnd);
     nextDay.setDate(nextDay.getDate() + 1);
@@ -556,12 +588,7 @@ async function assertRebateSemesterDayCap(userId, newStart, newEnd) {
   for (const w of windows) {
     let used = 0;
     for (const app of applications) {
-      used += inclusiveOverlapDays(
-        app.startDate,
-        app.endDate,
-        w.start,
-        w.end,
-      );
+      used += inclusiveOverlapDays(app.startDate, app.endDate, w.start, w.end);
     }
     const newPart = inclusiveOverlapDays(newStart, newEnd, w.start, w.end);
     if (used + newPart > REBATE_SEMESTER_MAX_DAYS) {
@@ -571,8 +598,8 @@ async function assertRebateSemesterDayCap(userId, newStart, newEnd) {
   return null;
 }
 
-//Apply for leave(Student endpoint)
-const applyForLeave = async (req, res) => {
+// Apply for leave(Student endpoint)
+export const applyForLeave = async (req, res) => {
   try {
     const {
       leaveType,
@@ -876,7 +903,7 @@ const getMyApplications = async (id, type) => {
   return type === "date" ? myApplicationswithDate : myApplications;
 };
 
-const getApplications = async (req, res) => {
+export const getApplications = async (req, res) => {
   //Search by User ObjectID
   const myApplications = await getMyApplications(req.user, "string");
 
@@ -895,7 +922,7 @@ const getApplications = async (req, res) => {
   return;
 };
 
-const getApplicationByID = async (req, res) => {
+export const getApplicationByID = async (req, res) => {
   const { id } = req.params;
   //Search by Application ObjectID
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -931,7 +958,7 @@ const getApplicationByID = async (req, res) => {
   }
 };
 
-const validateUploadDoc = async (req, res, next) => {
+export const validateUploadDoc = async (req, res, next) => {
   try {
     const { id } = req.params;
     if (!id) {
@@ -999,7 +1026,7 @@ const validateUploadDoc = async (req, res, next) => {
   }
 };
 
-const uploadDocForMedicalLeave = async (req, res) => {
+export const uploadDocForMedicalLeave = async (req, res) => {
   try {
     const { id } = req.params;
     const query = {
@@ -1022,7 +1049,7 @@ const uploadDocForMedicalLeave = async (req, res) => {
   }
 };
 
-const cancelApplication = async (req, res) => {
+export const cancelApplication = async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) {
@@ -1092,7 +1119,7 @@ const cancelApplication = async (req, res) => {
  * - With month + year: startDate falls in that calendar month; optional status.
  * - With status=Pending only (no month/year): all pending applications for the mess.
  */
-const getMessApplications = async (req, res) => {
+export const getMessApplications = async (req, res) => {
   const query = { messHostel: req.managerHostel };
   const { month, year, status } = req.query;
 
@@ -1145,7 +1172,7 @@ const getMessApplications = async (req, res) => {
   }
 };
 
-const getApplicationSummary = async (req, res) => {
+export const getApplicationSummary = async (req, res) => {
   const hostel = req.managerHostel._id;
 
   if (!(req.query.month && req.query.year)) {
@@ -1163,11 +1190,7 @@ const getApplicationSummary = async (req, res) => {
     });
   }
 
-  const applicationSummary = await getRebateDaysForMonth(
-    hostel,
-    month,
-    year,
-  );
+  const applicationSummary = await getRebateDaysForMonth(hostel, month, year);
 
   return res.status(200).json({
     message: "Application summary retrieved successfully",
@@ -1176,7 +1199,7 @@ const getApplicationSummary = async (req, res) => {
   });
 };
 
-const acknowledgeRebateApplication = async (req, res) => {
+export const acknowledgeRebateApplication = async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -1225,21 +1248,4 @@ const acknowledgeRebateApplication = async (req, res) => {
       error: err.message,
     });
   }
-};
-
-module.exports = {
-  uploadMiddleware,
-  applyForLeave,
-  getApplications,
-  getApplicationByID,
-  validateUploadDoc,
-  uploadDocForMedicalLeave,
-  cancelApplication,
-  getMessApplications,
-  getApplicationSummary,
-  acknowledgeRebateApplication,
-  markRebateApplicationsProcessedForMessBill,
-  validateApply,
-  validateGenerateFormOnly,
-  generateStationLeaveFormOnly,
 };

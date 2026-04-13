@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 /**
  * One laundry service use per user (1 free every 2 weeks).
@@ -24,6 +24,7 @@ const laundryBookingSchema = new mongoose.Schema(
 
 laundryBookingSchema.index({ userId: 1, usedAt: -1 });
 
-const LaundryBooking = mongoose.model("LaundryBooking", laundryBookingSchema);
-
-module.exports = { LaundryBooking };
+export const LaundryBooking = mongoose.model(
+  "LaundryBooking",
+  laundryBookingSchema,
+);

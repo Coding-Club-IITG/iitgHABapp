@@ -1,11 +1,11 @@
-const { User } = require("../../user/userModel.js");
-const { Hostel } = require("../../hostel/hostelModel.js");
-const { MessChangeSettings } = require("../messChangeSettingsModel.js");
+import { User } from "../../user/userModel.js";
+import { Hostel } from "../../hostel/hostelModel.js";
+import { MessChangeSettings } from "../messChangeSettingsModel.js";
 
 /**
  * User submits a mess change request with preferences
  */
-const messChangeRequest = async (req, res) => {
+export const messChangeRequest = async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await User.findById(userId);
@@ -91,7 +91,7 @@ const messChangeRequest = async (req, res) => {
 /**
  * User gets their mess change status
  */
-const messChangeStatus = async (req, res) => {
+export const messChangeStatus = async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await User.findById(userId);
@@ -131,9 +131,4 @@ const messChangeStatus = async (req, res) => {
     console.error("Error in messChangeStatus:", err);
     return res.status(500).json({ message: "Internal server error" });
   }
-};
-
-module.exports = {
-  messChangeRequest,
-  messChangeStatus,
 };

@@ -1,8 +1,9 @@
-const { User } = require("../user/userModel.js");
-const UserAllocHostel = require("../hostel/hostelAllocModel.js");
-const { MessChangeSettings } = require("./messChangeSettingsModel");
-const { withTransaction } = require("../../utils/withTransaction.js");
-const agenda = require("../../utils/agenda.js");
+import { User } from "../user/userModel.js";
+import UserAllocHostel from "../hostel/hostelAllocModel.js";
+import { MessChangeSettings } from "./messChangeSettingsModel.js";
+
+import { withTransaction } from "../../utils/withTransaction.js";
+import agenda from "../../utils/agenda.js";
 
 const JOB_NAME = "mess-allotment-rotate";
 
@@ -113,23 +114,22 @@ const rotateMessAllotments = async () => {
  * This scheduler runs at the beginning of the 1st of every month
  * to move the 'next_mess' (allotted) to 'curr_subscribed_mess' (active).
  */
-const initializeMessAllotmentScheduler = () => {
-  agenda.define(JOB_NAME, async (job) => {
-    try {
-      console.log("[MESS ALLOTMENT] Agenda job fired");
-      await rotateMessAllotments();
-    } catch (err) {
-      console.error("[MESS ALLOTMENT] Job failed:", err);
-      throw err; // Rethrow so Agenda marks the job as failed and records the error
-    }
-  }, { priority: "high", concurrency: 1 });
+export const initializeMessAllotmentScheduler = () => {
+  agenda.define(
+    JOB_NAME,
+    async (job) => {
+      try {
+        console.log("[MESS ALLOTMENT] Agenda job fired");
+        await rotateMessAllotments();
+      } catch (err) {
+        console.error("[MESS ALLOTMENT] Job failed:", err);
+        throw err; // Rethrow so Agenda marks the job as failed and records the error
+      }
+    },
+    { priority: "high", concurrency: 1 },
+  );
 
   // Schedule: 1st of every month at 00:05 IST
   agenda.every("5 0 1 * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
   console.log("[MESS ALLOTMENT] Scheduled: 1st of every month at 00:05 IST");
-};
-
-module.exports = {
-  initializeMessAllotmentScheduler,
-  rotateMessAllotments,
 };
