@@ -388,8 +388,7 @@ class _QrScanState extends State<QrScan> {
           return;
         }
       }
-    } catch (_) {
-    }
+    } catch (_) {}
   }
 
   void _showMessScanRulesSheet() {
@@ -550,6 +549,7 @@ class _QrScanState extends State<QrScan> {
             'Authorization': 'Bearer $accessToken',
             'Content-Type': 'application/json',
           },
+          validateStatus: (status) => true,
         ),
       );
 
