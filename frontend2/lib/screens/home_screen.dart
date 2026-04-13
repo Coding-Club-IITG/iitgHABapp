@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:frontend2/apis/mess/mess_menu.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:frontend2/models/alert_model.dart';
@@ -1440,34 +1441,78 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         FestivalModeService().currentData?.isEnabled == true;
     final rainPriority = _weatherBackground.weatherGroup == 'rainy';
     final festivalOn = festivalModeOn && !rainPriority;
-    final DecorationImage? bgImage = festivalOn
-        ? null
-        : DecorationImage(
-            image: AssetImage(
-              _getBackgroundAssetPath(_weatherBackground.assetPath),
-            ),
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
+
+    if (festivalOn) {
+      return ValueListenableBuilder<FestivalModeData>(
+        valueListenable: FestivalModeService().festivalVisualNotifier,
+        builder: (context, festData, _) {
+          return ValueListenableBuilder<List<AlertModel>>(
+            valueListenable: AlertsManager.activeAlertsNotifier,
+            builder: (context, activeAlerts, _) {
+              final hasAlerts = activeAlerts.isNotEmpty;
+              final url = FestivalModeService()
+                  .getAppropriateFestivalImage(festData, hasAlerts)
+                  ?.replaceAll('localhost', '10.0.2.2');
+              final bannerH = festivalBannerHeight(hasAlerts);
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                width: double.infinity,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    if (url != null)
+                      Positioned(
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        height: bannerH,
+                        child: CachedNetworkImage(
+                          imageUrl: url,
+                          fit: BoxFit.cover,
+                          alignment: Alignment.topCenter,
+                          placeholder: (context, _) =>
+                              Container(color: const Color(0xFF1a1a2e)),
+                          errorWidget: (context, _, __) =>
+                              const SizedBox.shrink(),
+                        ),
+                      ),
+                    Container(
+                      child: _buildAlertsSection(),
+                    ),
+                  ],
+                ),
+              );
+            },
           );
+        },
+      );
+    }
+
+    final DecorationImage bgImage = DecorationImage(
+      image: AssetImage(
+        _getBackgroundAssetPath(_weatherBackground.assetPath),
+      ),
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+    );
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       width: double.infinity,
       decoration: BoxDecoration(image: bgImage),
       child: Container(
-        decoration: festivalOn
-            ? null
-            : const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x00FFFFFF),
-                    Color(0xFFFFFFFF),
-                  ],
-                  stops: [0.59, 1.0],
-                ),
-              ),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0x00FFFFFF),
+              Color(0xFFFFFFFF),
+            ],
+            stops: [0.59, 1.0],
+          ),
+        ),
         child: _buildAlertsSection(),
       ),
     );
