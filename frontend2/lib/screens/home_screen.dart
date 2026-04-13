@@ -1266,10 +1266,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 final notifications = storedNotifications;
                 // notifications.forEach((notification) {print(notification.timestamp);});
                 // notifications.forEach((notification) {print(notification.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)));});
-              final unreadNotifCount = notifications.where((n) => !n.isRead && !n.isAlert).length;
-              final unreadAlertsCount =
-                  activeAlerts.where((a) => !a.isRead).length;
-            final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
+              final unreadNotifCount = notifications.where((n) => !n.isRead).length;
+              // final unreadAlertsCount =
+              //     activeAlerts.where((a) => !a.isRead).length;
+            // final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
             final updatesCount = unreadNotifCount;
             final todayNotificationCount = notifications.where((n) => (!n.isAlert) && n.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day))).length;
 
