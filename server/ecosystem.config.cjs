@@ -15,7 +15,7 @@ module.exports = {
       env: { PORT: 3001 },
 
       // Performance
-      instances: "max",
+      instances: "8",
       exec_mode: "cluster",
 
       // Stability
@@ -40,7 +40,7 @@ module.exports = {
       name: "api-v2",
       script: "./index.js",
       cwd: "./v2",
-      instances: "max",
+      instances: "8",
       exec_mode: "cluster",
       watch: false,
       env: { PORT: 3002 },

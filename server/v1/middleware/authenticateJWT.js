@@ -42,10 +42,7 @@ function auth(Schema, param) {
         return next(new AppError(401, "Access token expired"));
       }
       // jwt.verify: bad signature, wrong secret, truncated token, etc. — not a server bug.
-      if (
-        err.name === "JsonWebTokenError" ||
-        err.name === "NotBeforeError"
-      ) {
+      if (err.name === "JsonWebTokenError" || err.name === "NotBeforeError") {
         return next(new AppError(401, "Invalid or malformed access token"));
       }
       if (err instanceof AppError) return next(err);
@@ -68,7 +65,21 @@ export const authenticateUserOrAdminJWT = async (req, res, next) => {
     const token = await extractAndCheckToken(req);
     let lastError = null;
 
-    // First, try to treat the token as a normal user token
+    // First, try to treat the token as a HAB token
+    try {
+      const decoded = jwt.verify(token, adminJwtSecret);
+      if (decoded?.hab) {
+        req.hab = decoded;
+        return next();
+      }
+    } catch (err) {
+      if (err.name === "TokenExpiredError") {
+        return next(new AppError(401, "Access token expired"));
+      }
+      lastError = err;
+    }
+
+    // Try to treat the token as a normal user token
     try {
       const user = await User.findByAccessToken(token);
       if (user) {
@@ -79,8 +90,6 @@ export const authenticateUserOrAdminJWT = async (req, res, next) => {
       if (err.name === "TokenExpiredError") {
         return next(new AppError(401, "Access token expired"));
       }
-      // For non-expiry JWT errors (e.g. invalid signature), fall through to
-      // try hostel token verification instead of immediately returning 500.
       lastError = err;
     }
 

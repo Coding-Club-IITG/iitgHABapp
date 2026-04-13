@@ -41,8 +41,9 @@ export default function HostelForm() {
     const fetchUnassignedMess = async () => {
       try {
         const data = await getUnassignedMesses();
-        setUnassignedMess(data);
-        setMessId(data.length > 0 ? data[0]._id : "");
+        const list = Array.isArray(data) ? data : data?.data || [];
+        setUnassignedMess(list);
+        setMessId(list.length > 0 ? list[0]._id : "");
       } catch (error) {
         console.error("Failed to fetch unassigned mess:", error);
         setError("Failed to load mess caterers.");

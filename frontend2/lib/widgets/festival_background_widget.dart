@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
 
 /// Design canvas width 390; heights match admin exports.
-double _festivalBannerHeight(bool hasAlerts) => hasAlerts ? 385.0 : 305.0;
+/// Used by [FestivalBackgroundBuilder] (layout) and Home scroll-embedded banner.
+double festivalBannerHeight(bool hasAlerts) => hasAlerts ? 385.0 : 305.0;
 
 /// Bulletproof Festival Background Widget
 /// Handles: flicker prevention, fallbacks, error states, offline mode
@@ -72,12 +72,7 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
           return _buildDefaultBackground(context);
         }
 
-        // Render with festival image and bulletproof error handling
-        return _buildFestivalBackground(
-          context,
-          festivalImageUrl,
-          hasAlerts: widget.hasAlerts,
-        );
+        return _buildFestivalBackground(context);
       },
     );
   }
@@ -99,42 +94,12 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
     );
   }
 
-  /// Build with festival image with bulletproof error handling (no gradient overlay).
-  Widget _buildFestivalBackground(
-    BuildContext context,
-    String imageUrl, {
-    required bool hasAlerts,
-  }) {
+  /// Banner image is painted in Home's scroll view, not here.
+  Widget _buildFestivalBackground(BuildContext context) {
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
-    final bannerH = _festivalBannerHeight(hasAlerts);
-
     return Container(
       color: bgColor,
-      child: Stack(
-        children: [
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: bannerH,
-            child: CachedNetworkImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              placeholder: (context, url) =>
-                  Container(color: const Color(0xFF1a1a2e)),
-              errorWidget: (context, url, error) {
-                debugPrint('[FestivalBG] CachedNetworkImage error: $error');
-                return _buildDefaultBackground(context);
-              },
-            ),
-          ),
-
-          Positioned.fill(
-            child: widget.child,
-          ),
-        ],
-      ),
+      child: widget.child,
     );
   }
 
@@ -197,7 +162,6 @@ class FestivalBackgroundBuilder extends StatelessWidget {
 
         return _BackgroundContainer(
           backgroundImage: backgroundImage,
-          hasAlerts: hasAlerts,
           child: builder(context),
         );
       },
@@ -209,12 +173,10 @@ class FestivalBackgroundBuilder extends StatelessWidget {
 /// Reusable background container with all error handling
 class _BackgroundContainer extends StatelessWidget {
   final String? backgroundImage;
-  final bool hasAlerts;
   final Widget child;
 
   const _BackgroundContainer({
     this.backgroundImage,
-    this.hasAlerts = true,
     required this.child,
   });
 
@@ -225,35 +187,10 @@ class _BackgroundContainer extends StatelessWidget {
     }
 
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
-    final bannerH = _festivalBannerHeight(hasAlerts);
-
+    // Banner image is drawn inside Home's scroll view so it scrolls with content.
     return Container(
       color: bgColor,
-      child: Stack(
-        children: [
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: bannerH,
-            child: CachedNetworkImage(
-              imageUrl: backgroundImage!,
-              fit: BoxFit.cover,
-              alignment: Alignment.topCenter,
-              placeholder: (context, url) =>
-                  Container(color: const Color(0xFF1a1a2e)),
-              errorWidget: (context, url, error) {
-                debugPrint('[BG] Image failed to load: $url');
-                return _buildDefault(context);
-              },
-            ),
-          ),
-
-          Positioned.fill(
-            child: child,
-          ),
-        ],
-      ),
+      child: child,
     );
   }
 
