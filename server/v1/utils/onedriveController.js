@@ -173,6 +173,12 @@ export async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
   if (!LEAVE_FOLDER_ID)
     throw new Error("ONEDRIVE_LEAVE_FOLDER_ID is not configured");
 
+  console.log("[OneDrive][leave] upload start", {
+    targetName,
+    mimetype: mimetype || "",
+    bytes: buffer?.length ?? 0,
+  });
+
   const token = await requireDelegatedToken();
   const uploaded = await uploadToParentByName(
     token,
@@ -207,6 +213,12 @@ export async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
       "[OneDrive] leave PDF: no @microsoft.graph.downloadUrl; returning org link (in-app download may 403).",
     );
   }
+
+  console.log("[OneDrive][leave] upload ok", {
+    targetName,
+    hasGraphDownloadUrl: Boolean(graphDownloadUrl),
+    hasOrgViewUrl: Boolean(orgViewUrl),
+  });
 
   return {
     url: graphDownloadUrl || orgViewUrl || "",

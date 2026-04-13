@@ -19,6 +19,8 @@ import os from "os";
 import { spawn } from "child_process";
 import { stationLeave } from "../../config/default.js";
 
+const LOG_PDF = "[Leave][pdf]";
+
 const TEMPLATE_PATH = path.join(__dirname, "latex", "station_leave.tex");
 const LATEX_DIR = path.join(__dirname, "latex");
 
@@ -119,11 +121,21 @@ function runDockerCompile(workDir, image, dockerBin) {
 export async function buildStationLeavePdf(data) {
   const image = stationLeave.latexImage;
   if (!image || !String(image).trim()) {
+    console.error(`${LOG_PDF} STATION_LEAVE_LATEX_IMAGE is not set`);
     throw new Error(
       "STATION_LEAVE_LATEX_IMAGE must be set (Docker image tag for XeLaTeX). Example: iitg-station-leave-latex:local",
     );
   }
   const dockerBin = stationLeave.dockerBin;
+  const roll = String(data.rollNo ?? "").trim();
+  const refId = roll.length >= 4 ? `…${roll.slice(-4)}` : roll || "(no roll)";
+
+  console.log(`${LOG_PDF} build start`, {
+    refId,
+    image: String(image).trim(),
+    dockerBin: dockerBin || "docker",
+    timeoutMs: COMPILE_TIMEOUT_MS,
+  });
 
   let tex = await fsp.readFile(TEMPLATE_PATH, "utf8");
 
@@ -183,21 +195,44 @@ export async function buildStationLeavePdf(data) {
   }
   const unfilled = [...tex.matchAll(/@@[A-Z][A-Z0-9_]*@@/g)].map((m) => m[0]);
   if (unfilled.length) {
+    console.error(`${LOG_PDF} unfilled LaTeX placeholders`, {
+      refId,
+      placeholders: [...new Set(unfilled)],
+    });
     throw new Error(
       `Unfilled LaTeX placeholders: ${[...new Set(unfilled)].join(", ")}`,
     );
   }
 
   const workDir = await fsp.mkdtemp(path.join(os.tmpdir(), "station-leave-"));
+  console.log(`${LOG_PDF} temp dir`, { refId, workDir: path.basename(workDir) });
   try {
     await fsp.writeFile(path.join(workDir, "station_leave.tex"), tex, "utf8");
     const logoSrc = resolveLogoSourcePath();
     if (logoSrc) {
       await fsp.copyFile(logoSrc, path.join(workDir, "iitg_logo.png"));
+      console.log(`${LOG_PDF} logo copied`, { refId, logo: path.basename(logoSrc) });
+    } else {
+      console.warn(`${LOG_PDF} no logo file in latex/ (optional)`, { refId });
     }
+    const t0 = Date.now();
+    console.log(`${LOG_PDF} docker xelatex starting`, { refId });
     await runDockerCompile(workDir, image, dockerBin);
+    console.log(`${LOG_PDF} docker xelatex done`, {
+      refId,
+      ms: Date.now() - t0,
+    });
     const pdfPath = path.join(workDir, "station_leave.pdf");
-    return await fsp.readFile(pdfPath);
+    const buf = await fsp.readFile(pdfPath);
+    console.log(`${LOG_PDF} pdf ready`, { refId, bytes: buf.length });
+    return buf;
+  } catch (err) {
+    console.error(`${LOG_PDF} failed`, {
+      refId,
+      message: err?.message,
+      name: err?.name,
+    });
+    throw err;
   } finally {
     await fsp.rm(workDir, { recursive: true, force: true }).catch(() => {});
   }

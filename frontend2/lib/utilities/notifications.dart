@@ -80,7 +80,7 @@ Future<void> _saveNotificationToHistory(String title, String body,
       redirectType: redirectType,
       timestamp: DateTime.now(),
       isAlert: isAlert,
-      isRead: redirectType == null, 
+      isRead: false, 
     );
 
     List<NotificationModel> notifications = _loadNotificationsFromPrefs();
