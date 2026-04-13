@@ -1,21 +1,23 @@
-const express = require("express");
-const multer = require("multer");
-const {
+import express from "express";
+import multer from "multer";
+
+import {
   setProfilePicture,
   getProfilePicture,
   getProfilePictureForManager,
   markSetupComplete,
-} = require("./profileController.js");
-const {
+} from "./profileController.js";
+import {
   getSettings,
   enablePhotoChange,
   disablePhotoChange,
-} = require("./profileSettingsController.js");
-const {
+} from "./profileSettingsController.js";
+
+import {
   authenticateJWT,
   authenticateHabJWT,
   authenticateMessManagerJWT,
-} = require("../../middleware/authenticateJWT.js");
+} from "../../middleware/authenticateJWT.js";
 
 const router = express.Router();
 
@@ -128,4 +130,4 @@ router.get(
 /** Mark setup complete */
 router.post("/setup/complete", authenticateJWT, markSetupComplete);
 
-module.exports = router;
+export default router;

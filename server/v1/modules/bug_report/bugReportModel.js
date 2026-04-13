@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const bugReportSchema = new mongoose.Schema(
   {
@@ -54,10 +54,9 @@ const bugReportSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
-  }
+  },
 );
 
 const BugReport = mongoose.model("BugReport", bugReportSchema);
 
-module.exports = BugReport;
-
+export default BugReport;

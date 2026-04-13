@@ -1,56 +1,85 @@
-const express = require("express");
+import express from "express";
 
-const {
+import {
   authenticateJWT,
   authenticateMessManagerJWT,
-} = require("../../middleware/authenticateJWT.js");
+} from "../../middleware/authenticateJWT.js";
 
-const { uploadSingleToOnedrive , sendDocument } = require('./OnedriveController.js')
-
-const {
+import { uploadSingleToOnedrive, sendDocument } from "./OnedriveController.js";
+import {
   uploadMiddleware,
   applyForLeave,
   getApplications,
   getApplicationByID,
-  getApplicationProof,
   validateUploadDoc,
   uploadDocForMedicalLeave,
   cancelApplication,
-  getAllPendingApplications,
-  filterApplications,
-  approveApplication,
-  rejectApplication,
-  getRebateSummary,
+  getMessApplications,
+  getApplicationSummary,
+  acknowledgeRebateApplication,
   validateApply,
-} = require("./leaveController.js");
+  validateGenerateFormOnly,
+  generateStationLeaveFormOnly,
+} from "./leaveController.js";
+import { runMessRebateJob } from "./autoMessRebateScheduler.js";
 
 const leaveRouter = express.Router();
 
-//User/Student Endpoint
+// User/Student Endpoint
 
-leaveRouter.post('/apply', authenticateJWT, uploadMiddleware, validateApply, applyForLeave);
+leaveRouter.post("/testScheduler", runMessRebateJob);
 
-leaveRouter.get('/my-applications', authenticateJWT, getApplications);
+leaveRouter.post(
+  "/apply",
+  authenticateJWT,
+  uploadMiddleware,
+  validateApply,
+  applyForLeave,
+);
 
-leaveRouter.get('/:id', authenticateJWT, getApplicationByID);
+/** PDF only - no Leave document, no bank/proof (student hostel form). */
+leaveRouter.post(
+  "/generate-form-only",
+  authenticateJWT,
+  uploadMiddleware,
+  validateGenerateFormOnly,
+  generateStationLeaveFormOnly,
+);
 
-leaveRouter.get('/:id/proof', authenticateJWT, getApplicationProof);
+leaveRouter.get("/my-applications", authenticateJWT, getApplications);
 
-leaveRouter.post('/my-applications/:id/upload-late-medical-document', authenticateJWT, validateUploadDoc , uploadMiddleware, uploadSingleToOnedrive, uploadDocForMedicalLeave )
+leaveRouter.get("/:id", authenticateJWT, getApplicationByID);
 
-leaveRouter.delete('/my-applications/:id', authenticateJWT, cancelApplication)
+leaveRouter.post(
+  "/my-applications/:id/upload-late-medical-document",
+  authenticateJWT,
+  validateUploadDoc,
+  uploadMiddleware,
+  uploadSingleToOnedrive,
+  uploadDocForMedicalLeave,
+);
 
-//Hostel Office Endpoints
-leaveRouter.get('/hostel/pending', authenticateMessManagerJWT, getAllPendingApplications);
+leaveRouter.delete("/my-applications/:id", authenticateJWT, cancelApplication);
 
-leaveRouter.get('/hostel/all', authenticateMessManagerJWT, filterApplications);
+// Hostel Office Endpoints
+leaveRouter.get(
+  "/hostel/mess-applications",
+  authenticateMessManagerJWT,
+  getMessApplications,
+);
 
-leaveRouter.post('/:id/approve', authenticateMessManagerJWT, approveApplication);
+leaveRouter.get(
+  "/hostel/application-summary",
+  authenticateMessManagerJWT,
+  getApplicationSummary,
+);
 
-leaveRouter.post('/:id/reject', authenticateMessManagerJWT, rejectApplication);
+leaveRouter.post(
+  "/hostel/applications/:id/acknowledge",
+  authenticateMessManagerJWT,
+  acknowledgeRebateApplication,
+);
 
-leaveRouter.get('/hostel/rebate-summary', authenticateMessManagerJWT, getRebateSummary);
+leaveRouter.post("/download", authenticateMessManagerJWT, sendDocument);
 
-leaveRouter.post('/download',authenticateMessManagerJWT,sendDocument);
-
-module.exports = leaveRouter;
+export default leaveRouter;

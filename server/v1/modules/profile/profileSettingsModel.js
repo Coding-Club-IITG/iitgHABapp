@@ -1,10 +1,10 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const profileSettingsSchema = new mongoose.Schema(
   {
     allowProfilePhotoChange: { type: Boolean, default: false },
   },
-  { timestamps: true }
+  { timestamps: true },
 );
 
 // Enforce singleton document
@@ -19,8 +19,7 @@ profileSettingsSchema.pre("save", async function (next) {
   return next();
 });
 
-const ProfileSettings = mongoose.model(
+export const ProfileSettings = mongoose.model(
   "ProfileSettings",
-  profileSettingsSchema
+  profileSettingsSchema,
 );
-module.exports = { ProfileSettings };

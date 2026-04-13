@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 // Feedback for a single room-cleaning booking.
 // Each RcFeedback document is linked from RoomCleaningBooking.feedbackId.
@@ -53,7 +53,4 @@ const rcFeedbackSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-const RcFeedback = mongoose.model("RcFeedback", rcFeedbackSchema);
-
-module.exports = { RcFeedback };
-
+export const RcFeedback = mongoose.model("RcFeedback", rcFeedbackSchema);

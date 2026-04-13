@@ -1,8 +1,8 @@
-const getCurrentDate = () => {
+export const getCurrentDate = () => {
   return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" }); // YYYY-MM-DD
 };
 
-const getCurrentTime = () => {
+export const getCurrentTime = () => {
   return new Date().toLocaleTimeString("en-GB", {
     hour: "2-digit",
     minute: "2-digit",
@@ -11,15 +11,9 @@ const getCurrentTime = () => {
   }); // HH:mm
 };
 
-const getCurrentDay = () => {
+export const getCurrentDay = () => {
   return new Date().toLocaleString("en-US", {
     weekday: "long",
     timeZone: "Asia/Kolkata",
   });
-};
-
-module.exports = {
-  getCurrentDate,
-  getCurrentTime,
-  getCurrentDay,
 };

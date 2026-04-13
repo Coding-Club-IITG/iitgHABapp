@@ -1,10 +1,7 @@
-const axios = require("axios");
-const mongoose = require("mongoose");
-const jwt = require("jsonwebtoken");
-require("dotenv").config();
-
-const ACCESS_TOKEN_SECRET = process.env.JWT_SECRET;
-const REFRESH_TOKEN_SECRET = process.env.REFRESH_SECRET;
+import axios from "axios";
+import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
+import { jwtSecret, refreshSecret } from "../../config/default.js";
 
 /**
  * @swagger
@@ -246,7 +243,7 @@ userSchema.methods.generateJWT = function () {
 
 userSchema.methods.generateAccessToken = function () {
   var user = this;
-  var token = jwt.sign({ user: user._id }, ACCESS_TOKEN_SECRET, {
+  var token = jwt.sign({ user: user._id }, jwtSecret, {
     expiresIn: "4d",
   });
   return token;
@@ -254,7 +251,7 @@ userSchema.methods.generateAccessToken = function () {
 
 userSchema.methods.generateRefreshToken = function () {
   var user = this;
-  var token = jwt.sign({ user: user._id }, REFRESH_TOKEN_SECRET, {
+  var token = jwt.sign({ user: user._id }, refreshSecret, {
     expiresIn: "60d",
   });
   return token;
@@ -263,7 +260,7 @@ userSchema.methods.generateRefreshToken = function () {
 userSchema.statics.findByAccessToken = async function (token) {
   try {
     var user = this;
-    var decoded = jwt.verify(token, ACCESS_TOKEN_SECRET);
+    var decoded = jwt.verify(token, jwtSecret);
     const id = decoded.user;
     const fetchedUser = await user.findOne({ _id: id });
     if (!fetchedUser) return false;
@@ -274,9 +271,9 @@ userSchema.statics.findByAccessToken = async function (token) {
   }
 };
 
-const User = mongoose.model("User", userSchema);
+export const User = mongoose.model("User", userSchema);
 
-const getUserFromToken = async function (access_token) {
+export const getUserFromToken = async function (access_token) {
   try {
     var config = {
       method: "get",
@@ -297,29 +294,23 @@ const getUserFromToken = async function (access_token) {
   }
 };
 
-const findUserWithEmail = async function (email) {
+export const findUserWithEmail = async function (email) {
   const user = await User.findOne({ email: email });
   // console.log("found user with email", user);
   if (!user) return false;
   return user;
 };
 
-const findUserWithAppleIdentifier = async function (appleUserIdentifier) {
+export const findUserWithAppleIdentifier = async function (
+  appleUserIdentifier,
+) {
   const user = await User.findOne({ appleUserIdentifier: appleUserIdentifier });
   if (!user) return false;
   return user;
 };
 
-const findUserWithGuestIdentifier = async function (guestIdentifier) {
+export const findUserWithGuestIdentifier = async function (guestIdentifier) {
   const user = await User.findOne({ guestIdentifier: guestIdentifier });
   if (!user) return false;
   return user;
-};
-
-module.exports = {
-  getUserFromToken,
-  User,
-  findUserWithEmail,
-  findUserWithAppleIdentifier,
-  findUserWithGuestIdentifier,
 };

@@ -1,14 +1,14 @@
-const express = require("express");
-const {
+import express from "express";
+
+import {
   authenticateJWT,
   authenticateHabJWT,
   authenticateUserOrAdminJWT,
   authenticateMessManagerJWT,
-} = require("../../middleware/authenticateJWT.js");
-const {
-  requireMicrosoftAuth,
-} = require("../../middleware/requireMicrosoftAuth.js");
-const {
+} from "../../middleware/authenticateJWT.js";
+import { requireMicrosoftAuth } from "../../middleware/requireMicrosoftAuth.js";
+
+import {
   scheduleGalaDinner,
   deleteGalaDinner,
   listGalaDinners,
@@ -22,7 +22,7 @@ const {
   updateGalaMenuItem,
   deleteGalaMenuItem,
   getManagerGalaSummary,
-} = require("./galaController.js");
+} from "./galaController.js";
 
 const galaRouter = express.Router();
 
@@ -44,23 +44,18 @@ galaRouter.get("/upcoming", getUpcomingGalaDinner);
 galaRouter.get(
   "/upcoming-with-menus",
   authenticateUserOrAdminJWT,
-  getUpcomingGalaWithMenusForHostel
+  getUpcomingGalaWithMenusForHostel,
 );
 
 // App: upcoming gala + 3 menus for a hostel (hostelId in path, user token)
 galaRouter.get(
   "/upcoming-with-menus/:hostelId",
   authenticateJWT,
-  getUpcomingGalaWithMenusForHostel
+  getUpcomingGalaWithMenusForHostel,
 );
 
 // App: scan Gala QR
-galaRouter.post(
-  "/scan",
-  authenticateJWT,
-  requireMicrosoftAuth,
-  galaScan
-);
+galaRouter.post("/scan", authenticateJWT, requireMicrosoftAuth, galaScan);
 
 // App: get scan status for current user
 galaRouter.get("/scan-status", authenticateJWT, getGalaScanStatus);
@@ -69,30 +64,18 @@ galaRouter.get("/scan-status", authenticateJWT, getGalaScanStatus);
 galaRouter.get(
   "/:galaDinnerId/detail",
   authenticateHabJWT,
-  getGalaDinnerDetailForHostel
+  getGalaDinnerDetailForHostel,
 );
 galaRouter.delete("/:galaDinnerId", authenticateHabJWT, deleteGalaDinner);
 
 // SMC: Gala menu item CRUD
-galaRouter.post(
-  "/menu/item",
-  authenticateUserOrAdminJWT,
-  createGalaMenuItem
-);
+galaRouter.post("/menu/item", authenticateUserOrAdminJWT, createGalaMenuItem);
 galaRouter.get(
   "/menu/:galaDinnerMenuId/items",
   authenticateUserOrAdminJWT,
-  getGalaMenuItems
+  getGalaMenuItems,
 );
-galaRouter.patch(
-  "/menu/item",
-  authenticateUserOrAdminJWT,
-  updateGalaMenuItem
-);
-galaRouter.delete(
-  "/menu/item",
-  authenticateUserOrAdminJWT,
-  deleteGalaMenuItem
-);
+galaRouter.patch("/menu/item", authenticateUserOrAdminJWT, updateGalaMenuItem);
+galaRouter.delete("/menu/item", authenticateUserOrAdminJWT, deleteGalaMenuItem);
 
-module.exports = galaRouter;
+export default galaRouter;

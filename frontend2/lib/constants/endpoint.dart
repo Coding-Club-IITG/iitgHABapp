@@ -1,9 +1,15 @@
-const String baseUrl = "https://hab.codingclub.in/api";
-const String authUrl = "https://hab.codingclub.in/api";
+const String baseUrl = "http://localhost:3000/api";
+const String authUrl = "http://localhost:3000/api";
 
 class MessRebateEndpoints {
   static const String sendApplication = '$baseUrl/leave/apply';
+  static const String generateFormOnly = '$baseUrl/leave/generate-form-only';
   static const String getApplications = '$baseUrl/leave/my-applications';
+
+  static String leaveApplicationById(String id) => '$baseUrl/leave/$id';
+
+  static String uploadLateMedicalDocument(String applicationId) =>
+      '$baseUrl/leave/my-applications/$applicationId/upload-late-medical-document';
 }
 
 class NotificationEndpoints {

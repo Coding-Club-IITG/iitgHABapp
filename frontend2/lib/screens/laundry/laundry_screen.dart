@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../apis/laundry/laundry_api.dart';
+import '../../widgets/common/page_loading_shimmer.dart';
 import '../../widgets/microsoft_required_dialog.dart';
 import 'laundry_qr_scan.dart';
 
@@ -153,7 +154,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
         title: const Text(
           'Laundry Service',
           style: TextStyle(
-            fontFamily: 'OpenSans_regular',
             fontWeight: FontWeight.w600,
             fontSize: 18,
             color: Colors.black,
@@ -161,7 +161,7 @@ class _LaundryScreenState extends State<LaundryScreen> {
         ),
       ),
       body: _loading
-          ? const Center(child: CircularProgressIndicator(color: _appPrimary))
+          ? buildLaundryServiceLoadingShimmer()
           : _error != null
               ? _buildError()
               : RefreshIndicator(
@@ -267,7 +267,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                       Text(
                         canScan ? 'Available' : 'Unavailable',
                         style: TextStyle(
-                          fontFamily: 'OpenSans_regular',
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
                           color: canScan ? _appPrimary : _textMuted,
@@ -283,7 +282,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                 Text(
                   title,
                   style: const TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
@@ -297,7 +295,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                 Text(
                   subtitle,
                   style: const TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontSize: 12,
                     color: _textMuted,
                     height: 1.45,
@@ -317,7 +314,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                     child: Text(
                       'Last used ${_daysAgoText(_daysSince(s.lastUsed))}',
                       style: const TextStyle(
-                        fontFamily: 'OpenSans_regular',
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
                         color: _appPrimary,
@@ -335,7 +331,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                       Text(
                         '${dayNumber.clamp(1, _cooldownDays)} of $_cooldownDays days',
                         style: const TextStyle(
-                          fontFamily: 'OpenSans_regular',
                           fontSize: 11,
                           color: _textMuted,
                         ),
@@ -343,7 +338,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                       Text(
                         '${_daysLeftText(_daysLeftForDisplay(s))} left',
                         style: const TextStyle(
-                          fontFamily: 'OpenSans_regular',
                           fontSize: 11,
                           color: _textMuted,
                         ),
@@ -390,7 +384,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                   Text(
                     'Scan QR',
                     style: TextStyle(
-                      fontFamily: 'OpenSans_regular',
                       fontSize: 10,
                       fontWeight: FontWeight.w600,
                       color: canScan ? Colors.white : _disabledFg,
@@ -416,7 +409,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
           child: Text(
             'Usage History',
             style: TextStyle(
-              fontFamily: 'OpenSans_regular',
               fontSize: 16,
               fontWeight: FontWeight.bold,
               color: Colors.black,
@@ -456,7 +448,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
           Text(
             'No washes yet',
             style: TextStyle(
-              fontFamily: 'OpenSans_regular',
               fontSize: 14,
               fontWeight: FontWeight.w600,
               color: Colors.black87,
@@ -466,7 +457,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
           Text(
             'Your usage history will appear here.',
             style: TextStyle(
-              fontFamily: 'OpenSans_regular',
               fontSize: 12,
               color: _textMuted,
             ),
@@ -516,7 +506,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                 Text(
                   dateStr,
                   style: const TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                     color: Colors.black87,
@@ -526,7 +515,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
                 Text(
                   timeStr,
                   style: const TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     fontSize: 12,
                     color: _textMuted,
                   ),
@@ -545,7 +533,6 @@ class _LaundryScreenState extends State<LaundryScreen> {
             child: const Text(
               'Free wash',
               style: TextStyle(
-                fontFamily: 'OpenSans_regular',
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: _appPrimary,

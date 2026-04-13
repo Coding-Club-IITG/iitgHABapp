@@ -1,12 +1,6 @@
-//const axios =require("axios");
-const mongoose = require("mongoose");
-const jwt = require("jsonwebtoken");
-const dotenv = require("dotenv");
-const bcrypt = require("bcrypt");
-const { adminjwtsecret } = require("../../config/default.js");
-
-dotenv.config();
-// Added comment 32
+import mongoose from "mongoose";
+import jwt from "jsonwebtoken";
+import { adminJwtSecret } from "../../config/default.js";
 
 /**
  * @swagger
@@ -99,8 +93,7 @@ const hostelSchema = new mongoose.Schema({
 
 hostelSchema.methods.generateJWT = function () {
   let hostel = this;
-  //console.log("jwtsec", adminjwtsecret);
-  let token = jwt.sign({ hostel: hostel._id }, adminjwtsecret, {
+  let token = jwt.sign({ hostel: hostel._id }, adminJwtSecret, {
     expiresIn: "2h",
   });
 
@@ -110,7 +103,7 @@ hostelSchema.methods.generateJWT = function () {
 hostelSchema.statics.findByAccessToken = async function (token) {
   try {
     let hostel = this;
-    var decoded = jwt.verify(token, adminjwtsecret);
+    var decoded = jwt.verify(token, adminJwtSecret);
     const id = decoded.hostel;
     const fetchedHostel = await hostel.findOne({ _id: id }).populate("messId");
     if (!fetchedHostel) return false;
@@ -121,6 +114,4 @@ hostelSchema.statics.findByAccessToken = async function (token) {
   }
 };
 
-const Hostel = mongoose.model("Hostel", hostelSchema);
-
-module.exports = { Hostel };
+export const Hostel = mongoose.model("Hostel", hostelSchema);

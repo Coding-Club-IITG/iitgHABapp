@@ -1,15 +1,23 @@
-node_modules
-.idea
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Ignore specific frontend .env files (local secrets)
-hab-frontend/.env
-hostel-frontend/.env
-smc-frontend/.env
-login-frontend/.env
-
-# macOS system files
+# Editor files
 .DS_Store
-**/.DS_Store
-
-**/devtools_options.yaml
-**/bug-**.jpg
+.atom
+.idea
+*.iml
+*.ipr
+*.iws
+.vscode
+devtools_options.yaml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

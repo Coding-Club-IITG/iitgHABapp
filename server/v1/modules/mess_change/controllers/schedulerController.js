@@ -1,13 +1,11 @@
-const { MessChangeSettings } = require("../messChangeSettingsModel.js");
-const {
-  sendNotificationMessage,
-} = require("../../notification/notificationController.js");
-const { processAllMessChangeRequests } = require("./processingController.js");
+import { MessChangeSettings } from "../messChangeSettingsModel.js";
+import { sendNotificationMessage } from "../../notification/notificationController.js";
+import { processAllMessChangeRequests } from "./processingController.js";
 
 /**
  * Enable mess change automatically (for scheduler)
  */
-const enableMessChangeAutomatic = async (closingTime = null) => {
+export const enableMessChangeAutomatic = async (closingTime = null) => {
   try {
     let settings = await MessChangeSettings.findOne();
 
@@ -47,7 +45,7 @@ const enableMessChangeAutomatic = async (closingTime = null) => {
  * Disable mess change automatically by invoking the full processing flow
  * This ensures pending requests are processed before the window is closed.
  */
-const disableMessChangeAutomatic = async () => {
+export const disableMessChangeAutomatic = async () => {
   try {
     // processAllMessChangeRequests is an express-style handler (req, res).
     // Provide a minimal fake `res` so it can return JSON without an HTTP response.
@@ -82,9 +80,4 @@ const disableMessChangeAutomatic = async () => {
     console.error("❌ Error disabling mess change automatically:", error);
     return { success: false, error };
   }
-};
-
-module.exports = {
-  enableMessChangeAutomatic,
-  disableMessChangeAutomatic,
 };

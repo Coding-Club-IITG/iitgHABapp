@@ -20,6 +20,8 @@ import {
 } from "../apis/profile";
 import { BACKEND_URL } from "../apis/server";
 
+const { Title } = Typography;
+
 const Students = () => {
   // refreshTrigger previously used for mass clear reload; retained if future manual reload needed.
   const [refreshTrigger] = useState(0);
@@ -46,7 +48,7 @@ const Students = () => {
         message.error(
           `Failed to load profile settings: ${
             e?.response?.data?.message || e.message || e
-          }`
+          }`,
         );
       } finally {
         setPpLoading(false);
@@ -146,10 +148,10 @@ const Students = () => {
             ...headers,
             "Content-Type": "multipart/form-data",
           },
-        }
+        },
       );
       message.success(
-        `Upload completed. Processed: ${data.processed}, Errors: ${data.errors}`
+        `Upload completed. Processed: ${data.processed}, Errors: ${data.errors}`,
       );
       setFileList([]);
       setAllocOpen(false);
@@ -184,16 +186,9 @@ const Students = () => {
             boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
           }}
         >
-          <h1
-            style={{
-              margin: 0,
-              fontSize: "28px",
-              fontWeight: "bold",
-              color: "#1f2937",
-            }}
-          >
+          <Title level={2} style={{ margin: 0 }}>
             Student Management
-          </h1>
+          </Title>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
             <Tooltip title="Allow students to change their profile picture in the app">
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

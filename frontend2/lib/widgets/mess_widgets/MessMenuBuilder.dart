@@ -5,6 +5,7 @@ import 'package:frontend2/widgets/mess_widgets/interactive_mess_menu.dart';
 
 import '../../apis/mess/mess_menu.dart';
 import '../../models/mess_menu_model.dart';
+import '../common/shimmer_host.dart';
 
 // Update your MenuFutureBuilder
 class MenuFutureBuilder extends StatelessWidget {
@@ -48,16 +49,43 @@ class MenuFutureBuilder extends StatelessWidget {
       future: fetchMenu(messId, day),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Card(
+          return Card(
             color: Colors.white,
-            shape: RoundedRectangleBorder(
+            shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.all(Radius.circular(24)),
               side: BorderSide(color: Color(0xFFC5C5D1), width: 1),
             ),
             elevation: 0.5,
             child: Padding(
-              padding: EdgeInsets.all(18.0),
-              child: Center(child: CircularProgressIndicator()),
+              padding: const EdgeInsets.all(18.0),
+              child: ShimmerHost(
+                builder: (context, box) => Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        box(height: 20, width: 100),
+                        const Spacer(),
+                        box(height: 20, width: 72),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: box(
+                        height: 14,
+                        width: double.infinity,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    box(height: 14, width: 200),
+                    const SizedBox(height: 8),
+                    box(height: 14, width: 260),
+                  ],
+                ),
+              ),
             ),
           );
         } else if (snapshot.hasError) {

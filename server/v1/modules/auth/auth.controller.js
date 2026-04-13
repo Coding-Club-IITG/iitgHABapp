@@ -1,31 +1,34 @@
-// server/modules/auth/authController.js
-const axios = require("axios");
-const qs = require("querystring");
-const jwt = require("jsonwebtoken");
-const crypto = require("crypto");
-const bcrypt = require("bcrypt");
-const AppError = require("../../utils/appError.js");
-const {
+import axios from "axios";
+import qs from "querystring";
+import jwt from "jsonwebtoken";
+import crypto from "crypto";
+import bcrypt from "bcrypt";
+
+import {
   getUserFromToken,
   User,
   findUserWithEmail,
   findUserWithAppleIdentifier,
-  findUserWithGuestIdentifier,
-} = require("../user/userModel.js");
-const { Hostel } = require("../hostel/hostelModel.js");
-const UserAllocHostel = require("../hostel/hostelAllocModel.js");
-const {
-  sendNotificationToUser,
-} = require("../notification/notificationController.js");
-require("dotenv").config();
-const redisClient = require("../../utils/redisClient.js");
-const Session = require("../session/session.model.js");
+} from "../user/userModel.js";
+import { Hostel } from "../hostel/hostelModel.js";
+import UserAllocHostel from "../hostel/hostelAllocModel.js";
+import Session from "../session/session.model.js";
 
-const clientId = process.env.CLIENT_ID;
-const clientSecret = process.env.CLIENT_SECRET;
-const redirectUri = process.env.REDIRECT_URI;
+import AppError from "../../utils/appError.js";
+import redisClient from "../../utils/redisClient.js";
+import {
+  refreshSecret,
+  adminJwtSecret,
+  webRedirectUri,
+  habEmail,
+  habEmail2,
+  habFrontendUrl,
+  hostelFrontendUrl,
+  smcFrontendUrl,
+} from "../../config/default.js";
+import onedrive from "../../config/onedrive.js";
 
-// Helper — find hostel allocation by roll no
+// Helper - find hostel allocation by roll no
 const getHostelAlloc = async (rollno) => {
   try {
     const allocation = await UserAllocHostel.findOne({ rollno }).populate(
@@ -51,7 +54,7 @@ const getCurrentSubscribedMess = async (rollno) => {
 };
 
 // Mobile redirect (used by app deep link)
-const mobileRedirectHandler = async (req, res, next) => {
+export const mobileRedirectHandler = async (req, res, next) => {
   try {
     const { code, state } = req.query;
     if (!code) throw new AppError(400, "Authorization code is missing");
@@ -62,9 +65,9 @@ const mobileRedirectHandler = async (req, res, next) => {
     }
 
     const data = qs.stringify({
-      client_secret: clientSecret,
-      client_id: clientId,
-      redirect_uri: redirectUri,
+      client_secret: onedrive.clientSecret,
+      client_id: onedrive.clientId,
+      redirect_uri: onedrive.redirectUri,
       scope: "offline_access User.Read", // Must match frontend authorization request
       grant_type: "authorization_code",
       code: code,
@@ -157,13 +160,19 @@ const mobileRedirectHandler = async (req, res, next) => {
       )}`,
     );
   } catch (error) {
-    console.error("Error in mobileRedirectHandler:", error);
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    console.error("Error in mobileRedirectHandler:", {
+      message: error?.message,
+      status,
+      data,
+    });
     next(error);
   }
 };
 
 // Refresh
-const refreshTokenHandler = async (req, res, next) => {
+export const refreshTokenHandler = async (req, res, next) => {
   try {
     const { refreshToken } = req.body;
 
@@ -175,7 +184,7 @@ const refreshTokenHandler = async (req, res, next) => {
 
     let decoded;
     try {
-      decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+      decoded = jwt.verify(refreshToken, refreshSecret);
     } catch (err) {
       console.error("Error verifying refresh token:", err);
       return res.status(401).json({ message: "Invalid or expired token" });
@@ -238,7 +247,7 @@ const refreshTokenHandler = async (req, res, next) => {
 };
 
 // Logout
-const logoutHandler = async (req, res) => {
+export const logoutHandler = async (req, res) => {
   const token =
     req.cookies?.token ||
     (req.headers.authorization && req.headers.authorization.split(" ")[1]);
@@ -248,8 +257,8 @@ const logoutHandler = async (req, res) => {
   res.status(200).json({ message: "Logged out" });
 };
 
-// Unified web login handler — HAB / Hostel / SMC
-const webLoginHandler = async (req, res, next) => {
+// Unified web login handler - HAB / Hostel / SMC
+export const webLoginHandler = async (req, res, next) => {
   try {
     const { code, type, state } = req.query;
     if (!code) throw new AppError(400, "Authorization code missing");
@@ -258,12 +267,10 @@ const webLoginHandler = async (req, res, next) => {
     if (!["hab", "hostel", "smc"].includes(loginType))
       throw new AppError(400, "Invalid login type");
 
-    const webRedirectUri = process.env.WEB_REDIRECT_URI || redirectUri;
-
     const data = qs.stringify({
-      client_secret: clientSecret,
-      client_id: clientId,
-      redirect_uri: webRedirectUri,
+      client_secret: onedrive.clientSecret,
+      client_id: onedrive.clientId,
+      redirect_uri: webRedirectUri || onedrive.redirectUri,
       scope: "user.read",
       grant_type: "authorization_code",
       code,
@@ -285,30 +292,27 @@ const webLoginHandler = async (req, res, next) => {
     let baseUrl;
 
     if (loginType === "hab") {
-      const HAB_EMAIL = process.env.HAB_EMAIL;
-      const HAB_EMAIL2 = process.env.HAB_EMAIL2;
       if (
-        email.toLowerCase() !== HAB_EMAIL.toLowerCase() &&
-        email.toLowerCase() !== HAB_EMAIL2?.toLowerCase()
+        email.toLowerCase() !== habEmail.toLowerCase() &&
+        email.toLowerCase() !== habEmail2?.toLowerCase()
       )
         throw new AppError(403, "Unauthorized HAB login");
-      token = jwt.sign({ hab: true, email }, process.env.ADMIN_JWT_SECRET, {
+      token = jwt.sign({ hab: true, email }, adminJwtSecret, {
         expiresIn: "2h",
       });
-      baseUrl = process.env.HAB_FRONTEND_URL;
+      baseUrl = habFrontendUrl;
     }
 
     if (loginType === "hostel") {
-      const { Hostel } = require("../hostel/hostelModel.js");
       const hostel = await Hostel.findOne({ microsoft_email: email });
       if (!hostel) throw new AppError(403, "No hostel found for this email");
       token = hostel.generateJWT();
-      baseUrl = process.env.HOSTEL_FRONTEND_URL;
+      baseUrl = hostelFrontendUrl;
     }
 
     if (loginType === "smc") {
       console.log("SMC login attempt for email:", email);
-      const { Hostel } = require("../hostel/hostelModel.js");
+
       const secretaryHostel = await Hostel.findOne({
         secretary_email: email.toLowerCase(),
       });
@@ -321,7 +325,7 @@ const webLoginHandler = async (req, res, next) => {
           throw new AppError(403, "Unauthorized SMC login");
         token = existingUser.generateJWT();
       }
-      baseUrl = process.env.SMC_FRONTEND_URL;
+      baseUrl = smcFrontendUrl;
     }
     return res.redirect(
       `${baseUrl}${redirectPath}?token=${encodeURIComponent(token)}`,
@@ -333,7 +337,7 @@ const webLoginHandler = async (req, res, next) => {
 };
 
 // Validate token from Authorization header
-const meHandler = async (req, res, next) => {
+export const meHandler = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -353,7 +357,6 @@ const meHandler = async (req, res, next) => {
 
     // Try hostel
     try {
-      const { Hostel } = require("../hostel/hostelModel.js");
       const hostel = await Hostel.findByAccessToken(token);
       if (hostel)
         return res
@@ -363,7 +366,7 @@ const meHandler = async (req, res, next) => {
 
     // Try HAB admin
     try {
-      const decoded = jwt.verify(token, process.env.ADMIN_JWT_SECRET);
+      const decoded = jwt.verify(token, adminJwtSecret);
       if (decoded?.hab)
         return res
           .status(200)
@@ -378,7 +381,7 @@ const meHandler = async (req, res, next) => {
 };
 
 // Apple Sign In handler
-const appleLoginHandler = async (req, res, next) => {
+export const appleLoginHandler = async (req, res, next) => {
   try {
     const { identityToken, authorizationCode, userIdentifier, email, name } =
       req.body;
@@ -443,7 +446,7 @@ const appleLoginHandler = async (req, res, next) => {
 // Note: linkMicrosoftRedirectHandler removed - using mobileRedirectHandler with state="link" instead
 
 // Microsoft account linking handler
-const linkMicrosoftAccount = async (req, res, next) => {
+export const linkMicrosoftAccount = async (req, res, next) => {
   try {
     const { code } = req.query; // Microsoft OAuth code
     const userId = req.user._id; // From authenticateJWT
@@ -453,9 +456,9 @@ const linkMicrosoftAccount = async (req, res, next) => {
     }
 
     const data = qs.stringify({
-      client_secret: clientSecret,
-      client_id: clientId,
-      redirect_uri: redirectUri,
+      client_secret: onedrive.clientSecret,
+      client_id: onedrive.clientId,
+      redirect_uri: onedrive.redirectUri,
       scope: "offline_access User.Read", // Must match frontend authorization request
       grant_type: "authorization_code",
       code: code,
@@ -620,7 +623,7 @@ const linkMicrosoftAccount = async (req, res, next) => {
 // Backward compatible: Accepts email/password from old app versions but ignores them
 // New app versions can send empty body and still login as guest
 // Each guest login creates a unique guest account identified by guestIdentifier (UUID)
-const guestLoginHandler = async (req, res, next) => {
+export const guestLoginHandler = async (req, res, next) => {
   try {
     const { email, password } = req.body || {};
 
@@ -651,8 +654,8 @@ const guestLoginHandler = async (req, res, next) => {
     const access_token = existingUser.generateAccessToken();
     const refresh_token = existingUser.generateRefreshToken();
     return res.status(200).json({
-      accessToken:access_token,
-      refreshToken:refresh_token,
+      accessToken: access_token,
+      refreshToken: refresh_token,
       hasMicrosoftLinked: false,
     });
   } catch (err) {
@@ -666,7 +669,7 @@ const guestLoginHandler = async (req, res, next) => {
  * Body: { hostelName, password }
  * Returns: { success, token, message? }
  */
-const managerLoginHandler = async (req, res, next) => {
+export const managerLoginHandler = async (req, res, next) => {
   try {
     const { hostelName, password } = req.body || {};
 
@@ -708,16 +711,4 @@ const managerLoginHandler = async (req, res, next) => {
     console.error("Error in managerLoginHandler:", err);
     next(new AppError(500, "Manager login failed"));
   }
-};
-
-module.exports = {
-  mobileRedirectHandler,
-  webLoginHandler,
-  meHandler,
-  logoutHandler,
-  guestLoginHandler,
-  appleLoginHandler,
-  linkMicrosoftAccount,
-  managerLoginHandler,
-  refreshTokenHandler,
 };

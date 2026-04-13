@@ -23,7 +23,6 @@ class ConfirmationDialog extends StatelessWidget {
             const Text(
               "Your choice has been submitted",
               style: TextStyle(
-                  fontFamily: 'OpenSans_regular',
                   fontSize: 14,
                   fontWeight: FontWeight.w300),
             ),
@@ -31,7 +30,6 @@ class ConfirmationDialog extends StatelessWidget {
             const Text(
               "successfully",
               style: TextStyle(
-                fontFamily: 'OpenSans_bold',
                 fontSize: 24,
                 fontWeight: FontWeight.w400,
                 color: Color.fromRGBO(57, 77, 198, 1),
@@ -51,7 +49,6 @@ class ConfirmationDialog extends StatelessWidget {
               child: const Text(
                 "Close",
                 style: TextStyle(
-                    fontFamily: 'OpenSans_regular',
                     color: Colors.white,
                     fontSize: 16),
               ),

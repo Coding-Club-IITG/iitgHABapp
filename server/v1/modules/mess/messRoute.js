@@ -1,14 +1,14 @@
-const express = require("express");
-const {
+import express from "express";
+
+import {
   authenticateJWT,
   authenticateHabJWT,
   authenticateUserOrAdminJWT,
-} = require("../../middleware/authenticateJWT.js");
-const {
-  requireMicrosoftAuth,
-} = require("../../middleware/requireMicrosoftAuth.js");
+  authenticateAdminJWT,
+} from "../../middleware/authenticateJWT.js";
+import { requireMicrosoftAuth } from "../../middleware/requireMicrosoftAuth.js";
 
-const {
+import {
   createMess,
   createMessWithoutHostel,
   deleteMenu,
@@ -26,12 +26,18 @@ const {
   assignMessToHostel,
   changeHostel,
   unassignMess,
-} = require("./messController");
-const {
+  getMessWorkers,
+  createMessWorker,
+  deleteMessWorker,
+  generateMessBill,
+  getMessBill,
+  getAllMessBillsByMonth,
+} from "./messController.js";
+import {
   getMessMenuByDayForSMC,
   modifyMenuItemSMC,
   updateTimeSMC,
-} = require("./messAdminController.js");
+} from "./messAdminController.js";
 
 const messRouter = express.Router();
 
@@ -75,6 +81,14 @@ messRouter.delete(
 );
 messRouter.post("/get", authenticateJWT, getUserMessInfo);
 messRouter.post("/all", getAllMessInfo);
+// Move workers and bill routes before /:id to prevent route shadowing
+messRouter.get("/workers", authenticateAdminJWT, getMessWorkers);
+messRouter.post("/workers", authenticateAdminJWT, createMessWorker);
+messRouter.delete("/workers/:id", authenticateAdminJWT, deleteMessWorker);
+messRouter.post("/bill/generate", authenticateAdminJWT, generateMessBill);
+messRouter.get("/bill", authenticateAdminJWT, getMessBill);
+messRouter.get("/bills/all", authenticateHabJWT, getAllMessBillsByMonth);
+
 messRouter.get("/:id", authenticateHabJWT, getMessInfo);
 messRouter.post("/menu/:messId", authenticateJWT, getMessMenuByDay);
 messRouter.post(
@@ -115,4 +129,7 @@ messRouter.post(
   authenticateUserOrAdminJWT,
   updateTimeSMC,
 );
-module.exports = messRouter;
+
+// Bill routes moved above /:id to prevent route shadowing
+
+export default messRouter;

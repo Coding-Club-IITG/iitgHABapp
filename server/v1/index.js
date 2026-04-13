@@ -1,47 +1,68 @@
-// server/v1/index.js
-//import authRoutes from "./modules/auth/auth.routes.js";
+import path from "path";
+const __dirname = import.meta.dirname;
+import { nodeENV, port, publicBaseUrl, mongodbUri } from "./config/default.js";
+import onedrive from "./config/onedrive.js";
 
-require("dotenv").config({ path: "../.env" });
-const { installProcessHandlers } = require("../processHandlers.js");
+import { installProcessHandlers } from "../processHandlers.cjs";
 installProcessHandlers();
-const authRoutes = require("./modules/auth/auth.routes.js");
-const express = require("express");
-const mongoose = require("mongoose");
-const userRoute = require("./modules/user/userRoute.js");
-const cookieParser = require("cookie-parser");
-const feedbackRoute = require("./modules/feedback/feedbackRoute.js");
-const hostelRoute = require("./modules/hostel/hostelRoute.js");
-const notificationRoute = require("./modules/notification/notificationRoute.js");
-const messRoute = require("./modules/mess/messRoute.js");
-const leaveRoute = require("./modules/leave/leaveRoute.js");
-const logsRoute = require("./modules/mess/ScanLogsRoute.js");
-const bugReportRoute = require("./modules/bug_report/bugReportRoute.js");
-const roomCleaningRoute = require("./modules/room_cleaning/roomCleaningRoute.js");
-const laundryRoute = require("./modules/laundry/laundryRoute.js");
 
-const compression = require("compression");
+import axios from "axios";
+import express from "express";
+import bodyParser from "body-parser";
+import mongoose from "mongoose";
+import cors from "cors";
+import cookieParser from "cookie-parser";
+import compression from "compression";
+import winston from "winston";
+import expressWinston from "express-winston";
+import { randomUUID } from "crypto";
+import { Worker } from "worker_threads";
+import swaggerUi from "swagger-ui-express";
+import swaggerJsdoc from "swagger-jsdoc";
 
-const cors = require("cors");
-const bodyParser = require("body-parser");
-const winston = require("winston");
-const expressWinston = require("express-winston");
-const storeLogs = require("./middleware/logger.js");
-const { randomUUID } = require("crypto");
-const { Worker } = require("worker_threads");
-const path = require("path");
-const {
+import authRoutes from "./modules/auth/auth.routes.js";
+import userRoute from "./modules/user/userRoute.js";
+import feedbackRoute from "./modules/feedback/feedbackRoute.js";
+import hostelRoute from "./modules/hostel/hostelRoute.js";
+import notificationRoute from "./modules/notification/notificationRoute.js";
+import messRoute from "./modules/mess/messRoute.js";
+import leaveRoute from "./modules/leave/leaveRoute.js";
+import logsRoute from "./modules/mess/ScanLogsRoute.js";
+import bugReportRoute from "./modules/bug_report/bugReportRoute.js";
+import roomCleaningRoute from "./modules/room_cleaning/roomCleaningRoute.js";
+import laundryRoute from "./modules/laundry/laundryRoute.js";
+import alertRoutes from "./modules/alert/alertRoute.js";
+import galaRoute from "./modules/gala/galaRoute.js";
+import messChangeRoute from "./modules/mess_change/messchangeRoute.js";
+import profileRoute from "./modules/profile/profileRoute.js";
+import festivalModeRoute from "./modules/festival_mode/festivalModeRoute.js";
+
+import agenda from "./utils/agenda.js";
+import { initializeFeedbackAutoScheduler } from "./modules/feedback/autoFeedbackScheduler.js";
+import { initializeMessChangeAutoScheduler } from "./modules/mess_change/autoMessChangeScheduler.js";
+import { initializeMessAllotmentScheduler } from "./modules/mess_change/allotmentScheduler.js";
+import { initializeAnonymizedUser } from "./modules/user/anonymizedUserInit.js";
+import { initializeGuestCleanupScheduler } from "./modules/auth/autoGuestCleanupScheduler.js";
+import { initializeMessRebateAutoScheduler } from "./modules/leave/autoMessRebateScheduler.js";
+import { initializeRoomCleaningAutoResolveScheduler } from "./modules/room_cleaning/autoRoomCleaningResolveScheduler.js";
+
+import { initMessManagerWs } from "./modules/mess/messManagerWs.js";
+import { initGalaManagerWs } from "./modules/gala/galaManagerWs.js";
+import { initScanBroadcast } from "./utils/scanBroadcast.js";
+
+import storeLogs from "./middleware/logger.js";
+
+import {
   setDelegatedTokens,
   tokenFilePath,
   initDelegatedGraphRedis,
-} = require("./utils/delegatedGraphAuth.js");
+} from "./utils/delegatedGraphAuth.js";
 
-// New: build delegated auth URLs for starting consent
-const onedrive = require("./config/onedrive.js");
+// Build delegated auth URLs for starting consent
 function buildAuthorizeUrl() {
   // For delegated token flow, use a dedicated callback endpoint
-  // Use PUBLIC_BASE_URL if available, otherwise try to construct from request
-  const baseUrl = process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in";
-  const delegatedRedirectUri = `${baseUrl}/api/_debug/graph/callback`;
+  // Use publicBaseUrl if available, otherwise try to construct from request
+  const delegatedRedirectUri = `${publicBaseUrl}/api/_debug/graph/callback`;
 
   const params = new URLSearchParams({
     client_id: onedrive.clientId,
@@ -51,39 +72,8 @@ function buildAuthorizeUrl() {
       (onedrive.graphUserScopes || []).join(" ") || "offline_access User.Read",
     prompt: "consent",
   });
-  const tenant = onedrive.authTenant || onedrive.tenantId || "common";
-  return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/authorize?${params.toString()}`;
+  return `https://login.microsoftonline.com/${onedrive.authTenant}/oauth2/v2.0/authorize?${params.toString()}`;
 }
-
-const swaggerUi = require("swagger-ui-express");
-const swaggerJsdoc = require("swagger-jsdoc");
-
-const {
-  initializeFeedbackAutoScheduler,
-} = require("./modules/feedback/autoFeedbackScheduler.js");
-
-const {
-  initializeMessChangeAutoScheduler,
-} = require("./modules/mess_change/autoMessChangeScheduler.js");
-const {
-  initializeGuestCleanupScheduler,
-} = require("./modules/auth/autoGuestCleanupScheduler.js");
-const {
-  initializeMessRebateAutoScheduler,
-} = require("./modules/leave/autoMessRebateScheduler.js");
-const {
-  initializeMessAllotmentScheduler,
-} = require("./modules/mess_change/allotmentScheduler.js");
-const {
-  initializeAnonymizedUser,
-} = require("./modules/user/anonymizedUserInit.js");
-
-const {
-  initializeRoomCleaningAutoResolveScheduler,
-} = require("./modules/room_cleaning/autoRoomCleaningResolveScheduler.js");
-const messChangeRouter = require("./modules/mess_change/messchangeRoute.js");
-const galaRoute = require("./modules/gala/galaRoute.js");
-require("dotenv").config();
 
 const app = express();
 app.use(bodyParser.json({ limit: "1mb" }));
@@ -115,7 +105,7 @@ const swaggerOptions = {
         description: "Production server",
       },
       {
-        url: `http://localhost:${PORT}`,
+        url: `http://localhost:${port}`,
         description: "Development server",
       },
     ],
@@ -140,7 +130,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Custom Winston transport to handle log storage (e.g., database, file)
+// Custom Winston transport to handle log storage
 class CustomTransport extends winston.Transport {
   log(info, callback) {
     setImmediate(() => {
@@ -169,22 +159,22 @@ app.use(
     expressFormat: true,
     colorize: false,
 
-    // Use status code to determine log level (500=error, 400=warn, etc.)
+    // Use status code to determine log level
     statusLevels: true,
 
-    // IMPORTANT: By default, headers and body are NOT logged.
+    // By default, headers and body are NOT logged
     // You must whitelist them here:
     requestWhitelist: ["url", "method", "query", "body"],
     responseWhitelist: ["statusCode", "body"],
 
-    // ADDED: Crucial metadata for debugging at scale
+    // Crucial metadata for debugging at scale
     dynamicMeta: (req, res) => {
       return {
         correlationId: req.headers["x-request-id"],
         user: req.body?.username || "anonymous",
         ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress,
         userAgent: req.get("User-Agent") || "unknown",
-        env: process.env.NODE_ENV || "development",
+        env: nodeENV,
       };
     },
     // This replaces the value of 'password' with '*****' in the logs
@@ -195,7 +185,9 @@ app.use(
 function startWorker() {
   const worker = new Worker(
     path.resolve(__dirname, "./workers/loggerWorker.js"),
-    { execArgv: process.execArgv },
+    // PM2 injects --max-old-space-size into process.execArgv
+    // Worker threads reject it (ERR_WORKER_INVALID_EXEC_ARGV)
+    { execArgv: [] },
   );
 
   worker.on("error", (err) => console.error("Worker Error:", err));
@@ -240,36 +232,6 @@ app.use(
 app.use(cookieParser());
 app.use(express.urlencoded({ extended: true }));
 
-// MongoDB connection
-mongoose
-  .connect(process.env.MONGODB_URI)
-  .then(() => {
-    console.log("MongoDB connected");
-
-    // Only run schedulers on the primary PM2 instance
-    if (
-      process.env.NODE_APP_INSTANCE === "0" ||
-      typeof process.env.NODE_APP_INSTANCE === "undefined"
-    ) {
-      console.log(`[CHECK] Current Time: ${new Date().toLocaleString()}`);
-      console.log("Primary instance detected. Starting schedulers...");
-      initializeFeedbackAutoScheduler();
-      initializeMessChangeAutoScheduler();
-      initializeGuestCleanupScheduler();
-      initializeMessRebateAutoScheduler();
-      initializeRoomCleaningAutoResolveScheduler();
-      initializeMessAllotmentScheduler();
-    } else {
-      console.log(
-        `Worker instance ${process.env.NODE_APP_INSTANCE} started. Schedulers disabled here.`,
-      );
-    }
-
-    // Initialize anonymized user for soft-deleted account references
-    initializeAnonymizedUser();
-  })
-  .catch((err) => console.log(err));
-
 /**
  * @swagger
  * /:
@@ -284,21 +246,7 @@ app.get("/", (req, res) => {
   res.send("Backend is running");
 });
 
-/**
- * @swagger
- * /hello:
- *    get:
- *      summary: "Health check hello endpoint"
- *      tags: ["Health"]
- *      responses:
- *        200:
- *          description: "Hello from server"
- */
-app.get("/hello", (req, res) => {
-  res.send("Hello from server");
-});
-
-// user route
+// User route
 app.use("/api/users", userRoute);
 
 // app.use("/api/complaints", complaintRoute);
@@ -306,13 +254,13 @@ app.use("/api/users", userRoute);
 // Feedback route
 app.use("/api/feedback", feedbackRoute);
 
-//auth route
+// Auth route
 app.use("/api/auth", authRoutes);
 
-//hostel route
+// Hostel route
 app.use("/api/hostel", hostelRoute);
 
-//notification route
+// Notification route
 app.use("/api/notification", notificationRoute);
 
 // Mess route
@@ -323,14 +271,16 @@ app.use("/api/gala", galaRoute);
 // Mess rebate route
 app.use("/api/leave", leaveRoute);
 
-//mess change route
-app.use("/api/mess-change", messChangeRouter);
+// Mess Change route
+app.use("/api/mess-change", messChangeRoute);
 
-// profile route
-const profileRouter = require("./modules/profile/profileRoute.js");
-app.use("/api/profile", profileRouter);
+// Alert route
+app.use("/api/alerts", alertRoutes);
 
-//scanlogs route
+// Profile route
+app.use("/api/profile", profileRoute);
+
+// Scan logs route
 app.use("/api/logs", logsRoute);
 
 // Bug report route
@@ -342,8 +292,11 @@ app.use("/api/room-cleaning", roomCleaningRoute);
 // Laundry service route
 app.use("/api/laundry", laundryRoute);
 
+// Festival mode route
+app.use("/api/festival-mode", festivalModeRoute);
+
 // Debug route: accept delegated tokens and save to disk for server use
-// WARNING: Protect this route in production (e.g., require admin auth, restrict IPs)
+// WARNING: Protect this route in production
 app.post("/api/_debug/graph/delegated-token", async (req, res) => {
   try {
     const { access_token, refresh_token, expires_at } = req.body || {};
@@ -388,15 +341,13 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
     params.append("grant_type", "authorization_code");
     params.append("code", code);
     // Use the same redirect URI that was used in the authorization request
-    const baseUrl = process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in";
-    const delegatedRedirectUri = `${baseUrl}/api/_debug/graph/callback`;
+    const delegatedRedirectUri = `${publicBaseUrl}/api/_debug/graph/callback`;
     params.append("redirect_uri", delegatedRedirectUri);
     params.append(
       "scope",
       (onedrive.graphUserScopes || []).join(" ") || "offline_access User.Read",
     );
 
-    const axios = require("axios");
     const { data } = await axios.post(tokenUrl, params, {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
@@ -427,22 +378,77 @@ app.use((err, req, res, next) => {
   });
 });
 
-const { initMessManagerWs } = require("./modules/mess/messManagerWs.js");
-const { initGalaManagerWs } = require("./modules/gala/galaManagerWs.js");
+// STARTUP
+let server;
 
-const server = app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+async function bootstrap() {
+  if (!mongodbUri) {
+    console.error("mongodbUri is not set, refusing to start.");
+    process.exit(1);
+  }
+
+  await mongoose.connect(mongodbUri);
+  console.log("MongoDB connected");
+
+  await agenda.start();
+  console.log("[Agenda] Job processor started");
+
+  initializeFeedbackAutoScheduler();
+  initializeMessChangeAutoScheduler();
+  initializeMessAllotmentScheduler();
+  initializeMessRebateAutoScheduler();
+  initializeRoomCleaningAutoResolveScheduler();
+  initializeGuestCleanupScheduler();
+  await initializeAnonymizedUser();
+
+  server = app.listen(port, () => {
+    console.log(`Server is running on port ${port}`);
+    console.log(`Current Time: ${new Date().toLocaleString()}`);
+    if (process.send) process.send("ready");
+  });
+
+  initMessManagerWs(server);
+  initGalaManagerWs(server);
+  initScanBroadcast();
+  initDelegatedGraphRedis();
+}
+
+bootstrap().catch((err) => {
+  console.error("Server failed to start:", err);
+  process.exit(1);
 });
 
-// Initialize WebSocket servers for manager live scan logs
-initMessManagerWs(server);
-initGalaManagerWs(server);
+// SHUTDOWN
+async function gracefulShutdown(signal) {
+  console.log(`\n[${signal}] Shutdown initiated...`);
 
-// Subscribe to Redis scan events so all cluster instances can broadcast to their local WS clients
-const { initScanBroadcast } = require("./utils/scanBroadcast.js");
-initScanBroadcast();
+  // 1. Stop accepting new HTTP connections
+  if (server) {
+    server.close(() => {
+      console.log("✅ HTTP server closed");
+    });
+  }
 
-// Connect to Redis and backfill delegated Graph token from disk so first request can use Redis
-initDelegatedGraphRedis();
+  // 2. Stop Agenda from picking up new jobs and wait for running jobs to finish
+  try {
+    await agenda.stop();
+    console.log("✅ Agenda stopped");
+  } catch (err) {
+    console.error("❌ Agenda stop error:", err);
+  }
 
-module.exports = app;
+  // 3. Close Mongoose connection
+  try {
+    await mongoose.connection.close();
+    console.log("✅ Mongoose connection closed");
+  } catch (err) {
+    console.error("❌ Mongoose close error:", err);
+  }
+
+  process.exit(0);
+}
+
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+
+export default app;

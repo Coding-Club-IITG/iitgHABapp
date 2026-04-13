@@ -1,6 +1,6 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
-const GALA_CATEGORIES = ["Starters", "Main Course", "Desserts"];
+export const GALA_CATEGORIES = ["Starters", "Main Course", "Desserts"];
 
 const galaDinnerMenuSchema = new mongoose.Schema({
   galaDinnerId: {
@@ -25,8 +25,12 @@ const galaDinnerMenuSchema = new mongoose.Schema({
   },
 });
 
-galaDinnerMenuSchema.index({ galaDinnerId: 1, hostelId: 1, category: 1 }, { unique: true });
+galaDinnerMenuSchema.index(
+  { galaDinnerId: 1, hostelId: 1, category: 1 },
+  { unique: true },
+);
 
-const GalaDinnerMenu = mongoose.model("GalaDinnerMenu", galaDinnerMenuSchema);
-
-module.exports = { GalaDinnerMenu, GALA_CATEGORIES };
+export const GalaDinnerMenu = mongoose.model(
+  "GalaDinnerMenu",
+  galaDinnerMenuSchema,
+);

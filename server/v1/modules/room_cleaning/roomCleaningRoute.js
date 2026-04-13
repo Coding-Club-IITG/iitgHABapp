@@ -1,5 +1,6 @@
-const express = require("express");
-const {
+import express from "express";
+
+import {
   getAvailability,
   createBooking,
   cancelBooking,
@@ -12,11 +13,12 @@ const {
   postRcCleaner,
   putRcCleaner,
   deleteRcCleaner,
-} = require("./roomCleaningController");
-const {
+} from "./roomCleaningController.js";
+
+import {
   authenticateJWT,
   authenticateMessManagerJWT,
-} = require("../../middleware/authenticateJWT");
+} from "../../middleware/authenticateJWT.js";
 
 const roomCleaningRouter = express.Router();
 
@@ -33,11 +35,7 @@ roomCleaningRouter.post("/booking/cancel", authenticateJWT, cancelBooking);
 roomCleaningRouter.get("/booking/my", authenticateJWT, getMyBookings);
 
 // POST /api/room-cleaning/booking/feedback
-roomCleaningRouter.post(
-  "/booking/feedback",
-  authenticateJWT,
-  submitFeedback,
-);
+roomCleaningRouter.post("/booking/feedback", authenticateJWT, submitFeedback);
 
 // RC Manager (HABit RC app): tomorrow bookings and assignments
 roomCleaningRouter.get(
@@ -80,5 +78,4 @@ roomCleaningRouter.delete(
   deleteRcCleaner,
 );
 
-module.exports = roomCleaningRouter;
-
+export default roomCleaningRouter;

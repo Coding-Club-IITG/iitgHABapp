@@ -1,20 +1,21 @@
-// server/index.js (The Gateway)
-require("dotenv").config();
-const { installProcessHandlers } = require("./processHandlers.js");
+import dotenv from "dotenv";
+dotenv.config();
+
+import { installProcessHandlers } from "./processHandlers.cjs";
 installProcessHandlers();
-const express = require("express");
-const { createProxyMiddleware } = require("http-proxy-middleware");
-const cors = require("cors");
-const {
+
+import express from "express";
+import { createProxyMiddleware } from "http-proxy-middleware";
+import cors from "cors";
+import {
   appVersionRouter,
   hqAppVersionRouter,
   rcAppVersionRouter,
-} = require("./modules/app_version/appVersionRoute.js");
+} from "./modules/app_version/appVersionRoute.js";
 
 const app = express();
-const PORT = process.env.PORT || 3000; // The public port
+const PORT = process.env.PORT || 3000;
 
-// Configuration: Where your actual apps are running
 const targets = {
   v1: `http://localhost:${process.env.PORT_V1 || 3001}`,
   v2: `http://localhost:${process.env.PORT_V2 || 3002}`,
@@ -37,7 +38,7 @@ app.use(
         "http://localhost:5175",
       ];
 
-      // Allow all origins for development (mobile apps, etc.)
+      // Allow all origins for development
       callback(null, true);
     },
     credentials: true,
@@ -65,7 +66,7 @@ const selectProxyTarget = (req) => {
   if (headerVersion === "v2") {
     return targets.v2;
   }
-  // Default to V1 for everyone else
+  // Default to v1 for everyone else
   return targets.v1;
 };
 
@@ -89,7 +90,7 @@ const apiProxy = createProxyMiddleware({
 app.use("/", apiProxy);
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`🚀 Gateway running on PORT ${PORT} (0.0.0.0)`);
-  console.log(`   -> V1 (Legacy) upstream: ${targets.v1}`);
-  console.log(`   -> V2 (New) upstream:    ${targets.v2}`);
+  console.log(`[GATEWAY] Running on PORT ${PORT} (0.0.0.0)`);
+  console.log(`   -> v1 upstream: ${targets.v1}`);
+  console.log(`   -> v2 upstream: ${targets.v2}`);
 });

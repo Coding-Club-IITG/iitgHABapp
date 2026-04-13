@@ -14,6 +14,7 @@ import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/constants/themes.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/widgets/common/hostel_name.dart';
+import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
@@ -179,7 +180,6 @@ class _ProfileScreenState extends State<ProfileScreen> {
         title: const Text(
           'Profile',
           style: TextStyle(
-              fontFamily: Themes.kFont,
               fontSize: 20,
               fontWeight: FontWeight.w600,
               color: Colors.black),
@@ -190,14 +190,13 @@ class _ProfileScreenState extends State<ProfileScreen> {
             onPressed: widget.onEdit,
             child: const Text('Edit',
                 style: TextStyle(
-                    fontFamily: Themes.kFont,
                     color: Themes.kAccent,
                     fontWeight: FontWeight.w600)),
           ),
         ],
       ),
       body: _loading
-          ? const _ProfileLoadingSkeleton()
+          ? buildProfileLoadingShimmer()
           : SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
               child: Column(
@@ -328,14 +327,12 @@ class _ProfileField extends StatelessWidget {
               children: [
                 Text(label,
                     style: TextStyle(
-                        fontFamily: Themes.kFont,
                         fontSize: 14,
                         color: Colors.grey[800],
                         fontWeight: FontWeight.w500)),
                 const SizedBox(height: 3),
                 Text(value,
                     style: const TextStyle(
-                        fontFamily: Themes.kFont,
                         fontSize: 20,
                         color: Colors.black,
                         fontWeight: FontWeight.w500)),
@@ -344,114 +341,6 @@ class _ProfileField extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Profile loading skeleton
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ProfileLoadingSkeleton extends StatelessWidget {
-  const _ProfileLoadingSkeleton();
-
-  @override
-  Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-      child: Column(
-        children: [
-          const SizedBox(height: 20),
-          const _ProfileShimmerBlock(
-            height: 136,
-            width: 136,
-            radius: BorderRadius.all(Radius.circular(68)),
-          ),
-          const SizedBox(height: 32),
-          const _ProfileShimmerBlock(height: 20, width: 80),
-          const SizedBox(height: 16),
-          const _ProfileShimmerBlock(height: 56),
-          const Divider(height: 24),
-          const _ProfileShimmerBlock(height: 56),
-          const Divider(height: 24),
-          Row(
-            children: const [
-              Expanded(child: _ProfileShimmerBlock(height: 56)),
-              SizedBox(width: 16),
-              Expanded(child: _ProfileShimmerBlock(height: 56)),
-            ],
-          ),
-          const Divider(height: 24),
-          const _ProfileShimmerBlock(height: 56),
-          const Divider(height: 24),
-          const _ProfileShimmerBlock(height: 56),
-        ],
-      ),
-    );
-  }
-}
-
-class _ProfileShimmerBlock extends StatefulWidget {
-  final double height;
-  final double? width;
-  final BorderRadius radius;
-
-  const _ProfileShimmerBlock({
-    required this.height,
-    this.width,
-    this.radius = const BorderRadius.all(Radius.circular(8)),
-  });
-
-  @override
-  State<_ProfileShimmerBlock> createState() => _ProfileShimmerBlockState();
-}
-
-class _ProfileShimmerBlockState extends State<_ProfileShimmerBlock>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
-  late final Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-    _animation = Tween<double>(begin: -1.5, end: 2.5).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Container(
-          width: widget.width,
-          height: widget.height,
-          decoration: BoxDecoration(
-            borderRadius: widget.radius,
-            gradient: LinearGradient(
-              begin: Alignment(_animation.value - 1, 0),
-              end: Alignment(_animation.value + 1, 0),
-              colors: const [
-                Themes.shimmerBase,
-                Themes.shimmerHighlight,
-                Themes.shimmerBase,
-              ],
-              stops: const [0.1, 0.5, 0.9],
-            ),
-          ),
-        );
-      },
     );
   }
 }

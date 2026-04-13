@@ -2,7 +2,7 @@
 //import authRoutes from "./modules/auth/auth.routes.js";
 
 require("dotenv").config({ path: "../.env" });
-const { installProcessHandlers } = require("../processHandlers.js");
+const { installProcessHandlers } = require("../processHandlers.cjs");
 installProcessHandlers();
 const authRoutes = require("./modules/auth/auth.routes.js");
 const express = require("express");
@@ -96,7 +96,7 @@ app.use(
 );
 
 const MONGOdb_uri = process.env.MONGODB_URI;
-const PORT = process.env.PORT || 3001;
+const PORT = process.env.PORT || 3002;
 
 const swaggerOptions = {
   definition: {

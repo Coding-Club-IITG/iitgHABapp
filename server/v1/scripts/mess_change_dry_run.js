@@ -1,22 +1,24 @@
-// Run before Mess Change processing to test
+import fs from "fs";
+import path from "path";
+const __dirname = import.meta.dirname;
+import mongoose from "mongoose";
 
-const mongoose = require("mongoose");
-const fs = require("fs");
-const path = require("path");
-const dotenv = require("dotenv");
-dotenv.config({ path: path.resolve(__dirname, "../../../server/.env") });
+import { User } from "../modules/user/userModel.js";
+import { Hostel } from "../modules/hostel/hostelModel.js";
 
-const { User } = require("../modules/user/userModel.js");
-const { Hostel } = require("../modules/hostel/hostelModel.js");
-const {
+import {
   initializeCapacityTracker,
   processUsersInIterations,
-} = require("../modules/mess_change/utils/messChangeLogic.js");
+} from "../modules/mess_change/utils/messChangeLogic.js";
+
+import { mongodbUri } from "../config/default.js";
+
+// Run before Mess Change processing to test
 
 async function generateReport() {
   try {
     console.log("Connecting to MongoDB...");
-    await mongoose.connect(process.env.MONGODB_URI);
+    await mongoose.connect(mongodbUri);
     console.log("Connected successfully.");
 
     // Fetch necessary data

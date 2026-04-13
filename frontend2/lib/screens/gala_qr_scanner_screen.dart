@@ -141,9 +141,10 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
     if (_isProcessing) return;
     setState(() => _isProcessing = true);
     final navigator = Navigator.of(context);
-    if (kDebugMode)
+    if (kDebugMode) {
       debugPrint(
           'GalaScan: expectedCategory=${widget.expectedCategory} galaDinnerMenuId=$galaDinnerMenuId');
+    }
 
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -173,9 +174,10 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
           },
         ),
       );
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint(
             'GalaScan: response status=${response.statusCode} success=${response.data is Map ? (response.data as Map)['success'] : null} message=${response.data is Map ? (response.data as Map)['message'] : null}');
+      }
 
       final hasVib = await Vibration.hasVibrator();
       if (hasVib == true) Vibration.vibrate(duration: 100);
@@ -197,9 +199,10 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
     } catch (e) {
       if (kDebugMode) {
         debugPrint('GalaScan: error=$e');
-        if (e is DioException)
+        if (e is DioException) {
           debugPrint(
               'GalaScan: DioException status=${e.response?.statusCode} data=${e.response?.data}');
+        }
       }
       if (!mounted) return;
       String msg = 'Unknown error';
@@ -363,7 +366,7 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
             width: 250,
             height: 250,
             child: CustomPaint(
-                size: const Size(250, 250), painter: SquarePainter()),
+                size: const Size(250, 250), painter: const SquarePainter()),
           ),
         ),
         const SizedBox(height: 40),

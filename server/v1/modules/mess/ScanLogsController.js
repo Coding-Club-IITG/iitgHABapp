@@ -1,9 +1,9 @@
-const { ScanLogs } = require("./ScanLogsModel.js");
-const { getCurrentDate } = require("../../utils/date.js");
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
+import { ScanLogs } from "./ScanLogsModel.js";
+import { getCurrentDate } from "../../utils/date.js";
 
-//For getting count of people who have eaten breakfast, lunch and dinner
-const statsByDate = async (req, res) => {
+// For getting count of people who have eaten breakfast, lunch and dinner
+export const statsByDate = async (req, res) => {
   try {
     const date = req.params.date;
     const messid = req.query.messId;
@@ -73,7 +73,7 @@ const statsByDate = async (req, res) => {
 };
 
 //temporary function for creating sample logs
-const createLogs = async (req, res) => {
+export const createLogs = async (req, res) => {
   try {
     const logsdata = req.body;
     const insertedlogs = await ScanLogs.insertMany(logsdata);
@@ -88,7 +88,7 @@ const createLogs = async (req, res) => {
 };
 
 //temporary function for deleting sample logs
-const deleteall = async (req, res) => {
+export const deleteall = async (req, res) => {
   try {
     await ScanLogs.deleteMany();
     res.status(200).json({
@@ -101,7 +101,7 @@ const deleteall = async (req, res) => {
 };
 
 // Get total count of all scan logs
-const getTotalScanLogsCount = async (req, res) => {
+export const getTotalScanLogsCount = async (req, res) => {
   try {
     const totalCount = await ScanLogs.countDocuments({});
     res.status(200).json({ total: totalCount });
@@ -113,7 +113,7 @@ const getTotalScanLogsCount = async (req, res) => {
 
 // Mess-manager (HABit HQ): summary for today's scans for the manager's mess.
 // Requires authenticateMessManagerJWT to set req.managerHostel with populated messId.
-const getManagerTodaySummary = async (req, res) => {
+export const getManagerTodaySummary = async (req, res) => {
   try {
     const managerHostel = req.managerHostel;
     if (!managerHostel || !managerHostel.messId) {
@@ -198,12 +198,4 @@ const getManagerTodaySummary = async (req, res) => {
       .status(500)
       .json({ message: "Internal server error", error: error.message });
   }
-};
-
-module.exports = {
-  statsByDate,
-  createLogs,
-  deleteall,
-  getTotalScanLogsCount,
-  getManagerTodaySummary,
 };

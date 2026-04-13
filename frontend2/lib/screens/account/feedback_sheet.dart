@@ -170,7 +170,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 children: [
                   Text('Feedback',
                       style: TextStyle(
-                          fontFamily: Themes.kFont,
                           fontSize: 20,
                           fontWeight: FontWeight.w500)),
                   IconButton(
@@ -188,7 +187,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
               // ── Type chips ───────────────────────────────────────────
               const Text('Type',
                   style: TextStyle(
-                      fontFamily: Themes.kFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
@@ -214,7 +212,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 const SizedBox(height: 16),
                 const Text('Frequency',
                     style: TextStyle(
-                        fontFamily: Themes.kFont,
                         fontSize: 16,
                         fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
@@ -251,7 +248,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 children: [
                   const Text('Give the Title',
                       style: TextStyle(
-                          fontFamily: Themes.kFont,
                           fontSize: 16,
                           fontWeight: FontWeight.w500)),
                   ValueListenableBuilder<TextEditingValue>(
@@ -259,7 +255,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                     builder: (_, v, __) => Text(
                       '${v.text.length} / 20',
                       style: TextStyle(
-                          fontFamily: Themes.kFont,
                           fontSize: 12,
                           color: Colors.grey[800]),
                     ),
@@ -278,8 +273,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                     const SizedBox.shrink(),
                 decoration: InputDecoration(
                   hintText: 'Context',
-                  hintStyle: TextStyle(
-                      fontFamily: Themes.kFont, color: Colors.grey[400]),
+                  hintStyle: TextStyle( color: Colors.grey[400]),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: const BorderSide(color: Color(0xFFDDDDDD)),
@@ -304,7 +298,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 Text(
                   _titleError!,
                   style: const TextStyle(
-                      fontFamily: Themes.kFont,
                       color: Colors.red,
                       fontSize: 12),
                 ),
@@ -315,7 +308,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
               // ── Description ──────────────────────────────────────────
               const Text('Describe the feedback',
                   style: TextStyle(
-                      fontFamily: Themes.kFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
@@ -325,8 +317,7 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 maxLines: 5,
                 decoration: InputDecoration(
                   hintText: 'Context',
-                  hintStyle: TextStyle(
-                      fontFamily: Themes.kFont, color: Colors.grey[400]),
+                  hintStyle: TextStyle( color: Colors.grey[400]),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(10),
                       borderSide: const BorderSide(color: Color(0xFFDDDDDD))),
@@ -350,7 +341,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 Text(
                   _descError!,
                   style: const TextStyle(
-                      fontFamily: Themes.kFont,
                       color: Colors.red,
                       fontSize: 12),
                 ),
@@ -364,12 +354,10 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                 children: [
                   const Text('Screenshots',
                       style: TextStyle(
-                          fontFamily: Themes.kFont,
                           fontSize: 16,
                           fontWeight: FontWeight.w500)),
                   Text('${_screenshots.length}/5',
                       style: TextStyle(
-                          fontFamily: Themes.kFont,
                           fontSize: 12,
                           color: Colors.grey[500])),
                 ],
@@ -475,7 +463,6 @@ class _FeedbackSheetState extends State<FeedbackSheet> {
                         )
                       : const Text('Submit',
                           style: TextStyle(
-                              fontFamily: Themes.kFont,
                               color: Themes.kAccent,
                               fontWeight: FontWeight.w500)),
                 ),
@@ -523,7 +510,6 @@ class _TypeChip extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontFamily: Themes.kFont,
             fontSize: 14,
             color: selected ? Themes.kAccent : Colors.grey[800],
             fontWeight: FontWeight.w500,

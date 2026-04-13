@@ -52,8 +52,7 @@ class _MessDropdownState extends State<MessDropdown> {
                 fontSize: 16,
                 color: widget.enabled
                     ? const Color(0xFF676767)
-                    : Colors.grey.shade400,
-                fontFamily: 'General Sans Variable'),
+                    : Colors.grey.shade400),
           ),
         ),
         items: options

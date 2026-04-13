@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const messSchema = new mongoose.Schema({
   name: {
@@ -23,12 +23,15 @@ const messSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  /** Subscriber feedback % (0–100 scale, same as spreadsheet). */
+  feedbackPercentage: {
+    type: Number,
+    default: 0,
+  },
   qrCode: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "QR",
   },
 });
 
-const Mess = mongoose.model("Mess", messSchema);
-
-module.exports = { Mess };
+export const Mess = mongoose.model("Mess", messSchema);

@@ -1,3 +1,5 @@
+// notifications.dart
+
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
@@ -8,8 +10,10 @@ import 'package:dio/dio.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend2/models/notification_model.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 // ✅ Create a global instance of FlutterLocalNotificationsPlugin
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
@@ -70,29 +74,22 @@ Future<void> _saveNotificationToHistory(String title, String body,
   try {
     _sharedPrefs ??= await SharedPreferences.getInstance();
 
-    // Create notification model
-    // Non-redirect notifications are marked as read by default
-    // Redirect notifications are unread until user clicks "View →"
     final notification = NotificationModel(
       title: title,
       body: body,
       redirectType: redirectType,
       timestamp: DateTime.now(),
       isAlert: isAlert,
-      isRead: redirectType ==
-          null, // Non-redirect notifications are read by default
+      isRead: redirectType == null, 
     );
 
-    // Load existing notifications and cleanup expired ones
     List<NotificationModel> notifications = _loadNotificationsFromPrefs();
     notifications = _cleanupExpiredNotifications(notifications);
     notifications.add(notification);
 
-    // Save as JSON
     final jsonList = notifications.map((n) => jsonEncode(n.toJson())).toList();
     await _sharedPrefs?.setStringList('notifications', jsonList);
 
-    // Update the ValueNotifier to notify listeners
     notificationHistoryNotifier.value = notifications;
     if (kDebugMode) {
       debugPrint(
@@ -203,19 +200,33 @@ List<NotificationModel> getActiveAlerts() {
 }
 
 // ✅ Background message handler (must be top-level function)
-Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+@pragma('vm:entry-point')
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  // Ensure Firebase is initialized for the background isolate
+  await Firebase.initializeApp();
+
   if (kDebugMode) {
     debugPrint('💤 Handling background message: ${message.messageId}');
-    debugPrint('💤 Message data: ${message.data}');
   }
+
+  // --- SCENARIO 1: Unified Alert System (Mixed Payload) ---
+  if (message.data.containsKey('alert') && message.data['alert'] == 'true') {
+    // ⚠️ CRITICAL: Only save to AlertsManager. 
+    // Do NOT call flutterLocalNotificationsPlugin.show() here.
+    // Firebase automatically shows the system notification from the mixed payload!
+    await AlertsManager.addAlertFromFCM(message.data);
+    return; 
+  }
+
+  // --- SCENARIO 2: Standard FCM Notifications (History Tracking) ---
   if (message.notification != null) {
     if (kDebugMode) {
-      debugPrint(
-          '💤 Message also contained a notification: ${message.notification}');
+      debugPrint('💤 Standard notification received in background');
     }
+    
     final redirectType = message.data['redirectType'];
-    final isAlert =
-        message.data['isAlert'] == 'true' || message.data['isAlert'] == true;
+    final isAlert = message.data['isAlert'] == 'true' || message.data['isAlert'] == true;
+    
     await _saveNotificationToHistory(
       message.notification!.title ?? 'No Title',
       message.notification!.body ?? 'No Body',
@@ -244,8 +255,8 @@ Future<void> initializeFcm() async {
     onDidReceiveNotificationResponse: _onNotificationTap,
   );
 
-  // Register background message handler
-  FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+  // Register background message handler(done in main)
+  // FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   // Initialize SharedPreferences for notification history
   _sharedPrefs = await SharedPreferences.getInstance();
@@ -255,16 +266,19 @@ Future<void> initializeFcm() async {
   notificationHistoryNotifier.value = notifications;
 
   // ✅ Foreground message handler
-  FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+  FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
     if (kDebugMode) {
       debugPrint('📩 Foreground message received: ${message.messageId}');
     }
+
+    // 1. Handle incoming Active Alerts
+    if (message.data.containsKey('alert') && message.data['alert'] == 'true') {
+       await AlertsManager.addAlertFromFCM(message.data);
+       // We DO NOT return here if we also want the alert to show up in the standard Notification History tab
+    }
+
+    // 2. Handle Standard Notifications
     if (message.notification != null) {
-      if (kDebugMode) {
-        debugPrint(
-            '📩 Notification: ${message.notification!.title} - ${message.notification!.body}');
-      }
-      // Save to notification history (this also updates the ValueNotifier)
       final redirectType = message.data['redirectType'];
       final isAlert =
           message.data['isAlert'] == 'true' || message.data['isAlert'] == true;
@@ -457,7 +471,7 @@ Future<void> registerFcmToken() async {
               'Content-Type': 'application/json',
             },
           ),
-          data: jsonEncode({'fcmToken': fcmToken}), // ✅ Use fcmToken here
+          data: jsonEncode({'fcmToken': fcmToken}), 
         );
         if (res.statusCode == 200) {
           if (kDebugMode) debugPrint('🔄 FCM token re-registered: $fcmToken');

@@ -1,53 +1,55 @@
-const schedule = require("node-schedule");
-const {
-  RoomCleaningBooking,
-} = require("../room_cleaning/roomCleaningBookingModel");
+import { RoomCleaningBooking } from "../room_cleaning/roomCleaningBookingModel.js";
+import agenda from "../../utils/agenda.js";
+
+const JOB_NAME = "room-cleaning-auto-resolve";
 
 // Auto-resolve unresolved bookings from previous day
 async function autoResolveUnresolvedBookings() {
-  try {
-    // Get yesterday's date in IST
-    const now = new Date();
-    const istNow = new Date(
-      now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
-    );
-    istNow.setHours(0, 0, 0, 0); // Start of today IST
-    const yesterdayIST = new Date(istNow);
-    yesterdayIST.setDate(istNow.getDate() - 1); // Start of yesterday IST
-
-    // Find bookings before yesterday that are still unresolved
-    const unresolved = await RoomCleaningBooking.updateMany(
-      {
-        bookingDate: { $lt: yesterdayIST },
-        status: { $in: ["Booked", "Buffered"] },
-      },
-      {
-        $set: {
-          status: "CouldNotBeCleaned",
-          reason: "Room Cleaners Not Available",
-          statusFinalizedAt: new Date(),
-        },
-      },
-    );
-
-    console.log(
-      `[RoomCleaning] Auto-resolved ${unresolved.modifiedCount} bookings before date ${yesterdayIST.toISOString().slice(0, 10)}.`,
-    );
-  } catch (err) {
-    console.error("[RoomCleaning] Auto-resolve failed:", err);
-  }
-}
-
-function initializeRoomCleaningAutoResolveScheduler() {
-  console.log("\u23F0 Initializing room cleaning auto-resolve scheduler...");
-  // Run every day at 00:30 AM IST
-  schedule.scheduleJob(
-    { hour: 0, minute: 30, tz: "Asia/Kolkata" },
-    autoResolveUnresolvedBookings,
+  // Derive yesterday's start-of-day in IST
+  const now = new Date();
+  const istNow = new Date(
+    now.toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
   );
+  istNow.setHours(0, 0, 0, 0); // start of today IST
+  const yesterdayIST = new Date(istNow);
+  yesterdayIST.setDate(istNow.getDate() - 1); // start of yesterday IST
+
+  const result = await RoomCleaningBooking.updateMany(
+    {
+      bookingDate: { $lt: yesterdayIST },
+      status: { $in: ["Booked", "Buffered"] },
+    },
+    {
+      $set: {
+        status: "CouldNotBeCleaned",
+        reason: "Room Cleaners Not Available",
+        statusFinalizedAt: new Date(),
+      },
+    },
+  );
+
   console.log(
-    "\u2705 Room cleaning auto-resolve scheduled: Every day at 00:30 AM IST",
+    `[ROOM CLEANING] Auto-resolved ${result.modifiedCount} bookings before ${yesterdayIST.toISOString().slice(0, 10)}`,
   );
 }
 
-module.exports = { initializeRoomCleaningAutoResolveScheduler };
+export function initializeRoomCleaningAutoResolveScheduler() {
+  agenda.define(
+    JOB_NAME,
+    async (job) => {
+      try {
+        console.log("[ROOM CLEANING] Auto-resolve job fired");
+        await autoResolveUnresolvedBookings();
+      } catch (err) {
+        console.error("[ROOM CLEANING] Auto-resolve job failed:", err);
+        throw err;
+      }
+    },
+    { concurrency: 1 },
+  );
+
+  // Every day at 00:30 AM IST
+  agenda.every("30 0 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
+
+  console.log("[ROOM CLEANING] Scheduled: every day at 00:30 AM IST");
+}

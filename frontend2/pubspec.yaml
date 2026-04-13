@@ -64,11 +64,14 @@ dependencies:
   flutter_image_compress: ^2.4.0
   fast_image_compress: ^0.0.3
   path_provider: ^2.1.5
+  share_plus: ^10.1.4
+  geolocator: ^13.0.2
   lottie: ^3.3.1
   package_info_plus: ^8.0.0
   url_launcher: ^6.2.5
   flutter_launcher_icons: ^0.14.4
-  device_info_plus: ^12.4.0
+  # 12.4.0+ uses isiOSAppOnVision (iOS 26.1 SDK); fails on Xcode 16 / iOS 18 SDK.
+  device_info_plus: 12.3.0
 
 flutter_launcher_icons:
   ios: true
@@ -99,6 +102,7 @@ flutter:
   assets:
     - assets/fonts/
     - assets/images/
+    - assets/images/hostel_logos/
     - assets/icon/
     - assets/images/features/
     - assets/lottie/

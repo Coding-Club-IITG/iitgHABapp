@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const UserAllocHostelSchema = new mongoose.Schema({
   rollno: {
@@ -18,7 +18,7 @@ const UserAllocHostelSchema = new mongoose.Schema({
 
 const UserAllocHostel = mongoose.model(
   "UserAllocHostel",
-  UserAllocHostelSchema
+  UserAllocHostelSchema,
 );
 
-module.exports = UserAllocHostel;
+export default UserAllocHostel;
