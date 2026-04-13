@@ -99,8 +99,7 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
     );
   }
 
-  /// Build with festival image with bulletproof error handling
-  /// Build with festival image as a Hero Banner with a smooth fade
+  /// Build with festival image with bulletproof error handling (no gradient overlay).
   Widget _buildFestivalBackground(
     BuildContext context,
     String imageUrl, {
