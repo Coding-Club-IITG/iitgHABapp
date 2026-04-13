@@ -1,24 +1,21 @@
 /**
  * Singleton Agenda instance shared by all scheduler modules
  * Jobs persist in MongoDB (collection: "agendaJobs")
+ * Redis handles real-time job notifications to reduce MongoDB polling load
  */
 import { Agenda } from "agenda";
 import { MongoBackend } from "@agendajs/mongo-backend";
-import { mongodbUri } from "../config/default.js";
+import { RedisNotificationChannel } from "@agendajs/redis-backend";
+import { mongodbUri, redisUrl } from "../config/default.js";
 
 const agenda = new Agenda({
-  backend: new MongoBackend({
-    address: mongodbUri,
-    collection: "agendaJobs",
+  backend: new MongoBackend({ address: mongodbUri, collection: "agendaJobs" }),
+  notificationChannel: new RedisNotificationChannel({
+    connectionString: redisUrl,
   }),
 
-  // How often MongoDB is queried for due jobs
   processEvery: "30 seconds",
-
-  // Maximum concurrent jobs across all queues on this process
   maxConcurrency: 4,
-
-  // If a job hasn't finished in 10 minutes, release the lock so another instance picks it up
   defaultLockLifetime: 10 * 60 * 1000,
 });
 

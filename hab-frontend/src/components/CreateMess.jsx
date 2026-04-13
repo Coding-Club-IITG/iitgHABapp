@@ -1,4 +1,3 @@
-// NOTE: This file lives in `components` (lowercase).
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { createMessWithoutHostel, createMess } from "../apis/mess";
@@ -14,8 +13,11 @@ export default function CreateMess() {
   useEffect(() => {
     async function fetchHostels() {
       try {
-        const hostels = await getAllHostels();
-        setHostels(hostels.filter((hostel) => hostel.messId === null));
+        const data = await getAllHostels();
+        const list = Array.isArray(data)
+          ? data
+          : data?.hostels || data?.data || [];
+        setHostels(list.filter((hostel) => hostel.messId == null));
       } catch (error) {
         console.error("Error fetching hostels :", error);
       }

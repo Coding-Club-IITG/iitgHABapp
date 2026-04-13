@@ -389,10 +389,10 @@ async function bootstrap() {
   await mongoose.connect(mongodbUri);
   console.log("MongoDB connected");
 
+  await agenda.start();
+  console.log("[Agenda] Job processor started");
   if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0") {
-    await agenda.start();
-    console.log("[Agenda] Job processor started on instance 0");
-
+    console.log("[Agenda] Scheduling jobs on instance 0");
     initializeFeedbackAutoScheduler();
     initializeMessChangeAutoScheduler();
     initializeMessAllotmentScheduler();
