@@ -63,7 +63,7 @@ Future<void> authenticate() async {
 Future<void> guestAuthenticate() async {
   try {
     final dio = DioClient().dio;
-     // Send empty body - backend will handle guest login automatically
+    // Send empty body - backend will handle guest login automatically
     // Old app versions may send email/password, but backend accepts and ignores them
     final resp = await dio.post(
       '$baseUrl/auth/guest',
@@ -77,7 +77,6 @@ Future<void> guestAuthenticate() async {
         resp.data['accessToken'] == null) {
       throw ('Guest login failed: Missing access token');
     }
-
     final prefs = await SharedPreferences.getInstance();
     final accessToken = resp.data['accessToken'];
     final refreshToken = resp.data['refreshToken'];
@@ -283,7 +282,8 @@ Future<void> linkMicrosoftAccount() async {
     prefs.setBool('hasMicrosoftLinked', true);
 
     // If accounts were merged, backend returns a new token - update it
-    if (response.data['accessToken'] != null && response.data['refreshToken'] != null) {
+    if (response.data['accessToken'] != null &&
+        response.data['refreshToken'] != null) {
       prefs.setString('access_token', response.data['accessToken']);
       prefs.setString('refresh_token', response.data['refreshToken']);
     }

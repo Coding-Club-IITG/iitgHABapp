@@ -38,12 +38,24 @@ function auth(Schema, param) {
       return next();
     } catch (err) {
       if (err.name === "TokenExpiredError") {
+        console.log("[Auth] Token expired error");
         return next(new AppError(401, "Access token expired"));
+      }
+      // jwt.verify: bad signature, wrong secret, truncated token, etc. — not a server bug.
+      if (
+        err.name === "JsonWebTokenError" ||
+        err.name === "NotBeforeError"
+      ) {
+        return next(new AppError(401, "Invalid or malformed access token"));
       }
       if (err instanceof AppError) return next(err);
 
-      console.error("Error verifying token:", err);
-      return next(new AppError(500, "Server error during authentication"));
+      console.error("[Auth] Error verifying token:", {
+        name: err.name,
+        message: err.message,
+        tokenLength: token?.length,
+      });
+      return next(new AppError(500, `Authentication error: ${err.message}`));
     }
   };
 }
@@ -126,6 +138,12 @@ export const authenticateMessManagerJWT = async (req, res, next) => {
     return next();
   } catch (err) {
     if (err instanceof AppError) return next(err);
+    if (err.name === "TokenExpiredError") {
+      return next(new AppError(401, "Access token expired"));
+    }
+    if (err.name === "JsonWebTokenError" || err.name === "NotBeforeError") {
+      return next(new AppError(401, "Invalid or malformed access token"));
+    }
     console.error("Error verifying Mess Manager token:", err);
     return next(new AppError(500, "Server error during authentication"));
   }

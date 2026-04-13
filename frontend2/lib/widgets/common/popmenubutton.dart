@@ -168,8 +168,7 @@ class _HostelDropState extends State<HostelDrop> {
                       style: TextStyle(
                           fontWeight: FontWeight.w500,
                           fontSize: 16,
-                          color: Color(0xFF676767),
-                          fontFamily: 'General Sans Variable'),
+                          color: Color(0xFF676767)),
                     ),
                   ),
                   items: hostels

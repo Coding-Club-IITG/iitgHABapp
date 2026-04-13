@@ -8,7 +8,7 @@ class Themes {
     useMaterial3: true,
     primaryColor: kYellow,
     scaffoldBackgroundColor: Colors.white,
-    fontFamily: 'ProximaNova',
+    fontFamily: kFont,
     splashColor: kYellow,
     textTheme: const TextTheme(
       labelMedium: TextStyle(
@@ -40,7 +40,10 @@ class Themes {
         color: Colors.white,
       ),
     ),
-    colorScheme: ColorScheme.fromSwatch().copyWith(secondary: Colors.black),
+    colorScheme: ColorScheme.fromSwatch().copyWith(
+      secondary: Colors.black,
+      surfaceTint: Colors.transparent,
+    ),
   );
 
   static const darkTextTheme = TextTheme(
@@ -75,7 +78,7 @@ class Themes {
       fontSize: 10.0,
     ),
     labelLarge: TextStyle(
-        fontFamily: "ProximaNova",
+        fontFamily: kFont,
         fontSize: 16,
         fontWeight: FontWeight.w700,
         color: Colors.black),
@@ -99,8 +102,8 @@ class Themes {
 List<Color> colors = const [
   Color.fromRGBO(219, 206, 255, 1),
   Color.fromRGBO(219, 206, 255, 1),
-  Color.fromRGBO(255, 167, 212, 1),
-  Color.fromRGBO(255, 167, 212, 1),
+  Color.fromRGBO(200, 210, 255, 1),
+  Color.fromRGBO(200, 210, 255, 1),
   Color.fromRGBO(111, 143, 254, 1),
   Color.fromRGBO(111, 143, 254, 1),
   Color.fromRGBO(237, 244, 146, 1),

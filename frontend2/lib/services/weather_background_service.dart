@@ -64,8 +64,7 @@ class WeatherBackgroundData {
 }
 
 class WeatherBackgroundService {
-  static const String _apiKey =
-      "fac972ed26c46021158fe8e71bf560e1"; 
+  static const String _apiKey = "";     
 
   Future<WeatherBackgroundData> fetchBackground() async {
     try {
@@ -205,7 +204,6 @@ class WeatherBackgroundService {
   }
 
   static String _backgroundVariantForClear(DateTime now) {
-    // Check weekend period: Friday 7PM onwards, Saturday all day, Sunday up to 10PM
     if (_isWeekendPeriod()) {
       return 'weekend';
     }

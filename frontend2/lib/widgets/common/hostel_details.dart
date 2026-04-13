@@ -2,7 +2,6 @@ import 'package:dio/dio.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
-import 'dart:convert';
 
 // Function to fetch hostel data
 Future<Map<String, dynamic>> fetchHostelData(

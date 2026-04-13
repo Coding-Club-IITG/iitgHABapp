@@ -143,7 +143,6 @@ class _AccountScreenState extends State<AccountScreen> {
           children: [
             const Text('Edit Profile',
                 style: TextStyle(
-                    fontFamily: Themes.kFont,
                     fontSize: 16,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 12),
@@ -178,8 +177,7 @@ class _AccountScreenState extends State<AccountScreen> {
                     ElevatedButton.styleFrom(backgroundColor: Themes.kAccent),
                 child: Text(
                   _saving ? 'Saving...' : 'Save',
-                  style: const TextStyle(
-                      fontFamily: Themes.kFont, color: Colors.white),
+                  style: const TextStyle( color: Colors.white),
                 ),
               ),
             ),
@@ -203,7 +201,7 @@ class _AccountScreenState extends State<AccountScreen> {
               onPressed: () => Navigator.pop(ctx, true),
               child: const Text('Logout',
                   style:
-                      TextStyle(fontFamily: Themes.kFont, color: Colors.red))),
+                      TextStyle( color: Colors.red))),
         ],
       ),
     );
@@ -239,7 +237,6 @@ class _AccountScreenState extends State<AccountScreen> {
         title: const Text(
           'Account',
           style: TextStyle(
-              fontFamily: Themes.kFont,
               fontSize: 20,
               fontWeight: FontWeight.w600,
               color: Colors.black),
@@ -273,7 +270,7 @@ class _AccountScreenState extends State<AccountScreen> {
           Container(height: 24, color: Colors.white),
 
           // ── Hostel Info ───────────────────────────────────────────
-          _SectionHeader(title: 'Hostel Info'),
+          const _SectionHeader(title: 'Hostel Info'),
           const SizedBox(height: 8),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -281,10 +278,12 @@ class _AccountScreenState extends State<AccountScreen> {
               iconPath: "assets/icon/id.svg",
               iconColor: Themes.kAccent,
               label: 'Know Your HMC',
+              subtitle: null,
               onTap: () => Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const HmcInfoScreen()),
               ),
+              roundBottom: true,
             ),
           ),
 
@@ -312,6 +311,7 @@ class _AccountScreenState extends State<AccountScreen> {
                   label: 'App Feedback',
                   onTap: _openFeedbackSheet,
                   roundTop: false,
+                  roundBottom: true,
                 ),
               ],
             ),
@@ -331,7 +331,6 @@ class _AccountScreenState extends State<AccountScreen> {
                   Text(
                     'Logout',
                     style: TextStyle(
-                        fontFamily: Themes.kFont,
                         color: Colors.red,
                         fontSize: 15,
                         fontWeight: FontWeight.w500),
@@ -395,7 +394,6 @@ class _AccountProfileCard extends StatelessWidget {
                       Text(
                         name.isEmpty ? '—' : name,
                         style: const TextStyle(
-                            fontFamily: Themes.kFont,
                             fontSize: 24,
                             fontWeight: FontWeight.w500),
                       ),
@@ -403,7 +401,6 @@ class _AccountProfileCard extends StatelessWidget {
                       Text(
                         hostel.isEmpty ? '—' : calculateHostel(hostel),
                         style: TextStyle(
-                            fontFamily: Themes.kFont,
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
                             color: Colors.grey[900]),
@@ -438,7 +435,6 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         title,
         style: TextStyle(
-          fontFamily: Themes.kFont,
           fontSize: 16,
           fontWeight: FontWeight.w500,
           color: Colors.grey[600],
@@ -466,20 +462,21 @@ class _CardSettingsRow extends StatelessWidget {
     required this.iconPath,
     required this.iconColor,
     required this.label,
-    required this.onTap,
     this.subtitle,
+    required this.onTap,
     this.roundTop = true,
     this.roundBottom = true,
   });
 
   @override
   Widget build(BuildContext context) {
-    const radius = Radius.circular(12);
-    const borderRadius = BorderRadius.only(
-      topLeft: radius,
-      topRight: radius,
-      bottomLeft: radius,
-      bottomRight: radius,
+    const r = Radius.circular(12);
+    const z = Radius.zero;
+    final borderRadius = BorderRadius.only(
+      topLeft: roundTop ? r : z,
+      topRight: roundTop ? r : z,
+      bottomLeft: roundBottom ? r : z,
+      bottomRight: roundBottom ? r : z,
     );
 
     return Container(
@@ -511,13 +508,11 @@ class _CardSettingsRow extends StatelessWidget {
               ),
               title: Text(label,
                   style: const TextStyle(
-                      fontFamily: Themes.kFont,
                       fontSize: 16,
                       fontWeight: FontWeight.w500)),
               subtitle: subtitle != null
                   ? Text(subtitle!,
-                      style: const TextStyle(
-                          fontFamily: Themes.kFont, fontSize: 14))
+                      style: const TextStyle( fontSize: 14))
                   : null,
               trailing:
                   const Icon(Icons.chevron_right, color: Colors.grey, size: 20),

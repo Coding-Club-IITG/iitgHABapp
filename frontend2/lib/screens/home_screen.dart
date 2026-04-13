@@ -19,12 +19,16 @@ import 'package:frontend2/screens/account_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
+import 'package:frontend2/utils/meal_countdown_text.dart';
 import 'package:frontend2/utilities/alert_expirer.dart';
 import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
+import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 // import 'package:frontend2/widgets/countdown.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
+import 'package:frontend2/widgets/festival_background_widget.dart';
+import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -41,8 +45,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
-    with SingleTickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> {
   static const bool _isWeatherBackgroundTesting = false;
   static const String _testingWeatherGroup = 'clear'; // clear, rainy
   static const bool _testingIsDay = false;
@@ -63,8 +66,6 @@ class _HomeScreenState extends State<HomeScreen>
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
-  static const generalSans = 'GeneralSans';
-
   String name = '';
   String currSubscribedMess = '';
   String? token;
@@ -74,20 +75,23 @@ class _HomeScreenState extends State<HomeScreen>
           const _QuickActionStatusData(status: 'Closed', color: textMuted));
   Timer? _scanQrStatusTimer;
   Timer? _weatherBackgroundTimer;
-  late final AnimationController _shimmerController;
-  late final Animation<double> _shimmerAnimation;
   WeatherBackgroundData _weatherBackground = WeatherBackgroundData.fallback();
-
+  late Future<FestivalModeData> _festivalFuture;
   @override
   void initState() {
     super.initState();
-    _shimmerController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1400),
-    )..repeat();
-    _shimmerAnimation = Tween<double>(begin: -1.5, end: 2.5).animate(
-      CurvedAnimation(parent: _shimmerController, curve: Curves.easeInOut),
-    );
+    _festivalFuture = Future.value(FestivalModeData.disabled());
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      final data = await FestivalModeService()
+          .fetchFestivalMode(context: context)
+          .catchError((_) => FestivalModeData.disabled());
+      if (!mounted) return;
+      setState(() {
+        _festivalFuture = Future.value(data);
+      });
+      await _loadWeatherBackground();
+    });
     fetchUserData();
     fetchMessIdAndToken();
     _loadWeatherBackground();
@@ -142,16 +146,22 @@ class _HomeScreenState extends State<HomeScreen>
     _scanQrStatusTimer?.cancel();
     _weatherBackgroundTimer?.cancel();
     _scanQrStatusNotifier.dispose();
-    _shimmerController.dispose();
     homeScreenRefreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
   }
 
-  void _onRefreshRequested() {
+  Future<void> _onRefreshRequested() async {
     if (homeScreenRefreshNotifier.value) {
+      final data = await FestivalModeService()
+          .fetchFestivalMode(context: context)
+          .catchError((_) => FestivalModeData.disabled());
+      if (!mounted) return;
+      setState(() {
+        _festivalFuture = Future.value(data);
+      });
       fetchUserData();
       fetchMessIdAndToken();
-      _loadWeatherBackground();
+      await _loadWeatherBackground();
       homeScreenRefreshNotifier.value = false;
     }
   }
@@ -181,6 +191,9 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Future<void> _loadWeatherBackground() async {
+    final festivalData =
+        await _festivalFuture.catchError((_) => FestivalModeData.disabled());
+    if (festivalData.isEnabled) return;
     WeatherBackgroundData nextBackground;
 
     if (_isWeatherBackgroundTesting) {
@@ -196,7 +209,9 @@ class _HomeScreenState extends State<HomeScreen>
     final hasChanged =
         nextBackground.assetPath != _weatherBackground.assetPath ||
             nextBackground.isDay != _weatherBackground.isDay ||
-            nextBackground.weatherGroup != _weatherBackground.weatherGroup;
+            nextBackground.weatherGroup != _weatherBackground.weatherGroup ||
+            nextBackground.backgroundVariant !=
+                _weatherBackground.backgroundVariant;
     if (!hasChanged) return;
 
     setState(() {
@@ -205,62 +220,34 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   String getGreeting() {
-    // Check if it's raining first
     if (_weatherBackground.weatherGroup == 'rainy') {
-      return 'Happy Raining';
+      return "It's Rainy";
     }
 
-    // Check if we're in weekend period (7PM Friday to 10PM Sunday)
-    if (_isWeekendPeriod()) {
-      return 'Happy Weekend';
-    }
-
-    final nowUnix = DateTime.now().millisecondsSinceEpoch ~/ 1000;
-    final sunriseUnix = _weatherBackground.sunriseUnix;
-    final sunsetUnix = _weatherBackground.sunsetUnix;
-
-    if (sunriseUnix != null && sunsetUnix != null && sunriseUnix < sunsetUnix) {
-      final noonUnix = sunriseUnix + ((sunsetUnix - sunriseUnix) ~/ 2);
-
-      // morning: sunrise to 12PM (solar noon)
-      if (nowUnix >= sunriseUnix && nowUnix < noonUnix) {
+    // Match hero image: same `backgroundVariant` as WeatherBackgroundService.
+    switch (_weatherBackground.backgroundVariant) {
+      case 'weekend':
+        return "It's the Weekend";
+      case 'morning':
         return 'Good Morning';
-      }
-      // afternoon: 12PM to sunset
-      if (nowUnix >= noonUnix && nowUnix < sunsetUnix) {
+      case 'afternoon':
         return 'Good Afternoon';
+      case 'evening':
+      default:
+        return 'Good Evening';
+    }
+  }
+
+  String _weatherHeroGreeting(bool hasAlerts) {
+    final festivalData = FestivalModeService().currentData;
+    if (festivalData != null && festivalData.isEnabled) {
+      if (hasAlerts && festivalData.overlayTextWithAlerts.isNotEmpty) {
+        return festivalData.overlayTextWithAlerts;
+      } else if (!hasAlerts &&
+          festivalData.overlayTextWithoutAlerts.isNotEmpty) {
+        return festivalData.overlayTextWithoutAlerts;
       }
-      // evening: sunset to sunrise
-      return 'Good Evening';
     }
-
-    // Fallback to hour-based logic
-    final hour = DateTime.now().hour;
-    if (hour < 6 || hour >= 18) return 'Good Evening';
-    if (hour < 12) return 'Good Morning';
-    return 'Good Afternoon';
-  }
-
-  bool _isWeekendPeriod() {
-    final now = DateTime.now();
-    final hour = now.hour;
-
-    // Friday (5): 7PM (19:00) onwards
-    if (now.weekday == DateTime.friday && hour >= 19) {
-      return true;
-    }
-    // Saturday (6): entire day
-    if (now.weekday == DateTime.saturday) {
-      return true;
-    }
-    // Sunday (7): up to 10PM (22:00)
-    if (now.weekday == DateTime.sunday && hour < 22) {
-      return true;
-    }
-    return false;
-  }
-
-  String _weatherHeroGreeting() {
     return getGreeting();
   }
 
@@ -288,17 +275,6 @@ class _HomeScreenState extends State<HomeScreen>
       int.parse(parts[0]),
       int.parse(parts[1]),
     );
-  }
-
-  String _formatMealCountdown(Duration duration) {
-    if (duration.inSeconds <= 0) return '0 min left';
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) {
-      return '${hours}h ${minutes}m left';
-    }
-    final safeMinutes = minutes <= 0 ? 1 : minutes;
-    return '$safeMinutes min left';
   }
 
   String _formatTimeWithMeridiem(String time) {
@@ -349,7 +325,7 @@ class _HomeScreenState extends State<HomeScreen>
       } else {
         final mealEnd = _parseMenuTime(activeMeal.endTime);
         _scanQrStatusNotifier.value = _QuickActionStatusData(
-          status: _formatMealCountdown(mealEnd.difference(now)),
+          status: mealTimeRemaining(mealEnd.difference(now)),
           color: green,
         );
       }
@@ -371,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen>
 
   void _startWeatherBackgroundTicker() {
     _weatherBackgroundTimer?.cancel();
-    _weatherBackgroundTimer = Timer.periodic(const Duration(minutes: 10), (_) {
+    _weatherBackgroundTimer = Timer.periodic(const Duration(minutes: 1), (_) {
       if (!mounted) return;
       _loadWeatherBackground();
     });
@@ -521,7 +497,7 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Future<String> _resolveMessName(BuildContext context) async {
+  String _subscribedMessDisplayName(BuildContext context) {
     final provider = context.read<MessInfoProvider>();
     if (provider.hostelMap.isEmpty) return 'Your Mess';
 
@@ -545,9 +521,7 @@ class _HomeScreenState extends State<HomeScreen>
 
       if (now.isBefore(start)) {
         final diff = start.difference(now);
-        final hours = diff.inHours;
-        final minutes = diff.inMinutes.remainder(60);
-        statusText = 'In ${hours > 0 ? '${hours}h ' : ''}${minutes}m';
+        statusText = mealTimeUntilStart(diff);
         statusColor = green;
         currentMenu = menu;
         break;
@@ -557,7 +531,7 @@ class _HomeScreenState extends State<HomeScreen>
           now.isBefore(end);
       if (isOngoing) {
         final remaining = end.difference(now);
-        statusText = _formatMealCountdown(remaining).replaceAll(' left', '');
+        statusText = mealTimeRemaining(remaining);
         statusColor = green;
         currentMenu = menu;
         break;
@@ -640,117 +614,85 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildShimmerBlock({
-    required double height,
-    double? width,
-    BorderRadius radius = const BorderRadius.all(Radius.circular(8)),
-  }) {
-    return AnimatedBuilder(
-      animation: _shimmerAnimation,
-      builder: (context, child) {
-        return Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            borderRadius: radius,
-            gradient: LinearGradient(
-              begin: Alignment(_shimmerAnimation.value - 1, 0),
-              end: Alignment(_shimmerAnimation.value + 1, 0),
-              colors: const [
-                Color(0xFFF2F2F2),
-                Color(0xFFF9F9F9),
-                Color(0xFFF2F2F2),
-              ],
-              stops: const [0.1, 0.5, 0.9],
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildMenuShimmerPlaceholder() {
-    return Column(
+  Widget _buildMessSectionHeader(String messName) {
+    return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            _buildShimmerBlock(height: 28, width: 110),
-            const SizedBox(width: 8),
-            _buildShimmerBlock(height: 24, width: 84),
-            const Spacer(),
-            _buildShimmerBlock(height: 20, width: 110),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(20),
-          decoration: _cardDecoration(
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [Color(0xFFFFFFFF), Color(0xFFFFFEF8)],
-            ),
-          ),
+        Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildShimmerBlock(
-                  height: 16, width: 48, radius: BorderRadius.circular(4)),
-              const SizedBox(height: 12),
-              _buildShimmerBlock(height: 18),
-              const SizedBox(height: 8),
-              _buildShimmerBlock(height: 18, width: 180),
-              const SizedBox(height: 12),
-              const Divider(height: 1, thickness: 1, color: Color(0xFFE6E6E6)),
-              const SizedBox(height: 20),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildShimmerBlock(
-                            height: 16,
-                            width: 96,
-                            radius: BorderRadius.circular(4),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildShimmerBlock(height: 18),
-                          const SizedBox(height: 8),
-                          _buildShimmerBlock(height: 18, width: 120),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      width: 1,
-                      margin: const EdgeInsets.symmetric(horizontal: 24),
-                      color: const Color(0xFFE6E6E6),
-                    ),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _buildShimmerBlock(
-                            height: 16,
-                            width: 60,
-                            radius: BorderRadius.circular(4),
-                          ),
-                          const SizedBox(height: 12),
-                          _buildShimmerBlock(height: 18),
-                          const SizedBox(height: 8),
-                          _buildShimmerBlock(height: 18, width: 90),
-                        ],
-                      ),
-                    ),
-                  ],
+              Text('Mess', style: _sectionTitleStyle()),
+              const SizedBox(height: 2),
+              Text(
+                '$messName Mess',
+                style: const TextStyle(
+                  fontSize: 14,
+                  height: 20 / 14,
+                  color: textSecondary,
                 ),
               ),
             ],
+          ),
+        ),
+        InkWell(
+          onTap: () => widget.onNavigateToTab?.call(1),
+          borderRadius: BorderRadius.circular(16),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 2),
+            child: Row(
+              children: [
+                Text(
+                  'View Full Menu',
+                  style: TextStyle(
+                    fontSize: 14,
+                    height: 20 / 14,
+                    fontWeight: FontWeight.w500,
+                    color: primary,
+                  ),
+                ),
+                SizedBox(width: 4),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: primary,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMessSectionForMenus(
+    String messName,
+    List<MenuModel> menus,
+  ) {
+    if (currSubscribedMess.isEmpty) return const SizedBox.shrink();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMessSectionHeader(messName),
+        const SizedBox(height: 16),
+        _buildHomeMessMenuCard(menus),
+      ],
+    );
+  }
+
+  Widget _buildMessSectionError(String messName) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildMessSectionHeader(messName),
+        const SizedBox(height: 16),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: _cardDecoration(radius: 16),
+          child: const Text(
+            'Unable to fetch menu',
+            style: TextStyle(color: Colors.red),
           ),
         ),
       ],
@@ -837,34 +779,40 @@ class _HomeScreenState extends State<HomeScreen>
                 child: _buildMenuCategory(title: 'DISH', items: dishItems),
               ),
               const SizedBox(height: 16),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Container(
-                        padding: const EdgeInsets.only(right: 16),
-                        decoration: const BoxDecoration(
-                          border: Border(right: BorderSide(color: border)),
-                        ),
-                        child: _buildMenuCategory(
-                          title: 'BREADS & RICE',
-                          items: breadsRiceItems,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(left: 16),
-                        child: _buildMenuCategory(
-                          title: 'OTHERS',
-                          items: otherItems,
+              if (breadsRiceItems.isEmpty)
+                _buildMenuCategory(
+                  title: 'OTHERS',
+                  items: otherItems,
+                )
+              else
+                IntrinsicHeight(
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: const EdgeInsets.only(right: 16),
+                          decoration: const BoxDecoration(
+                            border: Border(right: BorderSide(color: border)),
+                          ),
+                          child: _buildMenuCategory(
+                            title: 'BREADS & RICE',
+                            items: breadsRiceItems,
+                          ),
                         ),
                       ),
-                    ),
-                  ],
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 16),
+                          child: _buildMenuCategory(
+                            title: 'OTHERS',
+                            items: otherItems,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
             ],
           ),
         ),
@@ -918,7 +866,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   Color _getTitleColor() {
     final variant = _weatherBackground.backgroundVariant;
-    final group = _weatherBackground.weatherGroup;
 
     // For morning and afternoon use dark color
     if (variant == 'morning' || variant == 'afternoon') {
@@ -931,7 +878,6 @@ class _HomeScreenState extends State<HomeScreen>
 
   Color _getTextColor() {
     final variant = _weatherBackground.backgroundVariant;
-    final group = _weatherBackground.weatherGroup;
 
     // For morning, afternoon, and weekend use dark/black color
     if (variant == 'morning' ||
@@ -949,7 +895,7 @@ class _HomeScreenState extends State<HomeScreen>
     required bool hasImportantMessages,
   }) {
     final displayName = name.isNotEmpty ? name : 'User';
-    final greeting = _weatherHeroGreeting();
+    final greeting = _weatherHeroGreeting(hasImportantMessages);
     final subtitleText = unreadCount == 1
         ? '1 notification today'
         : '$unreadCount notifications today';
@@ -974,7 +920,6 @@ class _HomeScreenState extends State<HomeScreen>
                       Text(
                         'HABit',
                         style: TextStyle(
-                          fontFamily: generalSans,
                           fontSize: 28,
                           height: 30.4 / 28,
                           fontWeight: FontWeight.w700,
@@ -987,7 +932,6 @@ class _HomeScreenState extends State<HomeScreen>
                         child: Text(
                           'BETA V2',
                           style: TextStyle(
-                            fontFamily: generalSans,
                             fontSize: 12,
                             height: 16 / 12,
                             fontWeight: FontWeight.w500,
@@ -1012,7 +956,6 @@ class _HomeScreenState extends State<HomeScreen>
                       overflow: TextOverflow.ellipsis,
                       text: TextSpan(
                         style: TextStyle(
-                          fontFamily: generalSans,
                           fontSize: hasImportantMessages ? 16 : 24,
                           height: hasImportantMessages ? 20 / 16 : 32 / 24,
                           fontWeight: FontWeight.w500,
@@ -1039,7 +982,6 @@ class _HomeScreenState extends State<HomeScreen>
                 child: Text(
                   subtitleText,
                   style: TextStyle(
-                    fontFamily: generalSans,
                     fontSize: 12,
                     height: 16 / 12,
                     fontWeight: FontWeight.w500,
@@ -1160,7 +1102,6 @@ class _HomeScreenState extends State<HomeScreen>
             Text(
               '$unreadCount Updates',
               style: const TextStyle(
-                fontFamily: generalSans,
                 fontSize: 14,
                 height: 20 / 14,
                 fontWeight: FontWeight.w500,
@@ -1377,101 +1318,6 @@ class _HomeScreenState extends State<HomeScreen>
     );
   }
 
-  Widget _buildMessSection() {
-    if (currSubscribedMess.isEmpty) return const SizedBox.shrink();
-
-    return FutureBuilder<String>(
-      future: _resolveMessName(context),
-      builder: (context, snapshot) {
-        final messName = snapshot.data ?? 'Your Mess';
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Mess', style: _sectionTitleStyle()),
-                      const SizedBox(height: 2),
-                      Text(
-                        "$messName Mess",
-                        style: const TextStyle(
-                          fontSize: 14,
-                          height: 20 / 14,
-                          color: textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                InkWell(
-                  onTap: () => widget.onNavigateToTab?.call(1),
-                  borderRadius: BorderRadius.circular(16),
-                  child: const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 2),
-                    child: Row(
-                      children: [
-                        Text(
-                          'View Full Menu',
-                          style: TextStyle(
-                            fontSize: 14,
-                            height: 20 / 14,
-                            fontWeight: FontWeight.w500,
-                            color: primary,
-                          ),
-                        ),
-                        SizedBox(width: 4),
-                        Icon(
-                          Icons.chevron_right_rounded,
-                          size: 20,
-                          color: primary,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Consumer<MessInfoProvider>(
-              builder: (context, messProvider, child) {
-                if (messProvider.isLoading) {
-                  return _buildMenuShimmerPlaceholder();
-                }
-
-                return FutureBuilder<List<MenuModel>>(
-                  future: fetchMenu(currSubscribedMess, getTodayDay()),
-                  builder: (context, snapshot) {
-                    if (snapshot.connectionState == ConnectionState.waiting) {
-                      return _buildMenuShimmerPlaceholder();
-                    }
-
-                    if (snapshot.hasError) {
-                      return Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(16),
-                        decoration: _cardDecoration(radius: 16),
-                        child: const Text(
-                          'Unable to fetch menu',
-                          style: TextStyle(color: Colors.red),
-                        ),
-                      );
-                    }
-
-                    return _buildHomeMessMenuCard(snapshot.data ?? const []);
-                  },
-                );
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
-
   Widget _buildSectionDivider() {
     return const SizedBox(
       width: double.infinity,
@@ -1481,71 +1327,143 @@ class _HomeScreenState extends State<HomeScreen>
   }
 
   Widget _buildWeatherHeroSection() {
-    return ValueListenableBuilder<List<AlertModel>>(
-      valueListenable: AlertsManager.activeAlertsNotifier,
-      builder: (context, activeAlerts, child) {
-        return Column(
-          children: [
-            AnimatedContainer(
-              duration: const Duration(milliseconds: 400),
-              width: double.infinity,
-              decoration: BoxDecoration(
-                image: DecorationImage(
-                  image: AssetImage(
-                      _getBackgroundAssetPath(_weatherBackground.assetPath)),
-                  fit: BoxFit.cover,
-                  alignment: Alignment.topCenter,
-                ),
-              ),
-              child: Container(
-                decoration: const BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0x2A000000),
-                      Color(0x10000000),
-                      Color(0x04FFFFFF),
-                      Color(0xFFFFFFFF),
-                    ],
-                    stops: [0.0, 0.48, 0.88, 1.0],
-                  ),
-                ),
-                child: _buildAlertsSection(),
-              ),
+    final festivalOn = FestivalModeService().currentData?.isEnabled == true;
+    final DecorationImage? bgImage = festivalOn
+        ? null
+        : DecorationImage(
+            image: AssetImage(
+              _getBackgroundAssetPath(_weatherBackground.assetPath),
             ),
-          ],
-        );
-      },
+            fit: BoxFit.cover,
+            alignment: Alignment.topCenter,
+          );
+
+    return Column(
+      children: [
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 400),
+          width: double.infinity,
+          decoration: BoxDecoration(image: bgImage),
+          child: Container(
+            decoration: festivalOn
+                ? null
+                : const BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0x2E000000),
+                        Color(0x12000000),
+                        Color(0x00FFFFFF),
+                        Color(0xFFFFFFFF),
+                      ],
+                      stops: [0.0, 0.34, 0.72, 1.0],
+                    ),
+                  ),
+            child: Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                  child: _buildAlertsSection(),
+                ),
+              ],
+            ),
+          ),
+        ),
+        Container(
+          height: 20,
+          decoration: BoxDecoration(
+            color: festivalOn ? Colors.transparent : pageBackground,
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(28)),
+          ),
+        ),
+      ],
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: pageBackground,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            _buildWeatherHeroSection(),
-            _buildSectionDivider(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-              child: ValueListenableBuilder<List<String>>(
-                valueListenable: HostelsNotifier.hostelNotifier,
-                builder: (context, _, __) => _buildQuickActionsSection(),
-              ),
-            ),
-            if (currSubscribedMess.isNotEmpty) ...[
-              _buildSectionDivider(),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                child: _buildMessSection(),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return ValueListenableBuilder<List<AlertModel>>(
+      valueListenable: AlertsManager.activeAlertsNotifier,
+      builder: (context, activeAlerts, _) {
+        return FestivalBackgroundBuilder(
+          hasAlerts: activeAlerts.isNotEmpty,
+          builder: (context) {
+            final festivalOn =
+                FestivalModeService().currentData?.isEnabled ?? false;
+            return Scaffold(
+              backgroundColor:
+                  festivalOn ? Colors.transparent : pageBackground,
+              body: currSubscribedMess.isEmpty
+                  ? SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          _buildWeatherHeroSection(),
+                          _buildSectionDivider(),
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
+                            child: ValueListenableBuilder<List<String>>(
+                              valueListenable: HostelsNotifier.hostelNotifier,
+                              builder: (context, _, __) =>
+                                  _buildQuickActionsSection(),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : Consumer<MessInfoProvider>(
+                      builder: (context, messProvider, __) {
+                        if (messProvider.isLoading) {
+                          return buildHomeScreenLoadingShimmer();
+                        }
+                        return FutureBuilder<List<MenuModel>>(
+                          future: fetchMenu(currSubscribedMess, getTodayDay()),
+                          builder: (context, menuSnap) {
+                            if (menuSnap.connectionState ==
+                                ConnectionState.waiting) {
+                              return buildHomeScreenLoadingShimmer();
+                            }
+                            final messName =
+                                _subscribedMessDisplayName(context);
+                            return SingleChildScrollView(
+                              child: Column(
+                                children: [
+                                  _buildWeatherHeroSection(),
+                                  _buildSectionDivider(),
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 32, 16, 32),
+                                    child: ValueListenableBuilder<List<String>>(
+                                      valueListenable:
+                                          HostelsNotifier.hostelNotifier,
+                                      builder: (context, _, __) =>
+                                          _buildQuickActionsSection(),
+                                    ),
+                                  ),
+                                  _buildSectionDivider(),
+                                  Padding(
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16, 32, 16, 32),
+                                    child: menuSnap.hasError
+                                        ? _buildMessSectionError(messName)
+                                        : _buildMessSectionForMenus(
+                                            messName,
+                                            menuSnap.data ??
+                                                const <MenuModel>[],
+                                          ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          },
+                        );
+                      },
+                    ),
+            );
+          },
+        );
+      },
     );
   }
 }

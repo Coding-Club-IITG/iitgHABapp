@@ -3,7 +3,7 @@ const __dirname = import.meta.dirname;
 import { nodeENV, port, publicBaseUrl, mongodbUri } from "./config/default.js";
 import onedrive from "./config/onedrive.js";
 
-import { installProcessHandlers } from "../processHandlers.js";
+import { installProcessHandlers } from "../processHandlers.cjs";
 installProcessHandlers();
 
 import axios from "axios";
@@ -35,6 +35,7 @@ import alertRoutes from "./modules/alert/alertRoute.js";
 import galaRoute from "./modules/gala/galaRoute.js";
 import messChangeRoute from "./modules/mess_change/messchangeRoute.js";
 import profileRoute from "./modules/profile/profileRoute.js";
+import festivalModeRoute from "./modules/festival_mode/festivalModeRoute.js";
 
 import agenda from "./utils/agenda.js";
 import { initializeFeedbackAutoScheduler } from "./modules/feedback/autoFeedbackScheduler.js";
@@ -83,6 +84,9 @@ app.use(
   }),
 );
 
+const MONGOdb_uri = process.env.MONGODB_URI;
+const PORT = process.env.PORT || 3001;
+
 const swaggerOptions = {
   definition: {
     openapi: "3.0.0",
@@ -126,7 +130,7 @@ app.use((req, res, next) => {
   next();
 });
 
-// Custom Winston transport to handle log storage (e.g., database, file)
+// Custom Winston transport to handle log storage
 class CustomTransport extends winston.Transport {
   log(info, callback) {
     setImmediate(() => {
@@ -155,15 +159,15 @@ app.use(
     expressFormat: true,
     colorize: false,
 
-    // Use status code to determine log level (500=error, 400=warn, etc.)
+    // Use status code to determine log level
     statusLevels: true,
 
-    // IMPORTANT: By default, headers and body are NOT logged.
+    // By default, headers and body are NOT logged
     // You must whitelist them here:
     requestWhitelist: ["url", "method", "query", "body"],
     responseWhitelist: ["statusCode", "body"],
 
-    // ADDED: Crucial metadata for debugging at scale
+    // Crucial metadata for debugging at scale
     dynamicMeta: (req, res) => {
       return {
         correlationId: req.headers["x-request-id"],
@@ -181,7 +185,7 @@ app.use(
 function startWorker() {
   const worker = new Worker(
     path.resolve(__dirname, "./workers/loggerWorker.js"),
-    // PM2 injects --max-old-space-size=… into process.execArgv
+    // PM2 injects --max-old-space-size into process.execArgv
     // Worker threads reject it (ERR_WORKER_INVALID_EXEC_ARGV)
     { execArgv: [] },
   );
@@ -242,20 +246,6 @@ app.get("/", (req, res) => {
   res.send("Backend is running");
 });
 
-/**
- * @swagger
- * /hello:
- *    get:
- *      summary: "Health check hello endpoint"
- *      tags: ["Health"]
- *      responses:
- *        200:
- *          description: "Hello from server"
- */
-app.get("/hello", (req, res) => {
-  res.send("Hello from server");
-});
-
 // User route
 app.use("/api/users", userRoute);
 
@@ -264,13 +254,13 @@ app.use("/api/users", userRoute);
 // Feedback route
 app.use("/api/feedback", feedbackRoute);
 
-// auth route
+// Auth route
 app.use("/api/auth", authRoutes);
 
-// hostel route
+// Hostel route
 app.use("/api/hostel", hostelRoute);
 
-// notification route
+// Notification route
 app.use("/api/notification", notificationRoute);
 
 // Mess route
@@ -278,20 +268,19 @@ app.use("/api/mess", messRoute);
 
 // Gala Dinner route
 app.use("/api/gala", galaRoute);
-
-// Mess Rebate route
+// Mess rebate route
 app.use("/api/leave", leaveRoute);
 
-// mess change route
+// Mess Change route
 app.use("/api/mess-change", messChangeRoute);
 
-// alert route
+// Alert route
 app.use("/api/alerts", alertRoutes);
 
-// profile route
+// Profile route
 app.use("/api/profile", profileRoute);
 
-// scanlogs route
+// Scan logs route
 app.use("/api/logs", logsRoute);
 
 // Bug report route
@@ -303,8 +292,11 @@ app.use("/api/room-cleaning", roomCleaningRoute);
 // Laundry service route
 app.use("/api/laundry", laundryRoute);
 
+// Festival mode route
+app.use("/api/festival-mode", festivalModeRoute);
+
 // Debug route: accept delegated tokens and save to disk for server use
-// WARNING: Protect this route in production (e.g., require admin auth, restrict IPs)
+// WARNING: Protect this route in production
 app.post("/api/_debug/graph/delegated-token", async (req, res) => {
   try {
     const { access_token, refresh_token, expires_at } = req.body || {};
@@ -375,8 +367,7 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
   }
 });
 
-// Global error handler (must be after all routes)
-// Catches errors passed to next(err)
+// Global error handler (must be after all routes). Catches errors passed to next(err).
 app.use((err, req, res, next) => {
   console.error("[Express error]", err);
 
@@ -387,7 +378,7 @@ app.use((err, req, res, next) => {
   });
 });
 
-// STARTUP - listen only after MongoDB is ready so auth queries are not buffered until timeout
+// STARTUP
 let server;
 
 async function bootstrap() {

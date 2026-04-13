@@ -1,12 +1,12 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter_launcher_icons/constants.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
-import 'package:frontend2/constants/themes.dart';
+import 'package:frontend2/screens/immediate_leave_form_screen.dart';
 import 'package:frontend2/screens/leave_application_screen.dart';
+import 'package:frontend2/screens/rebate_application_status_screen.dart';
+import 'package:frontend2/widgets/common/shimmer_host.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 
@@ -38,7 +38,7 @@ Widget _LeaveTypeCard(
       padding: const EdgeInsets.all(16),
       child: Row(
         children: [
-          Container(
+          SizedBox(
             width: 24,
             height: 24,
             // decoration: BoxDecoration(
@@ -66,17 +66,19 @@ Widget _LeaveTypeCard(
                     color: Color(0xFF2E2F31),
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w400,
-                    color: Color(0xFF2E2F31),
+                if (description.trim().isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xFF2E2F31),
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                ],
               ],
             ),
           ),
@@ -87,13 +89,55 @@ Widget _LeaveTypeCard(
   );
 }
 
+Widget _leaveTypeCardSkeleton(ShimmerBoxBuilder box) {
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      border: Border.all(color: const Color(0xFFE6E6E6)),
+      borderRadius: BorderRadius.circular(12),
+    ),
+    padding: const EdgeInsets.all(16),
+    child: Row(
+      children: [
+        box(height: 24, width: 24, borderRadius: BorderRadius.circular(6)),
+        const SizedBox(width: 24),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              box(height: 16, width: 120),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: box(
+                  height: 12,
+                  width: double.infinity,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+              const SizedBox(height: 6),
+              box(height: 12, width: 220),
+            ],
+          ),
+        ),
+        box(height: 18, width: 18, borderRadius: BorderRadius.circular(4)),
+      ],
+    ),
+  );
+}
+
 class _LeaveApplicationListScreenState
     extends State<LeaveApplicationListScreen> {
   var myApplications = [];
-  bool isUploading = false;
   bool isLoading = true;
   String selectedTab = 'All';
-  final List<String> filterTabs = ['All', 'Approved', 'Decline', 'Cancelled'];
+  final List<String> filterTabs = [
+    'All',
+    'Pending',
+    'Acknowledged',
+    'Processed',
+    'Cancelled',
+  ];
 
   @override
   void initState() {
@@ -200,110 +244,22 @@ class _LeaveApplicationListScreenState
     }
   }
 
-  Future<void> _uploadLateDocument(String applicationId) async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'png'],
-    );
-    if (result == null) return;
-
-    
-    final pickedFile = result.files.first;
-    if (pickedFile.path == null) return;
-
-    const int maxSizeBytes = 5 * 1024 * 1024; // 5 MB
-    if (pickedFile.size > maxSizeBytes) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('File size must be less than 5 MB'), // Optional: makes the error stand out
-        ),
-      );
-      return; // Stop the execution
-    }
-
-    final accessToken = await getAccessToken();
-    if (accessToken == 'error') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Authentication error')),
-      );
-      return;
-    }
-    final dio = DioClient().dio;
-    try {
-      FormData formData = FormData.fromMap({
-        "proofDocument": await MultipartFile.fromFile(
-          pickedFile.path!,
-          filename: pickedFile.name,
-        ),
-      });
-      final response = await dio.post(
-        '${MessRebateEndpoints.getApplications}/$applicationId/upload-late-medical-document',
-        data: formData,
-        options: Options(
-          headers: {
-            'Authorization': 'Bearer $accessToken',
-            "Content-Type": "multipart/form-data"
-          },
-        ),
-      );
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document uploaded successfully')),
-        );
-        await _fetchHistory();
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to upload document')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error uploading document')),
-      );
-    }
-  }
-
-  Widget _buildUploadProofButton(VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border.all(color: const Color(0xFFE6E6E6)),
-          borderRadius: BorderRadius.circular(8),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.upload_file, color: const Color(0xFF4C4EDB), size: 16),
-            const SizedBox(width: 8),
-            Text(
-              "Upload Proof",
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF4C4EDB),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   List<dynamic> _getFilteredApplications() {
     if (selectedTab == 'All') {
       return myApplications
           .where((app) => app['status']?.toLowerCase() != 'cancelled')
           .toList();
-    } else if (selectedTab == 'Approved') {
+    } else if (selectedTab == 'Pending') {
       return myApplications
-          .where((app) => app['status']?.toLowerCase() == 'approved')
+          .where((app) => app['status']?.toLowerCase() == 'pending')
           .toList();
-    } else if (selectedTab == 'Decline') {
+    } else if (selectedTab == 'Acknowledged') {
       return myApplications
-          .where((app) => app['status']?.toLowerCase() == 'rejected')
+          .where((app) => app['status']?.toLowerCase() == 'acknowledged')
+          .toList();
+    } else if (selectedTab == 'Processed') {
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() == 'processed')
           .toList();
     } else if (selectedTab == 'Cancelled') {
       return myApplications
@@ -318,13 +274,17 @@ class _LeaveApplicationListScreenState
       return myApplications
           .where((app) => app['status']?.toLowerCase() != 'cancelled')
           .length;
-    } else if (tab == 'Approved') {
+    } else if (tab == 'Pending') {
       return myApplications
-          .where((app) => app['status']?.toLowerCase() == 'approved')
+          .where((app) => app['status']?.toLowerCase() == 'pending')
           .length;
-    } else if (tab == 'Decline') {
+    } else if (tab == 'Acknowledged') {
       return myApplications
-          .where((app) => app['status']?.toLowerCase() == 'rejected')
+          .where((app) => app['status']?.toLowerCase() == 'acknowledged')
+          .length;
+    } else if (tab == 'Processed') {
+      return myApplications
+          .where((app) => app['status']?.toLowerCase() == 'processed')
           .length;
     } else if (tab == 'Cancelled') {
       return myApplications
@@ -332,6 +292,116 @@ class _LeaveApplicationListScreenState
           .length;
     }
     return 0;
+  }
+
+  Widget _pastApplicationCard(Map<String, dynamic> application) {
+    final applicationId = application['_id']?.toString() ?? '';
+    final status = (application['status'] ?? '').toString().toLowerCase();
+    final grey = _pastApplicationRow(
+      application: application,
+      backgroundColor: const Color(0xFFF5F5F5),
+    );
+    final white = _pastApplicationRow(
+      application: application,
+      backgroundColor: Colors.white,
+    );
+    if (status == 'pending') {
+      return Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        child: NativeSwipeToReveal(
+          applicationId: applicationId,
+          contentChild: white,
+          onConfirmDelete: _showConfirmDeleteDialog,
+          child: grey,
+        ),
+      );
+    }
+    return Container(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: grey,
+    );
+  }
+
+  Widget _pastApplicationRow({
+    required Map<String, dynamic> application,
+    required Color backgroundColor,
+  }) {
+    final applicationId = application['_id']?.toString() ?? '';
+    final startIso = application['startDate']?.toString() ?? '';
+    final endIso = application['endDate']?.toString() ?? '';
+    final leaveType = application['leaveType']?.toString() ?? 'Leave';
+    final startDate = DateFormat('dd MMM').format(
+      DateTime.parse(startIso).add(const Duration(days: 1)),
+    );
+    final endDate = DateFormat('dd MMM').format(
+      DateTime.parse(endIso).add(const Duration(days: 1)),
+    );
+    IconData leaveIcon = Icons.note_outlined;
+    if (leaveType.toLowerCase().contains('academic')) {
+      leaveIcon = Icons.card_membership_outlined;
+    } else if (leaveType.toLowerCase().contains('medical')) {
+      leaveIcon = Icons.health_and_safety_outlined;
+    }
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      child: Container(
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width - 32,
+        ),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          border: Border.all(color: const Color(0xFFE6E6E6)),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        child: Row(
+          children: [
+            Icon(leaveIcon, size: 22, color: const Color(0xFF535353)),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    leaveType,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF2E2F31),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '$startDate – $endDate',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xFF676767),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            TextButton(
+              onPressed: () async {
+                await Navigator.of(context).push<void>(
+                  MaterialPageRoute<void>(
+                    builder: (_) => RebateApplicationStatusScreen(
+                      applicationId: applicationId,
+                      listSnapshot: application,
+                      onUpdated: _fetchHistory,
+                    ),
+                  ),
+                );
+              },
+              child: const Text('View Status'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -343,6 +413,9 @@ class _LeaveApplicationListScreenState
         scrolledUnderElevation: 0,
         elevation: 0,
         backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        centerTitle: false,
+        titleSpacing: NavigationToolbar.kMiddleSpacing,
         shape: const Border(
           bottom: BorderSide(
             color: Color(0xFFE6E6E6), // Matches your card borders perfectly
@@ -365,7 +438,47 @@ class _LeaveApplicationListScreenState
         ),
       ),
       body: isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? ShimmerHost(
+              builder: (context, box) => SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 32, 16, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      box(height: 18, width: 200),
+                      const SizedBox(height: 20),
+                      _leaveTypeCardSkeleton(box),
+                      const SizedBox(height: 16),
+                      _leaveTypeCardSkeleton(box),
+                      const SizedBox(height: 16),
+                      _leaveTypeCardSkeleton(box),
+                      const SizedBox(height: 36),
+                      box(height: 16, width: 160),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        child: box(
+                          height: 14,
+                          width: double.infinity,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      box(height: 14, width: 280),
+                      const SizedBox(height: 20),
+                      SizedBox(
+                        width: double.infinity,
+                        child: box(
+                          height: 48,
+                          width: double.infinity,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
           : SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,18 +565,22 @@ class _LeaveApplicationListScreenState
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 0),
                           child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              SvgPicture.asset(
-                                'assets/icon/info-circle.svg',
-                                width: 16,
-                                height: 16,
-                                color: const Color(0xFF2E2F31),
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: SvgPicture.asset(
+                                  'assets/icon/info-circle.svg',
+                                  width: 16,
+                                  height: 16,
+                                  color: const Color(0xFF2E2F31),
+                                ),
                               ),
                               const SizedBox(width: 8),
-                              Expanded(
+                              const Expanded(
                                 child: Text(
                                   "Mess rebate requires applying at least 2 days in advance for casual leave and 1 day in advance for other types of leave.",
-                                  style: const TextStyle(
+                                  style: TextStyle(
                                     fontSize: 14,
                                     fontWeight: FontWeight.w500,
                                     color: Color(0xFF535353),
@@ -473,6 +590,48 @@ class _LeaveApplicationListScreenState
                             ],
                           ),
                         ),
+                        const SizedBox(height: 24),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: SvgPicture.asset(
+                                'assets/icon/info-circle.svg',
+                                width: 16,
+                                height: 16,
+                                color: const Color(0xFF2E2F31),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                "If you don't want a rebate and want to generate a leave form immediately then please fill the form below.",
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  height: 1.4,
+                                  fontWeight: FontWeight.w500,
+                                  color: Color(0xFF535353),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _LeaveTypeCard(
+                          'Generate Leave Form',
+                          '',
+                          'assets/icon/file-upload.svg',
+                          () {
+                            Navigator.push<void>(
+                              context,
+                              MaterialPageRoute<void>(
+                                builder: (context) =>
+                                    const ImmediateLeaveFormScreen(),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -481,14 +640,14 @@ class _LeaveApplicationListScreenState
                     height: 8,
                     color: const Color(0xFFF0F0F0),
                   ),
-                  // "View past leaves" Section
+                  // Past rebate applications list
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          "View past leaves",
+                          "View past rebate applications",
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,
@@ -549,7 +708,7 @@ class _LeaveApplicationListScreenState
                           builder: (context) {
                             final filteredApplications =
                                 _getFilteredApplications();
-                            if (filteredApplications.isEmpty)
+                            if (filteredApplications.isEmpty) {
                               return Center(
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
@@ -580,621 +739,16 @@ class _LeaveApplicationListScreenState
                                   ],
                                 ),
                               );
+                            }
                             return ListView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
                               itemCount: filteredApplications.length,
                               itemBuilder: (context, index) {
-                                final filteredApplications =
-                                    _getFilteredApplications();
-                                final application = filteredApplications[index];
-                                final applicationId = application['_id'] ?? '';
-                                final startDate = DateFormat('dd MMM').format(
-                                    DateTime.parse(application['startDate'])
-                                        .add(const Duration(days: 1)));
-                                final endDate = DateFormat('dd MMM').format(
-                                    DateTime.parse(application['endDate'])
-                                        .add(const Duration(days: 1)));
-                                final status = application['status'] ?? '';
-                                final leaveType =
-                                    application['leaveType'] ?? 'Leave';
-                                final proofDocument =
-                                    application['proofDocumentFilename'] !=
-                                            null ||
-                                        application['proofDocumentUrl'] != null;
-
-                                Color statusColor = const Color(0xFFA36500);
-                                IconData statusIcon = Icons.done_all;
-
-                                if (status.toLowerCase() == 'approved') {
-                                  statusColor = Colors.green;
-                                  statusIcon = Icons.check_circle;
-                                } else if (status.toLowerCase() == 'rejected') {
-                                  statusColor = Colors.red;
-                                  statusIcon = Icons.cancel;
-                                }
-
-                                IconData leaveIcon = Icons.note_outlined;
-                                if (leaveType
-                                    .toLowerCase()
-                                    .contains('academic')) {
-                                  leaveIcon = Icons.card_membership_outlined;
-                                } else if (leaveType
-                                    .toLowerCase()
-                                    .contains('medical')) {
-                                  leaveIcon = Icons.health_and_safety_outlined;
-                                }
-
-                                var messageText = "";
-
-                                var canUpload = false;
-
-                                if (status.toLowerCase() == 'pending') {
-                                  // final startDateParsed =
-                                  //     DateTime.parse(application['startDate']);
-                                  final appliedDateParsed =
-                                      DateTime.parse(application['appliedAt']);
-                                  final now = DateTime.now();
-                                  final daysDiff = appliedDateParsed
-                                      .add(const Duration(days: 7))
-                                      .difference(now)
-                                      .inDays;
-                                  final isMedical = leaveType
-                                      .toLowerCase()
-                                      .contains('medical');
-                                  canUpload = daysDiff >= 0 &&
-                                      isMedical &&
-                                      !proofDocument;
-                                  final daysLeftText = daysDiff >= 0
-                                      ? '${daysDiff + 1} day${daysDiff + 1 == 1 ? '' : 's'} left to upload'
-                                      : 'Upload window expired';
-
-                                  // Attach upload reminder/info into card content if medical
-                                  messageText = isMedical
-                                      ? (canUpload
-                                          ? daysLeftText
-                                          : 'Waiting for approval')
-                                      : (status.toLowerCase() == 'pending'
-                                          ? 'Waiting for approval'
-                                          : '');
-
-                                  statusColor = isMedical
-                                      ? (canUpload
-                                          ? Color(0xFF4B4EDA)
-                                          : statusColor)
-                                      : statusColor;
-                                }
-
-                                // 1. PURE CARD CONTENT (No outer margins here)
-                                final cardContent = FittedBox(
-                                  fit: BoxFit
-                                      .scaleDown, // Only shrinks if it hits the maxWidth, otherwise does nothing
-                                  child: Container(
-                                    // 1. ADD THIS: It gives Expanded a wall to hit, preventing the crash
-                                    constraints: BoxConstraints(
-                                      maxWidth: MediaQuery.of(context)
-                                              .size
-                                              .width -
-                                          32, // Adjust 32 based on your screen's side padding
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFF5F5F5),
-                                      border: Border.all(
-                                          color: const Color(0xFFE6E6E6)),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.all(16),
-
-                                    // 2. The rest of your exact widget stays completely untouched!
-                                    child: Row(
-                                      children: [
-                                        Icon(leaveIcon,
-                                            size: 20,
-                                            color: const Color(0xFF535353)),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                leaveType,
-                                                maxLines: 1,
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w400,
-                                                  color: Color(0xFF2E2F31),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            if (messageText.isNotEmpty) ...[
-                                              Text(
-                                                "$startDate - $endDate",
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w400,
-                                                  color: Color(0xFF2E2F31),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                messageText,
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  fontStyle: FontStyle.italic,
-                                                  color: statusColor,
-                                                  letterSpacing: 0.2,
-                                                ),
-                                              ),
-                                            ] else ...[
-                                              const SizedBox(height: 10),
-                                              Text(
-                                                "$startDate - $endDate",
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w400,
-                                                  color: Color(0xFF2E2F31),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                            ]
-                                          ],
-                                        ),
-                                        if (canUpload)
-                                          Container(
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            child: const Icon(
-                                              Icons.chevron_right,
-                                              color: Color(0xFF535353),
-                                            ),
-                                          ),
-                                        if (status.toLowerCase() ==
-                                                'approved' ||
-                                            status.toLowerCase() == 'rejected')
-                                          Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                                8, 3, 3, 5),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(4),
-                                              width: 10,
-                                              height: 10,
-                                              decoration: BoxDecoration(
-                                                color: statusColor,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
+                                final map = Map<String, dynamic>.from(
+                                  filteredApplications[index] as Map,
                                 );
-
-                                final whiteCardContent = FittedBox(
-                                  fit: BoxFit
-                                      .scaleDown, // Only shrinks if it hits the maxWidth, otherwise does nothing
-                                  child: Container(
-                                    // 1. ADD THIS: It gives Expanded a wall to hit, preventing the crash
-                                    constraints: BoxConstraints(
-                                      maxWidth: MediaQuery.of(context)
-                                              .size
-                                              .width -
-                                          32, // Adjust 32 based on your screen's side padding
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFFFFFFFF),
-                                      border: Border.all(
-                                          color: const Color(0xFFE6E6E6)),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    padding: const EdgeInsets.all(16),
-
-                                    // 2. The rest of your exact widget stays completely untouched!
-                                    child: Row(
-                                      children: [
-                                        Icon(leaveIcon,
-                                            size: 20,
-                                            color: const Color(0xFF535353)),
-                                        const SizedBox(width: 16),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                leaveType,
-                                                maxLines: 1,
-                                                style: const TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w400,
-                                                  color: Color(0xFF2E2F31),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                        Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.end,
-                                          children: [
-                                            if (messageText.isNotEmpty) ...[
-                                              Text(
-                                                "$startDate - $endDate",
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w400,
-                                                  color: Color(0xFF2E2F31),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 6),
-                                              Text(
-                                                messageText,
-                                                style: TextStyle(
-                                                  fontSize: 14,
-                                                  fontWeight: FontWeight.w500,
-                                                  fontStyle: FontStyle.italic,
-                                                  color: statusColor,
-                                                  letterSpacing: 0.2,
-                                                ),
-                                              ),
-                                            ] else ...[
-                                              const SizedBox(height: 10),
-                                              Text(
-                                                "$startDate - $endDate",
-                                                style: const TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w400,
-                                                  color: Color(0xFF2E2F31),
-                                                ),
-                                              ),
-                                              const SizedBox(height: 10),
-                                            ]
-                                          ],
-                                        ),
-                                        if (canUpload)
-                                          Container(
-                                            padding:
-                                                const EdgeInsets.only(left: 8),
-                                            child: const Icon(
-                                              Icons.chevron_right,
-                                              color: Color(0xFF535353),
-                                            ),
-                                          ),
-                                        if (status.toLowerCase() ==
-                                                'approved' ||
-                                            status.toLowerCase() == 'rejected')
-                                          Padding(
-                                            padding: const EdgeInsets.fromLTRB(
-                                                8, 3, 3, 5),
-                                            child: Container(
-                                              padding: const EdgeInsets.all(4),
-                                              width: 10,
-                                              height: 10,
-                                              decoration: BoxDecoration(
-                                                color: statusColor,
-                                                shape: BoxShape.circle,
-                                              ),
-                                            ),
-                                          ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-
-                                // 2. LOGIC FOR PENDING (Swipeable via Stack)
-                                if (status.toLowerCase() == 'pending') {
-                                  Widget interactiveChild = cardContent;
-                                  if (canUpload) {
-                                    interactiveChild = GestureDetector(
-                                      onTap: () {
-                                        _showUploadDialog(applicationId,
-                                            StatefulBuilder(
-                                          builder: (context, setDialogueState) {
-                                            return FittedBox(
-                                              fit: BoxFit
-                                                  .scaleDown, // Only shrinks if it hits the maxWidth, otherwise does nothing
-                                              child: Container(
-                                                // 1. ADD THIS: It gives Expanded a wall to hit, preventing the crash
-                                                constraints: BoxConstraints(
-                                                  maxWidth: MediaQuery.of(
-                                                              context)
-                                                          .size
-                                                          .width -
-                                                      32, // Adjust 32 based on your screen's side padding
-                                                ),
-                                                decoration: BoxDecoration(
-                                                  color:
-                                                      const Color(0xFFFFFFFF),
-                                                  border: Border.all(
-                                                      color: const Color(
-                                                          0xFFE6E6E6)),
-                                                  borderRadius:
-                                                      BorderRadius.circular(12),
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.all(16),
-
-                                                // 2. The rest of your exact widget stays completely untouched!
-                                                child: Column(
-                                                  children: [
-                                                    Row(
-                                                      children: [
-                                                        Icon(leaveIcon,
-                                                            size: 20,
-                                                            color: const Color(
-                                                                0xFF535353)),
-                                                        const SizedBox(
-                                                            width: 16),
-                                                        Expanded(
-                                                          child: Column(
-                                                            crossAxisAlignment:
-                                                                CrossAxisAlignment
-                                                                    .start,
-                                                            children: [
-                                                              Text(
-                                                                leaveType,
-                                                                maxLines: 1,
-                                                                style:
-                                                                    const TextStyle(
-                                                                  fontSize: 14,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w400,
-                                                                  color: Color(
-                                                                      0xFF2E2F31),
-                                                                ),
-                                                              ),
-                                                            ],
-                                                          ),
-                                                        ),
-                                                        Column(
-                                                          crossAxisAlignment:
-                                                              CrossAxisAlignment
-                                                                  .end,
-                                                          children: [
-                                                            if (messageText
-                                                                .isNotEmpty) ...[
-                                                              Text(
-                                                                "$startDate - $endDate",
-                                                                style:
-                                                                    const TextStyle(
-                                                                  fontSize: 12,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w400,
-                                                                  color: Color(
-                                                                      0xFF2E2F31),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  height: 6),
-                                                              Text(
-                                                                messageText,
-                                                                style:
-                                                                    TextStyle(
-                                                                  fontSize: 14,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w500,
-                                                                  fontStyle:
-                                                                      FontStyle
-                                                                          .italic,
-                                                                  color:
-                                                                      statusColor,
-                                                                  letterSpacing:
-                                                                      0.2,
-                                                                ),
-                                                              ),
-                                                            ] else ...[
-                                                              const SizedBox(
-                                                                  height: 10),
-                                                              Text(
-                                                                "$startDate - $endDate",
-                                                                style:
-                                                                    const TextStyle(
-                                                                  fontSize: 12,
-                                                                  fontWeight:
-                                                                      FontWeight
-                                                                          .w400,
-                                                                  color: Color(
-                                                                      0xFF2E2F31),
-                                                                ),
-                                                              ),
-                                                              const SizedBox(
-                                                                  height: 10),
-                                                            ]
-                                                          ],
-                                                        ),
-                                                        if (canUpload)
-                                                          Container(
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .only(
-                                                                    left: 8),
-                                                            child: const Icon(
-                                                              Icons
-                                                                  .chevron_right,
-                                                              color: Color(
-                                                                  0xFF535353),
-                                                            ),
-                                                          ),
-                                                        if (status.toLowerCase() ==
-                                                                'approved' ||
-                                                            status.toLowerCase() ==
-                                                                'rejected')
-                                                          Padding(
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .fromLTRB(
-                                                                    8, 3, 3, 5),
-                                                            child: Container(
-                                                              padding:
-                                                                  const EdgeInsets
-                                                                      .all(4),
-                                                              width: 10,
-                                                              height: 10,
-                                                              decoration:
-                                                                  BoxDecoration(
-                                                                color:
-                                                                    statusColor,
-                                                                shape: BoxShape
-                                                                    .circle,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                      ],
-                                                    ),
-                                                    SizedBox(height: 12),
-                                                    GestureDetector(
-                                                      onTap: isUploading
-                                                          ? null
-                                                          : () async {
-                                                              setDialogueState(
-                                                                  () {
-                                                                isUploading =
-                                                                    true;
-                                                              });
-                                                              try {
-                                                                await _uploadLateDocument(
-                                                                    applicationId);
-                                                              } finally {
-                                                                isUploading =
-                                                                    false;
-                                                                if (context
-                                                                    .mounted) {
-                                                                  Navigator.pop(
-                                                                      context);
-                                                                }
-                                                              }
-                                                            },
-                                                      child: Container(
-                                                          decoration:
-                                                              BoxDecoration(
-                                                            border: Border.all(
-                                                                color: Color(
-                                                                    0xFFE6E6E6)),
-                                                            borderRadius:
-                                                                BorderRadius
-                                                                    .circular(
-                                                                        12),
-                                                            color: Colors.white,
-                                                          ),
-                                                          padding:
-                                                              const EdgeInsets
-                                                                  .symmetric(
-                                                                  horizontal:
-                                                                      16,
-                                                                  vertical: 20),
-                                                          child: Row(
-                                                            mainAxisAlignment:
-                                                                MainAxisAlignment
-                                                                    .center,
-                                                            children:
-                                                                isUploading
-                                                                    ? [
-                                                                        // SHOW LOADING ANIMATION
-                                                                        const SizedBox(
-                                                                          height:
-                                                                              20,
-                                                                          width:
-                                                                              20,
-                                                                          child:
-                                                                              CircularProgressIndicator(
-                                                                            strokeWidth:
-                                                                                2,
-                                                                            valueColor:
-                                                                                AlwaysStoppedAnimation<Color>(Colors.black),
-                                                                          ),
-                                                                        ),
-                                                                        const SizedBox(
-                                                                            width:
-                                                                                8),
-                                                                        const Text(
-                                                                            "Uploading...",
-                                                                            style:
-                                                                                TextStyle(fontSize: 14, color: Colors.black)),
-                                                                      ]
-                                                                    : [
-                                                                        SvgPicture
-                                                                            .asset(
-                                                                          'assets/icon/download-2-line.svg',
-                                                                          color:
-                                                                              Colors.black,
-                                                                          width:
-                                                                              20,
-                                                                          height:
-                                                                              20,
-                                                                        ),
-                                                                        const SizedBox(
-                                                                            width:
-                                                                                8),
-                                                                        Text(
-                                                                          "Upload a PDF",
-                                                                          style:
-                                                                              TextStyle(
-                                                                            fontSize:
-                                                                                14,
-                                                                            fontWeight:
-                                                                                FontWeight.w500,
-                                                                            color:
-                                                                                Colors.black,
-                                                                          ),
-                                                                        ),
-                                                                      ],
-                                                          )),
-                                                    ),
-
-                                                    const SizedBox(
-                                                        height:
-                                                            4), // Small spacing
-                                                    const Text(
-                                                      "Maximum file size: 5 MB",
-                                                      style: TextStyle(
-                                                        fontSize: 16,
-                                                        color: Color(0xFF4C4EDB),
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                              ),
-                                            );
-                                          },
-                                        ));
-                                      },
-                                      child: cardContent,
-                                    );
-                                  }
-
-                                  return Container(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    // Use the custom native widget here!
-                                    child: NativeSwipeToReveal(
-                                      applicationId: applicationId,
-                                      child: interactiveChild,
-                                      contentChild: whiteCardContent,
-                                      // Pass a reference to your dialog function
-                                      onConfirmDelete: (id, card) {
-                                        return _showConfirmDeleteDialog(
-                                            id, card);
-                                      },
-                                    ),
-                                  );
-                                }
-
-                                // 3. LOGIC FOR ALL OTHER STATUSES
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 10),
-                                  child: cardContent,
-                                );
+                                return _pastApplicationCard(map);
                               },
                             );
                           },
@@ -1215,7 +769,7 @@ class _LeaveApplicationListScreenState
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          insetPadding: EdgeInsets.symmetric(horizontal: 20),
+          insetPadding: const EdgeInsets.symmetric(horizontal: 20),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
           ),
@@ -1233,7 +787,6 @@ class _LeaveApplicationListScreenState
                     style: TextStyle(
                       color: Color(0xFF676767), // Grey-1
                       fontSize: 16,
-                      fontFamily: 'General Sans Variable',
                       fontWeight: FontWeight.w600,
                       height: 1.50,
                     ),
@@ -1268,9 +821,8 @@ class _LeaveApplicationListScreenState
                             'Go back',
                             style: TextStyle(
                               color:
-                                  const Color(0xFF4B4EDA) /* Brand-Primary */,
+                                  Color(0xFF4B4EDA) /* Brand-Primary */,
                               fontSize: 16,
-                              fontFamily: 'General Sans Variable',
                               fontWeight: FontWeight.w500,
                               height: 1.50,
                             ),
@@ -1315,52 +867,6 @@ class _LeaveApplicationListScreenState
 
     return false;
   }
-
-  Future<bool> _showUploadDialog(
-      String applicationId, Widget cardContent) async {
-    final bool? shouldDelete = await showDialog<bool>(
-        context: context,
-        builder: (BuildContext context) {
-          return Dialog(
-            insetPadding: EdgeInsets.symmetric(horizontal: 20),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-            backgroundColor: Colors.white,
-            child: Padding(
-              padding: const EdgeInsets.only(
-                  top: 12, left: 16, right: 16, bottom: 12),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    alignment: Alignment.centerLeft,
-                    child: const Text(
-                      'Do you want to upload a proof?',
-                      style: TextStyle(
-                        color: Color(0xFF676767), // Grey-1
-                        fontSize: 16,
-                        fontFamily: 'General Sans Variable',
-                        fontWeight: FontWeight.w600,
-                        height: 1.50,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  // Your injected custom card content
-                  cardContent,
-                ],
-              ),
-            ),
-          );
-        });
-
-    if (shouldDelete == true) {
-      return await _cancelApplicationWithConfirm(applicationId);
-    }
-
-    return false;
-  }
 }
 
 class NativeSwipeToReveal extends StatefulWidget {
@@ -1371,12 +877,12 @@ class NativeSwipeToReveal extends StatefulWidget {
   final Future<bool> Function(String id, Widget card) onConfirmDelete;
 
   const NativeSwipeToReveal({
-    Key? key,
+    super.key,
     required this.child,
     required this.contentChild,
     required this.applicationId,
     required this.onConfirmDelete,
-  }) : super(key: key);
+  });
 
   @override
   State<NativeSwipeToReveal> createState() => _NativeSwipeToRevealState();
@@ -1391,8 +897,9 @@ class _NativeSwipeToRevealState extends State<NativeSwipeToReveal> {
     setState(() {
       _dragExtent += details.primaryDelta!;
       if (_dragExtent > 0) _dragExtent = 0; // Prevents dragging to the right
-      if (_dragExtent < -_maxDrag)
+      if (_dragExtent < -_maxDrag) {
         _dragExtent = -_maxDrag; // Stops exactly at 60px
+      }
     });
   }
 
@@ -1404,7 +911,7 @@ class _NativeSwipeToRevealState extends State<NativeSwipeToReveal> {
       });
 
       // Trigger your dialog
-      bool shouldDelete = await widget.onConfirmDelete(
+      await widget.onConfirmDelete(
           widget.applicationId, widget.contentChild);
 
       // If they clicked "Cancel", smoothly snap the card back closed

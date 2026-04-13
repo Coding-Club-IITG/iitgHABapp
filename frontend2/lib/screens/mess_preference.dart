@@ -4,11 +4,20 @@ import 'package:flutter/material.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/widgets/common/mess_dropdowns.dart';
-import 'package:frontend2/constants/themes.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/endpoint.dart';
 import '../widgets/microsoft_required_dialog.dart';
+import 'package:frontend2/widgets/common/shimmer_host.dart';
+
+/// Same palette rhythm as [MessScreen] / leave flows — no Material blue / raw red fills.
+abstract final class _MessPrefTheme {
+  static const primary = Color(0xFF4C4EDB);
+  static const border = Color(0xFFE6E6E6);
+  static const textPrimary = Color(0xFF2E2F31);
+  static const textSecondary = Color(0xFF676767);
+  static const neutralNoticeBg = Color(0xFFF5F5F5);
+}
 
 class MessChangePreferenceScreen extends StatefulWidget {
   const MessChangePreferenceScreen({super.key});
@@ -126,6 +135,128 @@ class _MessChangePreferenceScreenState
     if (refreshAfter && mounted) {
       await checkMessChangeStatus(); // 🔄 refresh after dialog OK
     }
+  }
+
+  static const List<String> _messChangeRuleBodies = [
+    'If you have already changed your mess, your mess will automatically reset to your boarding hostel after this month. To continue with your current mess, you must apply again next month.',
+    'You cannot apply for a mess change to your own boarding hostel. However, you may apply to a hostel where you are a mess subscriber.',
+    'Once you apply for a mess change, it cannot be cancelled.',
+  ];
+
+  void _showMessChangeRulesSheet() {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) {
+        final bottom = MediaQuery.paddingOf(ctx).bottom;
+        return Padding(
+          padding: EdgeInsets.fromLTRB(20, 8, 20, 16 + bottom),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 12),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFE0E0E0),
+                    borderRadius: BorderRadius.all(Radius.circular(999)),
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Mess change rules',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        height: 24 / 18,
+                        color: _MessPrefTheme.textPrimary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    visualDensity: VisualDensity.compact,
+                    onPressed: () => Navigator.pop(ctx),
+                    icon: const Icon(Icons.close),
+                    color: _MessPrefTheme.textSecondary,
+                    tooltip: 'Close',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(ctx).height * 0.5,
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (var i = 0; i < _messChangeRuleBodies.length; i++) ...[
+                        if (i > 0) const SizedBox(height: 14),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SizedBox(
+                              width: 22,
+                              child: Text(
+                                '${i + 1}.',
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                  height: 20 / 14,
+                                  color: _MessPrefTheme.textSecondary,
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                _messChangeRuleBodies[i],
+                                style: const TextStyle(
+                                  fontSize: 14,
+                                  height: 20 / 14,
+                                  fontWeight: FontWeight.w400,
+                                  color: _MessPrefTheme.textPrimary,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              FilledButton(
+                onPressed: () => Navigator.pop(ctx),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _MessPrefTheme.textPrimary,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Got it',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   Future<void> checkMessChangeStatus() async {
@@ -266,23 +397,75 @@ class _MessChangePreferenceScreenState
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.white,
-        leading: const BackButton(),
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: false,
+        foregroundColor: _MessPrefTheme.textPrimary,
+        leading: const BackButton(color: _MessPrefTheme.textPrimary),
+        actions: [
+          IconButton(
+            tooltip: 'Mess change rules',
+            onPressed: _showMessChangeRulesSheet,
+            icon: const Icon(Icons.info_outline),
+            color: _MessPrefTheme.textSecondary,
+          ),
+        ],
       ),
       body: SafeArea(
         child: loadingStatus
-            ? const Center(child: CircularProgressIndicator())
+            ? ShimmerHost(
+                builder: (context, box) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 0),
+                  child: ListView(
+                    children: [
+                      box(height: 36, width: 220),
+                      const SizedBox(height: 32),
+                      SizedBox(
+                        width: double.infinity,
+                        child: box(
+                          height: 22,
+                          width: double.infinity,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: box(
+                          height: 18,
+                          width: double.infinity,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                      ),
+                      const SizedBox(height: 28),
+                      for (int i = 0; i < 6; i++) ...[
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: box(
+                            height: 56,
+                            width: double.infinity,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              )
             : Padding(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
                 child: ListView(
                   children: [
                     const Text(
-                      "Mess Preference",
+                      'Mess Preference',
                       style: TextStyle(
-                        fontFamily: 'OpenSans_Bold',
-                        color: Themes.feedbackColor,
+                        color: _MessPrefTheme.textPrimary,
                         fontSize: 32,
-                        fontWeight: FontWeight.w700,
+                        height: 48 / 32,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 32),
@@ -292,78 +475,64 @@ class _MessChangePreferenceScreenState
                       style: TextStyle(
                         fontWeight: FontWeight.w500,
                         fontSize: 20,
+                        height: 28 / 20,
+                        color: _MessPrefTheme.textSecondary,
                       ),
                     ),
                     const SizedBox(height: 16),
 
-                    // Mess change instructions
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      margin: const EdgeInsets.only(bottom: 12),
-                      decoration: BoxDecoration(
-                        color: Color(0xFFE8F0FE),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Mess Change Instructions:',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                              color: Color(0xFF1A237E),
-                            ),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            '1. If you have already changed your mess, your mess will automatically reset to your boarding hostel after this month. To continue with your current mess, you must apply again next month.',
-                            style:
-                                TextStyle(fontSize: 14, color: Colors.black87),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            '2. You cannot apply for a mess change to your own boarding hostel. However, you may apply to a hostel where you are a mess subscriber.',
-                            style:
-                                TextStyle(fontSize: 14, color: Colors.black87),
-                          ),
-                          SizedBox(height: 6),
-                          Text(
-                            "3. Once you apply for a mess change, it cannot be cancelled.",
-                            style:
-                                TextStyle(fontSize: 14, color: Colors.black87),
-                          ),
-                        ],
-                      ),
-                    ),
-
                     // Info banner if user is SMC
-                    if (isSMC)
+                    if (isSMC) ...[
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
-                          color: Colors.red[100],
-                          borderRadius: BorderRadius.circular(8),
+                          color: _MessPrefTheme.neutralNoticeBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _MessPrefTheme.border),
                         ),
                         child: const Text(
                           'SMC members are not allowed to apply for mess change',
-                          style: TextStyle(color: Colors.red),
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 14,
+                            height: 20 / 14,
+                            fontWeight: FontWeight.w500,
+                            color: _MessPrefTheme.textPrimary,
+                          ),
                         ),
                       ),
+                    ],
 
                     // Info banner if already applied
                     if (alreadyApplied)
                       Container(
-                        padding: const EdgeInsets.all(8),
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 12,
+                        ),
+                        margin: const EdgeInsets.only(bottom: 12),
                         decoration: BoxDecoration(
-                          color: Colors.yellow[100],
-                          borderRadius: BorderRadius.circular(8),
+                          color: _MessPrefTheme.neutralNoticeBg,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: _MessPrefTheme.border),
                         ),
                         child: Text(
                           appliedHostel != null && appliedHostel!.isNotEmpty
                               ? 'You have already applied for $appliedHostel'
                               : 'You have already applied',
-                          style: const TextStyle(color: Colors.black87),
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            height: 20 / 14,
+                            fontWeight: FontWeight.w500,
+                            color: _MessPrefTheme.textPrimary,
+                          ),
                         ),
                       ),
 
@@ -375,7 +544,9 @@ class _MessChangePreferenceScreenState
                       '1st Preference',
                       style: TextStyle(
                         fontSize: 16,
+                        height: 24 / 16,
                         fontWeight: FontWeight.w500,
+                        color: _MessPrefTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -400,7 +571,9 @@ class _MessChangePreferenceScreenState
                       '2nd Preference (Optional)',
                       style: TextStyle(
                         fontSize: 16,
+                        height: 24 / 16,
                         fontWeight: FontWeight.w500,
+                        color: _MessPrefTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -425,7 +598,9 @@ class _MessChangePreferenceScreenState
                       '3rd Preference (Optional)',
                       style: TextStyle(
                         fontSize: 16,
+                        height: 24 / 16,
                         fontWeight: FontWeight.w500,
+                        color: _MessPrefTheme.textPrimary,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -443,15 +618,29 @@ class _MessChangePreferenceScreenState
                           : null,
                     ),
 
-                    // Red info text when mess change is disabled
                     if (isMessChangeEnabled == false)
-                      const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 8.0),
-                        child: Text(
-                          'Mess change is currently disabled, you will be notified when it opens.',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFFC40205),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8, bottom: 4),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _MessPrefTheme.neutralNoticeBg,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: _MessPrefTheme.border),
+                          ),
+                          child: const Text(
+                            'Mess change is currently disabled, you will be notified when it opens.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 14,
+                              height: 20 / 14,
+                              fontWeight: FontWeight.w500,
+                              color: _MessPrefTheme.textPrimary,
+                            ),
                           ),
                         ),
                       ),
@@ -473,7 +662,9 @@ class _MessChangePreferenceScreenState
                               'Fill this Section',
                               style: TextStyle(
                                 fontSize: 12,
-                                color: Color(0xFFC40205),
+                                height: 16 / 12,
+                                fontWeight: FontWeight.w500,
+                                color: _MessPrefTheme.textSecondary,
                               ),
                             ),
                           ],
@@ -504,9 +695,16 @@ class _MessChangePreferenceScreenState
                       },
                 style: ButtonStyle(
                   backgroundColor: WidgetStateProperty.all(
-                    (loadingStatus) ? Colors.grey : const Color(0xFF4C4EDB),
+                    (loadingStatus)
+                        ? Colors.grey
+                        : _MessPrefTheme.primary,
                   ),
                   elevation: WidgetStateProperty.all(0),
+                  shape: WidgetStateProperty.all(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
                 ),
                 child: const Text(
                   'Submit',
