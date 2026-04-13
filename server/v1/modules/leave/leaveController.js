@@ -187,6 +187,7 @@ function formatDdMmYyyy(d) {
 }
 
 const LOG_FORM_ONLY = "[Leave][generate-form-only]";
+const LOG_APPLY = "[Leave][applyForLeave]";
 
 /** Form-only: no Leave row, no bank/proof. Relaxed advance notice; min 1 calendar day inclusive. */
 export const validateGenerateFormOnly = async (req, res, next) => {
@@ -600,6 +601,7 @@ async function assertRebateSemesterDayCap(userId, newStart, newEnd) {
 
 // Apply for leave(Student endpoint)
 export const applyForLeave = async (req, res) => {
+  const userId = req.user?._id?.toString?.() ?? String(req.user?._id ?? "");
   try {
     const {
       leaveType,
@@ -627,11 +629,19 @@ export const applyForLeave = async (req, res) => {
       email,
     } = req.body;
 
+    console.log(`${LOG_APPLY} start`, {
+      userId: userId || "(none)",
+      leaveType,
+      startDate,
+      endDate,
+    });
+
     const decl =
       declarationAccepted === true ||
       declarationAccepted === "true" ||
       declarationAccepted === "1";
     if (!decl) {
+      console.warn(`${LOG_APPLY} 400 declaration not accepted`, { userId });
       return res.status(400).json({
         message: "You must accept the declaration to submit",
       });
@@ -719,6 +729,9 @@ export const applyForLeave = async (req, res) => {
       doesItIntersect.conflictEndDate.setDate(
         doesItIntersect.conflictEndDate.getDate() + 1,
       );
+      console.warn(`${LOG_APPLY} 400 date conflict with existing application`, {
+        userId,
+      });
       return res.status(400).json({
         message: `The leave conflicts with a leave between ${doesItIntersect.conflictStartDate.toISOString().split("T")[0]} and ${doesItIntersect.conflictEndDate.toISOString().split("T")[0]}`,
       });
@@ -730,6 +743,7 @@ export const applyForLeave = async (req, res) => {
       end,
     );
     if (semesterCapErr) {
+      console.warn(`${LOG_APPLY} 400 semester rebate day cap`, { userId });
       return res.status(400).json({ message: semesterCapErr.message });
     }
 
@@ -757,6 +771,13 @@ export const applyForLeave = async (req, res) => {
         message: "Proof document is not required for casual leave",
       });
     }
+
+    console.log(`${LOG_APPLY} validations passed; building PDF`, {
+      userId,
+      leaveType,
+      inclusiveLeaveDays,
+      hasProofFile: Boolean(proofFile),
+    });
 
     const roomForPdf = String(roomNumber ?? "").trim();
 
@@ -789,21 +810,41 @@ export const applyForLeave = async (req, res) => {
     };
 
     const pdfBuffer = await buildStationLeavePdf(pdfPayload);
+    console.log(`${LOG_APPLY} PDF generated`, {
+      userId,
+      pdfBytes: pdfBuffer?.length ?? 0,
+    });
     const leavePdfName = `station-leave-${req.user._id}-${Date.now()}.pdf`;
+    console.log(`${LOG_APPLY} uploading leave PDF`, { userId, leavePdfName });
     const leaveUp = await uploadBufferToLeaveFolder(
       pdfBuffer,
       "application/pdf",
       leavePdfName,
     );
     leaveDocumentUrl = leaveUp.url;
+    console.log(`${LOG_APPLY} leave PDF uploaded`, {
+      userId,
+      hasUrl: Boolean(leaveDocumentUrl),
+    });
 
     if (proofFile) {
+      const proofName = `proof-${req.user._id}-${Date.now()}-${proofFile.originalname}`;
+      console.log(`${LOG_APPLY} uploading proof document`, {
+        userId,
+        proofName,
+        proofBytes: proofFile.buffer?.length ?? 0,
+        mimetype: proofFile.mimetype,
+      });
       const pUp = await uploadBufferToLeaveFolder(
         proofFile.buffer,
         proofFile.mimetype,
-        `proof-${req.user._id}-${Date.now()}-${proofFile.originalname}`,
+        proofName,
       );
       proofDocumentUrl = pUp.url;
+      console.log(`${LOG_APPLY} proof uploaded`, {
+        userId,
+        hasUrl: Boolean(proofDocumentUrl),
+      });
     }
 
     await User.findByIdAndUpdate(req.user._id, {
@@ -841,8 +882,20 @@ export const applyForLeave = async (req, res) => {
       savedLeaves.push(leaveApplication);
     }
 
+    console.log(`${LOG_APPLY} DB rows saved`, {
+      userId,
+      segmentCount: savedLeaves.length,
+      leaveIds: savedLeaves.map((d) => String(d._id)),
+    });
+
     const leaveApplication = savedLeaves[0];
     const rebateEstimateInr = Math.round(119 * inclusiveLeaveDays);
+
+    console.log(`${LOG_APPLY} 201 success`, {
+      userId,
+      primaryLeaveId: String(leaveApplication._id),
+      segmentCount: savedLeaves.length,
+    });
 
     return res.status(201).json({
       message: "Leave Application submitted successfully",
@@ -867,8 +920,11 @@ export const applyForLeave = async (req, res) => {
     });
   } catch (err) {
     const graphErr = err?.response?.data?.error || err?.response?.data;
-    console.error("[Leave][applyForLeave] Error submitting leave application", {
+    console.error(`${LOG_APPLY} 500 Error submitting leave application`, {
+      userId,
       message: err?.message,
+      name: err?.name,
+      stack: err?.stack,
       httpStatus: err?.response?.status,
       graphError: graphErr,
     });
