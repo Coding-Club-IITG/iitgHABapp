@@ -251,9 +251,27 @@ export default function FeedbackList({
       <Table
         columns={columns}
         dataSource={filteredFeedbacks}
-        rowKey={(record, index) =>
-          typeof record === "string" ? index : record.id || record._id || index
-        }
+        // stable composite keys reduce re-mount churn vs index-only keys.
+        rowKey={(record, index) => {
+          if (typeof record === "string") {
+            return `text:${record.slice(0, 64)}:${index}`;
+          }
+
+          if (record.id || record._id) {
+            return String(record.id || record._id);
+          }
+
+          const userKey =
+            record?.user?._id ||
+            record?.user?.rollNumber ||
+            record?.userName ||
+            "unknown";
+          const dateKey = record?.createdAt || record?.date || "na";
+          const messageKey = (record?.message || record?.comment || "")
+            .toString()
+            .slice(0, 32);
+          return `fb:${userKey}:${dateKey}:${messageKey}:${index}`;
+        }}
         pagination={paginationConfig}
         size="middle"
       />

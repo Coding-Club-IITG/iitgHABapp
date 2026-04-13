@@ -19,12 +19,28 @@ class CommentPage extends StatefulWidget {
 
 class _CommentPageState extends State<CommentPage> {
   final TextEditingController commentController = TextEditingController();
+  // lock submit action to prevent duplicate in-flight requests.
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    // release controller resources when screen is disposed.
+    commentController.dispose();
+    super.dispose();
+  }
 
   Future<void> submitFeedback() async {
+    // guard against multi-tap race conditions.
+    if (_submitting) return;
+
     // Capture messenger, navigator and provider early so we don't call BuildContext methods across async gaps.
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
     final provider = Provider.of<FeedbackProvider>(context, listen: false);
+
+    setState(() {
+      _submitting = true;
+    });
 
     try {
       // Gather async data first so we don't use BuildContext across async gaps.
@@ -36,8 +52,8 @@ class _CommentPageState extends State<CommentPage> {
 
       if (!mounted) return;
 
-      // Set provider fields after we've obtained async data.
-      provider.isSMC = isSMC;
+      // keep provider state consistent with persisted role before payload creation.
+      provider.setIsSMC(isSMC);
 
       // Set comment in provider
       provider.setComment(commentController.text);
@@ -103,6 +119,12 @@ class _CommentPageState extends State<CommentPage> {
         messenger.showSnackBar(
           SnackBar(content: Text('Unexpected error: $e')),
         );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _submitting = false;
+        });
       }
     }
   }
@@ -170,21 +192,32 @@ class _CommentPageState extends State<CommentPage> {
                 padding:
                     const EdgeInsets.symmetric(vertical: 16.0, horizontal: 10),
                 child: ElevatedButton(
-                  onPressed: () => submitFeedback(),
+                  // disable action while request is in-flight to avoid duplicate submits.
+                  onPressed: _submitting ? null : () => submitFeedback(),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color.fromRGBO(76, 78, 219, 1),
                     shape: const StadiumBorder(),
                     minimumSize: const Size(358, 54),
                   ),
-                  child: const Text(
-                    'Submit',
-                    style: TextStyle(
-                      fontFamily: 'OpenSans-Regular',
-                      fontSize: 16,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+                  // communicate in-flight state explicitly to user.
+                  child: _submitting
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text(
+                          'Submit',
+                          style: TextStyle(
+                            fontFamily: 'OpenSans-Regular',
+                            fontSize: 16,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
                 ),
               ),
             ],

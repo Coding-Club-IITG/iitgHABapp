@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { Card, Tag, Alert, Space, Typography, Divider, Row, Col } from "antd";
 import {
   InfoCircleOutlined,
@@ -16,6 +16,9 @@ export default function FeedbackControl() {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleInfo, setScheduleInfo] = useState(null);
   const [error, setError] = useState("");
+  // protect UI state from stale responses when multiple fetches overlap.
+  const settingsRequestSeq = useRef(0);
+  const scheduleRequestSeq = useRef(0);
 
   const token =
     localStorage.getItem("admin_token") || localStorage.getItem("token");
@@ -26,6 +29,8 @@ export default function FeedbackControl() {
   );
 
   const fetchSettings = useCallback(async () => {
+    // only latest request is allowed to commit state.
+    const requestId = ++settingsRequestSeq.current;
     try {
       setSettingsLoading(true);
       setError("");
@@ -34,16 +39,22 @@ export default function FeedbackControl() {
       });
       if (!res.ok) throw new Error(`Failed to fetch settings (${res.status})`);
       const data = await res.json();
+      if (requestId !== settingsRequestSeq.current) return;
       setSettings(data);
     } catch (err) {
+      if (requestId !== settingsRequestSeq.current) return;
       setError(err.message);
       setSettings(null);
     } finally {
-      setSettingsLoading(false);
+      if (requestId === settingsRequestSeq.current) {
+        setSettingsLoading(false);
+      }
     }
   }, [authHeaders]);
 
   const fetchScheduleInfo = useCallback(async () => {
+    // same stale-response guard for schedule endpoint.
+    const requestId = ++scheduleRequestSeq.current;
     try {
       setScheduleLoading(true);
       const response = await fetch(`${BACKEND_URL}/feedback/schedule`, {
@@ -55,12 +66,16 @@ export default function FeedbackControl() {
       }
 
       const data = await response.json();
+      if (requestId !== scheduleRequestSeq.current) return;
       setScheduleInfo(data.data);
     } catch (err) {
+      if (requestId !== scheduleRequestSeq.current) return;
       console.error("Error fetching schedule info:", err);
       setScheduleInfo(null);
     } finally {
-      setScheduleLoading(false);
+      if (requestId === scheduleRequestSeq.current) {
+        setScheduleLoading(false);
+      }
     }
   }, [authHeaders]);
 

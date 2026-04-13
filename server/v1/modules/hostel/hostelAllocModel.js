@@ -16,6 +16,10 @@ const UserAllocHostelSchema = new mongoose.Schema({
   },
 });
 
+// subscriber aggregation matches by these fields during OPI computation.
+UserAllocHostelSchema.index({ current_subscribed_mess: 1 });
+UserAllocHostelSchema.index({ hostel: 1 });
+
 const UserAllocHostel = mongoose.model(
   "UserAllocHostel",
   UserAllocHostelSchema,

@@ -3,6 +3,7 @@ import { Hostel } from "../hostel/hostelModel.js";
 import { Mess } from "../mess/messModel.js";
 import UserAllocHostel from "../hostel/hostelAllocModel.js";
 import Feedback from "./feedbackModel.js";
+import FeedbackWindowStats from "./feedbackWindowStatsModel.js";
 import { FeedbackSettings } from "./feedbackSettingsModel.js";
 
 import { sendNotificationMessage } from "../notification/notificationController.js";
@@ -26,6 +27,231 @@ const ratingMap = {
   Average: 3,
   Good: 4,
   "Very Good": 5,
+};
+
+// centralize cache key naming so invalidation and reads stay consistent.
+const CACHE_KEYS = {
+  settings: "feedback_settings",
+  windows: "feedback_available_windows",
+  allTimeLeaderboard: "feedback_leaderboard_all",
+  windowLeaderboard: (windowNumber) =>
+    `feedback_leaderboard_window_${windowNumber}`,
+};
+
+const CACHE_TTL_SECONDS = {
+  settings: 60,
+  leaderboard: 90,
+  windows: 120,
+};
+
+// local hot cache keeps API responsive when Redis is unavailable/slow.
+const localHotCache = new Map();
+
+// strict parser prevents permissive parseInt behavior (e.g. "12abc" -> 12).
+const parseWindowNumberStrict = (rawWindowNumber, { required = false } = {}) => {
+  if (rawWindowNumber === undefined || rawWindowNumber === null || rawWindowNumber === "") {
+    if (required) {
+      return { ok: false, message: "windowNumber is required" };
+    }
+    return { ok: true, value: null };
+  }
+
+  const trimmed = String(rawWindowNumber).trim();
+  if (!/^\d+$/.test(trimmed)) {
+    return { ok: false, message: "windowNumber must be a positive integer" };
+  }
+
+  const parsed = Number(trimmed);
+  if (!Number.isSafeInteger(parsed) || parsed <= 0) {
+    return { ok: false, message: "windowNumber must be a positive integer" };
+  }
+
+  return { ok: true, value: parsed };
+};
+
+const setLocalHotCache = (key, value, ttlSeconds) => {
+  localHotCache.set(key, {
+    value,
+    expiresAt: Date.now() + ttlSeconds * 1000,
+  });
+};
+
+const getLocalHotCache = (key) => {
+  const entry = localHotCache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    localHotCache.delete(key);
+    return null;
+  }
+  return entry.value;
+};
+
+const deleteLocalHotCache = (key) => {
+  localHotCache.delete(key);
+};
+
+const getCachedJson = async (key, ttlSeconds = CACHE_TTL_SECONDS.leaderboard) => {
+  try {
+    const fromRedis = await redisClient.get(key);
+    if (fromRedis) {
+      const parsed = JSON.parse(fromRedis);
+      setLocalHotCache(key, parsed, ttlSeconds);
+      return parsed;
+    }
+  } catch (error) {
+    // degrade gracefully to local in-process cache instead of failing the request.
+    console.error("[FEEDBACK] Redis get failed, using local hot cache:", key, error?.message || error);
+  }
+  return getLocalHotCache(key);
+};
+
+const setCachedJson = async (key, value, ttlSeconds) => {
+  setLocalHotCache(key, value, ttlSeconds);
+  try {
+    await redisClient.set(key, JSON.stringify(value), "EX", ttlSeconds);
+  } catch (error) {
+    // keep response path non-blocking even when Redis write fails.
+    console.error("[FEEDBACK] Redis set failed, local hot cache retained:", key, error?.message || error);
+  }
+};
+
+// clear all derived caches whenever feedback state changes to avoid stale rankings/settings.
+const invalidateFeedbackCaches = async ({ windowNumber = null } = {}) => {
+  const keys = [
+    CACHE_KEYS.settings,
+    CACHE_KEYS.windows,
+    CACHE_KEYS.allTimeLeaderboard,
+  ];
+  if (typeof windowNumber === "number") {
+    keys.push(CACHE_KEYS.windowLeaderboard(windowNumber));
+  }
+
+  keys.forEach(deleteLocalHotCache);
+
+  try {
+    await Promise.all(keys.map((key) => redisClient.del(key)));
+  } catch (error) {
+    console.error("[FEEDBACK] Redis cache invalidation failed:", error?.message || error);
+  }
+};
+
+const buildLeaderboardRows = async ({
+  feedbacks,
+  includeWindowInKey = false,
+}) => {
+  // shared leaderboard builder prevents duplication drift across endpoints.
+  const deduped = dedupeFeedbacksForAggregation(feedbacks, {
+    includeWindowInKey,
+  });
+
+  const toScore = (label) => ratingMap[label] ?? null;
+  const groups = new Map();
+
+  for (const fb of deduped) {
+    const catererId = String(fb?.caterer?._id || fb?.caterer || "");
+    if (!catererId) continue;
+
+    if (!groups.has(catererId)) {
+      groups.set(catererId, {
+        catererId,
+        catererName: fb?.caterer?.name || "Unknown",
+        totalUsers: 0,
+        smcUsers: 0,
+        breakfastSum: 0,
+        lunchSum: 0,
+        dinnerSum: 0,
+        smc: {
+          hygieneSum: 0,
+          wasteDisposalSum: 0,
+          qualitySum: 0,
+          uniformSum: 0,
+          count: 0,
+        },
+      });
+    }
+
+    const g = groups.get(catererId);
+    g.totalUsers += 1;
+    if (fb.user?.isSMC) g.smcUsers += 1;
+
+    g.breakfastSum += toScore(fb.breakfast) || 0;
+    g.lunchSum += toScore(fb.lunch) || 0;
+    g.dinnerSum += toScore(fb.dinner) || 0;
+
+    if (fb.user?.isSMC && fb.smcFields) {
+      g.smc.hygieneSum += toScore(fb.smcFields.hygiene) || 0;
+      g.smc.wasteDisposalSum += toScore(fb.smcFields.wasteDisposal) || 0;
+      g.smc.qualitySum += toScore(fb.smcFields.qualityOfIngredients) || 0;
+      g.smc.uniformSum += toScore(fb.smcFields.uniformAndPunctuality) || 0;
+      g.smc.count += 1;
+    }
+  }
+
+  const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
+    Array.from(groups.keys()),
+  );
+
+  const rows = [];
+  for (const [, g] of groups) {
+    const subscriberCount =
+      subscriberCountByCaterer.get(String(g.catererId)) || 0;
+    const avgBreakfast = computeMealOpi({
+      mealSum: g.breakfastSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgLunch = computeMealOpi({
+      mealSum: g.lunchSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgDinner = computeMealOpi({
+      mealSum: g.dinnerSum,
+      responseCount: g.totalUsers,
+      subscriberCount,
+    });
+    const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
+    const avgWasteDisposal = g.smc.count
+      ? g.smc.wasteDisposalSum / g.smc.count
+      : null;
+    const avgQualityOfIngredients = g.smc.count
+      ? g.smc.qualitySum / g.smc.count
+      : null;
+    const avgUniformAndPunctuality = g.smc.count
+      ? g.smc.uniformSum / g.smc.count
+      : null;
+
+    const overall = computeOverallOpi({
+      breakfastAvg: avgBreakfast,
+      lunchAvg: avgLunch,
+      dinnerAvg: avgDinner,
+      uniformAvg: avgUniformAndPunctuality ?? 0,
+      cleanlinessAvg: avgHygiene ?? 0,
+      wasteAvg: avgWasteDisposal ?? 0,
+      qualityAvg: avgQualityOfIngredients ?? 0,
+    });
+
+    rows.push({
+      catererId: g.catererId,
+      catererName: g.catererName,
+      totalUsers: g.totalUsers,
+      smcUsers: g.smcUsers,
+      avgBreakfast,
+      avgLunch,
+      avgDinner,
+      avgHygiene,
+      avgWasteDisposal,
+      avgQualityOfIngredients,
+      avgUniformAndPunctuality,
+      overall,
+    });
+  }
+
+  rows.sort((a, b) => b.overall - a.overall);
+  rows.forEach((row, index) => {
+    row.rank = index + 1;
+  });
+  return rows;
 };
 
 const getFeedbackUserKey = (fb) => {
@@ -130,24 +356,33 @@ const getSubscriberCountByCatererIds = async (catererIds) => {
   }
 
   const subscriberRows = await UserAllocHostel.aggregate([
+    // split subscribed vs fallback paths to better align with single-field indexes.
     {
-      $match: {
-        $or: [
-          { current_subscribed_mess: { $in: hostelIds } },
-          { hostel: { $in: hostelIds } },
+      $facet: {
+        subscribed: [
+          { $match: { current_subscribed_mess: { $in: hostelIds } } },
+          { $project: { subscribedHostel: "$current_subscribed_mess" } },
+        ],
+        fallback: [
+          {
+            $match: {
+              current_subscribed_mess: null,
+              hostel: { $in: hostelIds },
+            },
+          },
+          { $project: { subscribedHostel: "$hostel" } },
         ],
       },
     },
     {
       $project: {
-        subscribedHostel: {
-          $ifNull: ["$current_subscribed_mess", "$hostel"],
-        },
+        merged: { $concatArrays: ["$subscribed", "$fallback"] },
       },
     },
+    { $unwind: "$merged" },
     {
       $group: {
-        _id: "$subscribedHostel",
+        _id: "$merged.subscribedHostel",
         count: { $sum: 1 },
       },
     },
@@ -188,13 +423,19 @@ export const getFeedbacksByCaterer = async (req, res) => {
     const p = Math.max(1, parseInt(page, 10) || 1);
     const size = Math.max(1, Math.min(100, parseInt(pageSize, 10) || 10));
 
+    const parsedWindow = parseWindowNumberStrict(windowNumber);
+    if (!parsedWindow.ok) {
+      return res.status(400).json({ message: parsedWindow.message });
+    }
+
     const query = { caterer: catererId };
-    if (windowNumber) {
-      query.feedbackWindowNumber = parseInt(windowNumber, 10);
+    if (parsedWindow.value !== null) {
+      query.feedbackWindowNumber = parsedWindow.value;
     }
 
     let rawItems = await Feedback.find(query)
-      .populate("user", "name")
+      // isSMC is needed for optional SMC-only filtering in this endpoint.
+      .populate("user", "name isSMC")
       .sort({ date: -1 })
       .lean();
 
@@ -228,98 +469,19 @@ export const getFeedbacksByCaterer = async (req, res) => {
     let rank = null;
     try {
       const fbQuery = { caterer: { $ne: null } };
-      if (windowNumber)
-        fbQuery.feedbackWindowNumber = parseInt(windowNumber, 10);
+      if (parsedWindow.value !== null) {
+        fbQuery.feedbackWindowNumber = parsedWindow.value;
+      }
+
       const allRaw = await Feedback.find(fbQuery)
         .populate("user", "isSMC")
         .populate("caterer", "name")
         .sort({ date: -1 })
         .lean();
-      const all = dedupeFeedbacksForAggregation(allRaw, {
-        includeWindowInKey: !windowNumber,
+      const rows = await buildLeaderboardRows({
+        feedbacks: allRaw,
+        includeWindowInKey: parsedWindow.value === null,
       });
-
-      const groups = new Map();
-      const toScore = (label) => ratingMap[label] ?? null;
-      for (const fb of all) {
-        const key = String(fb.caterer._id);
-        if (!groups.has(key)) {
-          groups.set(key, {
-            totalUsers: 0,
-            smcUsers: 0,
-            breakfastSum: 0,
-            lunchSum: 0,
-            dinnerSum: 0,
-            smc: {
-              hygieneSum: 0,
-              wasteDisposalSum: 0,
-              qualitySum: 0,
-              uniformSum: 0,
-              count: 0,
-            },
-          });
-        }
-        const g = groups.get(key);
-        g.totalUsers += 1;
-        if (fb.user?.isSMC) g.smcUsers += 1;
-        g.breakfastSum += toScore(fb.breakfast) || 0;
-        g.lunchSum += toScore(fb.lunch) || 0;
-        g.dinnerSum += toScore(fb.dinner) || 0;
-        if (fb.user?.isSMC && fb.smcFields) {
-          g.smc.hygieneSum += toScore(fb.smcFields.hygiene) || 0;
-          g.smc.wasteDisposalSum += toScore(fb.smcFields.wasteDisposal) || 0;
-          g.smc.qualitySum += toScore(fb.smcFields.qualityOfIngredients) || 0;
-          g.smc.uniformSum += toScore(fb.smcFields.uniformAndPunctuality) || 0;
-          g.smc.count += 1;
-        }
-      }
-
-      const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
-        Array.from(groups.keys()),
-      );
-
-      const rows = [];
-      for (const [key, g] of groups) {
-        const subscriberCount = subscriberCountByCaterer.get(String(key)) || 0;
-        const avgBreakfast = computeMealOpi({
-          mealSum: g.breakfastSum,
-          responseCount: g.totalUsers,
-          subscriberCount,
-        });
-        const avgLunch = computeMealOpi({
-          mealSum: g.lunchSum,
-          responseCount: g.totalUsers,
-          subscriberCount,
-        });
-        const avgDinner = computeMealOpi({
-          mealSum: g.dinnerSum,
-          responseCount: g.totalUsers,
-          subscriberCount,
-        });
-        const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : 0;
-        const avgWasteDisposal = g.smc.count
-          ? g.smc.wasteDisposalSum / g.smc.count
-          : 0;
-        const avgQualityOfIngredients = g.smc.count
-          ? g.smc.qualitySum / g.smc.count
-          : 0;
-        const avgUniformAndPunctuality = g.smc.count
-          ? g.smc.uniformSum / g.smc.count
-          : 0;
-
-        const overall = computeOverallOpi({
-          breakfastAvg: avgBreakfast,
-          lunchAvg: avgLunch,
-          dinnerAvg: avgDinner,
-          uniformAvg: avgUniformAndPunctuality,
-          cleanlinessAvg: avgHygiene,
-          wasteAvg: avgWasteDisposal,
-          qualityAvg: avgQualityOfIngredients,
-        });
-        rows.push({ catererId: key, overall });
-      }
-      rows.sort((a, b) => b.overall - a.overall);
-      rows.forEach((r, i) => (r.rank = i + 1));
       const row = rows.find((r) => r.catererId === String(catererId));
       if (row) {
         opi = row.overall;
@@ -356,17 +518,16 @@ export const getFeedbacksByCaterer = async (req, res) => {
 export const getDetailedFeedbackByWindow = async (req, res) => {
   try {
     const { windowNumber } = req.query;
-    const parsedWindow = parseInt(windowNumber, 10);
-
-    if (!parsedWindow || Number.isNaN(parsedWindow)) {
-      return res
-        .status(400)
-        .json({ message: "Valid windowNumber is required" });
+    const parsedWindow = parseWindowNumberStrict(windowNumber, {
+      required: true,
+    });
+    if (!parsedWindow.ok) {
+      return res.status(400).json({ message: parsedWindow.message });
     }
 
     const feedbacks = await Feedback.find({
       caterer: { $ne: null },
-      feedbackWindowNumber: parsedWindow,
+      feedbackWindowNumber: parsedWindow.value,
     })
       .populate("user", "name rollNumber isSMC")
       .populate({
@@ -437,13 +598,11 @@ export const submitFeedback = async (req, res) => {
       }
     }
 
-    // Find user
-    const user = await User.findOne({ name, rollNumber });
+    // Find by roll number first, then enforce roll-name consistency.
+    const user = await User.findOne({ rollNumber });
     if (!user) return res.status(404).send("User not found");
-
-    // Check if feedback for this user and current window already exists
-    if (user.isFeedbackSubmitted) {
-      return res.status(400).send("Feedback already submitted for this window");
+    if (user.name !== name) {
+      return res.status(400).send("Name does not match the provided roll number");
     }
 
     // Prepare feedback data
@@ -479,6 +638,7 @@ export const submitFeedback = async (req, res) => {
       user: user._id,
       feedbackWindowNumber: settings.currentWindowNumber,
     }).lean();
+    // DB truth check prevents stale-flag duplicates across concurrent submissions.
     if (existingFeedback) {
       if (!user.isFeedbackSubmitted) {
         user.isFeedbackSubmitted = true;
@@ -494,8 +654,13 @@ export const submitFeedback = async (req, res) => {
     user.isFeedbackSubmitted = true;
     await user.save();
 
+    await invalidateFeedbackCaches({
+      windowNumber: settings.currentWindowNumber,
+    });
+
     res.status(200).send("Feedback submitted successfully");
   } catch (err) {
+    // unique index race collision should be reported as duplicate submit, not 500.
     if (err?.code === 11000) {
       return res.status(400).send("Feedback already submitted for this window");
     }
@@ -517,20 +682,24 @@ export const removeFeedback = async (req, res) => {
     const user = await User.findOne({ name, rollNumber });
     if (!user) return res.status(404).send("User not found");
 
-    if (!user.isFeedbackSubmitted) {
-      return res.status(400).send("No feedback submitted by this user");
-    }
-
     // Get current window number
     const settings = await FeedbackSettings.findOne();
     const currentWindowNumber = settings?.currentWindowNumber || 1;
 
-    await Feedback.deleteOne({
+    const deleteResult = await Feedback.deleteOne({
       user: user._id,
       feedbackWindowNumber: currentWindowNumber,
     });
+
+    // only flip user flag if a row was actually removed.
+    if (!deleteResult?.deletedCount) {
+      return res.status(400).send("No feedback submitted by this user");
+    }
+
     user.isFeedbackSubmitted = false;
     await user.save();
+
+    await invalidateFeedbackCaches({ windowNumber: currentWindowNumber });
 
     res.status(200).send("Feedback removed successfully");
   } catch (err) {
@@ -614,7 +783,9 @@ export const enableFeedbackAutomatic = async (endDate = null) => {
       console.error("[FEEDBACK] Window enabled notification failed:", err),
     );
 
-    await redisClient.del("feedback_settings");
+    await invalidateFeedbackCaches({
+      windowNumber: savedSettings?.currentWindowNumber,
+    });
     console.log("[FEEDBACK] Window enabled automatically");
     return { success: true, settings: savedSettings };
   } catch (e) {
@@ -768,7 +939,7 @@ export const disableFeedbackAutomatic = async () => {
     }
 
     console.log("[FEEDBACK] Window disabled automatically");
-    await redisClient.del("feedback_settings");
+    await invalidateFeedbackCaches({ windowNumber });
     return { success: true };
   } catch (e) {
     console.error("[FEEDBACK] Error disabling automatically:", e);
@@ -781,8 +952,12 @@ export const disableFeedbackAutomatic = async () => {
 // ==========================================
 export const getFeedbackSettings = async (req, res) => {
   try {
-    const cachedSettings = await redisClient.get("feedback_settings");
-    if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
+    const cachedSettings = await getCachedJson(
+      CACHE_KEYS.settings,
+      CACHE_TTL_SECONDS.settings,
+    );
+    // hot path for repeated settings polling from mobile/HAB clients.
+    if (cachedSettings) return res.status(200).json(cachedSettings);
 
     let s = await FeedbackSettings.findOne();
     // Check if window has expired and report accordingly, but don't
@@ -807,11 +982,10 @@ export const getFeedbackSettings = async (req, res) => {
       };
     }
 
-    await redisClient.set(
-      "feedback_settings",
-      JSON.stringify(responseData),
-      "EX",
-      60,
+    await setCachedJson(
+      CACHE_KEYS.settings,
+      responseData,
+      CACHE_TTL_SECONDS.settings,
     );
     return res.status(200).json(responseData);
   } catch (e) {
@@ -827,8 +1001,12 @@ export const getFeedbackSettings = async (req, res) => {
 // ==========================================
 export const getFeedbackSettingsPublic = async (req, res) => {
   try {
-    const cachedSettings = await redisClient.get("feedback_settings");
-    if (cachedSettings) return res.status(200).json(JSON.parse(cachedSettings));
+    const cachedSettings = await getCachedJson(
+      CACHE_KEYS.settings,
+      CACHE_TTL_SECONDS.settings,
+    );
+    // same cache strategy for public settings endpoint.
+    if (cachedSettings) return res.status(200).json(cachedSettings);
 
     let s = await FeedbackSettings.findOne();
     // Same as getFeedbackSettings: report expired state without persisting
@@ -850,11 +1028,10 @@ export const getFeedbackSettingsPublic = async (req, res) => {
       };
     }
 
-    await redisClient.set(
-      "feedback_settings",
-      JSON.stringify(responseData),
-      "EX",
-      60,
+    await setCachedJson(
+      CACHE_KEYS.settings,
+      responseData,
+      CACHE_TTL_SECONDS.settings,
     );
     return res.status(200).json(responseData);
   } catch (e) {
@@ -927,118 +1104,31 @@ export const getFeedbackScheduleInfo = async (req, res) => {
 // ==========================================
 export const getFeedbackLeaderboard = async (req, res) => {
   try {
+    const cachedRows = await getCachedJson(
+      CACHE_KEYS.allTimeLeaderboard,
+      CACHE_TTL_SECONDS.leaderboard,
+    );
+    // all-time leaderboard is expensive and frequently queried.
+    if (cachedRows) {
+      return res.status(200).json(cachedRows);
+    }
+
     const feedbacksRaw = await Feedback.find({ caterer: { $ne: null } })
       .populate("user", "isSMC")
       .populate("caterer", "name")
       .sort({ date: -1 })
       .lean();
-    const feedbacks = dedupeFeedbacksForAggregation(feedbacksRaw, {
+
+    const rows = await buildLeaderboardRows({
+      feedbacks: feedbacksRaw,
       includeWindowInKey: true,
     });
 
-    const toScore = (label) => ratingMap[label] ?? null;
-    const groups = new Map();
-
-    for (const fb of feedbacks) {
-      const key = String(fb.caterer._id);
-      if (!groups.has(key)) {
-        groups.set(key, {
-          catererId: key,
-          catererName: fb.caterer.name,
-          totalUsers: 0,
-          smcUsers: 0,
-          breakfastSum: 0,
-          lunchSum: 0,
-          dinnerSum: 0,
-          smc: {
-            hygieneSum: 0,
-            wasteDisposalSum: 0,
-            qualitySum: 0,
-            uniformSum: 0,
-            count: 0,
-          },
-        });
-      }
-
-      const g = groups.get(key);
-      g.totalUsers += 1;
-      if (fb.user?.isSMC) g.smcUsers += 1;
-
-      g.breakfastSum += toScore(fb.breakfast) || 0;
-      g.lunchSum += toScore(fb.lunch) || 0;
-      g.dinnerSum += toScore(fb.dinner) || 0;
-
-      if (fb.user?.isSMC && fb.smcFields) {
-        g.smc.hygieneSum += toScore(fb.smcFields.hygiene) || 0;
-        g.smc.wasteDisposalSum += toScore(fb.smcFields.wasteDisposal) || 0;
-        g.smc.qualitySum += toScore(fb.smcFields.qualityOfIngredients) || 0;
-        g.smc.uniformSum += toScore(fb.smcFields.uniformAndPunctuality) || 0;
-        g.smc.count += 1;
-      }
-    }
-
-    const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
-      Array.from(groups.keys()),
+    await setCachedJson(
+      CACHE_KEYS.allTimeLeaderboard,
+      rows,
+      CACHE_TTL_SECONDS.leaderboard,
     );
-
-    const rows = [];
-    for (const [, g] of groups) {
-      const subscriberCount =
-        subscriberCountByCaterer.get(String(g.catererId)) || 0;
-      const avgBreakfast = computeMealOpi({
-        mealSum: g.breakfastSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgLunch = computeMealOpi({
-        mealSum: g.lunchSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgDinner = computeMealOpi({
-        mealSum: g.dinnerSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
-      const avgWasteDisposal = g.smc.count
-        ? g.smc.wasteDisposalSum / g.smc.count
-        : null;
-      const avgQualityOfIngredients = g.smc.count
-        ? g.smc.qualitySum / g.smc.count
-        : null;
-      const avgUniformAndPunctuality = g.smc.count
-        ? g.smc.uniformSum / g.smc.count
-        : null;
-
-      const overall = computeOverallOpi({
-        breakfastAvg: avgBreakfast,
-        lunchAvg: avgLunch,
-        dinnerAvg: avgDinner,
-        uniformAvg: avgUniformAndPunctuality ?? 0,
-        cleanlinessAvg: avgHygiene ?? 0,
-        wasteAvg: avgWasteDisposal ?? 0,
-        qualityAvg: avgQualityOfIngredients ?? 0,
-      });
-
-      rows.push({
-        catererId: g.catererId,
-        catererName: g.catererName,
-        totalUsers: g.totalUsers,
-        smcUsers: g.smcUsers,
-        avgBreakfast,
-        avgLunch,
-        avgDinner,
-        avgHygiene,
-        avgWasteDisposal,
-        avgQualityOfIngredients,
-        avgUniformAndPunctuality,
-        overall,
-      });
-    }
-
-    rows.sort((a, b) => b.overall - a.overall);
-    rows.forEach((r, i) => (r.rank = i + 1));
 
     return res.status(200).json(rows);
   } catch (e) {
@@ -1055,8 +1145,22 @@ export const getFeedbackLeaderboard = async (req, res) => {
 // ==========================================
 export const getAvailableWindows = async (req, res) => {
   try {
+    const cachedWindows = await getCachedJson(
+      CACHE_KEYS.windows,
+      CACHE_TTL_SECONDS.windows,
+    );
+    // distinct windows change rarely; cache cuts DB overhead.
+    if (cachedWindows) {
+      return res.status(200).json(cachedWindows);
+    }
+
     const windows = await Feedback.distinct("feedbackWindowNumber");
-    const sorted = windows.filter(Boolean).sort((a, b) => b - a); // Sort descending (newest first)
+    const sorted = windows
+      .filter((window) => Number.isInteger(window) && window > 0)
+      .sort((a, b) => b - a);
+
+    await setCachedJson(CACHE_KEYS.windows, sorted, CACHE_TTL_SECONDS.windows);
+
     return res.status(200).json(sorted);
   } catch (e) {
     console.error("getAvailableWindows error:", e);
@@ -1070,123 +1174,71 @@ export const getAvailableWindows = async (req, res) => {
 export const getFeedbackLeaderboardByWindow = async (req, res) => {
   try {
     const { windowNumber } = req.query;
-    if (!windowNumber) {
-      return res.status(400).json({ message: "Window number required" });
+    const parsedWindow = parseWindowNumberStrict(windowNumber, {
+      required: true,
+    });
+    if (!parsedWindow.ok) {
+      return res.status(400).json({ message: parsedWindow.message });
+    }
+
+    const leaderboardCacheKey = CACHE_KEYS.windowLeaderboard(parsedWindow.value);
+    const cachedRows = await getCachedJson(
+      leaderboardCacheKey,
+      CACHE_TTL_SECONDS.leaderboard,
+    );
+    // first try fast cache for closed/open windows alike.
+    if (cachedRows) {
+      return res.status(200).json(cachedRows);
+    }
+
+    const persistedSnapshot = await FeedbackWindowStats.find({
+      windowNumber: parsedWindow.value,
+    })
+      .sort({ rank: 1, overall: -1 })
+      .lean();
+
+    // closed-window snapshot avoids recomputation for historical reads.
+    if (persistedSnapshot.length > 0) {
+      const snapshotRows = persistedSnapshot.map((row) => ({
+        catererId: String(row.caterer),
+        catererName: row.catererName,
+        totalUsers: row.totalUsers,
+        smcUsers: row.smcUsers,
+        avgBreakfast: row.avgBreakfast,
+        avgLunch: row.avgLunch,
+        avgDinner: row.avgDinner,
+        avgHygiene: row.avgHygiene,
+        avgWasteDisposal: row.avgWasteDisposal,
+        avgQualityOfIngredients: row.avgQualityOfIngredients,
+        avgUniformAndPunctuality: row.avgUniformAndPunctuality,
+        overall: row.overall,
+        rank: row.rank,
+      }));
+
+      await setCachedJson(
+        leaderboardCacheKey,
+        snapshotRows,
+        CACHE_TTL_SECONDS.leaderboard,
+      );
+      return res.status(200).json(snapshotRows);
     }
 
     const feedbacksRaw = await Feedback.find({
       caterer: { $ne: null },
-      feedbackWindowNumber: parseInt(windowNumber),
+      feedbackWindowNumber: parsedWindow.value,
     })
       .populate("user", "isSMC")
       .populate("caterer", "name")
       .sort({ date: -1 })
       .lean();
-    const feedbacks = dedupeFeedbacksForAggregation(feedbacksRaw);
 
-    const toScore = (label) => ratingMap[label] ?? null;
-    const groups = new Map();
+    const rows = await buildLeaderboardRows({ feedbacks: feedbacksRaw });
 
-    for (const fb of feedbacks) {
-      const key = String(fb.caterer._id);
-      if (!groups.has(key)) {
-        groups.set(key, {
-          catererId: key,
-          catererName: fb.caterer.name,
-          totalUsers: 0,
-          smcUsers: 0,
-          breakfastSum: 0,
-          lunchSum: 0,
-          dinnerSum: 0,
-          smc: {
-            hygieneSum: 0,
-            wasteDisposalSum: 0,
-            qualitySum: 0,
-            uniformSum: 0,
-            count: 0,
-          },
-        });
-      }
-
-      const g = groups.get(key);
-      g.totalUsers += 1;
-      if (fb.user?.isSMC) g.smcUsers += 1;
-
-      g.breakfastSum += toScore(fb.breakfast) || 0;
-      g.lunchSum += toScore(fb.lunch) || 0;
-      g.dinnerSum += toScore(fb.dinner) || 0;
-
-      if (fb.user?.isSMC && fb.smcFields) {
-        g.smc.hygieneSum += toScore(fb.smcFields.hygiene) || 0;
-        g.smc.wasteDisposalSum += toScore(fb.smcFields.wasteDisposal) || 0;
-        g.smc.qualitySum += toScore(fb.smcFields.qualityOfIngredients) || 0;
-        g.smc.uniformSum += toScore(fb.smcFields.uniformAndPunctuality) || 0;
-        g.smc.count += 1;
-      }
-    }
-
-    const subscriberCountByCaterer = await getSubscriberCountByCatererIds(
-      Array.from(groups.keys()),
+    await setCachedJson(
+      leaderboardCacheKey,
+      rows,
+      CACHE_TTL_SECONDS.leaderboard,
     );
-
-    const rows = [];
-    for (const [, g] of groups) {
-      const subscriberCount =
-        subscriberCountByCaterer.get(String(g.catererId)) || 0;
-      const avgBreakfast = computeMealOpi({
-        mealSum: g.breakfastSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgLunch = computeMealOpi({
-        mealSum: g.lunchSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgDinner = computeMealOpi({
-        mealSum: g.dinnerSum,
-        responseCount: g.totalUsers,
-        subscriberCount,
-      });
-      const avgHygiene = g.smc.count ? g.smc.hygieneSum / g.smc.count : null;
-      const avgWasteDisposal = g.smc.count
-        ? g.smc.wasteDisposalSum / g.smc.count
-        : null;
-      const avgQualityOfIngredients = g.smc.count
-        ? g.smc.qualitySum / g.smc.count
-        : null;
-      const avgUniformAndPunctuality = g.smc.count
-        ? g.smc.uniformSum / g.smc.count
-        : null;
-
-      const overall = computeOverallOpi({
-        breakfastAvg: avgBreakfast,
-        lunchAvg: avgLunch,
-        dinnerAvg: avgDinner,
-        uniformAvg: avgUniformAndPunctuality ?? 0,
-        cleanlinessAvg: avgHygiene ?? 0,
-        wasteAvg: avgWasteDisposal ?? 0,
-        qualityAvg: avgQualityOfIngredients ?? 0,
-      });
-
-      rows.push({
-        catererId: g.catererId,
-        catererName: g.catererName,
-        totalUsers: g.totalUsers,
-        smcUsers: g.smcUsers,
-        avgBreakfast,
-        avgLunch,
-        avgDinner,
-        avgHygiene,
-        avgWasteDisposal,
-        avgQualityOfIngredients,
-        avgUniformAndPunctuality,
-        overall,
-      });
-    }
-
-    rows.sort((a, b) => b.overall - a.overall);
-    rows.forEach((r, i) => (r.rank = i + 1));
 
     return res.status(200).json(rows);
   } catch (e) {
@@ -1209,12 +1261,31 @@ export const checkFeedbackSubmitted = async (req, res) => {
         .status(401)
         .json({ submitted: false, message: "User not authenticated" });
 
-    // Check if user has submitted feedback for current window
-    if (user.isFeedbackSubmitted) {
-      return res.status(200).json({ submitted: true });
-    } else {
-      return res.status(200).json({ submitted: false });
+    const settings = await FeedbackSettings.findOne({}, { currentWindowNumber: 1 })
+      .lean();
+    const currentWindowNumber = settings?.currentWindowNumber || 1;
+
+    const feedbackExists = await Feedback.exists({
+      user: user._id,
+      feedbackWindowNumber: currentWindowNumber,
+    });
+    // use DB truth for current window instead of relying on potentially stale JWT/user flag.
+
+    if (Boolean(feedbackExists) && !user.isFeedbackSubmitted) {
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { isFeedbackSubmitted: true } },
+      );
     }
+
+    if (!feedbackExists && user.isFeedbackSubmitted) {
+      await User.updateOne(
+        { _id: user._id },
+        { $set: { isFeedbackSubmitted: false } },
+      );
+    }
+
+    return res.status(200).json({ submitted: Boolean(feedbackExists) });
   } catch (err) {
     console.error(err);
     res
@@ -1287,7 +1358,7 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
   );
 
   // Get all messes and hostels
-  const messes = await Mess.find({}, { _id: 1, hostelId: 1 }).lean();
+  const messes = await Mess.find({}, { _id: 1, hostelId: 1, name: 1 }).lean();
   if (!messes.length) return;
 
   const hostels = await Hostel.find({}, { _id: 1, messId: 1 }).lean();
@@ -1457,7 +1528,20 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
     // Round to two decimal places before storing
     overall = Math.round(overall * 100) / 100;
 
-    rows.push({ messId, overall });
+    rows.push({
+      messId,
+      catererName: mess.name || "Unknown",
+      totalUsers: agg.totalUsers,
+      smcUsers: agg.smcCount,
+      avgBreakfast,
+      avgLunch,
+      avgDinner,
+      avgHygiene,
+      avgWasteDisposal,
+      avgQualityOfIngredients,
+      avgUniformAndPunctuality,
+      overall,
+    });
   }
 
   rows.sort((a, b) => b.overall - a.overall);
@@ -1472,7 +1556,41 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
       },
     }));
     await Mess.bulkWrite(bulkOps);
+
+    const snapshotAt = new Date();
+    // persist per-window leaderboard snapshot rows for cheap read-path later.
+    const snapshotOps = rows.map((r) => ({
+      updateOne: {
+        filter: {
+          windowNumber,
+          caterer: r.messId,
+        },
+        update: {
+          $set: {
+            windowNumber,
+            caterer: r.messId,
+            catererName: r.catererName,
+            totalUsers: r.totalUsers,
+            smcUsers: r.smcUsers,
+            avgBreakfast: r.avgBreakfast,
+            avgLunch: r.avgLunch,
+            avgDinner: r.avgDinner,
+            avgHygiene: r.avgHygiene,
+            avgWasteDisposal: r.avgWasteDisposal,
+            avgQualityOfIngredients: r.avgQualityOfIngredients,
+            avgUniformAndPunctuality: r.avgUniformAndPunctuality,
+            overall: r.overall,
+            rank: r.rank,
+            snapshotAt,
+          },
+        },
+        upsert: true,
+      },
+    }));
+    await FeedbackWindowStats.bulkWrite(snapshotOps);
   }
+
+  await invalidateFeedbackCaches({ windowNumber });
 
   console.log(
     `[OPI] Mess ratings updated for ${rows.length} messes in ${Date.now() - startTime}ms`,
