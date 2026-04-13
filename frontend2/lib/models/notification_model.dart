@@ -7,6 +7,9 @@ class NotificationModel {
   final DateTime timestamp;
   final bool isAlert;
   final bool isRead;
+  /// When true and [expiresAt] > 0, [isAlertActive] uses server expiry (epoch ms).
+  final bool hasCountdown;
+  final int expiresAt;
 
   NotificationModel({
     required this.title,
@@ -15,6 +18,8 @@ class NotificationModel {
     required this.timestamp,
     this.isAlert = false,
     this.isRead = false,
+    this.hasCountdown = false,
+    this.expiresAt = 0,
   });
 
   // Convert to JSON for storage
@@ -26,6 +31,8 @@ class NotificationModel {
       'timestamp': timestamp.toIso8601String(),
       'isAlert': isAlert,
       'isRead': isRead,
+      'hasCountdown': hasCountdown,
+      'expiresAt': expiresAt,
     };
   }
 
@@ -36,8 +43,15 @@ class NotificationModel {
       body: json['body'] ?? '',
       redirectType: json['redirectType'],
       timestamp: DateTime.parse(json['timestamp']),
-      isAlert: json['isAlert'] ?? false,
-      isRead: json['isRead'] ?? false,
+      // FCM / JS often send "true" strings; match [hasCountdown] parsing.
+      isAlert: json['isAlert'] == true ||
+          json['isAlert'] == 'true' ||
+          json['alert'] == true ||
+          json['alert'] == 'true',
+      isRead: json['isRead'] == true || json['isRead'] == 'true',
+      hasCountdown:
+          json['hasCountdown'] == 'true' || json['hasCountdown'] == true,
+      expiresAt: int.tryParse(json['expiresAt']?.toString() ?? '') ?? 0,
     );
   }
 
@@ -57,6 +71,8 @@ class NotificationModel {
       timestamp: timestamp ?? DateTime.now(),
       isAlert: false,
       isRead: false,
+      hasCountdown: false,
+      expiresAt: 0,
     );
   }
 
@@ -68,6 +84,8 @@ class NotificationModel {
     DateTime? timestamp,
     bool? isAlert,
     bool? isRead,
+    bool? hasCountdown,
+    int? expiresAt,
   }) {
     return NotificationModel(
       title: title ?? this.title,
@@ -76,6 +94,8 @@ class NotificationModel {
       timestamp: timestamp ?? this.timestamp,
       isAlert: isAlert ?? this.isAlert,
       isRead: isRead ?? this.isRead,
+      hasCountdown: hasCountdown ?? this.hasCountdown,
+      expiresAt: expiresAt ?? this.expiresAt,
     );
   }
 
@@ -131,10 +151,14 @@ class NotificationModel {
     return diff.inDays > 7;
   }
 
-  // Check if alert is still active (less than 2 hours old)
+  /// Active alert: [expiresAt] (ms) when present (matches server TTL), else 2h from [timestamp].
   bool get isAlertActive {
     if (!isAlert) return false;
+    if (expiresAt > 0) {
+      return DateTime.now().millisecondsSinceEpoch < expiresAt;
+    }
     final diff = DateTime.now().difference(timestamp);
     return diff.inHours < 2;
   }
+
 }

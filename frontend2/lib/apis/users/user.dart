@@ -72,13 +72,36 @@ Future<Map<String, String>?> fetchUserDetails() async {
           userData['email']; // Can be null for Apple-only users
       final String roll = userData['rollNumber'] ?? "Not provided";
       // Handle null/undefined hostel and mess - use empty string for guest users
-      final String currSubscribedMess = userData['curr_subscribed_mess'] != null
-          ? userData['curr_subscribed_mess'].toString()
-          : "";
+      String extractObjectId(dynamic field) {
+        if (field == null) return "";
+        if (field is String) return field;
+        if (field is Map) {
+          return field['_id']?.toString() ?? field['id']?.toString() ?? "";
+        }
+        return field.toString();
+      }
+
+      String extractHostelName(dynamic field) {
+        if (field == null) return "";
+        if (field is String) return field;
+        if (field is Map) {
+          return field['hostel_name']?.toString() ?? field['name']?.toString() ?? "";
+        }
+        return "";
+      }
+
+      final String currSubscribedMess = extractObjectId(userData['curr_subscribed_mess']);
+      final String currSubscribedMessName =
+          userData['curr_subscribed_mess_name'] != null
+              ? userData['curr_subscribed_mess_name'].toString()
+              : extractHostelName(userData['curr_subscribed_mess']);
       final String appliedMess =
           userData['applied_hostel_string'] ?? "Not provided";
-      final String hostel =
-          userData['hostel'] != null ? userData['hostel'].toString() : "";
+      final String hostel = extractObjectId(userData['hostel']);
+      final String hostelName =
+          userData['hostel_name'] != null
+              ? userData['hostel_name'].toString()
+              : extractHostelName(userData['hostel']);
       final bool gotHostel = userData['got_mess_changed'];
       final bool isSMC = userData['isSMC'] ?? false;
       final bool isSetupDone = userData['isSetupDone'] == true;
@@ -91,6 +114,8 @@ Future<Map<String, String>?> fetchUserDetails() async {
       prefs.setBool('isSMC', isSMC);
       prefs.setBool('gotMess', gotHostel);
       prefs.setBool('hasMicrosoftLinked', hasMicrosoftLinked);
+      prefs.setString('hostelName', hostelName);
+      prefs.setString('currMessName', currSubscribedMessName);
       // Store guestIdentifier if it exists (for identifying guest users)
       if (guestIdentifier != null) {
         prefs.setString('guestIdentifier', guestIdentifier);
@@ -122,6 +147,8 @@ Future<Map<String, String>?> fetchUserDetails() async {
       prefs.setString('rollNo', roll);
       prefs.setString('hostel', hostel);
       prefs.setString('currMess', currSubscribedMess);
+      prefs.setString('hostelName', hostelName);
+      prefs.setString('currMessName', currSubscribedMessName);
       prefs.setString('name', name);
       prefs.setString('userId', userId);
       await prefs.setString('roomNumber', roomNumber);

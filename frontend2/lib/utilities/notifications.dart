@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/apis/protected.dart';
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:dio/dio.dart';
@@ -18,6 +19,9 @@ import 'package:firebase_core/firebase_core.dart';
 // ✅ Create a global instance of FlutterLocalNotificationsPlugin
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
     FlutterLocalNotificationsPlugin();
+
+/// Foreground Android: one [Timer] per alert [id] to refresh the progress bar.
+final Map<String, Timer> _alertProgressTimers = {};
 
 // ✅ Global variable to store SharedPreferences for notification history
 SharedPreferences? _sharedPrefs;
@@ -69,8 +73,14 @@ Future<void> setupNotificationChannel() async {
 }
 
 // ✅ Helper function to save notification to SharedPreferences for history
-Future<void> _saveNotificationToHistory(String title, String body,
-    {String? redirectType, bool isAlert = false}) async {
+Future<void> _saveNotificationToHistory(
+  String title,
+  String body, {
+  String? redirectType,
+  bool isAlert = false,
+  bool hasCountdown = false,
+  int expiresAt = 0,
+}) async {
   try {
     _sharedPrefs ??= await SharedPreferences.getInstance();
 
@@ -80,7 +90,9 @@ Future<void> _saveNotificationToHistory(String title, String body,
       redirectType: redirectType,
       timestamp: DateTime.now(),
       isAlert: isAlert,
-      isRead: false, 
+      isRead: false,
+      hasCountdown: hasCountdown,
+      expiresAt: expiresAt,
     );
 
     List<NotificationModel> notifications = _loadNotificationsFromPrefs();
@@ -98,6 +110,140 @@ Future<void> _saveNotificationToHistory(String title, String body,
   } catch (e) {
     if (kDebugMode) debugPrint('❌ Error saving notification to history: $e');
   }
+}
+
+// --- FCM payload helpers (server: alert uses `alert` + `expiresAt`, not always `isAlert`) ---
+
+bool _dataBoolTrue(Map<String, dynamic> data, String key) {
+  final v = data[key];
+  return v == 'true' || v == true;
+}
+
+/// Server [createAlert] sends `alert: "true"`; broadcast alerts may send `isAlert`.
+bool _isAlertFromData(Map<String, dynamic> data) =>
+    _dataBoolTrue(data, 'alert') || _dataBoolTrue(data, 'isAlert');
+
+bool _hasCountdownFromData(Map<String, dynamic> data) =>
+    _dataBoolTrue(data, 'hasCountdown');
+
+int _expiresAtFromData(Map<String, dynamic> data) =>
+    int.tryParse(data['expiresAt']?.toString() ?? '') ?? 0;
+
+int _ttlSecondsFromData(Map<String, dynamic> data) =>
+    int.tryParse(data['ttlSeconds']?.toString() ?? '') ?? 0;
+
+int _notificationIdForAlertData(Map<String, dynamic> data) {
+  final id = data['id']?.toString() ?? '';
+  if (id.isEmpty) return 0;
+  final n = id.hashCode & 0x7fffffff;
+  return n == 0 ? 1 : n;
+}
+
+void _cancelAlertProgressTimer(String? alertId) {
+  if (alertId == null || alertId.isEmpty) return;
+  _alertProgressTimers[alertId]?.cancel();
+  _alertProgressTimers.remove(alertId);
+}
+
+/// Android: determinate progress (slider-style bar) updating every second until expiry.
+void _startAndroidAlertProgressNotification({
+  required int notificationId,
+  required String alertId,
+  required String title,
+  required String body,
+  required int expiresAt,
+  required int ttlSeconds,
+  String? redirectPayload,
+}) {
+  _cancelAlertProgressTimer(alertId);
+
+  var ttlMs = ttlSeconds * 1000;
+  if (ttlMs <= 0) {
+    final approx = expiresAt - DateTime.now().millisecondsSinceEpoch;
+    ttlMs = approx.clamp(1, 1 << 30);
+  }
+
+  void tick() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    final remaining = expiresAt - now;
+    if (remaining <= 0) {
+      _cancelAlertProgressTimer(alertId);
+      flutterLocalNotificationsPlugin.cancel(notificationId);
+      return;
+    }
+    final progress =
+        ttlMs <= 0 ? 0 : ((remaining / ttlMs) * 100).round().clamp(0, 100);
+    final android = AndroidNotificationDetails(
+      'high_importance_channel',
+      'High Importance Notifications',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+      // Top-right: live countdown (replaces default “now”) — sits above the progress bar.
+      when: expiresAt,
+      showWhen: true,
+      usesChronometer: true,
+      chronometerCountDown: true,
+      showProgress: true,
+      maxProgress: 100,
+      progress: progress,
+      indeterminate: false,
+      onlyAlertOnce: true,
+    );
+    flutterLocalNotificationsPlugin.show(
+      notificationId,
+      title,
+      body,
+      NotificationDetails(android: android),
+      payload: redirectPayload,
+    );
+  }
+
+  tick();
+  _alertProgressTimers[alertId] =
+      Timer.periodic(const Duration(seconds: 1), (_) => tick());
+}
+
+bool _shouldPersistHistoryFromMessage(RemoteMessage message) {
+  if (message.notification != null) return true;
+  final d = Map<String, dynamic>.from(message.data);
+  if (!_dataBoolTrue(d, 'alert')) return false;
+  final title = d['title']?.toString().trim() ?? '';
+  final body = d['body']?.toString().trim() ?? '';
+  return title.isNotEmpty || body.isNotEmpty;
+}
+
+(String, String) _resolveMessageTitleBody(RemoteMessage message) {
+  final nt = message.notification?.title?.trim();
+  final nb = message.notification?.body?.trim();
+  final dt = message.data['title']?.toString().trim();
+  final db = message.data['body']?.toString().trim();
+
+  final title = (nt != null && nt.isNotEmpty)
+      ? nt
+      : ((dt != null && dt.isNotEmpty) ? dt : 'No Title');
+  // Prefer data body when present (e.g. alerts: FCM notification body may add ⏱ timer line).
+  final body = (db != null && db.isNotEmpty)
+      ? db
+      : ((nb != null && nb.isNotEmpty) ? nb : 'No Body');
+  return (title, body);
+}
+
+Future<void> _saveHistoryFromRemoteMessage(RemoteMessage message) async {
+  final data = Map<String, dynamic>.from(message.data);
+  final (title, body) = _resolveMessageTitleBody(message);
+  final isAlert = _isAlertFromData(data);
+  final hasCountdown = _hasCountdownFromData(data);
+  final expiresAt = _expiresAtFromData(data);
+
+  await _saveNotificationToHistory(
+    title,
+    body,
+    redirectType: data['redirectType'] as String?,
+    isAlert: isAlert,
+    hasCountdown: hasCountdown,
+    expiresAt: expiresAt,
+  );
 }
 
 // ✅ Helper function to load notifications from SharedPreferences
@@ -209,30 +355,21 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     debugPrint('💤 Handling background message: ${message.messageId}');
   }
 
-  // --- SCENARIO 1: Unified Alert System (Mixed Payload) ---
-  if (message.data.containsKey('alert') && message.data['alert'] == 'true') {
-    // ⚠️ CRITICAL: Only save to AlertsManager. 
-    // Do NOT call flutterLocalNotificationsPlugin.show() here.
-    // Firebase automatically shows the system notification from the mixed payload!
+  // --- SCENARIO 1: Unified alert (`alert: true` from server createAlert, etc.) ---
+  if (_dataBoolTrue(Map<String, dynamic>.from(message.data), 'alert')) {
     await AlertsManager.addAlertFromFCM(message.data);
-    return; 
+    if (_shouldPersistHistoryFromMessage(message)) {
+      await _saveHistoryFromRemoteMessage(message);
+    }
+    return;
   }
 
-  // --- SCENARIO 2: Standard FCM Notifications (History Tracking) ---
+  // --- SCENARIO 2: Standard FCM (history only; no unified alert flag) ---
   if (message.notification != null) {
     if (kDebugMode) {
       debugPrint('💤 Standard notification received in background');
     }
-    
-    final redirectType = message.data['redirectType'];
-    final isAlert = message.data['isAlert'] == 'true' || message.data['isAlert'] == true;
-    
-    await _saveNotificationToHistory(
-      message.notification!.title ?? 'No Title',
-      message.notification!.body ?? 'No Body',
-      redirectType: redirectType,
-      isAlert: isAlert,
-    );
+    await _saveHistoryFromRemoteMessage(message);
   }
 }
 
@@ -271,62 +408,42 @@ Future<void> initializeFcm() async {
       debugPrint('📩 Foreground message received: ${message.messageId}');
     }
 
-    // 1. Handle incoming Active Alerts
-    if (message.data.containsKey('alert') && message.data['alert'] == 'true') {
-       await AlertsManager.addAlertFromFCM(message.data);
-       // We DO NOT return here if we also want the alert to show up in the standard Notification History tab
+    final data = Map<String, dynamic>.from(message.data);
+    if (_dataBoolTrue(data, 'alert')) {
+      await AlertsManager.addAlertFromFCM(message.data);
     }
 
-    // 2. Handle Standard Notifications
-    if (message.notification != null) {
-      final redirectType = message.data['redirectType'];
-      final isAlert =
-          message.data['isAlert'] == 'true' || message.data['isAlert'] == true;
-      _saveNotificationToHistory(
-        message.notification!.title ?? 'No Title',
-        message.notification!.body ?? 'No Body',
-        redirectType: redirectType,
-        isAlert: isAlert,
-      );
-      // Show local notification with redirect data
-      _showLocalNotification(message.notification!, redirectType);
+    if (_shouldPersistHistoryFromMessage(message)) {
+      await _saveHistoryFromRemoteMessage(message);
+      if (message.notification != null) {
+        _showLocalNotification(
+          message.notification!,
+          data['redirectType'] as String?,
+          data: data,
+        );
+      }
     }
   });
 
   // ✅ Notification tap handler (when app is opened via notification)
   FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
     if (kDebugMode) debugPrint('🚀 Notification opened: ${message.data}');
-    if (message.notification != null) {
-      final redirectType = message.data['redirectType'];
-      final isAlert =
-          message.data['isAlert'] == 'true' || message.data['isAlert'] == true;
-      _saveNotificationToHistory(
-        message.notification!.title ?? 'No Title',
-        message.notification!.body ?? 'No Body',
-        redirectType: redirectType,
-        isAlert: isAlert,
-      );
+    if (_shouldPersistHistoryFromMessage(message)) {
+      _saveHistoryFromRemoteMessage(message);
     }
-    // Handle navigation based on data
     _handleNotificationNavigation(message.data);
   });
 
   // Handle notification when app is opened from terminated state
   FirebaseMessaging.instance.getInitialMessage().then((RemoteMessage? message) {
-    if (message != null && message.notification != null) {
-      if (kDebugMode) debugPrint('🔁 App opened from terminated via notification');
-      final redirectType = message.data['redirectType'];
-      final isAlert =
-          message.data['isAlert'] == 'true' || message.data['isAlert'] == true;
-      _saveNotificationToHistory(
-        message.notification!.title ?? 'No Title',
-        message.notification!.body ?? 'No Body',
-        redirectType: redirectType,
-        isAlert: isAlert,
-      );
-      // Handle navigation based on data
-      _handleNotificationNavigation(message.data);
+    if (message == null) return;
+    if (kDebugMode && _shouldPersistHistoryFromMessage(message)) {
+      debugPrint('🔁 App opened from terminated via notification');
     }
+    if (_shouldPersistHistoryFromMessage(message)) {
+      _saveHistoryFromRemoteMessage(message);
+    }
+    _handleNotificationNavigation(message.data);
   });
 }
 
@@ -364,23 +481,87 @@ void _handleNotificationNavigation(Map<String, dynamic> data) {
 
 // ✅ Helper function to display local notification in foreground
 void _showLocalNotification(
-    RemoteNotification notification, String? redirectType) {
-  const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-    'high_importance_channel', // ✅ match manifest + setupNotificationChannel()
-    'High Importance Notifications',
-    importance: Importance.max,
-    priority: Priority.high,
-    playSound: true,
+  RemoteNotification notification,
+  String? redirectType, {
+  Map<String, dynamic>? data,
+}) {
+  final dataMap = data ?? {};
+  final hasCountdown = _hasCountdownFromData(dataMap);
+  final expiresAt = _expiresAtFromData(dataMap);
+  final dataBody = dataMap['body']?.toString().trim();
+  final displayTitle = notification.title ?? '';
+  final displayBody = (dataBody != null && dataBody.isNotEmpty)
+      ? dataBody
+      : (notification.body ?? '');
+
+  final alertIdStr = dataMap['id']?.toString() ?? '';
+
+  // Android + hasCountdown: live determinate progress bar (slider) updated every second.
+  if (Platform.isAndroid &&
+      hasCountdown &&
+      expiresAt > 0 &&
+      alertIdStr.isNotEmpty) {
+    final ttlSec = _ttlSecondsFromData(dataMap);
+    final fallbackTtl = ((expiresAt - DateTime.now().millisecondsSinceEpoch) /
+            1000)
+        .ceil()
+        .clamp(1, 8640000);
+    _startAndroidAlertProgressNotification(
+      notificationId: _notificationIdForAlertData(dataMap),
+      alertId: alertIdStr,
+      title: displayTitle,
+      body: displayBody,
+      expiresAt: expiresAt,
+      ttlSeconds: ttlSec > 0 ? ttlSec : fallbackTtl,
+      redirectPayload: redirectType,
+    );
+    return;
+  }
+
+  // Android: chronometer when countdown but no alert id (legacy payloads).
+  final AndroidNotificationDetails androidDetails =
+      (Platform.isAndroid && hasCountdown && expiresAt > 0)
+          ? AndroidNotificationDetails(
+              'high_importance_channel',
+              'High Importance Notifications',
+              importance: Importance.max,
+              priority: Priority.high,
+              playSound: true,
+              when: expiresAt,
+              showWhen: true,
+              usesChronometer: true,
+              chronometerCountDown: true,
+            )
+          : const AndroidNotificationDetails(
+              'high_importance_channel',
+              'High Importance Notifications',
+              importance: Importance.max,
+              priority: Priority.high,
+              playSound: true,
+            );
+
+  // Tray body: Android uses clean data body + optional chronometer; iOS uses FCM text (server may append ⏱).
+  final String bodyForShow = Platform.isAndroid
+      ? displayBody
+      : (notification.body ?? displayBody);
+
+  const DarwinNotificationDetails iosDarwin = DarwinNotificationDetails(
+    presentAlert: true,
+    presentBadge: true,
+    presentSound: true,
   );
 
-  const NotificationDetails notificationDetails =
-      NotificationDetails(android: androidDetails);
+  final NotificationDetails notificationDetails = NotificationDetails(
+    android: androidDetails,
+    iOS: iosDarwin,
+    macOS: iosDarwin,
+  );
 
-  // Use redirect type as payload for tap handling
+  final int id = redirectType != null ? redirectType.hashCode : 0;
   flutterLocalNotificationsPlugin.show(
-    redirectType != null ? redirectType.hashCode : 0,
-    notification.title,
-    notification.body,
+    id,
+    displayTitle,
+    bodyForShow,
     notificationDetails,
     payload: redirectType,
   );
