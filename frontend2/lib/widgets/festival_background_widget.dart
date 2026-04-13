@@ -178,55 +178,41 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
 }
 
 /// Festival Background Builder - simpler API for common use case
-class FestivalBackgroundBuilder extends StatefulWidget {
+class FestivalBackgroundBuilder extends StatelessWidget {
   final bool hasAlerts;
+  /// When true, skips festival imagery so callers can show weather (e.g. rain) instead.
+  final bool suppressFestivalBackdrop;
   final WidgetBuilder builder;
 
   const FestivalBackgroundBuilder({
     Key? key,
     required this.hasAlerts,
+    this.suppressFestivalBackdrop = false,
     required this.builder,
   }) : super(key: key);
 
   @override
-  State<FestivalBackgroundBuilder> createState() =>
-      _FestivalBackgroundBuilderState();
-}
-
-class _FestivalBackgroundBuilderState extends State<FestivalBackgroundBuilder> {
-  late Future<FestivalModeData> _festivalFuture;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadFestivalMode();
-  }
-
-  void _loadFestivalMode() {
-    _festivalFuture = FestivalModeService().fetchFestivalMode(context: context);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    return FutureBuilder<FestivalModeData>(
-      initialData: FestivalModeService().getCachedDataSynchronously(),
-      future: _festivalFuture,
-      builder: (context, snapshot) {
-        String? backgroundImage;
+    if (suppressFestivalBackdrop) {
+      return Container(
+        color: Theme.of(context).scaffoldBackgroundColor,
+        child: builder(context),
+      );
+    }
 
-        if (snapshot.hasData) {
-          final data = snapshot.data!;
-          backgroundImage = FestivalModeService().getAppropriateFestivalImage(
-            data,
-            widget.hasAlerts,
-          );
-          backgroundImage =
-              backgroundImage?.replaceAll('localhost', '10.0.2.2');
-        }
+    return ValueListenableBuilder<FestivalModeData>(
+      valueListenable: FestivalModeService().festivalVisualNotifier,
+      builder: (context, data, _) {
+        var backgroundImage = FestivalModeService().getAppropriateFestivalImage(
+          data,
+          hasAlerts,
+        );
+        backgroundImage =
+            backgroundImage?.replaceAll('localhost', '10.0.2.2');
 
         return _BackgroundContainer(
           backgroundImage: backgroundImage,
-          child: widget.builder(context),
+          child: builder(context),
         );
       },
     );

@@ -104,6 +104,9 @@ Future<void> main() async {
   await VersionChecker.init();
   final updateRequired = await VersionChecker.checkForUpdate();
   final isLoggedIn = await auth.isLoggedIn();
+  if (isLoggedIn && !updateRequired) {
+    await FestivalModeService().bootstrapBeforeHome();
+  }
   await ProfilePictureProvider.init();
 
   runApp(
