@@ -6,6 +6,17 @@ import redisClient from "../../utils/redisClient.js";
 // Helper to determine Redis Key based on target type and ID
 const getRedisKey = (type, id) => `alerts:${type}${id ? ":" + id : ":all"}`;
 
+// Human-readable time left for notification body
+function formatTimeRemainingSeconds(totalSeconds) {
+  const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m}m ${sec}s`;
+  return `${sec}s`;
+}
+
 /**
  * POST /alerts/create
  * Creates an alert, saves to DB, caches in Redis, and fires FCM Push
@@ -78,19 +89,27 @@ export const createAlert = async (req, res) => {
       if (targetType === "mess") nativeChannelId = "hab_mess_updates";
       if (targetType === "feedback") nativeChannelId = "hab_feedback_reminders";
 
+      // System tray text: include timer line when countdown is enabled
+      const notificationBody =
+        hasCountdown === true
+          ? `${body}\n\n⏱ ${formatTimeRemainingSeconds(ttlSeconds)}`
+          : body;
+
       // Send Data-Only Message (Architecture PDF Requirement 7)
       await admin.messaging().send({
         notification: {
           title: title,
-          body: body,
+          body: notificationBody,
         },
         data: {
           id: newAlert._id.toString(),
           title,
           body,
           expiresAt: expiresAtMs.toString(),
+          ttlSeconds: String(ttlSeconds),
           hasCountdown: hasCountdown ? "true" : "false",
           alert: "true",
+          isAlert: "true",
           targetType,
         },
         topic: fcmTopic,

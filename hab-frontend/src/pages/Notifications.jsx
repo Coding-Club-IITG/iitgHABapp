@@ -288,9 +288,7 @@ const Notifications = () => {
                         checked={hasCountdown}
                         onChange={(e) => setHasCountdown(e.target.checked)}
                       >
-                        <Text style={{ color: "#cf1322" }}>
-                          Show countdown timer to users
-                        </Text>
+                        <Text style={{ color: "#cf1322" }}>Show countdown</Text>
                       </Checkbox>
                     </div>
                   </div>
