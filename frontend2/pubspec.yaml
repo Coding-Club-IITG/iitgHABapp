@@ -73,8 +73,7 @@ dependencies:
   cached_network_image: ^3.4.1
   # 12.4.0+ uses isiOSAppOnVision (iOS 26.1 SDK); fails on Xcode 16 / iOS 18 SDK.
   device_info_plus: 12.3.0
-  cached_network_image: ^3.4.1
-
+  
 flutter_launcher_icons:
   ios: true
   remove_alpha_ios: true

@@ -6,8 +6,10 @@ import {
   uploadFestivalImage,
   toggleFestivalMode,
   deleteFestivalImage,
+  deleteFestivalImageByItemId,
   getFestivalImageContent,
   getAdminFestivalConfig,
+  updateAdminFestivalConfig,
   upload,
 } from "./festivalModeController.js";
 import { authenticateHabOrSMCJWT } from "../../middleware/authenticateJWT.js";
@@ -42,6 +44,9 @@ router.get("/status", getFestivalModeStatus);
  *         description: "Detailed festival mode configuration"
  */
 router.get("/admin/config", authenticateHabOrSMCJWT, getAdminFestivalConfig);
+
+// Update admin-configurable settings (texts, theme color)
+router.post("/admin/config", authenticateHabOrSMCJWT, updateAdminFestivalConfig);
 
 /**
  * @swagger
@@ -97,6 +102,9 @@ router.post(
 router.post("/toggle", authenticateHabOrSMCJWT, toggleFestivalMode);
 
 router.get("/image/item/:itemId", getFestivalImageContent);
+
+// Delete a specific image by OneDrive itemId (for multi-image admin UI)
+router.delete("/image/item/:itemId", authenticateHabOrSMCJWT, deleteFestivalImageByItemId);
 
 /**
  * @swagger
