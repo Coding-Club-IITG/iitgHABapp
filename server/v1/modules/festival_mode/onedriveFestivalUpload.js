@@ -1,5 +1,5 @@
-const axios = require("axios");
-const { getDelegatedAccessToken } = require("../../utils/delegatedGraphAuth.js");
+import axios from "axios";
+import { getDelegatedAccessToken } from "../../utils/delegatedGraphAuth.js";
 
 const FESTIVAL_FOLDER_ID = process.env.ONEDRIVE_FESTIVAL_FOLDER_ID;
 
@@ -58,7 +58,7 @@ async function deleteItemById(token, itemId) {
   return graphRequest("DELETE", url, token);
 }
 
-async function uploadFestivalImageToOneDrive(buffer, mimeType, fileName) {
+export async function uploadFestivalImageToOneDrive(buffer, mimeType, fileName) {
   if (!FESTIVAL_FOLDER_ID) {
     throw new Error("ONEDRIVE_FESTIVAL_FOLDER_ID is not configured");
   }
@@ -117,7 +117,7 @@ async function uploadFestivalImageToOneDrive(buffer, mimeType, fileName) {
   };
 }
 
-async function deleteFestivalImageFromOneDrive(itemId) {
+export async function deleteFestivalImageFromOneDrive(itemId) {
   if (!itemId) return;
   let token;
   try {
@@ -137,7 +137,4 @@ async function deleteFestivalImageFromOneDrive(itemId) {
   await deleteItemById(token, itemId);
 }
 
-module.exports = {
-  uploadFestivalImageToOneDrive,
-  deleteFestivalImageFromOneDrive,
-};
+// named exports above

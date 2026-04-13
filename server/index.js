@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import { installProcessHandlers } from "./processHandlers.js";
+import { installProcessHandlers } from "./processHandlers.cjs";
 installProcessHandlers();
 
 import express from "express";

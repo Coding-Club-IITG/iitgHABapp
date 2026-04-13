@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const festivalModeSchema = new mongoose.Schema({
   isEnabled: {
@@ -57,4 +57,6 @@ const festivalModeSchema = new mongoose.Schema({
   },
 });
 
-module.exports = mongoose.model("FestivalMode", festivalModeSchema);
+const FestivalMode = mongoose.model("FestivalMode", festivalModeSchema);
+
+export default FestivalMode;

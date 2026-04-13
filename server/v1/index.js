@@ -3,7 +3,7 @@ const __dirname = import.meta.dirname;
 import { nodeENV, port, publicBaseUrl, mongodbUri } from "./config/default.js";
 import onedrive from "./config/onedrive.js";
 
-import { installProcessHandlers } from "../processHandlers.js";
+import { installProcessHandlers } from "../processHandlers.cjs";
 installProcessHandlers();
 
 import axios from "axios";
@@ -35,6 +35,7 @@ import alertRoutes from "./modules/alert/alertRoute.js";
 import galaRoute from "./modules/gala/galaRoute.js";
 import messChangeRoute from "./modules/mess_change/messchangeRoute.js";
 import profileRoute from "./modules/profile/profileRoute.js";
+import festivalModeRoute from "./modules/festival_mode/festivalModeRoute.js";
 
 import agenda from "./utils/agenda.js";
 import { initializeFeedbackAutoScheduler } from "./modules/feedback/autoFeedbackScheduler.js";
@@ -285,11 +286,10 @@ app.use("/api/gala", galaRoute);
 app.use("/api/leave", leaveRoute);
 
 //mess change route
-app.use("/api/mess-change", messChangeRouter);
+app.use("/api/mess-change", messChangeRoute);
 
 // profile route
-const profileRouter = require("./modules/profile/profileRoute.js");
-app.use("/api/profile", profileRouter);
+app.use("/api/profile", profileRoute);
 
 //scanlogs route
 app.use("/api/logs", logsRoute);

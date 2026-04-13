@@ -1,6 +1,7 @@
-const express = require("express");
-const router = express.Router();
-const {
+import express from "express";
+
+import {
+  getFestivalActiveSummary,
   getFestivalModeStatus,
   uploadFestivalImage,
   toggleFestivalMode,
@@ -8,9 +9,11 @@ const {
   getFestivalImageContent,
   getAdminFestivalConfig,
   upload,
-} = require("./festivalModeController.js");
-const { authenticateHabOrSMCJWT } = require("../../middleware/authenticateJWT.js");
-const { getDelegatedAccessToken } = require("../../utils/delegatedGraphAuth.js");
+} from "./festivalModeController.js";
+import { authenticateHabOrSMCJWT } from "../../middleware/authenticateJWT.js";
+import { getDelegatedAccessToken } from "../../utils/delegatedGraphAuth.js";
+
+const router = express.Router();
 
 /**
  * @swagger
@@ -22,6 +25,8 @@ const { getDelegatedAccessToken } = require("../../utils/delegatedGraphAuth.js")
  *       200:
  *         description: "Festival mode status with image URLs"
  */
+router.get("/active-summary", getFestivalActiveSummary);
+
 router.get("/status", getFestivalModeStatus);
 
 /**
@@ -147,4 +152,4 @@ router.get("/admin/diagnostics/onedrive-token", authenticateHabOrSMCJWT, async (
   }
 });
 
-module.exports = router;
+export default router;

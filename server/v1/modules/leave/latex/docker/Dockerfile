@@ -4,18 +4,20 @@
 
 FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    texlive-xetex \
-    texlive-lang-english \
-    texlive-lang-other \
-    texlive-fonts-recommended \
-    texlive-fonts-extra \
-    texlive-latex-extra \
-    fonts-texgyre \
-    fonts-freefont-ttf \
-    fonts-noto-core \
-  && rm -rf /var/lib/apt/lists/*
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt/lists,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      texlive-xetex \
+      texlive-lang-english \
+      texlive-lang-other \
+      texlive-fonts-recommended \
+      texlive-fonts-extra \
+      texlive-latex-extra \
+      fonts-texgyre \
+      fonts-freefont-ttf \
+      fonts-noto-core \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /work

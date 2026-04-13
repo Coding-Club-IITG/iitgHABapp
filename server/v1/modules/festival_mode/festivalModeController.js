@@ -1,17 +1,18 @@
-const axios = require("axios");
-const FestivalMode = require("./festivalModeModel.js");
-const AppError = require("../../utils/appError.js");
-const path = require("path");
-const multer = require("multer");
-const {
+import axios from "axios";
+import path from "path";
+import multer from "multer";
+
+import FestivalMode from "./festivalModeModel.js";
+import AppError from "../../utils/appError.js";
+import {
   uploadFestivalImageToOneDrive,
   deleteFestivalImageFromOneDrive,
-} = require("./onedriveFestivalUpload.js");
-const { getDelegatedAccessToken } = require("../../utils/delegatedGraphAuth.js");
+} from "./onedriveFestivalUpload.js";
+import { getDelegatedAccessToken } from "../../utils/delegatedGraphAuth.js";
 
 
 // Memory storage for multer - OneDrive handles the actual storage
-const upload = multer({ storage: multer.memoryStorage() });
+export const upload = multer({ storage: multer.memoryStorage() });
 
 const buildFestivalImageProxyUrl = (req, itemId) => {
   // Return relative URL with /api prefix that clients can resolve
@@ -28,11 +29,43 @@ const getImageResponseFromData = (req, imageData) => {
 };
 
 /**
+ * GET /api/festival-mode/active-summary
+ * Minimal payload for mobile cold-start / pre-home: compare festivalId + isEnabled to Hive cache.
+ */
+export const getFestivalActiveSummary = async (req, res, next) => {
+  try {
+    let festivalMode = await FestivalMode.findOne();
+
+    if (!festivalMode) {
+      festivalMode = await FestivalMode.create({
+        isEnabled: false,
+        cacheUntil: new Date(Date.now() + 6 * 60 * 60 * 1000),
+      });
+    }
+
+    if (festivalMode.expiresAt && new Date() > festivalMode.expiresAt) {
+      festivalMode.isEnabled = false;
+      await festivalMode.save();
+    }
+
+    res.status(200).json({
+      festivalId: festivalMode._id != null ? String(festivalMode._id) : null,
+      isEnabled: Boolean(festivalMode.isEnabled),
+      lastUpdatedAt: festivalMode.lastUpdatedAt,
+      cacheUntil: festivalMode.cacheUntil,
+    });
+  } catch (err) {
+    console.error("Error fetching festival active summary:", err);
+    next(new AppError(500, "Failed to fetch festival active summary"));
+  }
+};
+
+/**
  * GET /api/festival-mode/status
  * Public endpoint - no authentication needed
  * Returns current festival mode config with image URLs
  */
-const getFestivalModeStatus = async (req, res, next) => {
+export const getFestivalModeStatus = async (req, res, next) => {
   try {
     let festivalMode = await FestivalMode.findOne();
 
@@ -74,7 +107,7 @@ const getFestivalModeStatus = async (req, res, next) => {
  * Admin only - upload festival images to OneDrive
  * Body: FormData { imageType: "with_alerts" | "without_alerts", file }
  */
-const uploadFestivalImage = async (req, res, next) => {
+export const uploadFestivalImage = async (req, res, next) => {
   try {
     if (!req.file) {
       return next(new AppError(400, "Image file is required"));
@@ -173,7 +206,7 @@ const uploadFestivalImage = async (req, res, next) => {
  * Admin only - enable/disable festival mode
  * Body: { isEnabled: Boolean }
  */
-const toggleFestivalMode = async (req, res, next) => {
+export const toggleFestivalMode = async (req, res, next) => {
   try {
     const { isEnabled, expiresAt } = req.body;
 
@@ -211,7 +244,7 @@ const toggleFestivalMode = async (req, res, next) => {
  * DELETE /api/festival-mode/image/:imageType
  * Admin only - delete a festival image
  */
-const deleteFestivalImage = async (req, res, next) => {
+export const deleteFestivalImage = async (req, res, next) => {
   try {
     const { imageType } = req.params;
     if (!["with_alerts", "without_alerts"].includes(imageType)) {
@@ -270,7 +303,7 @@ const deleteFestivalImage = async (req, res, next) => {
  * GET /api/festival-mode/admin/config
  * Admin only - get detailed config for admin panel
  */
-const getFestivalImageContent = async (req, res, next) => {
+export const getFestivalImageContent = async (req, res, next) => {
   try {
     const { itemId } = req.params;
     if (!itemId) {
@@ -299,7 +332,7 @@ const getFestivalImageContent = async (req, res, next) => {
   }
 };
 
-const getAdminFestivalConfig = async (req, res, next) => {
+export const getAdminFestivalConfig = async (req, res, next) => {
   try {
     let festivalMode = await FestivalMode.findOne().populate("lastUpdatedBy", "name email");
 
@@ -324,12 +357,4 @@ const getAdminFestivalConfig = async (req, res, next) => {
   }
 };
 
-module.exports = {
-  getFestivalModeStatus,
-  uploadFestivalImage,
-  toggleFestivalMode,
-  deleteFestivalImage,
-  getFestivalImageContent,
-  getAdminFestivalConfig,
-  upload,
-};
+// named exports above

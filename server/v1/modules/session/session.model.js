@@ -38,15 +38,13 @@ const sessionSchema = new mongoose.Schema({
   },
 });
 
-sessionSchema.pre("save", function (next) {
-  if (!this.isModified("refreshToken")) return next();
+sessionSchema.pre("save", function () {
+  if (!this.isModified("refreshToken")) return;
 
   this.refreshToken = crypto
     .createHash("sha256")
     .update(this.refreshToken)
     .digest("hex");
-
-  next();
 });
 
 export default mongoose.model("Session", sessionSchema);

@@ -160,7 +160,13 @@ export const mobileRedirectHandler = async (req, res, next) => {
       )}`,
     );
   } catch (error) {
-    console.error("Error in mobileRedirectHandler:", error);
+    const status = error?.response?.status;
+    const data = error?.response?.data;
+    console.error("Error in mobileRedirectHandler:", {
+      message: error?.message,
+      status,
+      data,
+    });
     next(error);
   }
 };
