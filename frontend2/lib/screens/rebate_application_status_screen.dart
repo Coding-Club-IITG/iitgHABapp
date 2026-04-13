@@ -155,10 +155,12 @@ class _RebateApplicationStatusScreenState
     return '${_ordinalDay(dt.day)} $month $time';
   }
 
-  /// When the application is considered delivered to the mess manager: 8:00 AM
-  /// on the 1st of the leave month, unless the student applied **after** that
-  /// instant — then the application time is used.
-  String? _deliveredToMessManagerTimestamp() {
+  /// When the application is considered delivered to the mess manager:
+  /// - Leave starts in the **current** calendar month → same instant as [appliedAt].
+  /// - Otherwise → start of the **next** calendar month (local midnight on the 1st).
+  /// - If the leave month is already **before** this month, treat as [appliedAt]
+  ///   so past applications do not show a future delivery time.
+  DateTime? _deliveryToMessManagerAt() {
     final a = _app;
     if (a == null) return null;
     try {
@@ -167,17 +169,16 @@ class _RebateApplicationStatusScreenState
       final appliedRaw = a['appliedAt']?.toString();
       if (appliedRaw == null || appliedRaw.isEmpty) return null;
       final applied = DateTime.parse(appliedRaw).toLocal();
-      final monthStart8Am = DateTime(
-        leaveStart.year,
-        leaveStart.month,
-        1,
-        8,
-        0,
-        0,
-      );
-      final delivery =
-          applied.isAfter(monthStart8Am) ? applied : monthStart8Am;
-      return _formatTimestampFromDateTime(delivery);
+      final now = DateTime.now();
+      final startOfThisMonth = DateTime(now.year, now.month, 1);
+      final leaveDay = DateTime(leaveStart.year, leaveStart.month, leaveStart.day);
+      if (leaveDay.isBefore(startOfThisMonth)) {
+        return applied;
+      }
+      if (leaveStart.year == now.year && leaveStart.month == now.month) {
+        return applied;
+      }
+      return DateTime(now.year, now.month + 1, 1);
     } catch (_) {
       return null;
     }
@@ -441,8 +442,9 @@ class _RebateApplicationStatusScreenState
                                         status: _status,
                                         app: _app,
                                         formatTime: _formatStatusTimestamp,
-                                        deliveredToMessSubtitle:
-                                            _deliveredToMessManagerTimestamp(),
+                                        deliveryAt: _deliveryToMessManagerAt(),
+                                        formatDeliveredAt:
+                                            _formatTimestampFromDateTime,
                                       ),
                                       if (_status == 'processed') ...[
                                         const SizedBox(height: 16),
@@ -801,20 +803,71 @@ class _StatusTimelineCard extends StatelessWidget {
     required this.status,
     required this.app,
     required this.formatTime,
-    this.deliveredToMessSubtitle,
+    this.deliveryAt,
+    required this.formatDeliveredAt,
   });
 
   final String cardTitle;
   final String status;
   final Map<String, dynamic>? app;
   final String? Function(String? iso) formatTime;
-  /// Delivered-to-mess moment: 8 AM on 1st of leave month, or apply time if later.
-  final String? deliveredToMessSubtitle;
+  /// Resolved instant when the app is considered delivered to the mess manager.
+  final DateTime? deliveryAt;
+  final String Function(DateTime) formatDeliveredAt;
 
   static const Color _lineBlue = Color(0xFF4C4EDB);
   static const Color _lineGrey = Color(0xFFE6E6E6);
   static const Color _grey1 = Color(0xFF535353);
   static const Color _grey2 = Color(0xFF2E2F31);
+
+  /// Vertical space after each step (connector runs through this gap).
+  static const double _kStepGapAfter = 20;
+  /// Reserved height for one subtitle line (font 12, height 18/12) so rows align.
+  static const double _kSubtitleLineHeight = 18;
+
+  /// Reference: incomplete → Delivering; active / completed → Received (same copy).
+  static const String _step2Delivering = 'Delivering to Mess Manager';
+  static const String _step2Received = 'Received by Mess Manager';
+  static const String _step3Pending = 'Pending Verification by Mess Manager';
+  static const String _step3Verified = 'Verified by Mess Manager';
+  static const String _step4Pending = 'Pending Verification by Hostel Office';
+  static const String _step4Verified = 'Verified by Hostel Office';
+
+  String _step2Title(bool deliveryComplete) =>
+      deliveryComplete ? _step2Received : _step2Delivering;
+
+  String _step3Title(_DotKind kind) {
+    switch (kind) {
+      case _DotKind.complete:
+        return _step3Verified;
+      case _DotKind.active:
+      case _DotKind.incomplete:
+        return _step3Pending;
+    }
+  }
+
+  String _step4Title(_DotKind kind) {
+    switch (kind) {
+      case _DotKind.complete:
+        return _step4Verified;
+      case _DotKind.active:
+      case _DotKind.incomplete:
+        return _step4Pending;
+    }
+  }
+
+  bool _deliveryReached(DateTime now) {
+    final d = deliveryAt;
+    if (d == null) return false;
+    return !d.isAfter(now);
+  }
+
+  String? _messSubtitleForUi(String s, bool deliveryReached) {
+    final d = deliveryAt;
+    if (d == null) return null;
+    if (s == 'pending' && !deliveryReached) return null;
+    return formatDeliveredAt(d);
+  }
 
   List<_TimelineStepVm> _buildSteps() {
     final s = status.toLowerCase().trim();
@@ -824,7 +877,9 @@ class _StatusTimelineCard extends StatelessWidget {
     final t1 = formatTime(appliedAt);
     final t3 = formatTime(ackAt);
     final t4 = formatTime(procAt);
-    final tMess = deliveredToMessSubtitle;
+    final now = DateTime.now();
+    final reached = _deliveryReached(now);
+    final tMess = _messSubtitleForUi(s, reached);
 
     if (s == 'processed') {
       return [
@@ -834,15 +889,15 @@ class _StatusTimelineCard extends StatelessWidget {
             subtitle: t1),
         _TimelineStepVm(
             kind: _DotKind.complete,
-            title: 'Received by Mess Manager',
+            title: _step2Title(true),
             subtitle: tMess),
         _TimelineStepVm(
             kind: _DotKind.complete,
-            title: 'Verified by Mess Manager',
+            title: _step3Title(_DotKind.complete),
             subtitle: t3),
         _TimelineStepVm(
             kind: _DotKind.complete,
-            title: 'Verified by Hostel office',
+            title: _step4Title(_DotKind.complete),
             subtitle: t4),
       ];
     }
@@ -854,35 +909,38 @@ class _StatusTimelineCard extends StatelessWidget {
             subtitle: t1),
         _TimelineStepVm(
             kind: _DotKind.complete,
-            title: 'Received by Mess Manager',
+            title: _step2Title(true),
             subtitle: tMess),
         _TimelineStepVm(
             kind: _DotKind.complete,
-            title: 'Verified by Mess Manager',
+            title: _step3Title(_DotKind.complete),
             subtitle: t3),
-        const _TimelineStepVm(
+        _TimelineStepVm(
             kind: _DotKind.active,
-            title: 'Pending Verification',
+            title: _step4Title(_DotKind.active),
             subtitle: null),
       ];
     }
     // pending (default / unknown)
+    final step2Kind = reached ? _DotKind.complete : _DotKind.active;
+    final step3Kind =
+        !reached ? _DotKind.incomplete : _DotKind.active;
     return [
       _TimelineStepVm(
           kind: _DotKind.complete,
           title: 'Application Submitted',
           subtitle: t1),
       _TimelineStepVm(
-          kind: _DotKind.active,
-          title: 'Delivering to Mess Manager',
+          kind: step2Kind,
+          title: _step2Title(reached),
           subtitle: tMess),
-      const _TimelineStepVm(
-          kind: _DotKind.incomplete,
-          title: 'Pending Verification',
+      _TimelineStepVm(
+          kind: step3Kind,
+          title: _step3Title(step3Kind),
           subtitle: null),
-      const _TimelineStepVm(
+      _TimelineStepVm(
           kind: _DotKind.incomplete,
-          title: 'Pending Verification',
+          title: _step4Title(_DotKind.incomplete),
           subtitle: null),
     ];
   }
@@ -926,33 +984,36 @@ class _StatusTimelineCard extends StatelessWidget {
             final step = steps[i];
             final last = i == steps.length - 1;
             final lineBlue = !last && _lineAfterIsBlue(i, steps);
-            return Padding(
-              padding: EdgeInsets.only(bottom: last ? 0 : 20),
-              child: IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 32,
-                      child: Column(
-                        children: [
-                          _TimelineDot(kind: step.kind),
-                          if (!last)
-                            Expanded(
+            return IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  SizedBox(
+                    width: 32,
+                    child: Column(
+                      children: [
+                        Center(child: _TimelineDot(kind: step.kind)),
+                        if (!last)
+                          Expanded(
+                            child: Align(
+                              alignment: Alignment.topCenter,
                               child: Container(
                                 width: 2,
-                                margin:
-                                    const EdgeInsets.symmetric(vertical: 4),
                                 color: lineBlue ? _lineBlue : _lineGrey,
                               ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                          bottom: last ? 0 : _kStepGapAfter),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
                             step.title,
@@ -963,24 +1024,33 @@ class _StatusTimelineCard extends StatelessWidget {
                               color: _grey2,
                             ),
                           ),
-                          if (step.subtitle != null &&
-                              step.subtitle!.isNotEmpty) ...[
-                            const SizedBox(height: 2),
-                            Text(
-                              step.subtitle!,
-                              style: const TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w400,
-                                height: 18 / 12,
-                                color: _grey2,
-                              ),
+                          const SizedBox(height: 2),
+                          SizedBox(
+                            height: _kSubtitleLineHeight,
+                            width: double.infinity,
+                            child: Align(
+                              alignment: Alignment.topLeft,
+                              child: (step.subtitle != null &&
+                                      step.subtitle!.isNotEmpty)
+                                  ? Text(
+                                      step.subtitle!,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w400,
+                                        height: 18 / 12,
+                                        color: _grey2,
+                                      ),
+                                    )
+                                  : const SizedBox.shrink(),
                             ),
-                          ],
+                          ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             );
           }),
