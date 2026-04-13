@@ -84,9 +84,6 @@ app.use(
   }),
 );
 
-const MONGOdb_uri = process.env.MONGODB_URI;
-const PORT = process.env.PORT || 3001;
-
 const swaggerOptions = {
   definition: {
     openapi: "3.0.0",
@@ -268,7 +265,8 @@ app.use("/api/mess", messRoute);
 
 // Gala Dinner route
 app.use("/api/gala", galaRoute);
-// Mess rebate route
+
+// Mess Rebate route
 app.use("/api/leave", leaveRoute);
 
 // Mess Change route
@@ -367,7 +365,8 @@ app.get("/api/_debug/graph/callback", async (req, res) => {
   }
 });
 
-// Global error handler (must be after all routes). Catches errors passed to next(err).
+// Global error handler (must be after all routes)
+// Catches errors passed to next(err)
 app.use((err, req, res, next) => {
   console.error("[Express error]", err);
 
@@ -390,15 +389,18 @@ async function bootstrap() {
   await mongoose.connect(mongodbUri);
   console.log("MongoDB connected");
 
-  await agenda.start();
-  console.log("[Agenda] Job processor started");
+  if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0") {
+    await agenda.start();
+    console.log("[Agenda] Job processor started on instance 0");
 
-  initializeFeedbackAutoScheduler();
-  initializeMessChangeAutoScheduler();
-  initializeMessAllotmentScheduler();
-  initializeMessRebateAutoScheduler();
-  initializeRoomCleaningAutoResolveScheduler();
-  initializeGuestCleanupScheduler();
+    initializeFeedbackAutoScheduler();
+    initializeMessChangeAutoScheduler();
+    initializeMessAllotmentScheduler();
+    initializeMessRebateAutoScheduler();
+    initializeRoomCleaningAutoResolveScheduler();
+    initializeGuestCleanupScheduler();
+  }
+
   await initializeAnonymizedUser();
 
   server = app.listen(port, () => {
