@@ -20,6 +20,22 @@ class HostelsNotifier {
     return hostelIdToLaundry[hostelId] == true;
   }
 
+  static const List<String> _fallbackHostelNames = [
+    'Barak',
+    'Brahmaputra',
+    'Dhansiri',
+    'Dihing',
+    'Disang',
+    'Gaurang',
+    'Kameng',
+    'Kapili',
+    'Lohit',
+    'Manas',
+    'Siang',
+    'Subansiri',
+    'Umiam',
+  ];
+
   static Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
     try {
@@ -30,9 +46,18 @@ class HostelsNotifier {
       hostels = [];
       hostelIdToNameMap = {};
       hostelIdToLaundry = {};
-      for (Map hostel in response.data) {
-        final hostelName = hostel['hostel_name'] as String;
-        final hostelId = hostel['_id'] as String;
+      final raw = response.data;
+      if (raw is! List) {
+        throw FormatException('hostel/all: expected JSON array, got ${raw.runtimeType}');
+      }
+      for (final item in raw) {
+        if (item is! Map) continue;
+        final hostel = Map<String, dynamic>.from(item);
+        final hostelName = hostel['hostel_name'] as String?;
+        final hostelId = hostel['_id']?.toString();
+        if (hostelName == null || hostelName.isEmpty || hostelId == null || hostelId.isEmpty) {
+          continue;
+        }
         hostels.add(hostelName);
         hostelIdToNameMap[hostelId] = hostelName;
         hostelIdToLaundry[hostelId] = hostel['isLaundryAvailable'] == true;
@@ -48,21 +73,7 @@ class HostelsNotifier {
       // Update the cache in hostel_name.dart
       updateHostelIdCache(hostelIdToNameMap);
     } catch (e) {
-      hostels = [
-        'Barak',
-        'Brahmaputra',
-        'Dhansiri',
-        'Dihing',
-        'Disang',
-        'Gaurang',
-        'Kameng',
-        'Kapili',
-        'Lohit',
-        'Manas',
-        'Siang',
-        'Subansiri',
-        'Umiam',
-      ];
+      hostels = List<String>.from(_fallbackHostelNames);
       // Try to load cached mapping if API call fails
       try {
         final cachedMap = prefs.getString('hostelIdToNameMap');
@@ -93,7 +104,11 @@ class HostelsNotifier {
           prefs.setString("curr_subscribed_mess", currSubscribedMess);
         }
       } else {
-        userHostel = hostels[0];
+        // API can return [] (empty DB) — never index hostels[0] blindly.
+        if (hostels.isEmpty) {
+          hostels = List<String>.from(_fallbackHostelNames);
+        }
+        userHostel = hostels.isNotEmpty ? hostels.first : '';
       }
       for (var onChange in onHostelChanged) {
         onChange();
