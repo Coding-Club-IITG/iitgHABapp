@@ -327,6 +327,7 @@ class _LeaveApplicationListScreenState
     required Color backgroundColor,
   }) {
     final applicationId = application['_id']?.toString() ?? '';
+    final rowStatus = (application['status'] ?? '').toString().toLowerCase();
     final startIso = application['startDate']?.toString() ?? '';
     final endIso = application['endDate']?.toString() ?? '';
     final leaveType = application['leaveType']?.toString() ?? 'Leave';
@@ -384,20 +385,30 @@ class _LeaveApplicationListScreenState
                 ],
               ),
             ),
-            TextButton(
-              onPressed: () async {
-                await Navigator.of(context).push<void>(
-                  MaterialPageRoute<void>(
-                    builder: (_) => RebateApplicationStatusScreen(
-                      applicationId: applicationId,
-                      listSnapshot: application,
-                      onUpdated: _fetchHistory,
+            if (rowStatus == 'cancelled')
+              Text(
+                'Cancelled',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.grey.shade500,
+                ),
+              )
+            else
+              TextButton(
+                onPressed: () async {
+                  await Navigator.of(context).push<void>(
+                    MaterialPageRoute<void>(
+                      builder: (_) => RebateApplicationStatusScreen(
+                        applicationId: applicationId,
+                        listSnapshot: application,
+                        onUpdated: _fetchHistory,
+                      ),
                     ),
-                  ),
-                );
-              },
-              child: const Text('View Status'),
-            ),
+                  );
+                },
+                child: const Text('View Status'),
+              ),
           ],
         ),
       ),

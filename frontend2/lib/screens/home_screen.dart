@@ -75,28 +75,21 @@ class _HomeScreenState extends State<HomeScreen> {
           const _QuickActionStatusData(status: 'Closed', color: textMuted));
   Timer? _scanQrStatusTimer;
   Timer? _weatherBackgroundTimer;
-  WeatherBackgroundData _weatherBackground = WeatherBackgroundData.fallback();
-  late Future<FestivalModeData> _festivalFuture;
+  Timer? _deferredHomeNetworkTimer;
+  /// First weather + optional deferred festival hit server after this delay (not on Home mount).
+  static const Duration _kDeferredHomeNetworkDelay = Duration(seconds: 60);
+  static const Duration _kDeferredFestivalAfterWeatherStagger =
+      Duration(seconds: 3);
+  WeatherBackgroundData _weatherBackground =
+      WeatherBackgroundData.localTimeDefault();
   @override
   void initState() {
     super.initState();
-    _festivalFuture = Future.value(FestivalModeData.disabled());
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return;
-      final data = await FestivalModeService()
-          .fetchFestivalMode(context: context)
-          .catchError((_) => FestivalModeData.disabled());
-      if (!mounted) return;
-      setState(() {
-        _festivalFuture = Future.value(data);
-      });
-      await _loadWeatherBackground();
-    });
     fetchUserData();
     fetchMessIdAndToken();
-    _loadWeatherBackground();
     _startScanQrStatusTicker();
-    _startWeatherBackgroundTicker();
+    _deferredHomeNetworkTimer =
+        Timer(_kDeferredHomeNetworkDelay, _runDeferredHomeNetworkWork);
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -145,6 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     _scanQrStatusTimer?.cancel();
     _weatherBackgroundTimer?.cancel();
+    _deferredHomeNetworkTimer?.cancel();
     _scanQrStatusNotifier.dispose();
     homeScreenRefreshNotifier.removeListener(_onRefreshRequested);
     super.dispose();
@@ -152,13 +146,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _onRefreshRequested() async {
     if (homeScreenRefreshNotifier.value) {
-      final data = await FestivalModeService()
-          .fetchFestivalMode(context: context)
+      await FestivalModeService()
+          .fetchFestivalMode(context: context, forceRefresh: true)
           .catchError((_) => FestivalModeData.disabled());
       if (!mounted) return;
-      setState(() {
-        _festivalFuture = Future.value(data);
-      });
+      setState(() {});
       fetchUserData();
       fetchMessIdAndToken();
       await _loadWeatherBackground();
@@ -190,10 +182,27 @@ class _HomeScreenState extends State<HomeScreen> {
     await _loadScanQrStatus(messId);
   }
 
+  Future<void> _runDeferredHomeNetworkWork() async {
+    if (!mounted) return;
+    try {
+      await _loadWeatherBackground();
+      if (!mounted) return;
+      await Future<void>.delayed(_kDeferredFestivalAfterWeatherStagger);
+      if (!mounted) return;
+      if (FestivalModeService().tryConsumeDeferredFestivalFetch()) {
+        await FestivalModeService()
+            .fetchFestivalMode(context: context, forceRefresh: true)
+            .catchError((_) => FestivalModeData.disabled());
+      }
+    } finally {
+      if (mounted) {
+        setState(() {});
+        _startWeatherBackgroundTicker();
+      }
+    }
+  }
+
   Future<void> _loadWeatherBackground() async {
-    final festivalData =
-        await _festivalFuture.catchError((_) => FestivalModeData.disabled());
-    if (festivalData.isEnabled) return;
     WeatherBackgroundData nextBackground;
 
     if (_isWeatherBackgroundTesting) {
@@ -239,6 +248,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   String _weatherHeroGreeting(bool hasAlerts) {
+    if (_weatherBackground.weatherGroup == 'rainy') {
+      return "It's Rainy";
+    }
     final festivalData = FestivalModeService().currentData;
     if (festivalData != null && festivalData.isEnabled) {
       if (hasAlerts && festivalData.overlayTextWithAlerts.isNotEmpty) {
@@ -905,14 +917,17 @@ class _HomeScreenState extends State<HomeScreen> {
     final titleColor = _getTitleColor();
     final textColor = _getTextColor();
 
+    final greetingFontSize = hasImportantMessages ? 16.0 : 24.0;
+    final greetingLineHeight =
+        hasImportantMessages ? (20 / 16) : (32 / 24);
+
     return SafeArea(
       bottom: false,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(16, 32, 16, 0),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 10),
             Row(
               children: [
                 Expanded(
@@ -930,7 +945,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                       const SizedBox(width: 6),
                       Padding(
-                        padding: const EdgeInsets.only(bottom: 5),
+                        padding: const EdgeInsets.only(bottom: 4),
                         child: Text(
                           'BETA V2',
                           style: TextStyle(
@@ -948,50 +963,40 @@ class _HomeScreenState extends State<HomeScreen> {
                 _buildProfileAvatar(),
               ],
             ),
-            SizedBox(height: hasImportantMessages ? 0 : 8),
-            Transform.translate(
-              offset: Offset(0, hasImportantMessages ? -8 : 0),
-              child: Row(
-                children: [
-                  Flexible(
-                    child: RichText(
-                      overflow: TextOverflow.ellipsis,
-                      text: TextSpan(
-                        style: TextStyle(
-                          fontSize: hasImportantMessages ? 16 : 24,
-                          height: hasImportantMessages ? 20 / 16 : 32 / 24,
-                          fontWeight: FontWeight.w500,
-                          color: textColor,
-                        ),
-                        children: [
-                          TextSpan(text: greeting),
-                          const TextSpan(text: ' '),
-                          TextSpan(
-                            text: displayName,
-                            style: TextStyle(color: textColor),
-                          ),
-                        ],
+            const SizedBox(height: 12),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: RichText(
+                    overflow: TextOverflow.ellipsis,
+                    text: TextSpan(
+                      style: TextStyle(
+                        fontSize: greetingFontSize,
+                        height: greetingLineHeight,
+                        fontWeight: FontWeight.w500,
+                        color: textColor,
                       ),
+                      children: [
+                        TextSpan(text: '$greeting, '),
+                        TextSpan(text: displayName),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
             if (!hasImportantMessages) ...[
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.only(left: 5),
-                child: Text(
-                  subtitleText,
-                  style: TextStyle(
-                    fontSize: 12,
-                    height: 16 / 12,
-                    fontWeight: FontWeight.w500,
-                    color: textColor,
-                  ),
+              const SizedBox(height: 8),
+              Text(
+                subtitleText,
+                style: TextStyle(
+                  fontSize: 12,
+                  height: 16 / 12,
+                  fontWeight: FontWeight.w500,
+                  color: textColor,
                 ),
               ),
-              const SizedBox(height: 32),
             ],
           ],
         ),
@@ -1143,13 +1148,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   unreadCount: totalUnreadCount,
                   hasImportantMessages: activeAlerts.isNotEmpty,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 32),
                 if (activeAlerts.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _buildImportantMessagesCard(activeAlerts),
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 32),
                 ],
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1329,7 +1334,10 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildWeatherHeroSection() {
-    final festivalOn = FestivalModeService().currentData?.isEnabled == true;
+    final festivalModeOn =
+        FestivalModeService().currentData?.isEnabled == true;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    final festivalOn = festivalModeOn && !rainPriority;
     final DecorationImage? bgImage = festivalOn
         ? null
         : DecorationImage(
@@ -1340,47 +1348,26 @@ class _HomeScreenState extends State<HomeScreen> {
             alignment: Alignment.topCenter,
           );
 
-    return Column(
-      children: [
-        AnimatedContainer(
-          duration: const Duration(milliseconds: 400),
-          width: double.infinity,
-          decoration: BoxDecoration(image: bgImage),
-          child: Container(
-            decoration: festivalOn
-                ? null
-                : const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0x2E000000),
-                        Color(0x12000000),
-                        Color(0x00FFFFFF),
-                        Color(0xFFFFFFFF),
-                      ],
-                      stops: [0.0, 0.34, 0.72, 1.0],
-                    ),
-                  ),
-            child: Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-                  child: _buildAlertsSection(),
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 400),
+      width: double.infinity,
+      decoration: BoxDecoration(image: bgImage),
+      child: Container(
+        decoration: festivalOn
+            ? null
+            : const BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Color(0x00FFFFFF),
+                    Color(0xFFFFFFFF),
+                  ],
+                  stops: [0.59, 1.0],
                 ),
-              ],
-            ),
-          ),
-        ),
-        Container(
-          height: 20,
-          decoration: BoxDecoration(
-            color: festivalOn ? Colors.transparent : pageBackground,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(28)),
-          ),
-        ),
-      ],
+              ),
+        child: _buildAlertsSection(),
+      ),
     );
   }
 
@@ -1389,11 +1376,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return ValueListenableBuilder<List<AlertModel>>(
       valueListenable: AlertsManager.activeAlertsNotifier,
       builder: (context, activeAlerts, _) {
+        final rainPriority = _weatherBackground.weatherGroup == 'rainy';
         return FestivalBackgroundBuilder(
           hasAlerts: activeAlerts.isNotEmpty,
+          suppressFestivalBackdrop: rainPriority,
           builder: (context) {
-            final festivalOn =
+            final festivalModeOn =
                 FestivalModeService().currentData?.isEnabled ?? false;
+            final festivalOn = festivalModeOn && !rainPriority;
             return Scaffold(
               backgroundColor:
                   festivalOn ? Colors.transparent : pageBackground,

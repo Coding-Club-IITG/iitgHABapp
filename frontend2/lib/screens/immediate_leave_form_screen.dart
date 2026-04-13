@@ -239,6 +239,31 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
       initialDate: initial,
       firstDate: firstDate,
       lastDate: lastDate,
+      builder: (context, child) {
+        final baseTheme = Theme.of(context);
+        final cs = baseTheme.colorScheme;
+        final themed = baseTheme.copyWith(
+          dialogBackgroundColor: Colors.white,
+          colorScheme: cs.brightness == Brightness.dark
+              ? cs.copyWith(
+                  primary: _primaryColor,
+                  surface: Colors.white,
+                  onPrimary: Colors.white,
+                  onSurface: const Color(0xFF2E2F31),
+                )
+              : ColorScheme.light(
+                  primary: _primaryColor,
+                  surface: Colors.white,
+                  onPrimary: Colors.white,
+                  onSurface: const Color(0xFF2E2F31),
+                ),
+          datePickerTheme: const DatePickerThemeData(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+          ),
+        );
+        return Theme(data: themed, child: child!);
+      },
     );
     if (picked != null) {
       setState(() {

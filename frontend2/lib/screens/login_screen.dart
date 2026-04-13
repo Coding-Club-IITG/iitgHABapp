@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:frontend2/apis/authentication/login.dart';
+import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:frontend2/screens/main_navigation_screen.dart';
 import 'package:frontend2/widgets/login screen/login_button.dart';
 import 'package:lottie/lottie.dart';
@@ -163,6 +164,8 @@ class _OnboardingScreenState extends State<OnboardingScreen>
             _inprogress = false;
           });
           if (!mounted) return;
+          await FestivalModeService().bootstrapBeforeHome();
+          if (!mounted) return;
           navigator.pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (context) => const MainNavigationScreen(),
@@ -310,6 +313,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                     _inprogress = false;
                                   });
                                   if (!mounted) return;
+                                  await FestivalModeService()
+                                      .bootstrapBeforeHome();
+                                  if (!mounted) return;
                                   navigator.pushAndRemoveUntil(
                                     MaterialPageRoute(
                                       builder: (context) =>
@@ -417,6 +423,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                     setModalState(() {
                                       _inprogress = false;
                                     });
+                                    if (!mounted) return;
+                                    await FestivalModeService()
+                                        .bootstrapBeforeHome();
                                     if (!mounted) return;
                                     navigator.pushAndRemoveUntil(
                                       MaterialPageRoute(
