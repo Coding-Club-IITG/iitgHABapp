@@ -63,8 +63,6 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
             data,
             widget.hasAlerts,
           );
-          festivalImageUrl =
-              festivalImageUrl?.replaceAll('localhost', '10.0.2.2');
         }
 
         // If festival mode is off or no image, render default
@@ -153,12 +151,10 @@ class FestivalBackgroundBuilder extends StatelessWidget {
     return ValueListenableBuilder<FestivalModeData>(
       valueListenable: FestivalModeService().festivalVisualNotifier,
       builder: (context, data, _) {
-        var backgroundImage = FestivalModeService().getAppropriateFestivalImage(
+        final backgroundImage = FestivalModeService().getAppropriateFestivalImage(
           data,
           hasAlerts,
         );
-        backgroundImage =
-            backgroundImage?.replaceAll('localhost', '10.0.2.2');
 
         return _BackgroundContainer(
           backgroundImage: backgroundImage,
