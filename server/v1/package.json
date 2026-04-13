@@ -13,6 +13,7 @@
   "description": "",
   "dependencies": {
     "@agendajs/mongo-backend": "^4.0.1",
+    "@agendajs/redis-backend": "^3.0.5",
     "@azure/identity": "^4.13.1",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "agenda": "^6.2.4",

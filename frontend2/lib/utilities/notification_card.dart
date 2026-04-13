@@ -11,7 +11,6 @@ class NotificationCard extends StatelessWidget {
   final String? redirectType;
   final int? notificationIndex;
   final bool isRead;
-  final bool isAlert;
 
   const NotificationCard({
     super.key,
@@ -21,7 +20,6 @@ class NotificationCard extends StatelessWidget {
     this.redirectType,
     this.notificationIndex,
     this.isRead = false,
-    this.isAlert = false,
   });
 
   IconData _iconForRedirect(String? type) {
@@ -125,30 +123,6 @@ class NotificationCard extends StatelessWidget {
                             ),
                           ],
                         ),
-                        if (isAlert) ...[
-                          const SizedBox(height: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: AppUi.yellowSoft,
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(
-                                color: const Color(0xFFE5D9B4),
-                              ),
-                            ),
-                            child: const Text(
-                              'Alert',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppUi.yellow,
-                              ),
-                            ),
-                          ),
-                        ],
                         if (subtitle.isNotEmpty) ...[
                           const SizedBox(height: 6),
                           Text(
