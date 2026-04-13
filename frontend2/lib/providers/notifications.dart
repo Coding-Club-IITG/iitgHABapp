@@ -3,10 +3,11 @@
 
 import 'package:flutter/foundation.dart';
 import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/models/notification_model.dart';
 
 class NotificationProvider {
   // Delegate to the global notificationHistoryNotifier from notifications.dart
-  static ValueNotifier<List<dynamic>> get notificationProvider =>
+  static ValueNotifier<List<NotificationModel>> get notificationProvider =>
       notificationHistoryNotifier;
 
   static void init() {

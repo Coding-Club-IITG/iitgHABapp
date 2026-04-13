@@ -45,7 +45,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const bool _isWeatherBackgroundTesting = false;
   static const String _testingWeatherGroup = 'clear'; // clear, rainy
   static const bool _testingIsDay = false;
@@ -85,6 +85,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     fetchUserData();
     fetchMessIdAndToken();
     _startScanQrStatusTicker();
@@ -135,7 +136,46 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      // Reload notifications and alerts from SharedPreferences when app comes to foreground
+      // This ensures notifications/alerts received in background are displayed
+      _reloadNotificationsFromPrefs();
+      _reloadAlertsFromPrefs();
+    }
+  }
+
+  Future<void> _reloadAlertsFromPrefs() async {
+    try {
+      await AlertsManager.filterAndLoadLocalAlerts();
+      if (kDebugMode) {
+        debugPrint('✅ Reloaded alerts from prefs on app resume');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Error reloading alerts on app resume: $e');
+      }
+    }
+  }
+
+  Future<void> _reloadNotificationsFromPrefs() async {
+    try {
+      final notifications = await getNotificationHistory();
+      notificationHistoryNotifier.value = notifications;
+      if (kDebugMode) {
+        debugPrint('✅ Reloaded ${notifications.length} notifications from prefs on app resume');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('❌ Error reloading notifications on app resume: $e');
+      }
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _scanQrStatusTimer?.cancel();
     _weatherBackgroundTimer?.cancel();
     _deferredHomeNetworkTimer?.cancel();
@@ -154,6 +194,8 @@ class _HomeScreenState extends State<HomeScreen> {
       fetchUserData();
       fetchMessIdAndToken();
       await _loadWeatherBackground();
+      await _reloadNotificationsFromPrefs();
+      await _reloadAlertsFromPrefs();
       homeScreenRefreshNotifier.value = false;
     }
   }
@@ -389,7 +431,9 @@ class _HomeScreenState extends State<HomeScreen> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
       backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.35),
       builder: (context) => const NotificationScreen(),
     );
   }
@@ -1084,10 +1128,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Widget _buildUpdatesCard(int unreadCount) {
     return InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () {
-        // CLEAR THE ALERTS BADGE when they open the sheet
-        AlertsManager.markAllAlertsAsRead();
-        markAllNotificationsAsRead();
+      onTap: () async {
+        // Clear alert badges; notification read state is updated from the sheet
+        // (Mark all read / per-item tap), not when opening.
+        await AlertsManager.markAllAlertsAsRead();
         _openNotificationsSheet();
       },
       child: Container(
@@ -1127,25 +1171,24 @@ class _HomeScreenState extends State<HomeScreen> {
     return ValueListenableBuilder<List<AlertModel>>(
       valueListenable: AlertsManager.activeAlertsNotifier,
       builder: (context, activeAlerts, child) {
-        return ValueListenableBuilder<List<dynamic>>(
-          valueListenable: NotificationProvider.notificationProvider,
-          builder: (context, storedNotifications, child) {
-            final notifications = storedNotifications.map((item) {
-              if (item is NotificationModel) return item;
-              return NotificationModel.fromLegacyString(item.toString());
-            }).toList();
-
-            final unreadNotifCount =
-                notifications.where((n) => !n.isRead).length;
-            final unreadAlertsCount =
-                activeAlerts.where((a) => !a.isRead).length;
+            return ValueListenableBuilder<List<NotificationModel>>(
+              valueListenable: NotificationProvider.notificationProvider,
+              builder: (context, storedNotifications, child) {
+                final notifications = storedNotifications;
+                // notifications.forEach((notification) {print(notification.timestamp);});
+                // notifications.forEach((notification) {print(notification.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)));});
+              final unreadNotifCount = notifications.where((n) => !n.isRead && !n.isAlert).length;
+              final unreadAlertsCount =
+                  activeAlerts.where((a) => !a.isRead).length;
             final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
+            final updatesCount = unreadNotifCount;
+            final todayNotificationCount = notifications.where((n) => (!n.isAlert) && n.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day))).length;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildWeatherHeroHeader(
-                  unreadCount: totalUnreadCount,
+                  unreadCount: todayNotificationCount,
                   hasImportantMessages: activeAlerts.isNotEmpty,
                 ),
                 const SizedBox(height: 32),
@@ -1154,11 +1197,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _buildImportantMessagesCard(activeAlerts),
                   ),
-                  const SizedBox(height: 32),
+                  const SizedBox(height: 16),
                 ],
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildUpdatesCard(totalUnreadCount),
+                  child: _buildUpdatesCard(updatesCount),
                 ),
                 const SizedBox(height: 32),
               ],
