@@ -53,10 +53,8 @@ export const Dashboard = () => {
   const getUserHostel = async () => {
     try {
       if (!user?.hostel) return null;
-      const response = await apiClient.get(
-        `/hostel/all/smc/${user.hostel}`,
-      );
-      return response.data.hostel;
+      const response = await apiClient.get(`/hostel/all/smc/${user.hostel}`);
+      return response.data?.hostel || response.data;
     } catch (err) {
       console.error("Error fetching hostel:", err);
       return null;
@@ -83,10 +81,9 @@ export const Dashboard = () => {
 
     try {
       setIsLoading(true);
-      const response = await apiClient.post(
-        `/mess/menu/smc/${messId}`,
-        { day: days[activeTab] },
-      );
+      const response = await apiClient.post(`/mess/menu/smc/${messId}`, {
+        day: days[activeTab],
+      });
 
       if (response.data === "DoesntExist") {
         setMenuExists(false);

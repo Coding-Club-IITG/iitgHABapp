@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
+import { BACKEND_URL } from "../apis/server.js";
 
-// Backend v1 defaults to PORT_V1 3001 (see server/v1/config/default.js)
-const API_BASE = import.meta.env.VITE_SERVER_URL || "http://localhost:3001/api";
+const API_BASE = BACKEND_URL;
 
 /** First list entry or legacy overlay; default greeting. */
 const greetingFromServer = (textsArr, legacyOverlay) => {
@@ -589,7 +589,7 @@ const FestivalModeAdmin = () => {
                                     className="absolute bottom-3 right-3 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
                                     disabled={uploading}
                                 >
-                                    Delete 
+                                    Delete
                                 </button>
                             </>
                         ) : (

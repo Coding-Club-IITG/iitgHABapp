@@ -496,7 +496,7 @@ class _LeaveApplicationListScreenState
                 children: [
                   // "Want to take a leave?" Section
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 32, 16, 20),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -509,6 +509,35 @@ class _LeaveApplicationListScreenState
                           ),
                         ),
                         const SizedBox(height: 20),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 0),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.only(top: 2),
+                                child: SvgPicture.asset(
+                                  'assets/icon/info-circle.svg',
+                                  width: 16,
+                                  height: 16,
+                                  color: const Color(0xFF2E2F31),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              const Expanded(
+                                child: Text(
+                                  "Mess rebate requires applying at least 2 days in advance for casual leave and 1 day in advance for other types of leave.",
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                    color: Color(0xFF535353),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
                         _LeaveTypeCard(
                           "Casual",
                           "Short, unforeseen personal work or urgent errands.",
@@ -571,37 +600,21 @@ class _LeaveApplicationListScreenState
                             }
                           },
                         ),
-                        const SizedBox(height: 16),
+                        // const SizedBox(height: 16),
+                      ],
+                    ),
+                  ),
+                  // Divider
+                  Container(
+                    height: 8,
+                    color: const Color(0xFFF0F0F0),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
                         // Info box
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 0),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Padding(
-                                padding: const EdgeInsets.only(top: 2),
-                                child: SvgPicture.asset(
-                                  'assets/icon/info-circle.svg',
-                                  width: 16,
-                                  height: 16,
-                                  color: const Color(0xFF2E2F31),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              const Expanded(
-                                child: Text(
-                                  "Mess rebate requires applying at least 2 days in advance for casual leave and 1 day in advance for other types of leave.",
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500,
-                                    color: Color(0xFF535353),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
                         Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -653,7 +666,7 @@ class _LeaveApplicationListScreenState
                   ),
                   // Past rebate applications list
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -724,6 +737,7 @@ class _LeaveApplicationListScreenState
                                 child: Column(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
+                                    const SizedBox(height: 40),
                                     Icon(
                                       Icons.assignment_outlined,
                                       size: 80,
@@ -747,6 +761,7 @@ class _LeaveApplicationListScreenState
                                         color: Colors.black38,
                                       ),
                                     ),
+                                    const SizedBox(height: 40),
                                   ],
                                 ),
                               );

@@ -360,6 +360,20 @@ export const deleteFestivalImageByItemId = async (req, res, next) => {
     const festivalMode = await FestivalMode.findOne();
     if (!festivalMode) return next(new AppError(404, "Festival mode not configured"));
 
+    const inWithArrays = (festivalMode.imagesWithAlerts || []).some((img) => img?.itemId === itemId);
+    const inWithoutArrays = (festivalMode.imagesWithoutAlerts || []).some((img) => img?.itemId === itemId);
+    const inLegacyWith = festivalMode.imageWithAlerts?.itemId === itemId;
+    const inLegacyWithout = festivalMode.imageWithoutAlerts?.itemId === itemId;
+    const isKnownFestivalItem =
+      inWithArrays || inWithoutArrays || inLegacyWith || inLegacyWithout;
+
+    if (!isKnownFestivalItem) {
+      return res.status(404).json({
+        success: false,
+        message: "No festival image references this itemId",
+      });
+    }
+
     const beforeWith = Array.isArray(festivalMode.imagesWithAlerts) ? festivalMode.imagesWithAlerts.length : 0;
     const beforeWithout = Array.isArray(festivalMode.imagesWithoutAlerts) ? festivalMode.imagesWithoutAlerts.length : 0;
 
@@ -370,7 +384,6 @@ export const deleteFestivalImageByItemId = async (req, res, next) => {
     if (festivalMode.imageWithAlerts?.itemId === itemId) festivalMode.imageWithAlerts = null;
     if (festivalMode.imageWithoutAlerts?.itemId === itemId) festivalMode.imageWithoutAlerts = null;
 
-    // Delete from OneDrive (best-effort)
     try {
       await deleteFestivalImageFromOneDrive(itemId);
     } catch (oneDriveErr) {

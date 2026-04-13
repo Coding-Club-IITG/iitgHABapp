@@ -58,8 +58,8 @@ const NotificationSender = () => {
       } else {
         // Get hostel name from user's hostel
         const response = await apiClient.get(`/hostel/all/smc/${user.hostel}`);
-        const hostelName =
-          response.data.hostel?.hostel_name?.replaceAll(" ", "_") || "";
+        const hostelData = response.data?.hostel || response.data;
+        const hostelName = hostelData?.hostel_name?.replaceAll(" ", "_") || "";
 
         const topic =
           userType === "boarders"
