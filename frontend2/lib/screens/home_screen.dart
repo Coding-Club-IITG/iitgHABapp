@@ -78,10 +78,34 @@ class _HomeScreenState extends State<HomeScreen> {
   Timer? _deferredHomeNetworkTimer;
   /// First weather + optional deferred festival hit server after this delay (not on Home mount).
   static const Duration _kDeferredHomeNetworkDelay = Duration(seconds: 60);
-  static const Duration _kDeferredFestivalAfterWeatherStagger =
-      Duration(seconds: 3);
   WeatherBackgroundData _weatherBackground =
       WeatherBackgroundData.localTimeDefault();
+
+  /// When festival mode is off (or rain backdrop): morning & afternoon = purple;
+  /// evening & rain = white. Weekend title/username are split in [_getTitleColor] /
+  /// [_heroUserNameColor] (white + purple).
+  Color _heroAccentColor() {
+    final variant = _weatherBackground.backgroundVariant;
+    switch (variant) {
+      case 'morning':
+      case 'afternoon':
+        return primary;
+      case 'weekend':
+      case 'evening':
+      case 'rainy':
+      default:
+        return Colors.white;
+    }
+  }
+
+  Color _festivalPrimaryColor() {
+    final data = FestivalModeService().currentData;
+    if (data != null && data.isEnabled) {
+      return FestivalThemePalette.resolveColor(data.themeColor);
+    }
+    return primary;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -93,6 +117,7 @@ class _HomeScreenState extends State<HomeScreen> {
     homeScreenRefreshNotifier.addListener(_onRefreshRequested);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _syncFestivalConfigFromServerIfPending();
 
       // Add dummy alerts for testing extended background
       if (_isTestingNotifications) {
@@ -132,6 +157,20 @@ class _HomeScreenState extends State<HomeScreen> {
         roomCleaningProvider.loadMyBookings();
       }
     });
+  }
+
+  /// Admin changes (theme/text) update `lastUpdatedAt` — [bootstrapBeforeHome] sets a deferred
+  /// full `/status` fetch. Run it on first frame instead of waiting for the 60s home timer.
+  Future<void> _syncFestivalConfigFromServerIfPending() async {
+    if (!mounted) return;
+    if (!FestivalModeService().tryConsumeDeferredFestivalFetch()) return;
+    try {
+      await FestivalModeService()
+          .fetchFestivalMode(context: context, forceRefresh: true);
+    } catch (_) {
+      // [fetchFestivalMode] already falls back to Hive / disabled
+    }
+    if (mounted) setState(() {});
   }
 
   @override
@@ -186,14 +225,8 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     try {
       await _loadWeatherBackground();
-      if (!mounted) return;
-      await Future<void>.delayed(_kDeferredFestivalAfterWeatherStagger);
-      if (!mounted) return;
-      if (FestivalModeService().tryConsumeDeferredFestivalFetch()) {
-        await FestivalModeService()
-            .fetchFestivalMode(context: context, forceRefresh: true)
-            .catchError((_) => FestivalModeData.disabled());
-      }
+      // Festival full sync is triggered from [_syncFestivalConfigFromServerIfPending]
+      // on first frame when bootstrap marks it pending — do not wait 60s.
     } finally {
       if (mounted) {
         setState(() {});
@@ -253,11 +286,20 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     final festivalData = FestivalModeService().currentData;
     if (festivalData != null && festivalData.isEnabled) {
-      if (hasAlerts && festivalData.overlayTextWithAlerts.isNotEmpty) {
-        return festivalData.overlayTextWithAlerts;
-      } else if (!hasAlerts &&
-          festivalData.overlayTextWithoutAlerts.isNotEmpty) {
-        return festivalData.overlayTextWithoutAlerts;
+      if (hasAlerts) {
+        if (festivalData.textsWithAlerts.isNotEmpty) {
+          return festivalData.textsWithAlerts.first;
+        }
+        if (festivalData.overlayTextWithAlerts.isNotEmpty) {
+          return festivalData.overlayTextWithAlerts;
+        }
+      } else {
+        if (festivalData.textsWithoutAlerts.isNotEmpty) {
+          return festivalData.textsWithoutAlerts.first;
+        }
+        if (festivalData.overlayTextWithoutAlerts.isNotEmpty) {
+          return festivalData.overlayTextWithoutAlerts;
+        }
       }
     }
     return getGreeting();
@@ -625,6 +667,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildMessSectionHeader(String messName) {
+    const accent = primary;
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -648,8 +691,8 @@ class _HomeScreenState extends State<HomeScreen> {
         InkWell(
           onTap: () => widget.onNavigateToTab?.call(1),
           borderRadius: BorderRadius.circular(16),
-          child: const Padding(
-            padding: EdgeInsets.symmetric(vertical: 2),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
             child: Row(
               children: [
                 Text(
@@ -658,14 +701,14 @@ class _HomeScreenState extends State<HomeScreen> {
                     fontSize: 14,
                     height: 20 / 14,
                     fontWeight: FontWeight.w500,
-                    color: primary,
+                    color: accent,
                   ),
                 ),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
-                  color: primary,
+                  color: accent,
                 ),
               ],
             ),
@@ -877,12 +920,14 @@ class _HomeScreenState extends State<HomeScreen> {
   Color _getTitleColor() {
     final variant = _weatherBackground.backgroundVariant;
 
-    // For morning and afternoon use dark color
-    if (variant == 'morning' || variant == 'afternoon') {
+    // For morning, afternoon, and weekend use dark color
+    if (variant == 'morning' ||
+        variant == 'afternoon' ||
+        variant == 'weekend') {
       return const Color(0xFF4C4EDB); // #4C4EDB
     }
 
-    // For evening, raining, and weekend use light color
+    // For evening and raining use light color
     return const Color(0xFFEDEDFB);
   }
 
@@ -898,6 +943,19 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // For evening and raining use white/light color
     return Colors.white;
+  }
+
+  /// First name: weekend uses [primary]; else festival or [_heroAccentColor].
+  Color _heroUserNameColor() {
+    if (_weatherBackground.backgroundVariant == 'weekend') {
+      return primary;
+    }
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null && festivalData.isEnabled && !rainPriority) {
+      return _festivalPrimaryColor();
+    }
+    return _heroAccentColor();
   }
 
   Widget _buildWeatherHeroHeader({
@@ -971,11 +1029,14 @@ class _HomeScreenState extends State<HomeScreen> {
                         fontSize: greetingFontSize,
                         height: greetingLineHeight,
                         fontWeight: FontWeight.w500,
-                        color: textColor,
+                        color: _getTextColor(),
                       ),
                       children: [
                         TextSpan(text: '$greeting, '),
-                        TextSpan(text: displayName),
+                        TextSpan(
+                          text: displayName,
+                          style: TextStyle(color: _heroUserNameColor()),
+                        ),
                       ],
                     ),
                   ),
@@ -1078,6 +1139,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildUpdatesCard(int unreadCount) {
+    const accent = primary;
     return InkWell(
       borderRadius: BorderRadius.circular(16),
       onTap: () {
@@ -1112,7 +1174,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const Spacer(),
-            const Icon(Icons.chevron_right_rounded, size: 16, color: primary),
+            Icon(Icons.chevron_right_rounded, size: 16, color: accent),
           ],
         ),
       ),
@@ -1166,14 +1228,15 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Widget _buildQuickActionCard(_QuickActionData action) {
+    const accent = primary;
     final iconChild = action.iconAsset != null
         ? SvgPicture.asset(
             action.iconAsset!,
             width: 24,
             height: 24,
-            colorFilter: const ColorFilter.mode(primary, BlendMode.srcIn),
+            colorFilter: ColorFilter.mode(accent, BlendMode.srcIn),
           )
-        : Icon(action.icon, color: primary, size: 24);
+        : Icon(action.icon, color: accent, size: 24);
 
     return Expanded(
       child: InkWell(
@@ -1388,13 +1451,24 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Column(
                         children: [
                           _buildWeatherHeroSection(),
-                          _buildSectionDivider(),
-                          Padding(
-                            padding: const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                            child: ValueListenableBuilder<List<String>>(
-                              valueListenable: HostelsNotifier.hostelNotifier,
-                              builder: (context, _, __) =>
-                                  _buildQuickActionsSection(),
+                          ColoredBox(
+                            color: pageBackground,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _buildSectionDivider(),
+                                Padding(
+                                  padding:
+                                      const EdgeInsets.fromLTRB(16, 32, 16, 32),
+                                  child:
+                                      ValueListenableBuilder<List<String>>(
+                                    valueListenable:
+                                        HostelsNotifier.hostelNotifier,
+                                    builder: (context, _, __) =>
+                                        _buildQuickActionsSection(),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -1418,28 +1492,39 @@ class _HomeScreenState extends State<HomeScreen> {
                               child: Column(
                                 children: [
                                   _buildWeatherHeroSection(),
-                                  _buildSectionDivider(),
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        16, 32, 16, 32),
-                                    child: ValueListenableBuilder<List<String>>(
-                                      valueListenable:
-                                          HostelsNotifier.hostelNotifier,
-                                      builder: (context, _, __) =>
-                                          _buildQuickActionsSection(),
-                                    ),
-                                  ),
-                                  _buildSectionDivider(),
-                                  Padding(
-                                    padding: const EdgeInsets.fromLTRB(
-                                        16, 32, 16, 32),
-                                    child: menuSnap.hasError
-                                        ? _buildMessSectionError(messName)
-                                        : _buildMessSectionForMenus(
-                                            messName,
-                                            menuSnap.data ??
-                                                const <MenuModel>[],
+                                  ColoredBox(
+                                    color: pageBackground,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                        _buildSectionDivider(),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                              16, 32, 16, 32),
+                                          child: ValueListenableBuilder<
+                                              List<String>>(
+                                            valueListenable: HostelsNotifier
+                                                .hostelNotifier,
+                                            builder: (context, _, __) =>
+                                                _buildQuickActionsSection(),
                                           ),
+                                        ),
+                                        _buildSectionDivider(),
+                                        Padding(
+                                          padding: const EdgeInsets.fromLTRB(
+                                              16, 32, 16, 32),
+                                          child: menuSnap.hasError
+                                              ? _buildMessSectionError(
+                                                  messName)
+                                              : _buildMessSectionForMenus(
+                                                  messName,
+                                                  menuSnap.data ??
+                                                      const <MenuModel>[],
+                                                ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
                                 ],
                               ),

@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
 
+/// Design canvas width 390; heights match admin exports.
+double _festivalBannerHeight(bool hasAlerts) => hasAlerts ? 385.0 : 305.0;
+
 /// Bulletproof Festival Background Widget
 /// Handles: flicker prevention, fallbacks, error states, offline mode
 class FestivalBackgroundWidget extends StatefulWidget {
@@ -70,7 +73,11 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
         }
 
         // Render with festival image and bulletproof error handling
-        return _buildFestivalBackground(context, festivalImageUrl);
+        return _buildFestivalBackground(
+          context,
+          festivalImageUrl,
+          hasAlerts: widget.hasAlerts,
+        );
       },
     );
   }
@@ -94,20 +101,23 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
 
   /// Build with festival image with bulletproof error handling
   /// Build with festival image as a Hero Banner with a smooth fade
-  Widget _buildFestivalBackground(BuildContext context, String imageUrl) {
-    // This grabs your app's default background color (likely white or off-white)
+  Widget _buildFestivalBackground(
+    BuildContext context,
+    String imageUrl, {
+    required bool hasAlerts,
+  }) {
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final bannerH = _festivalBannerHeight(hasAlerts);
 
     return Container(
-      color: bgColor, // Solid color for the bottom part of the app
+      color: bgColor,
       child: Stack(
         children: [
-          // 1. The Hero Image pinned to the top
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: 380, // Adjust this to match your sunset image height
+            height: bannerH,
             child: CachedNetworkImage(
               imageUrl: imageUrl,
               fit: BoxFit.cover,
@@ -121,30 +131,6 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
             ),
           ),
 
-          // 2. The Fade Gradient (Mimics the sunset blend)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 385, // Slightly taller than the image to prevent hard edges
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withOpacity(
-                        0.4), // Dark top so top-bar text is readable
-                    Colors.transparent,
-                    bgColor, // Fades completely into the app's background color
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Your main app content sits on top
           Positioned.fill(
             child: widget.child,
           ),
@@ -212,6 +198,7 @@ class FestivalBackgroundBuilder extends StatelessWidget {
 
         return _BackgroundContainer(
           backgroundImage: backgroundImage,
+          hasAlerts: hasAlerts,
           child: builder(context),
         );
       },
@@ -223,10 +210,12 @@ class FestivalBackgroundBuilder extends StatelessWidget {
 /// Reusable background container with all error handling
 class _BackgroundContainer extends StatelessWidget {
   final String? backgroundImage;
+  final bool hasAlerts;
   final Widget child;
 
   const _BackgroundContainer({
     this.backgroundImage,
+    this.hasAlerts = true,
     required this.child,
   });
 
@@ -237,17 +226,17 @@ class _BackgroundContainer extends StatelessWidget {
     }
 
     final bgColor = Theme.of(context).scaffoldBackgroundColor;
+    final bannerH = _festivalBannerHeight(hasAlerts);
 
     return Container(
       color: bgColor,
       child: Stack(
         children: [
-          // 1. Hero Image
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: 380, // Height of the header
+            height: bannerH,
             child: CachedNetworkImage(
               imageUrl: backgroundImage!,
               fit: BoxFit.cover,
@@ -261,29 +250,6 @@ class _BackgroundContainer extends StatelessWidget {
             ),
           ),
 
-          // 2. Fade Gradient
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 385,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.4),
-                    Colors.transparent,
-                    bgColor,
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          // 3. Content
           Positioned.fill(
             child: child,
           ),

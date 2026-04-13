@@ -1,7 +1,18 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 
-const API_BASE = import.meta.env.VITE_SERVER_URL || "http://localhost:3000/api";
+// Backend v1 defaults to PORT_V1 3001 (see server/v1/config/default.js)
+const API_BASE = import.meta.env.VITE_SERVER_URL || "http://localhost:3001/api";
+
+/** First list entry or legacy overlay; default greeting. */
+const greetingFromServer = (textsArr, legacyOverlay) => {
+    if (Array.isArray(textsArr) && textsArr.length > 0) {
+        const t = String(textsArr[0] ?? "").trim();
+        if (t) return t;
+    }
+    const leg = legacyOverlay != null ? String(legacyOverlay).trim() : "";
+    return leg || "Happy Diwali";
+};
 
 const FestivalModeAdmin = () => {
     console.log("[FestivalModeAdmin] API_BASE=", API_BASE);
@@ -9,18 +20,64 @@ const FestivalModeAdmin = () => {
     const [isEnabled, setIsEnabled] = useState(false);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
-    const [imageWithAlerts, setImageWithAlerts] = useState(null);
-    const [imageWithoutAlerts, setImageWithoutAlerts] = useState(null);
-    const [previewAlerts, setPreviewAlerts] = useState(null);
-    const [previewNoAlerts, setPreviewNoAlerts] = useState(null);
-    const [overlayTextAlerts, setOverlayTextAlerts] = useState("Happy Diwali");
-    const [overlayTextNoAlerts, setOverlayTextNoAlerts] = useState("Happy Diwali");
+    const [imageWithAlerts, setImageWithAlerts] = useState(null); // legacy
+    const [imageWithoutAlerts, setImageWithoutAlerts] = useState(null); // legacy
+    const [previewAlerts, setPreviewAlerts] = useState(null); // primary preview
+    const [previewNoAlerts, setPreviewNoAlerts] = useState(null); // primary preview
+    const [textWithAlerts, setTextWithAlerts] = useState("Happy Diwali");
+    const [textWithoutAlerts, setTextWithoutAlerts] = useState("Happy Diwali");
+    const [themeColor, setThemeColor] = useState("#4C4EDB");
+    const [hexInput, setHexInput] = useState("#4C4EDB");
+    const [hexError, setHexError] = useState("");
     const [lastUpdated, setLastUpdated] = useState(null);
     const [cacheUntil, setCacheUntil] = useState(null);
     const [expiresAt, setExpiresAt] = useState("");
     const [token, setToken] = useState("");
 
     const getCacheKey = (id) => `festival_config_${id}`;
+
+    const COLOR_PALETTE = [
+        "#4C4EDB",
+        "#7C3AED",
+        "#DB2777",
+        "#DC2626",
+        "#EA580C",
+        "#D97706",
+        "#16A34A",
+        "#0EA5E9",
+        "#2563EB",
+        "#111827",
+    ];
+
+    const normalizeHex = (raw) => {
+        const s = (raw || "").trim();
+        if (!s) return null;
+        let m = s.match(/^#?([0-9A-Fa-f]{6})$/);
+        if (m) return `#${m[1].toUpperCase()}`;
+        m = s.match(/^#?([0-9A-Fa-f]{3})$/);
+        if (m) {
+            const [a, b, c] = m[1].split("");
+            return `#${a}${a}${b}${b}${c}${c}`.toUpperCase();
+        }
+        return null;
+    };
+
+    const applyHexFromInput = () => {
+        const n = normalizeHex(hexInput);
+        if (n) {
+            setThemeColor(n);
+            setHexInput(n);
+            setHexError("");
+        } else {
+            setHexError("Use a valid hex color, e.g. #4C4EDB or #RGB");
+        }
+    };
+
+    const setThemeFromPalette = (hex) => {
+        setThemeColor(hex);
+        setHexInput(hex);
+        setHexError("");
+    };
 
     useEffect(() => {
         loadToken();
@@ -72,17 +129,26 @@ const FestivalModeAdmin = () => {
             setIsEnabled(data.isEnabled);
             setImageWithAlerts(data.imageWithAlerts);
             setImageWithoutAlerts(data.imageWithoutAlerts);
+            setTextWithAlerts(greetingFromServer(data.textsWithAlerts, data.imageWithAlerts?.overlayText));
+            setTextWithoutAlerts(
+                greetingFromServer(data.textsWithoutAlerts, data.imageWithoutAlerts?.overlayText)
+            );
+            const tc = data.themeColor || "#4C4EDB";
+            setThemeColor(tc);
+            setHexInput(tc);
             setLastUpdated(data.lastUpdatedAt);
             setCacheUntil(data.cacheUntil);
             if (data.expiresAt) {
                 setExpiresAt(data.expiresAt.split("T")[0]);
             }
 
-            // Set previews
-            if (data.imageWithAlerts?.url) setPreviewAlerts(getFullUrl(data.imageWithAlerts.url));
-            if (data.imageWithoutAlerts?.url) setPreviewNoAlerts(getFullUrl(data.imageWithoutAlerts.url));
-            setOverlayTextAlerts(data.imageWithAlerts?.overlayText || "Happy Diwali");
-            setOverlayTextNoAlerts(data.imageWithoutAlerts?.overlayText || "Happy Diwali");
+            // Set previews (prefer multi-image list; fall back to legacy)
+            const primaryWith = (data.imagesWithAlerts?.[0]?.url || data.imageWithAlerts?.url);
+            const primaryWithout = (data.imagesWithoutAlerts?.[0]?.url || data.imageWithoutAlerts?.url);
+            if (primaryWith) setPreviewAlerts(getFullUrl(primaryWith));
+            else setPreviewAlerts(null);
+            if (primaryWithout) setPreviewNoAlerts(getFullUrl(primaryWithout));
+            else setPreviewNoAlerts(null);
 
             // Cache entire response keyed by festivalId
             if (id) {
@@ -110,15 +176,29 @@ const FestivalModeAdmin = () => {
                             setIsEnabled(cachedData.isEnabled);
                             setImageWithAlerts(cachedData.imageWithAlerts);
                             setImageWithoutAlerts(cachedData.imageWithoutAlerts);
+                            setTextWithAlerts(
+                                greetingFromServer(cachedData.textsWithAlerts, cachedData.imageWithAlerts?.overlayText)
+                            );
+                            setTextWithoutAlerts(
+                                greetingFromServer(
+                                    cachedData.textsWithoutAlerts,
+                                    cachedData.imageWithoutAlerts?.overlayText
+                                )
+                            );
+                            const tc = cachedData.themeColor || "#4C4EDB";
+                            setThemeColor(tc);
+                            setHexInput(tc);
                             setLastUpdated(cachedData.lastUpdatedAt);
                             setCacheUntil(cachedData.cacheUntil);
-                            setOverlayTextAlerts(cachedData.imageWithAlerts?.overlayText || "Happy Diwali");
-                            setOverlayTextNoAlerts(cachedData.imageWithoutAlerts?.overlayText || "Happy Diwali");
                             if (cachedData.expiresAt) {
                                 setExpiresAt(cachedData.expiresAt.split("T")[0]);
                             }
-                            if (cachedData.imageWithAlerts?.url) setPreviewAlerts(getFullUrl(cachedData.imageWithAlerts.url));
-                            if (cachedData.imageWithoutAlerts?.url) setPreviewNoAlerts(getFullUrl(cachedData.imageWithoutAlerts.url));
+                            const primaryWith = (cachedData.imagesWithAlerts?.[0]?.url || cachedData.imageWithAlerts?.url);
+                            const primaryWithout = (cachedData.imagesWithoutAlerts?.[0]?.url || cachedData.imageWithoutAlerts?.url);
+                            if (primaryWith) setPreviewAlerts(getFullUrl(primaryWith));
+                            else setPreviewAlerts(null);
+                            if (primaryWithout) setPreviewNoAlerts(getFullUrl(primaryWithout));
+                            else setPreviewNoAlerts(null);
                             foundCache = true;
                             break;
                         }
@@ -152,12 +232,11 @@ const FestivalModeAdmin = () => {
             const formData = new FormData();
             formData.append("file", file);
             formData.append("imageType", imageType);
-            // Add overlay text
-            if (imageType === "with_alerts") {
-                formData.append("overlayText", overlayTextAlerts);
-            } else {
-                formData.append("overlayText", overlayTextNoAlerts);
-            }
+            const overlay =
+                imageType === "with_alerts"
+                    ? (textWithAlerts || "").trim() || "Happy Diwali"
+                    : (textWithoutAlerts || "").trim() || "Happy Diwali";
+            formData.append("overlayText", overlay);
 
             const url = `${API_BASE}/festival-mode/upload`;
             console.log("[FestivalModeAdmin] Upload URL=", url);
@@ -171,12 +250,10 @@ const FestivalModeAdmin = () => {
 
             alert(`Image uploaded successfully: ${imageType}`);
 
-            // Update preview
-            if (imageType === "with_alerts") {
-                setPreviewAlerts(response.data.url);
-            } else {
-                setPreviewNoAlerts(response.data.url);
-            }
+            // Update preview (server returns a relative proxy path)
+            const full = getFullUrl(response.data.url);
+            if (imageType === "with_alerts") setPreviewAlerts(full);
+            else setPreviewNoAlerts(full);
 
             // Invalidate cache and reload
             invalidateCache();
@@ -245,6 +322,48 @@ const FestivalModeAdmin = () => {
         }
     };
 
+    const saveFestivalConfig = async () => {
+        const n = normalizeHex(hexInput);
+        if (!n) {
+            setHexError("Fix the hex color before saving (e.g. #4C4EDB)");
+            return;
+        }
+        setThemeColor(n);
+        setHexInput(n);
+        setHexError("");
+        const tw = (textWithAlerts || "").trim() || "Happy Diwali";
+        const tno = (textWithoutAlerts || "").trim() || "Happy Diwali";
+        try {
+            setLoading(true);
+            await axios.post(
+                `${API_BASE}/festival-mode/admin/config`,
+                {
+                    textsWithAlerts: [tw],
+                    textsWithoutAlerts: [tno],
+                    themeColor: n,
+                },
+                {
+                    headers: {
+                        "Content-Type": "application/json",
+                        ...authHeader(),
+                    },
+                }
+            );
+            alert("Festival config saved");
+            invalidateCache();
+            loadFestivalConfig();
+        } catch (error) {
+            console.error("Save config error:", error);
+            const msg =
+                error?.response?.data?.message ||
+                error?.message ||
+                "Network or server error";
+            alert(`Failed to save festival config: ${msg}`);
+        } finally {
+            setLoading(false);
+        }
+    };
+
     if (loading) {
         return (
             <div className="flex items-center justify-center min-h-screen text-lg text-indigo-600">
@@ -298,6 +417,154 @@ const FestivalModeAdmin = () => {
                 <p className="text-gray-500 text-sm mt-2">Leave empty for manual disable</p>
             </div>
 
+            <div className="bg-white rounded-lg shadow-md p-8 mb-6">
+                <h2 className="text-2xl font-semibold text-gray-700 mb-6 pb-3 border-b-2 border-indigo-500">
+                    Festival Content (Theme + Texts)
+                </h2>
+
+                <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-3">Theme color (HABit / BETA / name)</h3>
+                    <p className="text-gray-500 text-sm mb-4">
+                        While <strong>festival mode is enabled</strong>, this color is applied to <strong>HABit</strong>,{" "}
+                        <strong>BETA V2</strong>, and the user&apos;s first name in the app. When festival mode is off, the app uses
+                        time-of-day colors instead (purple in morning/afternoon, white on weekend/evening/rain).
+                    </p>
+                    <div className="flex flex-wrap gap-3 items-center mb-4">
+                        {COLOR_PALETTE.map((hex) => (
+                            <button
+                                key={hex}
+                                type="button"
+                                onClick={() => setThemeFromPalette(hex)}
+                                className={`w-10 h-10 rounded-full border-2 transition-all ${
+                                    themeColor.toUpperCase() === hex.toUpperCase()
+                                        ? "border-gray-900 scale-105"
+                                        : "border-gray-200"
+                                }`}
+                                style={{ backgroundColor: hex }}
+                                title={hex}
+                            />
+                        ))}
+                    </div>
+                    <div className="flex flex-wrap items-end gap-3 mb-2">
+                        <label className="flex flex-col gap-1">
+                            <span className="text-sm font-semibold text-gray-700">Hex code</span>
+                            <input
+                                type="text"
+                                value={hexInput}
+                                onChange={(e) => {
+                                    setHexInput(e.target.value);
+                                    setHexError("");
+                                }}
+                                onBlur={applyHexFromInput}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") applyHexFromInput();
+                                }}
+                                placeholder="#4C4EDB"
+                                spellCheck={false}
+                                className="w-44 px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                        </label>
+                        <label className="flex flex-col gap-1">
+                            <span className="text-sm font-semibold text-gray-700">Picker</span>
+                            <input
+                                type="color"
+                                value={normalizeHex(hexInput) || themeColor}
+                                onChange={(e) => {
+                                    const v = e.target.value.toUpperCase();
+                                    setThemeColor(v);
+                                    setHexInput(v);
+                                    setHexError("");
+                                }}
+                                className="h-10 w-16 cursor-pointer rounded border border-gray-300 bg-white p-1"
+                                title="Choose a color"
+                            />
+                        </label>
+                        <button
+                            type="button"
+                            onClick={applyHexFromInput}
+                            className="px-4 py-2 bg-gray-800 text-white rounded-lg text-sm font-semibold hover:bg-gray-900"
+                        >
+                            Apply hex
+                        </button>
+                    </div>
+                    {hexError ? <p className="text-red-600 text-sm mb-2">{hexError}</p> : null}
+                    <p className="text-gray-600 text-sm mb-2">
+                        Saved value: <span className="font-mono font-semibold">{themeColor}</span>
+                    </p>
+                    <div className="mt-4 rounded-xl border border-gray-200 bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+                        <p className="text-gray-500 text-xs font-medium uppercase tracking-wide mb-3">Preview</p>
+                        <div className="flex flex-wrap items-end gap-2">
+                            <span
+                                style={{
+                                    color: themeColor,
+                                    fontSize: "28px",
+                                    fontWeight: 700,
+                                    lineHeight: 1.1,
+                                }}
+                            >
+                                HABit
+                            </span>
+                            <span
+                                style={{
+                                    color: themeColor,
+                                    fontSize: "12px",
+                                    fontWeight: 500,
+                                    letterSpacing: "0.03em",
+                                    marginBottom: "4px",
+                                }}
+                            >
+                                BETA V2
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="border border-gray-200 rounded-lg p-5">
+                        <label className="block">
+                            <span className="text-lg font-semibold text-gray-700 mb-2 block">
+                                Greeting text (with alerts)
+                            </span>
+                            <input
+                                type="text"
+                                value={textWithAlerts}
+                                onChange={(e) => setTextWithAlerts(e.target.value)}
+                                placeholder="e.g. Happy Diwali"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                        </label>
+                        <p className="text-gray-500 text-xs mt-2">Shown when there are announcements or important messages.</p>
+                    </div>
+
+                    <div className="border border-gray-200 rounded-lg p-5">
+                        <label className="block">
+                            <span className="text-lg font-semibold text-gray-700 mb-2 block">
+                                Greeting text (without alerts)
+                            </span>
+                            <input
+                                type="text"
+                                value={textWithoutAlerts}
+                                onChange={(e) => setTextWithoutAlerts(e.target.value)}
+                                placeholder="e.g. Happy Diwali"
+                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                            />
+                        </label>
+                        <p className="text-gray-500 text-xs mt-2">Shown under normal conditions.</p>
+                    </div>
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                    <button
+                        type="button"
+                        onClick={saveFestivalConfig}
+                        disabled={loading}
+                        className="px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                        Save theme & texts
+                    </button>
+                </div>
+            </div>
+
             {/* Image Upload Section */}
             <div className="bg-white rounded-lg shadow-md p-8 mb-6">
                 <h2 className="text-2xl font-semibold text-gray-700 mb-6 pb-3 border-b-2 border-indigo-500">
@@ -309,7 +576,7 @@ const FestivalModeAdmin = () => {
                     <h3 className="text-lg font-semibold text-gray-700 mb-4">
                         Image with Alerts (Newsletter/Announcements)
                     </h3>
-                    <div className="w-full h-80 bg-gray-300 rounded-lg flex items-center justify-center mb-4 relative overflow-hidden">
+                    <div className="w-full max-w-[390px] mx-auto h-[385px] bg-gray-300 rounded-lg flex items-center justify-center mb-4 relative overflow-hidden">
                         {previewAlerts ? (
                             <>
                                 <img
@@ -322,24 +589,12 @@ const FestivalModeAdmin = () => {
                                     className="absolute bottom-3 right-3 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
                                     disabled={uploading}
                                 >
-                                    Delete
+                                    Delete 
                                 </button>
                             </>
                         ) : (
                             <p className="text-gray-600">No image uploaded</p>
                         )}
-                    </div>
-                    <div className="mb-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Overlay Text (e.g., "Happy Diwali")
-                        </label>
-                        <input
-                            type="text"
-                            value={overlayTextAlerts}
-                            onChange={(e) => setOverlayTextAlerts(e.target.value)}
-                            placeholder="Enter overlay text"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        />
                     </div>
                     <label className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold cursor-pointer hover:bg-indigo-700 transition-colors mt-4">
                         <input
@@ -355,6 +610,7 @@ const FestivalModeAdmin = () => {
                         />
                         Choose Image
                     </label>
+
                 </div>
 
                 {/* Without Alerts Image */}
@@ -362,7 +618,7 @@ const FestivalModeAdmin = () => {
                     <h3 className="text-lg font-semibold text-gray-700 mb-4">
                         Image without Alerts (Normal)
                     </h3>
-                    <div className="w-full h-80 bg-gray-300 rounded-lg flex items-center justify-center mb-4 relative overflow-hidden">
+                    <div className="w-full max-w-[390px] mx-auto h-[305px] bg-gray-300 rounded-lg flex items-center justify-center mb-4 relative overflow-hidden">
                         {previewNoAlerts ? (
                             <>
                                 <img
@@ -375,24 +631,12 @@ const FestivalModeAdmin = () => {
                                     className="absolute bottom-3 right-3 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
                                     disabled={uploading}
                                 >
-                                    Delete
+                                    Delete 
                                 </button>
                             </>
                         ) : (
                             <p className="text-gray-600">No image uploaded</p>
                         )}
-                    </div>
-                    <div className="mb-4">
-                        <label className="block text-sm font-semibold text-gray-700 mb-2">
-                            Overlay Text (e.g., "Happy Diwali")
-                        </label>
-                        <input
-                            type="text"
-                            value={overlayTextNoAlerts}
-                            onChange={(e) => setOverlayTextNoAlerts(e.target.value)}
-                            placeholder="Enter overlay text"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
-                        />
                     </div>
                     <label className="inline-block px-6 py-3 bg-indigo-600 text-white rounded-lg font-semibold cursor-pointer hover:bg-indigo-700 transition-colors mt-4">
                         <input
@@ -408,6 +652,7 @@ const FestivalModeAdmin = () => {
                         />
                         Choose Image
                     </label>
+
                 </div>
             </div>
 
@@ -423,7 +668,7 @@ const FestivalModeAdmin = () => {
                 <ul className="space-y-2">
                     <li className="text-gray-700 pl-6 relative">
                         <span className="absolute left-0 text-green-600 font-bold">✓</span>
-                        Upload two festival images above
+                        Upload an image for each state (with alerts / without alerts)
                     </li>
                     <li className="text-gray-700 pl-6 relative">
                         <span className="absolute left-0 text-green-600 font-bold">✓</span>
@@ -447,7 +692,7 @@ const FestivalModeAdmin = () => {
                     </li>
                     <li className="text-gray-700 pl-6 relative">
                         <span className="absolute left-0 text-green-600 font-bold">✓</span>
-                        Changes propagate to apps within 6 hours (or instantly on next refresh)
+                        Theme + texts are saved via config (cached up to 6 hours)
                     </li>
                 </ul>
             </div>
