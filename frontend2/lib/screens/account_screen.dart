@@ -33,6 +33,7 @@ class _AccountScreenState extends State<AccountScreen> {
   String roomNo = '';
   String phone = '';
   String rollNo = '';
+  bool isGuest = false;
 
   final TextEditingController _roomController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -53,6 +54,7 @@ class _AccountScreenState extends State<AccountScreen> {
 
   Future<void> _loadPrefs() async {
     final prefs = await SharedPreferences.getInstance();
+    final guestIdentifier = prefs.getString('guestIdentifier');
     setState(() {
       hostel = prefs.getString('hostel') ?? '';
       name = prefs.getString('name') ?? '';
@@ -61,6 +63,7 @@ class _AccountScreenState extends State<AccountScreen> {
       roomNo = prefs.getString('roomNumber') ?? '';
       phone = prefs.getString('phoneNumber') ?? '';
       rollNo = prefs.getString('rollNo') ?? '';
+      isGuest = guestIdentifier != null;
       _roomController.text = roomNo;
       _phoneController.text = phone;
     });
@@ -187,6 +190,49 @@ class _AccountScreenState extends State<AccountScreen> {
     );
   }
 
+  Future<void> _linkMicrosoftAccount() async {
+    try {
+      await auth.linkMicrosoftAccount();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Center(
+              child: Text(
+                'Student Account linked successfully',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            backgroundColor: Colors.black,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(50),
+            duration: Duration(milliseconds: 2000),
+          ),
+        );
+        // Reload preferences to update isGuest state
+        await _loadPrefs();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Center(
+              child: Text(
+                'Failed to link Student Account',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            backgroundColor: Colors.black,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(50),
+            duration: Duration(milliseconds: 2000),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _logout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -310,14 +356,35 @@ class _AccountScreenState extends State<AccountScreen> {
                   iconColor: Themes.kAccent,
                   label: 'App Feedback',
                   onTap: _openFeedbackSheet,
-                  roundTop: false,
+                  roundTop: true,
                   roundBottom: true,
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 32),
+          // ── Login ──────────────────────────────────────────────
+          if (isGuest) ...[
+            const _SectionHeader(title: 'Login'),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  _CardSettingsRow(
+                    iconPath: "assets/icon/link.svg",
+                    iconColor: const Color(0xFF4C4EDB),
+                    label: 'Microsoft Login',
+                    onTap: _linkMicrosoftAccount,
+                    roundTop: true,
+                    roundBottom: true,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+          ],
 
           // ── Logout ──────────────────────────────────────────────
           InkWell(
@@ -487,8 +554,8 @@ class _CardSettingsRow extends StatelessWidget {
           boxShadow: [
             BoxShadow(
               color: Colors.black.withValues(alpha: 0.06),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
+              blurRadius: 6,
+              offset: const Offset(0, 4),
             )
           ]),
       child: ClipRRect(
@@ -504,6 +571,7 @@ class _CardSettingsRow extends StatelessWidget {
                 ),
                 child: SvgPicture.asset(
                   iconPath,
+                  colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
                 ),
               ),
               title: Text(label,

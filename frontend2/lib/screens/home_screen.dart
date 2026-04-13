@@ -443,12 +443,10 @@ class _HomeScreenState extends State<HomeScreen> {
         statusColor: _scanQrStatusNotifier.value.color,
         statusListenable: _scanQrStatusNotifier,
         iconAsset: 'assets/icon/qrscan.svg',
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const QrScan()),
-          );
-        },
+        onTap: () => _requireMicrosoftThenNavigate(
+          featureName: 'Scan Mess QR',
+          screen: const QrScan(),
+        ),
       ),
       // _QuickActionData(
       //   label: 'Mess Change',
