@@ -1032,6 +1032,28 @@ const cancelApplication = async (req, res) => {
       });
     }
 
+    const application = await Leave.findById(id);
+    if (!application || !application.user.equals(req.user._id)) {
+      return res.status(404).json({
+        message: "Application not found",
+      });
+    }
+
+    if (application.status !== "Pending") {
+      const reason =
+        application.status === "Cancelled"
+          ? "Application is already cancelled"
+          : application.status === "Acknowledged"
+            ? "Cancellation is not allowed after the mess manager has acknowledged this application"
+            : application.status === "Processed"
+              ? "Cancellation is not allowed after this application has been processed"
+              : `Cancellation is not allowed for status: ${application.status}`;
+      return res.status(400).json({
+        message: "This application cannot be cancelled",
+        reason,
+      });
+    }
+
     const updatedDoc = await Leave.findByIdAndUpdate(
       id,
       { status: "Cancelled" },
