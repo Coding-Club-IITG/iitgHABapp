@@ -44,6 +44,14 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       'The number of days should be greater than or equal to 4 to be eligible for mess rebate. '
       "If you don't want a rebate, go back and generate a leave form.";
   static const Color _rebateSummaryMintBg = Color(0xFFE6F4EA);
+  /// Figma: footer actions and key controls — slightly square corners (not pill-like).
+  static const double _rebateButtonRadius = 6;
+  /// Full-bleed section separator (matches rebate status / home section bars).
+  static const Color _sectionDividerBarColor = Color(0xFFF0F0F0);
+  static const double _sectionDividerBarHeight = 8;
+  /// Space reserved above scroll body for [_progressHeader] (same layout math + small buffer).
+  static const double _kProgressHeaderSlotHeight =
+      16 + 20 + 8 + 4 + 16 + 8; // = 72
   int? _selectedValue;
   int _currentStep = 1;
 
@@ -81,6 +89,19 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   }
 
   bool get _isCasual => _selectedValue == 1;
+
+  String get _leaveTypeLabel {
+    switch (_selectedValue) {
+      case 1:
+        return 'Casual Leave';
+      case 2:
+        return 'Academic Leave';
+      case 3:
+        return 'Medical Leave';
+      default:
+        return 'Leave Application';
+    }
+  }
 
   @override
   void initState() {
@@ -328,11 +349,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = response.data;
         String url = '';
-        int amt = (_inclusiveDays() * _rebatePerDay).round();
         if (data is Map) {
           url = (data['leaveDocumentUrl'] ?? '') as String? ?? '';
-          final a = data['estimatedRebateAmountInr'];
-          if (a is num) amt = a.round();
         }
         final prefs = await SharedPreferences.getInstance();
         await prefs.setString('accountHolder', _accountHolderController.text.trim());
@@ -344,7 +362,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           MaterialPageRoute<void>(
             builder: (_) => RebateApplicationSuccessScreen(
               leaveDocumentUrl: url,
-              estimatedRebateAmountInr: amt,
+              leaveTypeLabel: _leaveTypeLabel,
             ),
           ),
         );
@@ -646,11 +664,36 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         },
         child: Column(
           children: [
-            _progressHeader(),
             Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: _buildStepBody(),
+              child: ClipRect(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    Positioned.fill(
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.fromLTRB(
+                          16,
+                          _kProgressHeaderSlotHeight,
+                          16,
+                          16,
+                        ),
+                        child: _buildStepBody(),
+                      ),
+                    ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      child: Material(
+                        color: Colors.white,
+                        elevation: 1,
+                        surfaceTintColor: Colors.transparent,
+                        shadowColor: const Color(0x14000000),
+                        child: _progressHeader(),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             _bottomBar(),
@@ -673,11 +716,37 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     }
   }
 
+  /// Full-bleed grey bar: layout width matches padded column; [Stack] + [Positioned] paint
+  /// into the 16px horizontal inset (no [UnconstrainedBox] — it sized to screen width and overflowed).
+  Widget _rebateSectionDivider(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SizedBox(
+          height: _sectionDividerBarHeight,
+          width: constraints.maxWidth,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Positioned(
+                left: -16,
+                right: -16,
+                top: 0,
+                height: _sectionDividerBarHeight,
+                child: const ColoredBox(color: _sectionDividerBarColor),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _progressHeader() {
     final t = _totalSteps;
     final s = _currentStep;
     return Container(
       decoration: const BoxDecoration(
+        color: Colors.white,
         border: Border(bottom: BorderSide(color: _borderColor)),
       ),
       padding: const EdgeInsets.all(16),
@@ -686,8 +755,11 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         children: [
           Text(
             'Step $s / $t',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               fontSize: 14,
+              height: 20 / 14,
               fontWeight: FontWeight.w500,
               color: _primaryColor,
             ),
@@ -750,7 +822,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           _readOnlyFieldInner('IITG email', email.isEmpty ? '—' : email),
         ),
         Padding(
-          padding: const EdgeInsets.only(bottom: 16),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Text(
             'The fields marked with a lock are fixed from institute records and cannot be '
             'changed here. To update them, please contact the Hostel Affairs Board.',
@@ -761,6 +833,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             ),
           ),
         ),
+        const SizedBox(height: 16),
+        _rebateSectionDivider(context),
+        const SizedBox(height: 16),
         _formPairRow(
           _editableFieldInner('Programme', _progController),
           _editableFieldInner('Department', _deptController),
@@ -800,7 +875,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
         const SizedBox(height: 16),
         _editableMultiline('Purpose of station leave', _purposeController),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        _rebateSectionDivider(context),
+        const SizedBox(height: 16),
         const Text(
           'Duration',
           style: TextStyle(fontWeight: FontWeight.w500),
@@ -824,6 +901,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             ),
           ],
         ],
+        const SizedBox(height: 16),
+        _rebateSectionDivider(context),
         const SizedBox(height: 16),
         _editableMultiline(
           'Contact address during leave (emergency)',
@@ -888,7 +967,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           child: Container(
             decoration: BoxDecoration(
               border: Border.all(color: _borderColor),
-              borderRadius: BorderRadius.circular(12),
+              borderRadius: BorderRadius.circular(_rebateButtonRadius),
             ),
             padding: const EdgeInsets.all(16),
             child: Row(
@@ -1262,7 +1341,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 color: _rebateSummaryMintBg,
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(_rebateButtonRadius),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.center,
@@ -1303,6 +1382,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                       foregroundColor: _primaryColor,
                       side: const BorderSide(color: _borderColor),
                       padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(_rebateButtonRadius),
+                      ),
                     ),
                     child: const Text('Back'),
                   ),
@@ -1319,6 +1402,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     disabledBackgroundColor: const Color(0xFFE0E0E0),
                     surfaceTintColor: Colors.transparent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius:
+                          BorderRadius.circular(_rebateButtonRadius),
+                    ),
                   ),
                   child: _isSubmitting && last
                       ? const SizedBox(
