@@ -130,6 +130,8 @@ export const getFestivalModeStatus = async (req, res, next) => {
       overlayTextWithoutAlerts: firstNonEmptyText(textsWithoutAlerts, "Happy Diwali"),
       // New fields
       themeColor: festivalMode.themeColor || "#4C4EDB",
+      greetingTextColor: festivalMode.greetingTextColor || "",
+      notificationSubtitleColor: festivalMode.notificationSubtitleColor || "",
       imagesWithAlerts: withAlertsList.map((img) => img.url),
       imagesWithoutAlerts: withoutAlertsList.map((img) => img.url),
       textsWithAlerts,
@@ -462,6 +464,8 @@ export const getAdminFestivalConfig = async (req, res, next) => {
       textsWithAlerts: festivalMode.textsWithAlerts || [],
       textsWithoutAlerts: festivalMode.textsWithoutAlerts || [],
       themeColor: festivalMode.themeColor || "#4C4EDB",
+      greetingTextColor: festivalMode.greetingTextColor || "",
+      notificationSubtitleColor: festivalMode.notificationSubtitleColor || "",
       lastUpdatedBy: festivalMode.lastUpdatedBy,
       lastUpdatedAt: festivalMode.lastUpdatedAt,
       expiresAt: festivalMode.expiresAt,
@@ -479,7 +483,13 @@ export const getAdminFestivalConfig = async (req, res, next) => {
  */
 export const updateAdminFestivalConfig = async (req, res, next) => {
   try {
-    const { textsWithAlerts, textsWithoutAlerts, themeColor } = req.body || {};
+    const {
+      textsWithAlerts,
+      textsWithoutAlerts,
+      themeColor,
+      greetingTextColor,
+      notificationSubtitleColor,
+    } = req.body || {};
 
     let festivalMode = await FestivalMode.findOne();
     if (!festivalMode) festivalMode = await FestivalMode.create({ isEnabled: false });
@@ -498,6 +508,12 @@ export const updateAdminFestivalConfig = async (req, res, next) => {
     }
     if (typeof themeColor === "string" && themeColor.trim()) {
       festivalMode.themeColor = themeColor.trim();
+    }
+    if (typeof greetingTextColor === "string") {
+      festivalMode.greetingTextColor = greetingTextColor.trim();
+    }
+    if (typeof notificationSubtitleColor === "string") {
+      festivalMode.notificationSubtitleColor = notificationSubtitleColor.trim();
     }
 
     // Keep legacy overlay text in sync (best-effort)
@@ -534,6 +550,8 @@ export const updateAdminFestivalConfig = async (req, res, next) => {
       success: true,
       message: "Festival config updated",
       themeColor: festivalMode.themeColor,
+      greetingTextColor: festivalMode.greetingTextColor || "",
+      notificationSubtitleColor: festivalMode.notificationSubtitleColor || "",
       textsWithAlerts: festivalMode.textsWithAlerts,
       textsWithoutAlerts: festivalMode.textsWithoutAlerts,
       lastUpdatedAt: festivalMode.lastUpdatedAt,

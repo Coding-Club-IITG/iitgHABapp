@@ -29,6 +29,9 @@ const FestivalModeAdmin = () => {
     const [themeColor, setThemeColor] = useState("#4C4EDB");
     const [hexInput, setHexInput] = useState("#4C4EDB");
     const [hexError, setHexError] = useState("");
+    const [greetingHexInput, setGreetingHexInput] = useState("");
+    const [notificationHexInput, setNotificationHexInput] = useState("");
+    const [textColorHexError, setTextColorHexError] = useState("");
     const [lastUpdated, setLastUpdated] = useState(null);
     const [cacheUntil, setCacheUntil] = useState(null);
     const [expiresAt, setExpiresAt] = useState("");
@@ -136,6 +139,14 @@ const FestivalModeAdmin = () => {
             const tc = data.themeColor || "#4C4EDB";
             setThemeColor(tc);
             setHexInput(tc);
+            setGreetingHexInput(
+                typeof data.greetingTextColor === "string" ? data.greetingTextColor.trim() : ""
+            );
+            setNotificationHexInput(
+                typeof data.notificationSubtitleColor === "string"
+                    ? data.notificationSubtitleColor.trim()
+                    : ""
+            );
             setLastUpdated(data.lastUpdatedAt);
             setCacheUntil(data.cacheUntil);
             if (data.expiresAt) {
@@ -188,6 +199,16 @@ const FestivalModeAdmin = () => {
                             const tc = cachedData.themeColor || "#4C4EDB";
                             setThemeColor(tc);
                             setHexInput(tc);
+                            setGreetingHexInput(
+                                typeof cachedData.greetingTextColor === "string"
+                                    ? cachedData.greetingTextColor.trim()
+                                    : ""
+                            );
+                            setNotificationHexInput(
+                                typeof cachedData.notificationSubtitleColor === "string"
+                                    ? cachedData.notificationSubtitleColor.trim()
+                                    : ""
+                            );
                             setLastUpdated(cachedData.lastUpdatedAt);
                             setCacheUntil(cachedData.cacheUntil);
                             if (cachedData.expiresAt) {
@@ -331,6 +352,19 @@ const FestivalModeAdmin = () => {
         setThemeColor(n);
         setHexInput(n);
         setHexError("");
+        setTextColorHexError("");
+        const gTrim = (greetingHexInput || "").trim();
+        const nTrim = (notificationHexInput || "").trim();
+        const greetingOut = gTrim === "" ? "" : normalizeHex(greetingHexInput);
+        const notificationOut = nTrim === "" ? "" : normalizeHex(notificationHexInput);
+        if (gTrim !== "" && !greetingOut) {
+            setTextColorHexError("Greeting text color: use a valid hex (e.g. #2E2F31) or leave empty.");
+            return;
+        }
+        if (nTrim !== "" && !notificationOut) {
+            setTextColorHexError("Notifications line color: use a valid hex or leave empty.");
+            return;
+        }
         const tw = (textWithAlerts || "").trim() || "Happy Diwali";
         const tno = (textWithoutAlerts || "").trim() || "Happy Diwali";
         try {
@@ -341,6 +375,8 @@ const FestivalModeAdmin = () => {
                     textsWithAlerts: [tw],
                     textsWithoutAlerts: [tno],
                     themeColor: n,
+                    greetingTextColor: greetingOut,
+                    notificationSubtitleColor: notificationOut,
                 },
                 {
                     headers: {
@@ -373,7 +409,7 @@ const FestivalModeAdmin = () => {
     }
 
     return (
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 bg-gradient-to-br from-blue-50 via-blue-100 to-purple-100 min-h-screen">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 bg-gray-50 min-h-screen">
             <h1 className="text-4xl font-bold text-center text-gray-800 mb-12">
                 🎉 Festival Mode Management
             </h1>
@@ -515,6 +551,78 @@ const FestivalModeAdmin = () => {
                             >
                                 BETA V2
                             </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mb-8">
+                    <h3 className="text-lg font-semibold text-gray-700 mb-2">
+                        Hero text colors (mobile app — when festival mode is on)
+                    </h3>
+                    <p className="text-gray-500 text-sm mb-4">
+                        Applies to the greeting before the user&apos;s name (e.g. &quot;Good morning, &quot;) and to the
+                        &quot;0 notifications today&quot; line. Leave a field empty to use the app&apos;s automatic
+                        weather/time-of-day colors.
+                    </p>
+                    {textColorHexError ? (
+                        <p className="text-red-600 text-sm mb-2">{textColorHexError}</p>
+                    ) : null}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="border border-gray-200 rounded-lg p-4">
+                            <span className="text-sm font-semibold text-gray-800 block mb-2">
+                                Greeting line (before name)
+                            </span>
+                            <div className="flex flex-wrap items-end gap-2">
+                                <input
+                                    type="text"
+                                    value={greetingHexInput}
+                                    onChange={(e) => {
+                                        setGreetingHexInput(e.target.value);
+                                        setTextColorHexError("");
+                                    }}
+                                    placeholder="empty = auto"
+                                    spellCheck={false}
+                                    className="flex-1 min-w-[8rem] px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                                />
+                                <input
+                                    type="color"
+                                    value={normalizeHex(greetingHexInput) || "#2E2F31"}
+                                    onChange={(e) => {
+                                        setGreetingHexInput(e.target.value.toUpperCase());
+                                        setTextColorHexError("");
+                                    }}
+                                    className="h-10 w-14 cursor-pointer rounded border border-gray-300 bg-white p-1"
+                                    title="Pick color"
+                                />
+                            </div>
+                        </div>
+                        <div className="border border-gray-200 rounded-lg p-4">
+                            <span className="text-sm font-semibold text-gray-800 block mb-2">
+                                Notifications line (&quot;N notifications today&quot;)
+                            </span>
+                            <div className="flex flex-wrap items-end gap-2">
+                                <input
+                                    type="text"
+                                    value={notificationHexInput}
+                                    onChange={(e) => {
+                                        setNotificationHexInput(e.target.value);
+                                        setTextColorHexError("");
+                                    }}
+                                    placeholder="empty = auto"
+                                    spellCheck={false}
+                                    className="flex-1 min-w-[8rem] px-3 py-2 border border-gray-300 rounded-lg font-mono text-sm"
+                                />
+                                <input
+                                    type="color"
+                                    value={normalizeHex(notificationHexInput) || "#2E2F31"}
+                                    onChange={(e) => {
+                                        setNotificationHexInput(e.target.value.toUpperCase());
+                                        setTextColorHexError("");
+                                    }}
+                                    className="h-10 w-14 cursor-pointer rounded border border-gray-300 bg-white p-1"
+                                    title="Pick color"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
