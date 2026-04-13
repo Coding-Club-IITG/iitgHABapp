@@ -990,6 +990,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Colors.white;
   }
 
+  /// Greeting prefix ("…, ") — server [FestivalModeData.greetingTextColor] when set.
+  Color _heroGreetingPrefixColor() {
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null &&
+        festivalData.isEnabled &&
+        !rainPriority &&
+        festivalData.greetingTextColor.trim().isNotEmpty) {
+      return FestivalThemePalette.resolveColor(festivalData.greetingTextColor);
+    }
+    return _getTextColor();
+  }
+
+  /// "N notifications today" — server [FestivalModeData.notificationSubtitleColor] when set.
+  Color _heroNotificationSubtitleColor() {
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null &&
+        festivalData.isEnabled &&
+        !rainPriority &&
+        festivalData.notificationSubtitleColor.trim().isNotEmpty) {
+      return FestivalThemePalette.resolveColor(
+          festivalData.notificationSubtitleColor);
+    }
+    return _getTextColor();
+  }
+
   /// First name: weekend uses [primary]; else festival or [_heroAccentColor].
   Color _heroUserNameColor() {
     if (_weatherBackground.backgroundVariant == 'weekend') {
@@ -1014,7 +1041,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         : '$unreadCount notifications today';
 
     final titleColor = _getTitleColor();
-    final textColor = _getTextColor();
+    final subtitleColor = _heroNotificationSubtitleColor();
 
     final greetingFontSize = hasImportantMessages ? 16.0 : 24.0;
     final greetingLineHeight =
@@ -1074,7 +1101,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         fontSize: greetingFontSize,
                         height: greetingLineHeight,
                         fontWeight: FontWeight.w500,
-                        color: _getTextColor(),
+                        color: _heroGreetingPrefixColor(),
                       ),
                       children: [
                         TextSpan(text: '$greeting, '),
@@ -1096,7 +1123,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   fontSize: 12,
                   height: 16 / 12,
                   fontWeight: FontWeight.w500,
-                  color: textColor,
+                  color: subtitleColor,
                 ),
               ),
             ],

@@ -59,6 +59,10 @@ class FestivalModeData {
   final List<String> textsWithAlerts;
   final List<String> textsWithoutAlerts;
   final String themeColor; // hex color like "#4C4EDB"
+  /// Greeting prefix ("Good morning, ") — empty means use weather [_getTextColor].
+  final String greetingTextColor;
+  /// "N notifications today" — empty means use weather [_getTextColor].
+  final String notificationSubtitleColor;
   final DateTime lastUpdatedAt;
   final DateTime cacheUntil;
 
@@ -74,6 +78,8 @@ class FestivalModeData {
     this.textsWithAlerts = const [],
     this.textsWithoutAlerts = const [],
     this.themeColor = '#4C4EDB',
+    this.greetingTextColor = '',
+    this.notificationSubtitleColor = '',
     required this.lastUpdatedAt,
     required this.cacheUntil,
   });
@@ -128,6 +134,14 @@ class FestivalModeData {
         ? (json['themeColor'] as String).trim()
         : FestivalThemePalette.hexStrings.first;
 
+    final greetingTextColor = json['greetingTextColor'] is String
+        ? (json['greetingTextColor'] as String).trim()
+        : '';
+    final notificationSubtitleColor =
+        json['notificationSubtitleColor'] is String
+            ? (json['notificationSubtitleColor'] as String).trim()
+            : '';
+
     return FestivalModeData(
       festivalId: json['festivalId'],
       isEnabled: json['isEnabled'] ?? false,
@@ -141,6 +155,8 @@ class FestivalModeData {
       textsWithAlerts: textsWithAlerts,
       textsWithoutAlerts: textsWithoutAlerts,
       themeColor: themeColor,
+      greetingTextColor: greetingTextColor,
+      notificationSubtitleColor: notificationSubtitleColor,
       lastUpdatedAt: DateTime.parse(
           json['lastUpdatedAt'] ?? DateTime.now().toIso8601String()),
       cacheUntil: DateTime.parse(json['cacheUntil'] ??
@@ -161,6 +177,8 @@ class FestivalModeData {
       textsWithAlerts: const [],
       textsWithoutAlerts: const [],
       themeColor: FestivalThemePalette.hexStrings.first,
+      greetingTextColor: '',
+      notificationSubtitleColor: '',
       lastUpdatedAt: DateTime.now(),
       cacheUntil: DateTime.now().add(Duration(hours: 6)),
     );
@@ -179,6 +197,8 @@ class FestivalModeData {
       'textsWithAlerts': textsWithAlerts,
       'textsWithoutAlerts': textsWithoutAlerts,
       'themeColor': themeColor,
+      'greetingTextColor': greetingTextColor,
+      'notificationSubtitleColor': notificationSubtitleColor,
       'lastUpdatedAt': lastUpdatedAt.toIso8601String(),
       'cacheUntil': cacheUntil.toIso8601String(),
     };
