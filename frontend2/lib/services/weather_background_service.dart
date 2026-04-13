@@ -38,6 +38,9 @@ class WeatherBackgroundData {
     );
   }
 
+  /// Clear-sky hero from local clock + weekend rules only (no sunrise/sunset API).
+  factory WeatherBackgroundData.localTimeDefault() => WeatherBackgroundData.fallback();
+
   factory WeatherBackgroundData.testing({
     required String group,
     required bool isDay,
