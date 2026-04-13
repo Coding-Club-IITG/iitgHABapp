@@ -9,9 +9,7 @@ import 'package:frontend2/models/mess_menu_model.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart'
     show ProfilePictureProvider;
 import 'package:frontend2/screens/scan_status.dart';
-import 'package:frontend2/utils/meal_countdown_text.dart';
 import 'package:frontend2/widgets/common/snack_bar.dart';
-import 'package:frontend2/widgets/common/squareQR.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -36,7 +34,6 @@ class _QrScanState extends State<QrScan> {
   bool _isCheckingPermission = false;
 
   Timer? _mealCountdownTimer;
-  String _mealSessionLine = '';
 
   static const List<String> _messScanRuleBodies = [
     'Scan only the official mess QR during the published meal hours for your mess.',
@@ -44,6 +41,14 @@ class _QrScanState extends State<QrScan> {
     'Keep a clear profile photo on file; it may be required for mess entry.',
     'Allow camera access and hold the code steady inside the frame.',
   ];
+
+  static const Color _bg = Colors.white;
+  static const Color _appBarBg = Color(0xFFFAFAFA);
+  static const Color _border = Color(0xFFE6E6E6);
+  static const Color _primary = Color(0xFF4C4EDB);
+  static const Color _textPrimary = Color(0xFF2E2F31);
+  static const Color _textSecondary = Color(0xFF535353);
+  static const double _scanBoxSize = 305;
 
   @override
   void initState() {
@@ -369,7 +374,6 @@ class _QrScanState extends State<QrScan> {
       final prefs = await SharedPreferences.getInstance();
       final messId = prefs.getString('curr_subscribed_mess') ?? '';
       if (messId.isEmpty) {
-        if (mounted) setState(() => _mealSessionLine = '');
         return;
       }
       final menus = await fetchMenu(messId, _weekdayName());
@@ -381,15 +385,10 @@ class _QrScanState extends State<QrScan> {
         final ongoing = (now.isAfter(start) || now.isAtSameMomentAs(start)) &&
             now.isBefore(end);
         if (ongoing) {
-          final line =
-              '${menu.type} · ${mealTimeRemaining(end.difference(now))}';
-          setState(() => _mealSessionLine = line);
           return;
         }
       }
-      setState(() => _mealSessionLine = '');
     } catch (_) {
-      if (mounted) setState(() => _mealSessionLine = '');
     }
   }
 
@@ -669,20 +668,25 @@ class _QrScanState extends State<QrScan> {
         }
       },
       child: Scaffold(
-        backgroundColor: Colors.white,
+        backgroundColor: _bg,
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: _appBarBg,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           scrolledUnderElevation: 0,
           centerTitle: false,
-          titleSpacing: NavigationToolbar.kMiddleSpacing,
-          foregroundColor: Colors.black,
+          titleSpacing: 0,
+          foregroundColor: _textPrimary,
+          bottom: const PreferredSize(
+            preferredSize: Size.fromHeight(1),
+            child: Divider(height: 1, thickness: 1, color: _border),
+          ),
           title: const Text(
             'Scan QR',
             style: TextStyle(
-              color: Colors.black,
-              fontSize: 18,
+              color: _textPrimary,
+              fontSize: 20,
+              height: 28 / 20,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -718,19 +722,81 @@ class _QrScanState extends State<QrScan> {
                 ? _buildPermissionOverlay()
                 : Stack(
                     children: [
-                      MobileScanner(
-                        controller: controller,
-                        onDetect: onBarcodeDetected,
-                        errorBuilder: (context, error) {
-                          return Center(
-                            child: Text(
-                              'Camera Error: ${error.errorDetails?.message ?? "Unknown error"}',
-                              style: const TextStyle(color: Colors.white),
+                      ListView(
+                        padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+                        children: [
+                          RichText(
+                            text: const TextSpan(
+                              style: TextStyle(
+                                fontSize: 32,
+                                height: 48 / 32,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: 'Ready to Eat? ',
+                                  style: TextStyle(color: _textPrimary),
+                                ),
+                                TextSpan(
+                                  text: 'Scan to Enter',
+                                  style: TextStyle(color: _primary),
+                                ),
+                              ],
                             ),
-                          );
-                        },
+                          ),
+                          const SizedBox(height: 36),
+                          Center(
+                            child: SizedBox(
+                              width: _scanBoxSize,
+                              height: _scanBoxSize,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  ClipRRect(
+                                    borderRadius: BorderRadius.circular(0),
+                                    child: MobileScanner(
+                                      controller: controller,
+                                      onDetect: onBarcodeDetected,
+                                      errorBuilder: (context, error) {
+                                        return Center(
+                                          child: Text(
+                                            'Camera Error: ${error.errorDetails?.message ?? "Unknown error"}',
+                                            style: const TextStyle(
+                                              color: _textSecondary,
+                                            ),
+                                            textAlign: TextAlign.center,
+                                          ),
+                                        );
+                                      },
+                                    ),
+                                  ),
+                                  IgnorePointer(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: _primary,
+                                          width: 4,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            'Hold your QR code steady within the frame',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 16,
+                              height: 20 / 16,
+                              fontWeight: FontWeight.w500,
+                              color: _textSecondary,
+                            ),
+                          ),
+                        ],
                       ),
-                      _buildScannerUI(),
                       if (_isProcessing)
                         Container(
                           color: Colors.black54,
@@ -813,94 +879,5 @@ class _QrScanState extends State<QrScan> {
     );
   }
 
-  Widget _buildScannerUI() {
-    return Column(
-      children: [
-        const SizedBox(height: 28),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24),
-          child: Align(
-            alignment: Alignment.centerLeft,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                RichText(
-                  text: const TextSpan(
-                    style: TextStyle(
-                      fontSize: 28,
-                      height: 1.2,
-                      fontWeight: FontWeight.w500,
-                    ),
-                    children: [
-                      TextSpan(
-                        text: 'Ready to Eat? ',
-                        style: TextStyle(color: Color(0xFFD1D5DB)),
-                      ),
-                      TextSpan(
-                        text: 'Scan to Enter',
-                        style: TextStyle(color: Colors.white),
-                      ),
-                    ],
-                  ),
-                ),
-                if (_mealSessionLine.isNotEmpty) ...[
-                  const SizedBox(height: 10),
-                  Text(
-                    _mealSessionLine,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      height: 20 / 15,
-                      fontWeight: FontWeight.w500,
-                      color: Color(0xFF6EE7B7),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        const SizedBox(height: 28),
-        Center(
-          child: SizedBox(
-            width: 250,
-            height: 250,
-            child: CustomPaint(
-              size: const Size(250, 250),
-              painter: const SquarePainter(),
-            ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 40),
-          child: Text(
-            'Hold your QR code\nsteady within the frame',
-            style: TextStyle(
-              color: Color(0xFFD1D5DB),
-              fontSize: 15,
-              height: 1.35,
-              fontWeight: FontWeight.w400,
-            ),
-            textAlign: TextAlign.center,
-          ),
-        ),
-        const Spacer(),
-        // Camera toggle button
-        Padding(
-          padding: const EdgeInsets.only(bottom: 40),
-          child: IconButton(
-            icon: const Icon(
-              Icons.cameraswitch,
-              color: Colors.white,
-              size: 32,
-            ),
-            onPressed: () {
-              controller.switchCamera();
-            },
-            tooltip: 'Switch Camera',
-          ),
-        ),
-      ],
-    );
-  }
+  // NOTE: The UI is now the Figma white layout above; previous overlay UI removed.
 }

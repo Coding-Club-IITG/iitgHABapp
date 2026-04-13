@@ -95,39 +95,46 @@ Widget buildRebateApplicationStatusLoadingShimmer() {
     builder: (context, box) => SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          box(height: 18, width: double.infinity),
-          const SizedBox(height: 8),
-          box(height: 14, width: 240),
-          const SizedBox(height: 24),
+          box(
+            height: 220,
+            width: double.infinity,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          const SizedBox(height: 16),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (int i = 0; i < 5; i++) ...[
-                Expanded(
-                  child: box(
-                    height: 6,
-                    borderRadius: BorderRadius.circular(99),
-                  ),
-                ),
-                if (i < 4) const SizedBox(width: 8),
-              ],
+              box(height: 16, width: 16, borderRadius: BorderRadius.circular(8)),
+              const SizedBox(width: 8),
+              Expanded(
+                child: box(height: 14, width: double.infinity),
+              ),
             ],
           ),
-          const SizedBox(height: 28),
-          box(height: 14, width: 120),
-          const SizedBox(height: 10),
-          box(height: 40, width: double.infinity),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
+          Container(height: 8, color: const Color(0xFFF0F0F0)),
+          const SizedBox(height: 24),
+          box(height: 16, width: 140),
+          const SizedBox(height: 8),
+          box(height: 12, width: double.infinity),
+          const SizedBox(height: 8),
           box(
-              height: 48,
-              width: double.infinity,
-              borderRadius: BorderRadius.circular(12)),
-          const SizedBox(height: 12),
+            height: 48,
+            width: double.infinity,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          const SizedBox(height: 24),
+          box(height: 16, width: 200),
+          const SizedBox(height: 8),
+          box(height: 12, width: double.infinity),
+          const SizedBox(height: 8),
           box(
-              height: 48,
-              width: double.infinity,
-              borderRadius: BorderRadius.circular(12)),
+            height: 48,
+            width: double.infinity,
+            borderRadius: BorderRadius.circular(16),
+          ),
         ],
       ),
     ),
@@ -292,7 +299,57 @@ Widget buildHomeScreenLoadingShimmer() {
     builder: (context, box) => SingleChildScrollView(
       child: Column(
         children: [
-          box(height: 220, width: double.infinity),
+          // Weather hero header skeleton (matches `HomeScreen` header layout)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+            child: SafeArea(
+              bottom: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            box(height: 30, width: 120),
+                            const SizedBox(width: 6),
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 4),
+                              child: box(height: 16, width: 56),
+                            ),
+                          ],
+                        ),
+                      ),
+                      box(
+                        height: 48,
+                        width: 48,
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  box(height: 28, width: 240),
+                  const SizedBox(height: 8),
+                  box(height: 16, width: 170),
+                  const SizedBox(height: 32),
+                  box(
+                    height: 104,
+                    width: double.infinity,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  const SizedBox(height: 16),
+                  box(
+                    height: 56,
+                    width: double.infinity,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ],
+              ),
+            ),
+          ),
           const SizedBox(
             width: double.infinity,
             height: 8,

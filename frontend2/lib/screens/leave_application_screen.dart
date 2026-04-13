@@ -11,6 +11,19 @@ import 'package:frontend2/widgets/common/shimmer_host.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:flutter/services.dart';
+
+class _UpperCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    final upper = newValue.text.toUpperCase();
+    if (upper == newValue.text) return newValue;
+    return newValue.copyWith(text: upper);
+  }
+}
 
 class LeaveApplicationScreen extends StatefulWidget {
   const LeaveApplicationScreen({super.key, required this.leaveType});
@@ -174,6 +187,31 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       initialDate: initial,
       firstDate: firstDate,
       lastDate: lastDate,
+      builder: (context, child) {
+        final baseTheme = Theme.of(context);
+        final cs = baseTheme.colorScheme;
+        final themed = baseTheme.copyWith(
+          dialogBackgroundColor: Colors.white,
+          colorScheme: cs.brightness == Brightness.dark
+              ? cs.copyWith(
+                  primary: _primaryColor,
+                  surface: Colors.white,
+                  onPrimary: Colors.white,
+                  onSurface: const Color(0xFF2E2F31),
+                )
+              : ColorScheme.light(
+                  primary: _primaryColor,
+                  surface: Colors.white,
+                  onPrimary: Colors.white,
+                  onSurface: const Color(0xFF2E2F31),
+                ),
+          datePickerTheme: const DatePickerThemeData(
+            backgroundColor: Colors.white,
+            surfaceTintColor: Colors.transparent,
+          ),
+        );
+        return Theme(data: themed, child: child!);
+      },
     );
     if (picked != null) {
       setState(() {
@@ -894,7 +932,14 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         ),
         _formPairRow(
           _editableFieldInner('Account number', _accountNumberController),
-          _editableFieldInner('IFSC', _ifscController),
+          _editableFieldInner(
+            'IFSC',
+            _ifscController,
+            inputFormatters: [
+              _UpperCaseTextFormatter(),
+            ],
+            textCapitalization: TextCapitalization.characters,
+          ),
         ),
         const SizedBox(height: 16),
         Row(
@@ -1026,6 +1071,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     String label,
     TextEditingController c, {
     bool required = true,
+    List<TextInputFormatter>? inputFormatters,
+    TextCapitalization textCapitalization = TextCapitalization.none,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1043,6 +1090,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         TextField(
           controller: c,
           onChanged: (_) => setState(() {}),
+          inputFormatters: inputFormatters,
+          textCapitalization: textCapitalization,
           decoration: _normalFieldDecoration(
             borderRadius: BorderRadius.circular(12),
           ),

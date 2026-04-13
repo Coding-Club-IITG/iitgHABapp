@@ -13,7 +13,7 @@ const agenda = new Agenda({
   }),
 
   // How often MongoDB is queried for due jobs
-  processEvery: "5 seconds",
+  processEvery: "30 seconds",
 
   // Maximum concurrent jobs across all queues on this process
   maxConcurrency: 4,

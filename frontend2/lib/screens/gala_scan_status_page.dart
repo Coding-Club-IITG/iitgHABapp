@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:frontend2/screens/main_navigation_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -157,7 +158,9 @@ Container(
     width: double.infinity,
     height: 55,
     child: ElevatedButton(
-      onPressed: () {
+      onPressed: () async {
+        await FestivalModeService().bootstrapBeforeHome();
+        if (!context.mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(
               builder: (context) => const MainNavigationScreen()),
@@ -261,7 +264,9 @@ Container(
         child: SizedBox(
           height: 50,
           child: ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              await FestivalModeService().bootstrapBeforeHome();
+              if (!context.mounted) return;
               Navigator.of(context).pushAndRemoveUntil(
                 MaterialPageRoute(
                     builder: (context) => const MainNavigationScreen()),
