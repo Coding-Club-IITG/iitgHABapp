@@ -965,6 +965,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return basePath;
   }
 
+  /// Same asset chain as the full-width weather hero: rainy → weekend → morning/afternoon/evening
+  /// (see [WeatherBackgroundService._assetFor] / [_weatherBackground]).
+  Widget _weatherHeroBannerAssetImage(double height) {
+    return Image.asset(
+      _getBackgroundAssetPath(_weatherBackground.assetPath),
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+      height: height,
+      width: double.infinity,
+    );
+  }
+
   Color _getTitleColor() {
     if (_weatherBackground.backgroundVariant == 'weekend') {
       return Colors.white;
@@ -1480,9 +1492,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             valueListenable: AlertsManager.activeAlertsNotifier,
             builder: (context, activeAlerts, _) {
               final hasAlerts = activeAlerts.isNotEmpty;
-              final url = FestivalModeService()
-                  .getAppropriateFestivalImage(festData, hasAlerts)
-                  ?.replaceAll('localhost', '10.0.2.2');
+              final rawUrl = FestivalModeService()
+                  .getAppropriateFestivalImage(festData, hasAlerts);
+              final url = (rawUrl != null && rawUrl.trim().isNotEmpty)
+                  ? rawUrl.trim()
+                  : null;
               final bannerH = festivalBannerHeight(hasAlerts);
 
               return AnimatedContainer(
@@ -1491,22 +1505,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 child: Stack(
                   clipBehavior: Clip.none,
                   children: [
-                    if (url != null)
-                      Positioned(
-                        top: 0,
-                        left: 0,
-                        right: 0,
-                        height: bannerH,
-                        child: CachedNetworkImage(
-                          imageUrl: url,
-                          fit: BoxFit.cover,
-                          alignment: Alignment.topCenter,
-                          placeholder: (context, _) =>
-                              Container(color: const Color(0xFF1a1a2e)),
-                          errorWidget: (context, _, __) =>
-                              const SizedBox.shrink(),
-                        ),
-                      ),
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: bannerH,
+                      child: url != null
+                          ? CachedNetworkImage(
+                              imageUrl: url,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.topCenter,
+                              placeholder: (context, _) =>
+                                  _weatherHeroBannerAssetImage(bannerH),
+                              errorWidget: (context, _, __) =>
+                                  _weatherHeroBannerAssetImage(bannerH),
+                            )
+                          : _weatherHeroBannerAssetImage(bannerH),
+                    ),
                     Container(
                       child: _buildAlertsSection(),
                     ),
