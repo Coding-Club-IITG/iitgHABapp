@@ -513,64 +513,69 @@ class _MessChangeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const MessChangePreferenceScreen(),
-            ),
-          );
-        },
-        child: Ink(
-          decoration: BoxDecoration(
-            color: _MessScreenState.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _MessScreenState.border),
-            boxShadow: const [
-              BoxShadow(
-                color: _MessScreenState.shadow,
-                blurRadius: 16,
-                offset: Offset(0, 0),
-              ),
-            ],
+        boxShadow: const [
+          BoxShadow(
+            color: _MessScreenState.shadow,
+            blurRadius: 6,
+            offset: Offset(0, 4),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _MessScreenState.primarySoft,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: const Icon(
-                    Icons.swap_horiz_rounded,
-                    size: 24,
-                    color: _MessScreenState.primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Mess Change',
-                    style: TextStyle(
-                      fontSize: 16,
-                      height: 24 / 16,
-                      fontWeight: FontWeight.w500,
-                      color: _MessScreenState.textPrimary,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const MessChangePreferenceScreen(),
+              ),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: _MessScreenState.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _MessScreenState.border),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _MessScreenState.primarySoft,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(
+                      Icons.swap_horiz_rounded,
+                      size: 24,
+                      color: _MessScreenState.primary,
                     ),
                   ),
-                ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: _MessScreenState.textSecondary,
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Mess Change',
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 24 / 16,
+                        fontWeight: FontWeight.w500,
+                        color: _MessScreenState.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: _MessScreenState.textSecondary,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1397,8 +1402,8 @@ class _MessActionRowSkeleton extends StatelessWidget {
         boxShadow: const [
           BoxShadow(
             color: _MessScreenState.shadow,
-            blurRadius: 16,
-            offset: Offset(0, 0),
+            blurRadius: 6,
+            offset: Offset(0, 4),
           ),
         ],
       ),
@@ -1445,8 +1450,8 @@ class _MessInfoCardSkeleton extends StatelessWidget {
             boxShadow: const [
               BoxShadow(
                 color: _MessScreenState.shadow,
-                blurRadius: 16,
-                offset: Offset(0, 0),
+                blurRadius: 6,
+                offset: Offset(0, 4),
               ),
             ],
           ),
@@ -1652,64 +1657,69 @@ class _MessRebateRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
+    return Container(
+      decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const LeaveApplicationListScreen(),
-            ),
-          );
-        },
-        child: Ink(
-          decoration: BoxDecoration(
-            color: _MessScreenState.surface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: _MessScreenState.border),
-            boxShadow: const [
-              BoxShadow(
-                color: _MessScreenState.shadow,
-                blurRadius: 16,
-                offset: Offset(0, 0),
-              ),
-            ],
+        boxShadow: const [
+          BoxShadow(
+            color: _MessScreenState.shadow,
+            blurRadius: 6,
+            offset: Offset(0, 4),
           ),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: _MessScreenState.primarySoft,
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  child: const Icon(
-                    Icons.currency_rupee_rounded,
-                    size: 24,
-                    color: _MessScreenState.primary,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    'Mess Rebate',
-                    style: TextStyle(
-                      fontSize: 16,
-                      height: 24 / 16,
-                      fontWeight: FontWeight.w500,
-                      color: _MessScreenState.textPrimary,
+        ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const LeaveApplicationListScreen(),
+              ),
+            );
+          },
+          child: Container(
+            decoration: BoxDecoration(
+              color: _MessScreenState.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _MessScreenState.border),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: _MessScreenState.primarySoft,
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    child: const Icon(
+                      Icons.currency_rupee_rounded,
+                      size: 24,
+                      color: _MessScreenState.primary,
                     ),
                   ),
-                ),
-                const Icon(
-                  Icons.chevron_right_rounded,
-                  size: 20,
-                  color: _MessScreenState.textSecondary,
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  const Expanded(
+                    child: Text(
+                      'Mess Rebate',
+                      style: TextStyle(
+                        fontSize: 16,
+                        height: 24 / 16,
+                        fontWeight: FontWeight.w500,
+                        color: _MessScreenState.textPrimary,
+                      ),
+                    ),
+                  ),
+                  const Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: _MessScreenState.textSecondary,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -1774,8 +1784,8 @@ class _MessInfoSection extends StatelessWidget {
             boxShadow: const [
               BoxShadow(
                 color: _MessScreenState.shadow,
-                blurRadius: 16,
-                offset: Offset(0, 0),
+                blurRadius: 6,
+                offset: Offset(0, 4),
               ),
             ],
           ),
