@@ -206,7 +206,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                   redirectType: notif.redirectType,
                                   notificationIndex: actualIndex,
                                   isRead: notif.isRead,
-                                  isAlert: notif.isAlert,
                                 );
                               },
                             );

@@ -24,7 +24,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class ProfileScreen extends StatefulWidget {
   final String name;
   final String hostel;
+  final String hostelName;
   final String currMess;
+  final String currMessName;
   final String roomNo;
   final String phone;
   final String rollNo;
@@ -35,7 +37,9 @@ class ProfileScreen extends StatefulWidget {
     super.key,
     required this.name,
     required this.hostel,
+    required this.hostelName,
     required this.currMess,
+    required this.currMessName,
     required this.roomNo,
     required this.phone,
     required this.rollNo,
@@ -240,9 +244,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   _ProfileField(
                     iconPath: 'assets/icon/messicon.svg',
                     label: 'Current Mess',
-                    value: widget.currMess.isEmpty
-                        ? '—'
-                        : calculateHostel(widget.currMess),
+                    value: widget.currMessName.isNotEmpty
+                        ? widget.currMessName
+                        : widget.currMess.isEmpty
+                            ? '—'
+                            : calculateHostel(widget.currMess),
                   ),
                   const Divider(height: 16, color: Color(0xFFE2E2E2)),
 
@@ -254,9 +260,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         child: _ProfileField(
                           iconPath: 'assets/icon/hostel.svg',
                           label: 'Hostel',
-                          value: widget.hostel.isEmpty
-                              ? '—'
-                              : calculateHostel(widget.hostel),
+                          value: widget.hostelName.isNotEmpty
+                              ? widget.hostelName
+                              : widget.hostel.isEmpty
+                                  ? '—'
+                                  : calculateHostel(widget.hostel),
                         ),
                       ),
                       Container(

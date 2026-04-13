@@ -23,6 +23,7 @@ import 'package:frontend2/utils/meal_countdown_text.dart';
 import 'package:frontend2/utilities/alert_expirer.dart';
 import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/widgets/alert_countdown_text.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
 import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 // import 'package:frontend2/widgets/countdown.dart';
@@ -1173,6 +1174,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ],
+                  if (alert.hasCountdown)
+                    AlertCountdownText(expiresAt: alert.expiresAt),
                   SilentAlertExpirer(expiresAt: alert.expiresAt),
                 ],
               ),
