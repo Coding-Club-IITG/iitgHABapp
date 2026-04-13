@@ -28,6 +28,20 @@ const getImageResponseFromData = (req, imageData) => {
   };
 };
 
+const getImageListResponseFromData = (req, images) => {
+  if (!Array.isArray(images)) return [];
+  return images
+    .filter(Boolean)
+    .map((img) => getImageResponseFromData(req, img))
+    .filter((img) => img && img.url);
+};
+
+const firstNonEmptyText = (texts, fallback = "Happy Diwali") => {
+  if (!Array.isArray(texts)) return fallback;
+  const found = texts.find((t) => typeof t === "string" && t.trim().length > 0);
+  return found ? found : fallback;
+};
+
 /**
  * GET /api/festival-mode/active-summary
  * Minimal payload for mobile cold-start / pre-home: compare festivalId + isEnabled to Hive cache.
@@ -83,16 +97,43 @@ export const getFestivalModeStatus = async (req, res, next) => {
       await festivalMode.save();
     }
 
-    const withAlerts = getImageResponseFromData(req, festivalMode.imageWithAlerts);
-    const withoutAlerts = getImageResponseFromData(req, festivalMode.imageWithoutAlerts);
+    // Prefer new array-based config; fall back to legacy single-image fields.
+    const withAlertsList = getImageListResponseFromData(req, festivalMode.imagesWithAlerts);
+    const withoutAlertsList = getImageListResponseFromData(req, festivalMode.imagesWithoutAlerts);
+
+    const legacyWithAlerts = getImageResponseFromData(req, festivalMode.imageWithAlerts);
+    const legacyWithoutAlerts = getImageResponseFromData(req, festivalMode.imageWithoutAlerts);
+
+    const primaryWithAlerts = withAlertsList[0] || legacyWithAlerts;
+    const primaryWithoutAlerts = withoutAlertsList[0] || legacyWithoutAlerts;
+
+    const textsWithAlerts =
+      Array.isArray(festivalMode.textsWithAlerts) && festivalMode.textsWithAlerts.length > 0
+        ? festivalMode.textsWithAlerts
+        : festivalMode.imageWithAlerts?.overlayText
+          ? [festivalMode.imageWithAlerts.overlayText]
+          : [];
+    const textsWithoutAlerts =
+      Array.isArray(festivalMode.textsWithoutAlerts) && festivalMode.textsWithoutAlerts.length > 0
+        ? festivalMode.textsWithoutAlerts
+        : festivalMode.imageWithoutAlerts?.overlayText
+          ? [festivalMode.imageWithoutAlerts.overlayText]
+          : [];
 
     res.status(200).json({
       festivalId: festivalMode._id,
       isEnabled: festivalMode.isEnabled,
-      imageWithAlerts: withAlerts?.url || null,
-      imageWithoutAlerts: withoutAlerts?.url || null,
-      overlayTextWithAlerts: festivalMode.imageWithAlerts?.overlayText || "Happy Diwali",
-      overlayTextWithoutAlerts: festivalMode.imageWithoutAlerts?.overlayText || "Happy Diwali",
+      // Legacy fields (keep for existing mobile builds)
+      imageWithAlerts: primaryWithAlerts?.url || null,
+      imageWithoutAlerts: primaryWithoutAlerts?.url || null,
+      overlayTextWithAlerts: firstNonEmptyText(textsWithAlerts, "Happy Diwali"),
+      overlayTextWithoutAlerts: firstNonEmptyText(textsWithoutAlerts, "Happy Diwali"),
+      // New fields
+      themeColor: festivalMode.themeColor || "#4C4EDB",
+      imagesWithAlerts: withAlertsList.map((img) => img.url),
+      imagesWithoutAlerts: withoutAlertsList.map((img) => img.url),
+      textsWithAlerts,
+      textsWithoutAlerts,
       lastUpdatedAt: festivalMode.lastUpdatedAt,
       cacheUntil: festivalMode.cacheUntil, // Tell mobile app when to refresh
     });
@@ -175,8 +216,14 @@ export const uploadFestivalImage = async (req, res, next) => {
 
     if (imageType === "with_alerts") {
       festivalMode.imageWithAlerts = imageRecord;
+      festivalMode.imagesWithAlerts = Array.isArray(festivalMode.imagesWithAlerts)
+        ? [imageRecord, ...festivalMode.imagesWithAlerts]
+        : [imageRecord];
     } else {
       festivalMode.imageWithoutAlerts = imageRecord;
+      festivalMode.imagesWithoutAlerts = Array.isArray(festivalMode.imagesWithoutAlerts)
+        ? [imageRecord, ...festivalMode.imagesWithoutAlerts]
+        : [imageRecord];
     }
 
     festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
@@ -260,9 +307,11 @@ export const deleteFestivalImage = async (req, res, next) => {
     if (imageType === "with_alerts") {
       imageData = festivalMode.imageWithAlerts;
       festivalMode.imageWithAlerts = null;
+      festivalMode.imagesWithAlerts = [];
     } else {
       imageData = festivalMode.imageWithoutAlerts;
       festivalMode.imageWithoutAlerts = null;
+      festivalMode.imagesWithoutAlerts = [];
     }
 
     if (!imageData) {
@@ -295,6 +344,55 @@ export const deleteFestivalImage = async (req, res, next) => {
     });
   } catch (err) {
     console.error("Error deleting festival image:", err);
+    next(new AppError(500, "Failed to delete festival image"));
+  }
+};
+
+/**
+ * DELETE /api/festival-mode/image/item/:itemId
+ * Admin only - delete a specific festival image by OneDrive itemId
+ */
+export const deleteFestivalImageByItemId = async (req, res, next) => {
+  try {
+    const { itemId } = req.params;
+    if (!itemId) return next(new AppError(400, "itemId is required"));
+
+    const festivalMode = await FestivalMode.findOne();
+    if (!festivalMode) return next(new AppError(404, "Festival mode not configured"));
+
+    const beforeWith = Array.isArray(festivalMode.imagesWithAlerts) ? festivalMode.imagesWithAlerts.length : 0;
+    const beforeWithout = Array.isArray(festivalMode.imagesWithoutAlerts) ? festivalMode.imagesWithoutAlerts.length : 0;
+
+    festivalMode.imagesWithAlerts = (festivalMode.imagesWithAlerts || []).filter((img) => img?.itemId !== itemId);
+    festivalMode.imagesWithoutAlerts = (festivalMode.imagesWithoutAlerts || []).filter((img) => img?.itemId !== itemId);
+
+    // If legacy pointer matches, clear it
+    if (festivalMode.imageWithAlerts?.itemId === itemId) festivalMode.imageWithAlerts = null;
+    if (festivalMode.imageWithoutAlerts?.itemId === itemId) festivalMode.imageWithoutAlerts = null;
+
+    // Delete from OneDrive (best-effort)
+    try {
+      await deleteFestivalImageFromOneDrive(itemId);
+    } catch (oneDriveErr) {
+      console.warn("OneDrive deletion warning:", oneDriveErr.message);
+    }
+
+    festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
+    festivalMode.lastUpdatedAt = new Date();
+    festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    await festivalMode.save();
+
+    const removed = (beforeWith - (festivalMode.imagesWithAlerts || []).length) +
+      (beforeWithout - (festivalMode.imagesWithoutAlerts || []).length);
+
+    return res.status(200).json({
+      success: true,
+      itemId,
+      removed,
+      message: removed > 0 ? "Image deleted successfully" : "No matching image found (legacy may have been cleared)",
+    });
+  } catch (err) {
+    console.error("Error deleting festival image by itemId:", err);
     next(new AppError(500, "Failed to delete festival image"));
   }
 };
@@ -346,6 +444,11 @@ export const getAdminFestivalConfig = async (req, res, next) => {
       isEnabled: festivalMode.isEnabled,
       imageWithAlerts: getImageResponseFromData(req, festivalMode.imageWithAlerts),
       imageWithoutAlerts: getImageResponseFromData(req, festivalMode.imageWithoutAlerts),
+      imagesWithAlerts: getImageListResponseFromData(req, festivalMode.imagesWithAlerts),
+      imagesWithoutAlerts: getImageListResponseFromData(req, festivalMode.imagesWithoutAlerts),
+      textsWithAlerts: festivalMode.textsWithAlerts || [],
+      textsWithoutAlerts: festivalMode.textsWithoutAlerts || [],
+      themeColor: festivalMode.themeColor || "#4C4EDB",
       lastUpdatedBy: festivalMode.lastUpdatedBy,
       lastUpdatedAt: festivalMode.lastUpdatedAt,
       expiresAt: festivalMode.expiresAt,
@@ -354,6 +457,78 @@ export const getAdminFestivalConfig = async (req, res, next) => {
   } catch (err) {
     console.error("Error fetching admin config:", err);
     next(new AppError(500, "Failed to fetch festival config"));
+  }
+};
+
+/**
+ * POST /api/festival-mode/admin/config
+ * Admin only - update festival mode admin-configurable fields (texts, themeColor)
+ */
+export const updateAdminFestivalConfig = async (req, res, next) => {
+  try {
+    const { textsWithAlerts, textsWithoutAlerts, themeColor } = req.body || {};
+
+    let festivalMode = await FestivalMode.findOne();
+    if (!festivalMode) festivalMode = await FestivalMode.create({ isEnabled: false });
+
+    if (Array.isArray(textsWithAlerts)) {
+      festivalMode.textsWithAlerts = textsWithAlerts
+        .filter((t) => typeof t === "string")
+        .map((t) => t.trim())
+        .filter(Boolean);
+    }
+    if (Array.isArray(textsWithoutAlerts)) {
+      festivalMode.textsWithoutAlerts = textsWithoutAlerts
+        .filter((t) => typeof t === "string")
+        .map((t) => t.trim())
+        .filter(Boolean);
+    }
+    if (typeof themeColor === "string" && themeColor.trim()) {
+      festivalMode.themeColor = themeColor.trim();
+    }
+
+    // Keep legacy overlay text in sync (best-effort)
+    if (festivalMode.imageWithAlerts) {
+      festivalMode.imageWithAlerts.overlayText =
+        firstNonEmptyText(festivalMode.textsWithAlerts, festivalMode.imageWithAlerts.overlayText || "Happy Diwali");
+      festivalMode.markModified("imageWithAlerts");
+    }
+    if (festivalMode.imageWithoutAlerts) {
+      festivalMode.imageWithoutAlerts.overlayText =
+        firstNonEmptyText(
+          festivalMode.textsWithoutAlerts,
+          festivalMode.imageWithoutAlerts.overlayText || "Happy Diwali",
+        );
+      festivalMode.markModified("imageWithoutAlerts");
+    }
+
+    festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
+    festivalMode.lastUpdatedAt = new Date();
+    festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    try {
+      await festivalMode.save();
+    } catch (saveErr) {
+      console.error("FestivalMode save validation/error:", saveErr);
+      return next(
+        new AppError(
+          500,
+          saveErr.message || "Failed to persist festival config",
+        ),
+      );
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Festival config updated",
+      themeColor: festivalMode.themeColor,
+      textsWithAlerts: festivalMode.textsWithAlerts,
+      textsWithoutAlerts: festivalMode.textsWithoutAlerts,
+      lastUpdatedAt: festivalMode.lastUpdatedAt,
+      cacheUntil: festivalMode.cacheUntil,
+    });
+  } catch (err) {
+    console.error("Error updating admin festival config:", err);
+    next(new AppError(500, "Failed to update festival config"));
   }
 };
 
