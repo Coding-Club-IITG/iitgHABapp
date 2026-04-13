@@ -82,7 +82,8 @@ class _HomeScreenState extends State<HomeScreen> {
       WeatherBackgroundData.localTimeDefault();
 
   /// When festival mode is off (or rain backdrop): morning & afternoon = purple;
-  /// weekend, evening & rain = white.
+  /// evening & rain = white. Weekend title/username are split in [_getTitleColor] /
+  /// [_heroUserNameColor] (white + purple).
   Color _heroAccentColor() {
     final variant = _weatherBackground.backgroundVariant;
     switch (variant) {
@@ -919,6 +920,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Color _getTitleColor() {
+    if (_weatherBackground.backgroundVariant == 'weekend') {
+      return Colors.white;
+    }
     final festivalData = FestivalModeService().currentData;
     final rainPriority = _weatherBackground.weatherGroup == 'rainy';
     if (festivalData != null && festivalData.isEnabled && !rainPriority) {
@@ -941,8 +945,11 @@ class _HomeScreenState extends State<HomeScreen> {
     return Colors.white;
   }
 
-  /// First name matches [HABit] / BETA when festival is active; else time-of-day accent.
+  /// First name: weekend uses [primary]; else festival or [_heroAccentColor].
   Color _heroUserNameColor() {
+    if (_weatherBackground.backgroundVariant == 'weekend') {
+      return primary;
+    }
     final festivalData = FestivalModeService().currentData;
     final rainPriority = _weatherBackground.weatherGroup == 'rainy';
     if (festivalData != null && festivalData.isEnabled && !rainPriority) {
