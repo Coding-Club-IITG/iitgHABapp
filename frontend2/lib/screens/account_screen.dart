@@ -28,8 +28,10 @@ class AccountScreen extends StatefulWidget {
 class _AccountScreenState extends State<AccountScreen> {
   String name = '';
   String hostel = '';
-  String email = '';
+  String hostelName = '';
   String currMess = '';
+  String currMessName = '';
+  String email = '';
   String roomNo = '';
   String phone = '';
   String rollNo = '';
@@ -57,9 +59,11 @@ class _AccountScreenState extends State<AccountScreen> {
     final guestIdentifier = prefs.getString('guestIdentifier');
     setState(() {
       hostel = prefs.getString('hostel') ?? '';
+      hostelName = prefs.getString('hostelName') ?? '';
       name = prefs.getString('name') ?? '';
       email = prefs.getString('email') ?? '';
       currMess = prefs.getString('currMess') ?? '';
+      currMessName = prefs.getString('currMessName') ?? '';
       roomNo = prefs.getString('roomNumber') ?? '';
       phone = prefs.getString('phoneNumber') ?? '';
       rollNo = prefs.getString('rollNo') ?? '';
@@ -108,7 +112,9 @@ class _AccountScreenState extends State<AccountScreen> {
             builder: (_) => ProfileScreen(
               name: name,
               hostel: hostel,
+              hostelName: hostelName,
               currMess: currMess,
+              currMessName: currMessName,
               roomNo: newRoom,
               phone: newPhone,
               rollNo: rollNo,
@@ -295,13 +301,16 @@ class _AccountScreenState extends State<AccountScreen> {
           _AccountProfileCard(
             name: name,
             hostel: hostel,
+            hostelName: hostelName,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
                 builder: (_) => ProfileScreen(
                   name: name,
                   hostel: hostel,
+                  hostelName: hostelName,
                   currMess: currMess,
+                  currMessName: currMessName,
                   roomNo: roomNo,
                   phone: phone,
                   rollNo: rollNo,
@@ -421,11 +430,13 @@ class _AccountScreenState extends State<AccountScreen> {
 class _AccountProfileCard extends StatelessWidget {
   final String name;
   final String hostel;
+  final String hostelName;
   final VoidCallback onTap;
 
   const _AccountProfileCard({
     required this.name,
     required this.hostel,
+    required this.hostelName,
     required this.onTap,
   });
 
@@ -466,7 +477,9 @@ class _AccountProfileCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        hostel.isEmpty ? '—' : calculateHostel(hostel),
+                        hostelName.isNotEmpty
+                            ? hostelName
+                            : (hostel.isEmpty ? '—' : calculateHostel(hostel)),
                         style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.w500,

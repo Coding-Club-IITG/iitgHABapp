@@ -5,6 +5,7 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:frontend2/apis/mess/mess_menu.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:frontend2/models/alert_model.dart';
@@ -23,6 +24,7 @@ import 'package:frontend2/utils/meal_countdown_text.dart';
 import 'package:frontend2/utilities/alert_expirer.dart';
 import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/widgets/alert_countdown_text.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
 import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 // import 'package:frontend2/widgets/countdown.dart';
@@ -961,6 +963,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return basePath;
   }
 
+  /// Same asset chain as the full-width weather hero: rainy → weekend → morning/afternoon/evening
+  /// (see [WeatherBackgroundService._assetFor] / [_weatherBackground]).
+  Widget _weatherHeroBannerAssetImage(double height) {
+    return Image.asset(
+      _getBackgroundAssetPath(_weatherBackground.assetPath),
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+      height: height,
+      width: double.infinity,
+    );
+  }
+
   Color _getTitleColor() {
     final variant = _weatherBackground.backgroundVariant;
 
@@ -989,6 +1003,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return Colors.white;
   }
 
+  /// Greeting prefix ("…, ") — server [FestivalModeData.greetingTextColor] when set.
+  Color _heroGreetingPrefixColor() {
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null &&
+        festivalData.isEnabled &&
+        !rainPriority &&
+        festivalData.greetingTextColor.trim().isNotEmpty) {
+      return FestivalThemePalette.resolveColor(festivalData.greetingTextColor);
+    }
+    return _getTextColor();
+  }
+
+  /// "N notifications today" — server [FestivalModeData.notificationSubtitleColor] when set.
+  Color _heroNotificationSubtitleColor() {
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+    if (festivalData != null &&
+        festivalData.isEnabled &&
+        !rainPriority &&
+        festivalData.notificationSubtitleColor.trim().isNotEmpty) {
+      return FestivalThemePalette.resolveColor(
+          festivalData.notificationSubtitleColor);
+    }
+    return _getTextColor();
+  }
+
   /// First name: weekend uses [primary]; else festival or [_heroAccentColor].
   Color _heroUserNameColor() {
     if (_weatherBackground.backgroundVariant == 'weekend') {
@@ -1013,7 +1054,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         : '$unreadCount notifications today';
 
     final titleColor = _getTitleColor();
-    final textColor = _getTextColor();
+    final subtitleColor = _heroNotificationSubtitleColor();
 
     final greetingFontSize = hasImportantMessages ? 16.0 : 24.0;
     final greetingLineHeight =
@@ -1073,7 +1114,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         fontSize: greetingFontSize,
                         height: greetingLineHeight,
                         fontWeight: FontWeight.w500,
-                        color: _getTextColor(),
+                        color: _heroGreetingPrefixColor(),
                       ),
                       children: [
                         TextSpan(text: '$greeting, '),
@@ -1095,7 +1136,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   fontSize: 12,
                   height: 16 / 12,
                   fontWeight: FontWeight.w500,
-                  color: textColor,
+                  color: subtitleColor,
                 ),
               ),
             ],
@@ -1173,6 +1214,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       ),
                     ),
                   ],
+                  if (alert.hasCountdown)
+                    AlertCountdownText(expiresAt: alert.expiresAt),
                   SilentAlertExpirer(expiresAt: alert.expiresAt),
                 ],
               ),
@@ -1235,10 +1278,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 final notifications = storedNotifications;
                 // notifications.forEach((notification) {print(notification.timestamp);});
                 // notifications.forEach((notification) {print(notification.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)));});
-              final unreadNotifCount = notifications.where((n) => !n.isRead && !n.isAlert).length;
-              final unreadAlertsCount =
-                  activeAlerts.where((a) => !a.isRead).length;
-            final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
+              final unreadNotifCount = notifications.where((n) => !n.isRead).length;
+              // final unreadAlertsCount =
+              //     activeAlerts.where((a) => !a.isRead).length;
+            // final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
             final updatesCount = unreadNotifCount;
             final todayNotificationCount = notifications.where((n) => (!n.isAlert) && n.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day))).length;
 
@@ -1440,34 +1483,81 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         FestivalModeService().currentData?.isEnabled == true;
     final rainPriority = _weatherBackground.weatherGroup == 'rainy';
     final festivalOn = festivalModeOn && !rainPriority;
-    final DecorationImage? bgImage = festivalOn
-        ? null
-        : DecorationImage(
-            image: AssetImage(
-              _getBackgroundAssetPath(_weatherBackground.assetPath),
-            ),
-            fit: BoxFit.cover,
-            alignment: Alignment.topCenter,
+
+    if (festivalOn) {
+      return ValueListenableBuilder<FestivalModeData>(
+        valueListenable: FestivalModeService().festivalVisualNotifier,
+        builder: (context, festData, _) {
+          return ValueListenableBuilder<List<AlertModel>>(
+            valueListenable: AlertsManager.activeAlertsNotifier,
+            builder: (context, activeAlerts, _) {
+              final hasAlerts = activeAlerts.isNotEmpty;
+              final rawUrl = FestivalModeService()
+                  .getAppropriateFestivalImage(festData, hasAlerts);
+              final url = (rawUrl != null && rawUrl.trim().isNotEmpty)
+                  ? rawUrl.trim()
+                  : null;
+              final bannerH = festivalBannerHeight(hasAlerts);
+
+              return AnimatedContainer(
+                duration: const Duration(milliseconds: 400),
+                width: double.infinity,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Positioned(
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      height: bannerH,
+                      child: url != null
+                          ? CachedNetworkImage(
+                              imageUrl: url,
+                              fit: BoxFit.cover,
+                              alignment: Alignment.topCenter,
+                              placeholder: (context, _) =>
+                                  _weatherHeroBannerAssetImage(bannerH),
+                              errorWidget: (context, _, __) =>
+                                  _weatherHeroBannerAssetImage(bannerH),
+                            )
+                          : _weatherHeroBannerAssetImage(bannerH),
+                    ),
+                    Container(
+                      child: _buildAlertsSection(),
+                    ),
+                  ],
+                ),
+              );
+            },
           );
+        },
+      );
+    }
+
+    final DecorationImage bgImage = DecorationImage(
+      image: AssetImage(
+        _getBackgroundAssetPath(_weatherBackground.assetPath),
+      ),
+      fit: BoxFit.cover,
+      alignment: Alignment.topCenter,
+    );
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 400),
       width: double.infinity,
       decoration: BoxDecoration(image: bgImage),
       child: Container(
-        decoration: festivalOn
-            ? null
-            : const BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    Color(0x00FFFFFF),
-                    Color(0xFFFFFFFF),
-                  ],
-                  stops: [0.59, 1.0],
-                ),
-              ),
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Color(0x00FFFFFF),
+              Color(0xFFFFFFFF),
+            ],
+            stops: [0.59, 1.0],
+          ),
+        ),
         child: _buildAlertsSection(),
       ),
     );

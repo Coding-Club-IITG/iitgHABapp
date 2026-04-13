@@ -67,6 +67,16 @@ const festivalModeSchema = new mongoose.Schema({
     type: String,
     default: "#4C4EDB",
   },
+  /** Hero greeting prefix ("Good morning, ") — empty = app uses weather default */
+  greetingTextColor: {
+    type: String,
+    default: "",
+  },
+  /** "N notifications today" line — empty = app uses weather default */
+  notificationSubtitleColor: {
+    type: String,
+    default: "",
+  },
   lastUpdatedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",

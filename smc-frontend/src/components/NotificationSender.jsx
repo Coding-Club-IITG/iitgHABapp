@@ -166,9 +166,7 @@ const NotificationSender = () => {
                   checked={hasCountdown}
                   onChange={(e) => setHasCountdown(e.target.checked)}
                 />
-                <span className="text-red-900">
-                  Show countdown timer to users
-                </span>
+                <span className="text-red-900">Show countdown</span>
               </label>
             </div>
           </div>
