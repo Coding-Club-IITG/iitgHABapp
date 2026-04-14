@@ -96,7 +96,7 @@ app.use(
 );
 
 const MONGOdb_uri = process.env.MONGODB_URI;
-const PORT = process.env.PORT || 3002;
+const PORT = process.env.PORT_V2 || 3002;
 
 const swaggerOptions = {
   definition: {
