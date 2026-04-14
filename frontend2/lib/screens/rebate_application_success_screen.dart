@@ -10,10 +10,13 @@ class RebateApplicationSuccessScreen extends StatelessWidget {
     super.key,
     this.leaveDocumentUrl = '',
     this.leaveTypeLabel = 'Leave Application',
+    this.isMedicalLeave = false,
   });
 
   final String leaveDocumentUrl;
   final String leaveTypeLabel;
+  /// Medical leave allows proof upload later; show deadline in Action required.
+  final bool isMedicalLeave;
 
   static const Color _borderColor = Color(0xFFE6E6E6);
   static const Color _greyBg = Color(0xFFF5F5F5);
@@ -166,10 +169,10 @@ class RebateApplicationSuccessScreen extends StatelessWidget {
                         color: _warningBg,
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: const Column(
+                      child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          const Row(
                             children: [
                               Icon(
                                 Icons.error_outline_rounded,
@@ -188,18 +191,20 @@ class RebateApplicationSuccessScreen extends StatelessWidget {
                               ),
                             ],
                           ),
-                          SizedBox(height: 8),
-                          _ActionCallout(
+                          const SizedBox(height: 8),
+                          const _ActionCallout(
                             text:
                                 "Take a printout of the form and hand it at the hostel security desk. Your application won't be processed until this is done.",
                           ),
-                          SizedBox(height: 8),
-                          _ActionCallout(
-                            text:
-                                "Take a printout of the form and hand it at the hostel security desk. Your application won't be processed until this is done.",
-                          ),
-                          SizedBox(height: 8),
-                          _ActionCallout(
+                          if (isMedicalLeave) ...[
+                            const SizedBox(height: 8),
+                            const _ActionCallout(
+                              text:
+                                  'Please upload a valid proof within 7 days or your application will not be considered for a rebate.',
+                            ),
+                          ],
+                          const SizedBox(height: 8),
+                          const _ActionCallout(
                             text:
                                 'Once the mess manager verifies it, the amount will be credited to your bank account',
                           ),

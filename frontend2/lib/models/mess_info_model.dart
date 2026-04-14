@@ -1,8 +1,8 @@
-/// Truncates toward zero to 2 decimal places (e.g. 3.934856… → 3.93, not 4.00).
-double truncateToTwoDecimals(num? value) {
+/// Round half-up to 2 decimal places (matches API / Mongo `$round` …, 2).
+double roundToTwoDecimals(num? value) {
   if (value == null) return 0.0;
   final d = value.toDouble();
-  return (d * 100).truncate() / 100;
+  return (d * 100).round() / 100;
 }
 
 class MessInfoModel {
@@ -31,10 +31,10 @@ class MessInfoModel {
       id: json['_id'],
       name: json['name'],
       hostelId: json['hostelId'],
-      rating: truncateToTwoDecimals(json['rating'] as num?),
+      rating: roundToTwoDecimals(json['rating'] as num?),
       ranking: (json['ranking'] as num?)?.toInt() ?? 0,
       feedbackPercentage:
-          truncateToTwoDecimals(json['feedbackPercentage'] as num?),
+          roundToTwoDecimals(json['feedbackPercentage'] as num?),
       hostelName: json['hostelName'],
     );
   }

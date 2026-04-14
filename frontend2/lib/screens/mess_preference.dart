@@ -16,7 +16,17 @@ abstract final class _MessPrefTheme {
   static const border = Color(0xFFE6E6E6);
   static const textPrimary = Color(0xFF2E2F31);
   static const textSecondary = Color(0xFF676767);
-  static const neutralNoticeBg = Color(0xFFF5F5F5);
+  // Lighter than before (avoid grey/dark feel).
+  static const pageBg = Color(0xFFFFFFFF);
+  static const danger = Color(0xFFC40205);
+  static const cardRadius = 14.0;
+  static List<BoxShadow> get cardShadow => [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.06),
+          blurRadius: 20,
+          offset: const Offset(0, 4),
+        ),
+      ];
 }
 
 class MessChangePreferenceScreen extends StatefulWidget {
@@ -392,10 +402,46 @@ class _MessChangePreferenceScreenState
     }
   }
 
+  BoxDecoration _cardDecoration({Color? bg}) {
+    return BoxDecoration(
+      color: bg ?? Colors.white,
+      borderRadius: BorderRadius.circular(_MessPrefTheme.cardRadius),
+      border: Border.all(color: _MessPrefTheme.border),
+      boxShadow: _MessPrefTheme.cardShadow,
+    );
+  }
+
+  Widget _preferenceField({
+    required String label,
+    required MessDropdown dropdown,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: const TextStyle(
+            fontSize: 13,
+            height: 18 / 13,
+            fontWeight: FontWeight.w600,
+            letterSpacing: 0.15,
+            color: _MessPrefTheme.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 10),
+        dropdown,
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final bottomInset = MediaQuery.paddingOf(context).bottom;
+    final showSubmit =
+        (isMessChangeEnabled == true) && !alreadyApplied && !isSMC;
+
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: _MessPrefTheme.pageBg,
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
@@ -424,232 +470,207 @@ class _MessChangePreferenceScreenState
           IconButton(
             tooltip: 'Mess change rules',
             onPressed: _showMessChangeRulesSheet,
-            icon: const Icon(Icons.info_outline),
-            color: _MessPrefTheme.textSecondary,
+            style: IconButton.styleFrom(
+              foregroundColor: _MessPrefTheme.primary,
+              backgroundColor: _MessPrefTheme.primary.withValues(alpha: 0.10),
+            ),
+            icon: const Icon(Icons.info_outline_rounded),
           ),
         ],
       ),
       body: SafeArea(
         child: loadingStatus
-            ? ShimmerHost(
-                builder: (context, box) => Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: ListView(
-                    children: [
-                      box(height: 16, width: double.infinity),
-                      const SizedBox(height: 8),
-                      box(height: 16, width: 280),
-                      const SizedBox(height: 8),
-                      box(height: 16, width: 220),
-                      const SizedBox(height: 24),
-                      for (int i = 0; i < 6; i++) ...[
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 12),
-                          child: box(
-                            height: 56,
-                            width: double.infinity,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+            ? ColoredBox(
+                color: _MessPrefTheme.pageBg,
+                child: ShimmerHost(
+                  builder: (context, box) => SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        box(
+                          height: 100,
+                          width: double.infinity,
+                          borderRadius:
+                              BorderRadius.circular(_MessPrefTheme.cardRadius),
+                        ),
+                        const SizedBox(height: 16),
+                        box(
+                          height: 72,
+                          width: double.infinity,
+                          borderRadius:
+                              BorderRadius.circular(_MessPrefTheme.cardRadius),
+                        ),
+                        const SizedBox(height: 16),
+                        box(
+                          height: 280,
+                          width: double.infinity,
+                          borderRadius:
+                              BorderRadius.circular(_MessPrefTheme.cardRadius),
                         ),
                       ],
-                    ],
+                    ),
                   ),
                 ),
               )
-            : Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                child: ListView(
-                  children: [
-                    const Text(
-                      'Choose the mess that suits your taste or convenience. First review the mess change rules using the (i) button at the top.',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w500,
-                        fontSize: 16,
-                        height: 24 / 16,
-                        color: _MessPrefTheme.textSecondary,
+            : ColoredBox(
+                color: _MessPrefTheme.pageBg,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.fromLTRB(
+                    16,
+                    12,
+                    16,
+                    32 + (showSubmit ? 88 : 0) + bottomInset,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Choose the mess that suits your taste or convenience. First review the mess change rules using the (i) button at the top.',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w500,
+                          fontSize: 14,
+                          height: 1.45,
+                          color: _MessPrefTheme.primary,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // Info banner if already applied
-                    if (alreadyApplied)
-                      Container(
-                        width: double.infinity,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 12,
-                        ),
-                        margin: const EdgeInsets.only(bottom: 12),
-                        decoration: BoxDecoration(
-                          color: _MessPrefTheme.neutralNoticeBg,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: _MessPrefTheme.border),
-                        ),
-                        child: Text(
+                      const SizedBox(height: 10),
+                      if (alreadyApplied) ...[
+                        Text(
                           appliedHostel != null && appliedHostel!.isNotEmpty
                               ? 'You have already applied for $appliedHostel'
                               : 'You have already applied',
-                          textAlign: TextAlign.center,
                           style: const TextStyle(
                             fontSize: 14,
-                            height: 20 / 14,
-                            fontWeight: FontWeight.w500,
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
                             color: _MessPrefTheme.textPrimary,
                           ),
                         ),
-                      ),
-
-                    if (isMessChangeEnabled == false)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 12,
+                        const SizedBox(height: 10),
+                      ],
+                      if (isMessChangeEnabled == false) ...[
+                        Text(
+                          'Mess change is currently disabled, you will be notified when it opens.',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            height: 1.4,
+                            fontWeight: FontWeight.w600,
+                            color: _MessPrefTheme.danger,
                           ),
-                          decoration: BoxDecoration(
-                            color: _MessPrefTheme.neutralNoticeBg,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: _MessPrefTheme.border),
-                          ),
-                          child: const Text(
-                            'Mess change is currently disabled, you will be notified when it opens.',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              fontSize: 14,
-                              height: 20 / 14,
-                              fontWeight: FontWeight.w500,
-                              color: _MessPrefTheme.textPrimary,
-                            ),
+                        ),
+                        const SizedBox(height: 12),
+                      ],
+                      DecoratedBox(
+                        decoration: _cardDecoration(),
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 18, 16, 18),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _preferenceField(
+                                label: '1st Preference',
+                                dropdown: MessDropdown(
+                                  selectedOption: firstpref,
+                                  enabled: (isMessChangeEnabled == true) &&
+                                      !alreadyApplied &&
+                                      !isSMC,
+                                  onChanged: (isMessChangeEnabled == true) &&
+                                          !alreadyApplied &&
+                                          !isSMC
+                                      ? (value) => setState(() {
+                                            firstpref = value;
+                                          })
+                                      : null,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              _preferenceField(
+                                label: '2nd Preference (Optional)',
+                                dropdown: MessDropdown(
+                                  selectedOption: secondpref,
+                                  enabled: (isMessChangeEnabled == true) &&
+                                      !alreadyApplied &&
+                                      !isSMC,
+                                  onChanged: (isMessChangeEnabled == true) &&
+                                          !alreadyApplied &&
+                                          !isSMC
+                                      ? (value) => setState(() {
+                                            secondpref = value;
+                                          })
+                                      : null,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              _preferenceField(
+                                label: '3rd Preference (Optional)',
+                                dropdown: MessDropdown(
+                                  selectedOption: thirdpref,
+                                  enabled: (isMessChangeEnabled == true) &&
+                                      !alreadyApplied &&
+                                      !isSMC,
+                                  onChanged: (isMessChangeEnabled == true) &&
+                                          !alreadyApplied &&
+                                          !isSMC
+                                      ? (value) => setState(() {
+                                            thirdpref = value;
+                                          })
+                                      : null,
+                                ),
+                              ),
+                              if (firstpref == null && !first)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 14),
+                                  child: Row(
+                                    children: [
+                                      SvgPicture.asset(
+                                        'assets/icon/information-line.svg',
+                                        height: 16,
+                                        width: 16,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      const Expanded(
+                                        child: Text(
+                                          'Fill this Section',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            height: 16 / 12,
+                                            fontWeight: FontWeight.w500,
+                                            color: _MessPrefTheme.textSecondary,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
                           ),
                         ),
                       ),
-
-                    const SizedBox(height: 8),
-                    // Replaced single 'Preferences' heading with labels per dropdown
-
-                    // 1st Preference
-                    const Text(
-                      '1st Preference',
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 24 / 16,
-                        fontWeight: FontWeight.w500,
-                        color: _MessPrefTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    MessDropdown(
-                      selectedOption: firstpref,
-                      enabled: (isMessChangeEnabled == true) &&
-                          !alreadyApplied &&
-                          !isSMC,
-                      onChanged: (isMessChangeEnabled == true) &&
-                              !alreadyApplied &&
-                              !isSMC
-                          ? (value) => setState(() {
-                                firstpref = value;
-                              })
-                          : null,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // 2nd Preference (Optional)
-                    const Text(
-                      '2nd Preference (Optional)',
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 24 / 16,
-                        fontWeight: FontWeight.w500,
-                        color: _MessPrefTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    MessDropdown(
-                      selectedOption: secondpref,
-                      enabled: (isMessChangeEnabled == true) &&
-                          !alreadyApplied &&
-                          !isSMC,
-                      onChanged: (isMessChangeEnabled == true) &&
-                              !alreadyApplied &&
-                              !isSMC
-                          ? (value) => setState(() {
-                                secondpref = value;
-                              })
-                          : null,
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // 3rd Preference (Optional)
-                    const Text(
-                      '3rd Preference (Optional)',
-                      style: TextStyle(
-                        fontSize: 16,
-                        height: 24 / 16,
-                        fontWeight: FontWeight.w500,
-                        color: _MessPrefTheme.textPrimary,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    MessDropdown(
-                      selectedOption: thirdpref,
-                      enabled: (isMessChangeEnabled == true) &&
-                          !alreadyApplied &&
-                          !isSMC,
-                      onChanged: (isMessChangeEnabled == true) &&
-                              !alreadyApplied &&
-                              !isSMC
-                          ? (value) => setState(() {
-                                thirdpref = value;
-                              })
-                          : null,
-                    ),
-
-                    if (firstpref == null && !first)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 8.0),
-                        child: Row(
-                          children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(12, 0, 8, 0),
-                              child: SvgPicture.asset(
-                                'assets/icon/information-line.svg',
-                                height: 16,
-                                width: 16,
-                              ),
-                            ),
-                            const Text(
-                              'Fill this Section',
-                              style: TextStyle(
-                                fontSize: 12,
-                                height: 16 / 12,
-                                fontWeight: FontWeight.w500,
-                                color: _MessPrefTheme.textSecondary,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
       ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        height: ((isMessChangeEnabled == true) && !alreadyApplied && !isSMC)
-            ? 85
-            : 16,
-        decoration: const BoxDecoration(
-            //border: Border(top: BorderSide(width: 1, color: Color(0xFFE5E5E5))),
-            ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if ((isMessChangeEnabled == true) && !alreadyApplied && !isSMC)
-              ElevatedButton(
+      bottomNavigationBar: showSubmit
+          ? Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + bottomInset),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border(
+                  top: BorderSide(
+                    color: _MessPrefTheme.border.withValues(alpha: 0.9),
+                  ),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.04),
+                    blurRadius: 12,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
                 onPressed: (loadingStatus)
                     ? null
                     : () {
@@ -663,6 +684,9 @@ class _MessChangePreferenceScreenState
                         : _MessPrefTheme.primary,
                   ),
                   elevation: WidgetStateProperty.all(0),
+                  padding: WidgetStateProperty.all(
+                    const EdgeInsets.symmetric(vertical: 14),
+                  ),
                   shape: WidgetStateProperty.all(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
@@ -674,9 +698,8 @@ class _MessChangePreferenceScreenState
                   style: TextStyle(fontSize: 16, color: Colors.white),
                 ),
               ),
-          ],
-        ),
-      ),
+            )
+          : null,
     );
   }
 }

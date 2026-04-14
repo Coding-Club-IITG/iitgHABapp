@@ -34,10 +34,10 @@ Future<void> getUserMessInfo() async {
       final String messID = userData['_id']?.toString() ?? "Not found";
       final String messName = userData['name']?.toString() ?? "Not found";
       final String hostelID = userData['hostelId']?.toString() ?? "Not found";
-      final double rating = truncateToTwoDecimals(userData['rating'] as num?);
+      final double rating = roundToTwoDecimals(userData['rating'] as num?);
       final int ranking = (userData['ranking'] as num?)?.toInt() ?? 0;
       final double feedbackPercentage =
-          truncateToTwoDecimals(userData['feedbackPercentage'] as num?);
+          roundToTwoDecimals(userData['feedbackPercentage'] as num?);
 
       prefs.setString('messID', messID);
       prefs.setString('messName', messName);

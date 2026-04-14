@@ -376,8 +376,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                   ),
                                 ),
                                 Padding(
-                                  padding:
-                                      EdgeInsets.symmetric(horizontal: 16),
+                                  padding: EdgeInsets.symmetric(horizontal: 16),
                                   child: Text(
                                     'OR',
                                     style: TextStyle(
@@ -411,8 +410,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               onTap: () async {
                                 _showLoader(context);
                                 final navigator = Navigator.of(context);
-                                final messenger =
-                                    ScaffoldMessenger.of(context);
+                                final messenger = ScaffoldMessenger.of(context);
                                 try {
                                   setModalState(() {
                                     _inprogress = true;
@@ -438,8 +436,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                         child: Text(
                                           'Successfully Logged In as Guest',
                                           textAlign: TextAlign.center,
-                                          style:
-                                              TextStyle(color: Colors.white),
+                                          style: TextStyle(color: Colors.white),
                                         ),
                                       ),
                                       backgroundColor: Colors.black,
@@ -669,7 +666,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       ),
                     ),
                     Text(
-                      'From mess feedback to shared\ncomplaints everything you need\nis now just a tap away.',
+                      'From mess feedback to hostel\nroom cleaning everything you\nneed is now just a tap away.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           color: Color.lerp(
