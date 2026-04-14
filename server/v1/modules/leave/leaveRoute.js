@@ -11,6 +11,7 @@ import {
   applyForLeave,
   getApplications,
   getApplicationByID,
+  streamMyProofDocument,
   validateUploadDoc,
   uploadDocForMedicalLeave,
   cancelApplication,
@@ -47,6 +48,12 @@ leaveRouter.post(
 );
 
 leaveRouter.get("/my-applications", authenticateJWT, getApplications);
+
+leaveRouter.get(
+  "/my-applications/:id/proof-document",
+  authenticateJWT,
+  streamMyProofDocument,
+);
 
 leaveRouter.get("/:id", authenticateJWT, getApplicationByID);
 

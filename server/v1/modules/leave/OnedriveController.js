@@ -1,5 +1,5 @@
 import {
-  uploadBufferToFolder,
+  uploadBufferToLeaveFolder,
   downloadFromOnedrive,
   makeUniqueMiddleName,
 } from "../../utils/onedriveController.js";
@@ -47,19 +47,17 @@ export const uploadFilesToOnedrive = async (req, res, next) => {
     const leaveDocument = req.files?.["leaveDocument"]?.[0] ?? null;
 
     if (proofDocument) {
-      req.uploadedDocuments.proofDocument = await uploadBufferToFolder(
+      req.uploadedDocuments.proofDocument = await uploadBufferToLeaveFolder(
         proofDocument.buffer,
         proofDocument.mimetype,
         `proofDocument${uniqueMiddleName}${proofDocument.originalname}`,
-        LEAVE_FOLDER_ID,
       );
     }
     if (leaveDocument) {
-      req.uploadedDocuments.leaveDocument = await uploadBufferToFolder(
+      req.uploadedDocuments.leaveDocument = await uploadBufferToLeaveFolder(
         leaveDocument.buffer,
         leaveDocument.mimetype,
         `leaveDocument${uniqueMiddleName}${leaveDocument.originalname}`,
-        LEAVE_FOLDER_ID,
       );
     }
 
@@ -89,11 +87,10 @@ export async function uploadSingleToOnedrive(req, res, next) {
     const proofDocument = req.files["proofDocument"][0];
 
     req.uploadedDocuments = {
-      proofDocument: await uploadBufferToFolder(
+      proofDocument: await uploadBufferToLeaveFolder(
         proofDocument.buffer,
         proofDocument.mimetype,
         `proofDocument${uniqueMiddleName}${proofDocument.originalname}`,
-        LEAVE_FOLDER_ID,
       ),
     };
 

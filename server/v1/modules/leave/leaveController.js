@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 const __dirname = import.meta.dirname;
+import axios from "axios";
 import multer from "multer";
 import mongoose from "mongoose";
 
@@ -9,7 +10,10 @@ import { User } from "../user/userModel.js";
 
 import { buildStationLeavePdf } from "./stationLeavePdf.js";
 import { sendNotificationToUser } from "../notification/notificationController.js";
-import { uploadBufferToLeaveFolder } from "../../utils/onedriveController.js";
+import {
+  downloadFromOnedrive,
+  uploadBufferToLeaveFolder,
+} from "../../utils/onedriveController.js";
 
 const uploadDir = path.join(__dirname, ".", "uploads");
 
@@ -1018,6 +1022,71 @@ export const getApplicationByID = async (req, res) => {
     } catch (err) {
       res.status(500).json({
         message: "Invalid request",
+        error: err.message,
+      });
+    }
+  }
+};
+
+/**
+ * Stream proof bytes for the owner. Tries the stored URL directly (Graph
+ * download links), then Graph "shares" API for org-view links — same idea as
+ * mess-manager download, so mobile clients do not hit anonymous 403s.
+ */
+export const streamMyProofDocument = async (req, res) => {
+  const { id } = req.params;
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Incorrect application ID format" });
+  }
+  try {
+    const application = await Leave.findById(id).lean();
+    if (!application) {
+      return res
+        .status(404)
+        .json({ message: "There are no such leave applications" });
+    }
+    if (!application.user.equals(req.user._id)) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+    const url = application.proofDocumentUrl?.trim();
+    if (!url) {
+      return res.status(404).json({ message: "No proof document attached" });
+    }
+
+    try {
+      const r = await axios.get(url, {
+        responseType: "arraybuffer",
+        maxRedirects: 15,
+        timeout: 120000,
+        headers: {
+          Accept: "*/*",
+          "User-Agent":
+            "Mozilla/5.0 (compatible; IITG-HAB/1.0; +https://hab.codingclub.in)",
+        },
+        validateStatus: (s) => s >= 200 && s < 400,
+      });
+      const ct = String(r.headers["content-type"] || "").toLowerCase();
+      if (r.status === 200 && r.data && !ct.includes("text/html")) {
+        res.setHeader(
+          "Content-Type",
+          ct.split(";")[0].trim() || "application/octet-stream",
+        );
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="proof-${Date.now()}"`,
+        );
+        return res.send(Buffer.from(r.data));
+      }
+    } catch (e) {
+      console.warn("[Leave] Direct proof URL fetch failed:", e?.message || e);
+    }
+
+    return downloadFromOnedrive(url, res);
+  } catch (err) {
+    console.error("[Leave] streamMyProofDocument", err);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: "Failed to fetch proof document",
         error: err.message,
       });
     }
