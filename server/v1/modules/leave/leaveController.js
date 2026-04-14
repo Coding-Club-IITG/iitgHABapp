@@ -1120,9 +1120,9 @@ export const validateUploadDoc = async (req, res, next) => {
         message: "Please provide application ID",
       });
     }
-    const targetApplication = await Leave.findById(id)
-      .populate("user", "name rollNumber email -_id")
-      .lean();
+    // Do not populate user with "-_id" — that drops owner id and breaks the
+    // String(user) === req.user._id check (object stringifies to "[object Object]" → 403).
+    const targetApplication = await Leave.findById(id).lean();
 
     if (!targetApplication) {
       return res.status(404).json({ message: "Application not found" });
@@ -1244,8 +1244,10 @@ export const uploadDocForMedicalLeave = async (req, res) => {
       { $set: { proofDocumentUrl: proofUrl } },
     );
 
-    const updatedDoc = await Leave.findById(id)
-      .populate("user", "name rollNumber email -_id");
+    const updatedDoc = await Leave.findById(id).populate(
+      "user",
+      "name rollNumber email",
+    );
 
     return res.status(201).json({
       message:
