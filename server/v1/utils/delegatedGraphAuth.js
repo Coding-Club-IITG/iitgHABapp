@@ -11,8 +11,8 @@ export const tokenFilePath =
   onedrive.graphTokenPath ||
   path.resolve(__dirname, "..", ".secrets", "graph_delegated_token.json");
 
-const REDIS_KEY_TOKEN = "hab:graph:delegated_token";
-const REDIS_KEY_LOCK = "hab:graph:delegated_refresh_lock";
+const REDIS_KEY_TOKEN = "graph:delegated_token";
+const REDIS_KEY_LOCK = "graph:delegated_refresh_lock";
 const LOCK_TTL_SEC = 25;
 const VALIDITY_BUFFER_MS = 60_000; // consider valid until expires_at - 1 min
 

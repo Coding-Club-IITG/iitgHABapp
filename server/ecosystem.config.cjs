@@ -13,6 +13,7 @@ module.exports = {
       script: "./index.js",
       watch: false,
       env: { PORT: 3001 },
+      instance_var: "NODE_APP_INSTANCE",
 
       // Performance
       instances: "8",
@@ -45,6 +46,7 @@ module.exports = {
       watch: false,
       env: { PORT: 3002 },
       max_memory_restart: "1G",
+      instance_var: "NODE_APP_INSTANCE",
     },
   ],
 };

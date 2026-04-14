@@ -3,8 +3,15 @@ const __dirname = import.meta.dirname;
 import dotenv from "dotenv";
 dotenv.config({ path: path.join(__dirname, "../../.env") });
 
+export const API_VERSION = "v1";
+export const REDIS_KEY_PREFIX = `hab:${API_VERSION}:`;
+export const ENABLE_SCHEDULERS = API_VERSION === "v1";
+
 export const nodeENV = process.env.NODE_ENV || "development";
-export const port = process.env.PORT_V1 || 3001;
+export const port =
+  process.env[`PORT_${API_VERSION.toUpperCase()}`] ||
+  (API_VERSION === "v1" ? 3001 : 3002);
+
 export const mongodbUri = process.env.MONGODB_URI;
 export const redisUrl = process.env.REDIS_URL || "redis://127.0.0.1:6379";
 export const postgresUrl =

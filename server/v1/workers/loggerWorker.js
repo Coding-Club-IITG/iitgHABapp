@@ -1,7 +1,8 @@
-import pg from "pg";
-const { Pool } = pg;
+import { Pool } from "pg";
 import Redis from "ioredis";
-import { redisUrl, postgresUrl } from "../config/default.js";
+import { redisUrl, postgresUrl, REDIS_KEY_PREFIX } from "../config/default.js";
+
+const LOGS_QUEUE_KEY = `${REDIS_KEY_PREFIX}logs_queue`;
 
 /* Redis */
 
@@ -29,13 +30,13 @@ const BATCH = 20;
 
 async function flush() {
   try {
-    const len = await redis.lLen("logs_queue");
+    const len = await redis.lLen(LOGS_QUEUE_KEY);
     if (len < BATCH) return;
 
     /* Atomic read + remove */
     const tx = redis.multi();
-    tx.lRange("logs_queue", -BATCH, -1);
-    tx.lTrim("logs_queue", 0, -BATCH - 1);
+    tx.lRange(LOGS_QUEUE_KEY, -BATCH, -1);
+    tx.lTrim(LOGS_QUEUE_KEY, 0, -BATCH - 1);
 
     const [logs] = await tx.exec();
     if (!logs.length) return;

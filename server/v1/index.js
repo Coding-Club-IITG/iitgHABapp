@@ -1,6 +1,12 @@
 import path from "path";
 const __dirname = import.meta.dirname;
-import { nodeENV, port, publicBaseUrl, mongodbUri } from "./config/default.js";
+import {
+  nodeENV,
+  port,
+  publicBaseUrl,
+  mongodbUri,
+  ENABLE_SCHEDULERS,
+} from "./config/default.js";
 import onedrive from "./config/onedrive.js";
 
 import { installProcessHandlers } from "../processHandlers.cjs";
@@ -391,14 +397,22 @@ async function bootstrap() {
 
   await agenda.start();
   console.log("[Agenda] Job processor started");
-  if (!process.env.NODE_APP_INSTANCE || process.env.NODE_APP_INSTANCE === "0") {
-    console.log("[Agenda] Scheduling jobs on instance 0");
-    initializeFeedbackAutoScheduler();
-    initializeMessChangeAutoScheduler();
-    initializeMessAllotmentScheduler();
-    initializeMessRebateAutoScheduler();
-    initializeRoomCleaningAutoResolveScheduler();
-    initializeGuestCleanupScheduler();
+
+  if (ENABLE_SCHEDULERS) {
+    if (
+      !process.env.NODE_APP_INSTANCE ||
+      process.env.NODE_APP_INSTANCE === "0"
+    ) {
+      console.log("[Agenda] Scheduling jobs on instance 0");
+      initializeFeedbackAutoScheduler();
+      initializeMessChangeAutoScheduler();
+      initializeMessAllotmentScheduler();
+      initializeMessRebateAutoScheduler();
+      initializeRoomCleaningAutoResolveScheduler();
+      initializeGuestCleanupScheduler();
+    }
+  } else {
+    console.log("Schedulers are Disabled!");
   }
 
   await initializeAnonymizedUser();
