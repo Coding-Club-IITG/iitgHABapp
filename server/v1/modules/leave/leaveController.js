@@ -193,6 +193,12 @@ function formatDdMmYyyy(d) {
 const LOG_FORM_ONLY = "[Leave][generate-form-only]";
 const LOG_APPLY = "[Leave][applyForLeave]";
 
+function isValidPdfTimeLabel(s) {
+  // Accepts "00:00 AM" style too (requested for rebate hardcode),
+  // plus normal 12-hour labels like "12:05 PM".
+  return typeof s === "string" && /^([0-1]\d|2[0-3]):[0-5]\d (AM|PM)$/.test(s.trim());
+}
+
 /** Form-only: no Leave row, no bank/proof. Relaxed advance notice; min 1 calendar day inclusive. */
 export const validateGenerateFormOnly = async (req, res, next) => {
   const userId = req.user?._id?.toString?.() ?? String(req.user?._id ?? "");
@@ -209,6 +215,8 @@ export const validateGenerateFormOnly = async (req, res, next) => {
   const fields = [
     "startDate",
     "endDate",
+    "leaveTimeStr",
+    "inTimeStr",
     "homePermanentAddress",
     "studentDeptLabel",
     "studentProgrammeLabel",
@@ -236,6 +244,15 @@ export const validateGenerateFormOnly = async (req, res, next) => {
       emptyFields: missingFields,
     });
   }
+  if (
+    !isValidPdfTimeLabel(req.body.leaveTimeStr) ||
+    !isValidPdfTimeLabel(req.body.inTimeStr)
+  ) {
+    return res.status(400).json({
+      message: "Invalid time format",
+      reason: 'Use "HH:MM AM/PM" (e.g. "12:00 AM", "11:59 PM").',
+    });
+  }
   console.log(`${LOG_FORM_ONLY} validate: ok`, { userId });
   next();
 };
@@ -246,6 +263,8 @@ export const generateStationLeaveFormOnly = async (req, res) => {
     const {
       startDate,
       endDate,
+      leaveTimeStr,
+      inTimeStr,
       homePermanentAddress,
       studentDeptLabel,
       studentProgrammeLabel,
@@ -374,8 +393,8 @@ export const generateStationLeaveFormOnly = async (req, res) => {
       dateFromStr: formatDdMmYyyy(start),
       dateToStr: formatDdMmYyyy(end),
       totalDays: String(inclusiveLeaveDays),
-      leaveTimeStr: "00:01 AM",
-      inTimeStr: "11:59 PM",
+      leaveTimeStr: String(leaveTimeStr || "").trim(),
+      inTimeStr: String(inTimeStr || "").trim(),
       subscribedMess: String(subscribedMessDisplay || "").trim(),
       appliedDateStr: "",
       contactDuringLeave: String(contactDuringLeaveAddress || "").trim(),
