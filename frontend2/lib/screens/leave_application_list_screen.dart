@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
+import 'package:frontend2/utils/api_error_message.dart';
 import 'package:frontend2/screens/immediate_leave_form_screen.dart';
 import 'package:frontend2/screens/leave_application_screen.dart';
 import 'package:frontend2/screens/rebate_application_status_screen.dart';
@@ -222,11 +223,26 @@ class _LeaveApplicationListScreenState
         options: Options(headers: {'Authorization': 'Bearer $accessToken'}),
       );
       if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = response.data;
+        final ids = <String>{};
+        if (data is Map && data['cancelledIds'] is List) {
+          for (final e in data['cancelledIds'] as List) {
+            ids.add(e.toString());
+          }
+        } else {
+          ids.add(applicationId);
+        }
         setState(() {
-          myApplications.removeWhere((app) => app['_id'] == applicationId);
+          myApplications.removeWhere(
+            (app) => ids.contains(app['_id']?.toString()),
+          );
         });
+        final msg = data is Map && data['message'] is String
+            ? data['message'] as String
+            : 'Application cancelled successfully';
+        if (!mounted) return true;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Application cancelled successfully')),
+          SnackBar(content: Text(msg)),
         );
         await _fetchHistory();
         return true;
@@ -237,8 +253,16 @@ class _LeaveApplicationListScreenState
         return false;
       }
     } catch (e) {
+      if (!mounted) return false;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Error deleting application')),
+        SnackBar(
+          content: Text(
+            userFacingApiError(
+              e,
+              fallback: 'Could not cancel. Please try again.',
+            ),
+          ),
+        ),
       );
       return false;
     }

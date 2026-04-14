@@ -8,6 +8,10 @@ class MessRebateEndpoints {
 
   static String leaveApplicationById(String id) => '$baseUrl/leave/$id';
 
+  /// Proxies OneDrive proof bytes with JWT (fixes org-link / 403 from direct GET).
+  static String leaveProofDocument(String applicationId) =>
+      '$baseUrl/leave/my-applications/$applicationId/proof-document';
+
   static String uploadLateMedicalDocument(String applicationId) =>
       '$baseUrl/leave/my-applications/$applicationId/upload-late-medical-document';
 }
@@ -65,6 +69,10 @@ class MessFeedback {
 class MessInfo {
   static const getMessInfo = "$baseUrl/mess/all";
   static const getUserMessInfo = "$baseUrl/mess/get";
+}
+
+class MessSettingsEndpoints {
+  static const String settings = "$baseUrl/mess/settings";
 }
 
 class ProfilePicture {

@@ -105,7 +105,6 @@ flutter:
     - assets/images/
     - assets/images/hostel_logos/
     - assets/icon/
-    - assets/images/features/
     - assets/lottie/
 
   fonts:

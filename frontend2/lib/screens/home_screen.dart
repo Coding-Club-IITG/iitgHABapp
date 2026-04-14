@@ -33,6 +33,8 @@ import 'package:frontend2/widgets/festival_background_widget.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/services.dart';
+import 'package:frontend2/apis/protected.dart';
 
 import '../utilities/startupitem.dart';
 import 'initial_setup_screen.dart';
@@ -78,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _scanQrStatusTimer;
   Timer? _weatherBackgroundTimer;
   Timer? _deferredHomeNetworkTimer;
+  int _debugTitleTapCount = 0;
   /// First weather + optional deferred festival hit server after this delay (not on Home mount).
   static const Duration _kDeferredHomeNetworkDelay = Duration(seconds: 60);
   WeatherBackgroundData _weatherBackground =
@@ -106,6 +109,51 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return FestivalThemePalette.resolveColor(data.themeColor);
     }
     return primary;
+  }
+
+  Future<void> _maybeShowDebugTokenFromHome() async {
+    if (!kDebugMode) return;
+    _debugTitleTapCount++;
+    if (_debugTitleTapCount < 7) return;
+    _debugTitleTapCount = 0;
+
+    final access = await getAccessToken();
+    if (!mounted) return;
+
+    if (access == 'error' || access.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No access token found. Please login once.'),
+        ),
+      );
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Access token (debug)'),
+        content: SelectableText(access),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: access));
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Copied to clipboard')),
+                );
+              }
+            },
+            child: const Text('Copy'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -977,12 +1025,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Color _getTitleColor() {
     final variant = _weatherBackground.backgroundVariant;
+    final festivalData = FestivalModeService().currentData;
+    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
+
+    // Festival mode should always brand the title/logo (unless rain is overriding).
+    if (festivalData != null && festivalData.isEnabled && !rainPriority) {
+      return _festivalPrimaryColor();
+    }
 
     // For morning, afternoon, and weekend use dark color
     if (variant == 'morning' ||
         variant == 'afternoon' ||
         variant == 'weekend') {
-      return const Color(0xFF4C4EDB); // #4C4EDB
+      return const Color(0xFF4C4EDB); // default purple
     }
 
     // For evening and raining use light color
@@ -1073,29 +1128,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      Text(
-                        'HABit',
-                        style: TextStyle(
-                          fontSize: 28,
-                          height: 30.4 / 28,
-                          fontWeight: FontWeight.w700,
-                          color: titleColor,
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: _maybeShowDebugTokenFromHome,
+                        child: SvgPicture.asset(
+                          'assets/images/Habit_logo_Purple_colored.svg',
+                          height: 28,
+                          // Tint the logo to match the active hero title color:
+                          // - default purple on morning/afternoon/weekend
+                          // - festival primary when enabled (non-rain)
+                          // - light in evening/rain
+                          colorFilter:
+                              ColorFilter.mode(titleColor, BlendMode.srcIn),
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 4),
-                        child: Text(
-                          'BETA V2',
-                          style: TextStyle(
-                            fontSize: 12,
-                            height: 16 / 12,
-                            fontWeight: FontWeight.w500,
-                            color: titleColor,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                 ),

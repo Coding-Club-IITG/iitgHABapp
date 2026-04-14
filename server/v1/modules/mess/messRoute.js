@@ -7,6 +7,11 @@ import {
   authenticateAdminJWT,
 } from "../../middleware/authenticateJWT.js";
 import { requireMicrosoftAuth } from "../../middleware/requireMicrosoftAuth.js";
+import {
+  getSettings as getMessSettings,
+  enableMessRebate,
+  disableMessRebate,
+} from "./messSettingsController.js";
 
 import {
   createMess,
@@ -48,6 +53,15 @@ const requireSMCOrAdmin = (req, res, next) => {
 
   return res.status(403).json({ message: "Unauthorized" });
 };
+
+// Settings (feature toggles)
+messRouter.get("/settings", getMessSettings);
+messRouter.post("/settings/enable-rebate", authenticateHabJWT, enableMessRebate);
+messRouter.post(
+  "/settings/disable-rebate",
+  authenticateHabJWT,
+  disableMessRebate,
+);
 
 messRouter.post("/create", authenticateHabJWT, createMess);
 messRouter.post(

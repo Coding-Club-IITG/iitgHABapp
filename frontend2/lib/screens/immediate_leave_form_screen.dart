@@ -52,12 +52,17 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
   final TextEditingController _purposeController = TextEditingController();
   DateTime? _startDate;
   DateTime? _endDate;
+  TimeOfDay? _leaveTime;
+  TimeOfDay? _inTime;
   final TextEditingController _contactAddrController = TextEditingController();
   final TextEditingController _contactPhoneController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    // Defaults matching the form fields; rebate flow stays hardcoded server-side.
+    _leaveTime = const TimeOfDay(hour: 0, minute: 1);
+    _inTime = const TimeOfDay(hour: 23, minute: 59);
     _loadProfile();
   }
 
@@ -296,9 +301,59 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
         _contactPhoneController.text.trim().isNotEmpty &&
         _startDate != null &&
         _endDate != null &&
+        _leaveTime != null &&
+        _inTime != null &&
         !_endDate!.isBefore(_startDate!) &&
         _inclusiveDays() >= 1 &&
         _declarationAccepted;
+  }
+
+  String _fmtPdfTime(TimeOfDay t) {
+    // 24-hour format for API + PDF (e.g. "00:01", "23:59").
+    final hh = t.hour.toString().padLeft(2, '0');
+    final mm = t.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
+  Future<void> _pickTime({required bool leave}) async {
+    final initial = leave
+        ? (_leaveTime ?? const TimeOfDay(hour: 0, minute: 1))
+        : (_inTime ?? const TimeOfDay(hour: 23, minute: 59));
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: initial,
+      initialEntryMode: TimePickerEntryMode.inputOnly,
+      builder: (context, child) {
+        // Force 24-hour clock in the picker UI.
+        final mq = MediaQuery.of(context);
+        final baseTheme = Theme.of(context);
+        final cs = baseTheme.colorScheme;
+        final themed = baseTheme.copyWith(
+          timePickerTheme: const TimePickerThemeData(
+            backgroundColor: Colors.white,
+          ),
+          colorScheme: cs.copyWith(
+            primary: _primaryColor,
+            onPrimary: Colors.white,
+            surface: Colors.white,
+            onSurface: const Color(0xFF2E2F31),
+          ),
+        );
+        return MediaQuery(
+          data: mq.copyWith(alwaysUse24HourFormat: true),
+          child: Theme(data: themed, child: child!),
+        );
+      },
+    );
+    if (picked != null) {
+      setState(() {
+        if (leave) {
+          _leaveTime = picked;
+        } else {
+          _inTime = picked;
+        }
+      });
+    }
   }
 
   String? _typeErrorStep1() {
@@ -388,6 +443,8 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
       final m = FormData.fromMap({
         'startDate': DateFormat('yyyy-MM-dd').format(_startDate!),
         'endDate': DateFormat('yyyy-MM-dd').format(_endDate!),
+        'leaveTimeStr': _fmtPdfTime(_leaveTime!),
+        'inTimeStr': _fmtPdfTime(_inTime!),
         'homePermanentAddress': _homeAddressController.text.trim(),
         'studentDeptLabel': _deptController.text.trim(),
         'studentProgrammeLabel': _progController.text.trim(),
@@ -745,7 +802,16 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
           children: [
             _dateTile('From', _startDate, () => _pickDate(start: true)),
             const SizedBox(width: 12),
+            _timeTile('Leave time', _leaveTime, () => _pickTime(leave: true)),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             _dateTile('To', _endDate, () => _pickDate(start: false)),
+            const SizedBox(width: 12),
+            _timeTile('In time', _inTime, () => _pickTime(leave: false)),
           ],
         ),
         const SizedBox(height: 12),
@@ -819,6 +885,37 @@ class _ImmediateLeaveFormScreenState extends State<ImmediateLeaveFormScreen> {
                 d == null ? 'Select' : DateFormat('dd/MM/yyyy').format(d),
                 style: TextStyle(
                   color: d == null ? _greyText : Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _timeTile(String label, TimeOfDay? t, VoidCallback onTap) {
+    return Expanded(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _mandatoryFieldLabel(label),
+          const SizedBox(height: 6),
+          InkWell(
+            onTap: onTap,
+            child: InputDecorator(
+              decoration: _fieldDeco(
+                borderRadius: BorderRadius.circular(12),
+              ).copyWith(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 14,
+                ),
+              ),
+              child: Text(
+                t == null ? 'Select' : _fmtPdfTime(t),
+                style: TextStyle(
+                  color: t == null ? _greyText : Colors.grey[900],
                 ),
               ),
             ),

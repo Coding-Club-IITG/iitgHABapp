@@ -1,13 +1,16 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart' as http;
 
 import '../apis/mess/menu_like.dart';
 import '../apis/mess/mess_menu.dart';
+import '../constants/endpoint.dart';
 import '../models/mess_menu_model.dart';
 import '../providers/hostels.dart';
 import '../models/mess_info_model.dart';
@@ -170,6 +173,8 @@ class _MenuSectionState extends State<_MenuSection> {
   bool _menuRequested = false;
   List<MenuModel> _menus = const [];
   bool _isMenuLoading = true;
+  bool _messRebateEnabled = false;
+  bool _messRebateSettingLoaded = false;
   /// True while loading after user picked another hostel — full-page shimmers.
   bool _hostelTransitionLoading = false;
   String? _menuError;
@@ -187,6 +192,7 @@ class _MenuSectionState extends State<_MenuSection> {
         ? HostelsNotifier.userHostel
         : (HostelsNotifier.hostels.isNotEmpty ? HostelsNotifier.hostels.first : null);
     _loadPreferences();
+    _loadMessSettings();
     _statusTicker = Timer.periodic(const Duration(minutes: 1), (_) {
       if (mounted) {
         setState(() {});
@@ -230,6 +236,35 @@ class _MenuSectionState extends State<_MenuSection> {
           : (byMessName?.isNotEmpty == true ? byMessName : null);
       userMessId = prefs.getString('messID') ?? '';
     });
+  }
+
+  Future<void> _loadMessSettings() async {
+    try {
+      final uri = Uri.parse(MessSettingsEndpoints.settings);
+      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      if (res.statusCode != 200) {
+        if (!mounted) return;
+        setState(() {
+          _messRebateEnabled = false;
+          _messRebateSettingLoaded = true;
+        });
+        return;
+      }
+
+      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+      final enabled = decoded['messRebateEnabled'] == true;
+      if (!mounted) return;
+      setState(() {
+        _messRebateEnabled = enabled;
+        _messRebateSettingLoaded = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _messRebateEnabled = false;
+        _messRebateSettingLoaded = true;
+      });
+    }
   }
 
   Future<void> _loadMenus() async {
@@ -462,8 +497,8 @@ class _MenuSectionState extends State<_MenuSection> {
         ),
         ...[
           const _MessScreenSectionDivider(),
-          const Padding(
-            padding: EdgeInsets.fromLTRB(
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
               16,
               _MessScreenState.sectionGap,
               16,
@@ -472,7 +507,7 @@ class _MenuSectionState extends State<_MenuSection> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
+                const Text(
                   'Mess Forms',
                   style: TextStyle(
                     fontSize: 16,
@@ -481,10 +516,11 @@ class _MenuSectionState extends State<_MenuSection> {
                     color: _MessScreenState.textSecondary,
                   ),
                 ),
-                SizedBox(height: 20),
-                _MessChangeRow(),
-                SizedBox(height: _MessScreenState.sectionGap),
-                _MessRebateRow(),
+                const SizedBox(height: 20),
+                const _MessChangeRow(),
+                const SizedBox(height: _MessScreenState.sectionGap),
+                if (_messRebateSettingLoaded && _messRebateEnabled)
+                  const _MessRebateRow(),
               ],
             ),
           ),
@@ -1754,10 +1790,10 @@ class _MessInfoSection extends StatelessWidget {
         ? '—'
         : (rating == 0
             ? '—'
-            : truncateToTwoDecimals(rating).toStringAsFixed(2));
+            : roundToTwoDecimals(rating).toStringAsFixed(2));
     final feedbackText = feedbackPct == null
         ? '—'
-        : '${truncateToTwoDecimals(feedbackPct).toStringAsFixed(2)}%';
+        : '${roundToTwoDecimals(feedbackPct).toStringAsFixed(2)}%';
     final leftMetricText = isUnranked ? feedbackText : ratingText;
     final rankText = isUnranked ? 'Unranked' : rank.toString();
 

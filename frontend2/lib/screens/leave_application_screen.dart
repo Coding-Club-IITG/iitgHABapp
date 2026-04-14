@@ -180,6 +180,14 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     return d < 0 ? 0 : d;
   }
 
+  /// Matches server split: one Leave row per calendar month for mess rebate.
+  bool _leaveSpansMultipleCalendarMonths() {
+    if (_startDate == null || _endDate == null) return false;
+    final s = _startDate!;
+    final e = _endDate!;
+    return s.year != e.year || s.month != e.month;
+  }
+
   Future<void> _pickDate({required bool start}) async {
     final today = DateTime.now();
     final base = DateTime(today.year, today.month, today.day);
@@ -363,6 +371,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
             builder: (_) => RebateApplicationSuccessScreen(
               leaveDocumentUrl: url,
               leaveTypeLabel: _leaveTypeLabel,
+              isMedicalLeave: _selectedValue == 3,
             ),
           ),
         );
@@ -888,6 +897,16 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           _dateTileInner('To', _endDate, () => _pickDate(start: false)),
         ),
         if (_startDate != null && _endDate != null) ...[
+          if (_leaveSpansMultipleCalendarMonths()) ...[
+            const SizedBox(height: 8),
+            const Text(
+              'If the start and end dates fall in different calendar months, the '
+              'application is recorded as two separate applications (one per month) '
+              'for mess rebate processing. This is expected; please do not be concerned '
+              'if two entries appear.',
+              style: _proofGuidanceStyle,
+            ),
+          ],
           if (days < 4) ...[
             const SizedBox(height: 8),
             const Text(

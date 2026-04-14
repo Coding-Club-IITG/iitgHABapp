@@ -5,6 +5,7 @@ import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
+import 'package:frontend2/utils/api_error_message.dart';
 import 'package:frontend2/utils/leave_pdf_download.dart';
 import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 import 'package:intl/intl.dart';
@@ -213,22 +214,46 @@ class _RebateApplicationStatusScreenState
   String get _status =>
       (_app?['status'] ?? '').toString().toLowerCase().trim();
 
+  DateTime? get _medicalProofUploadDeadline {
+    if (!_isMedical) return null;
+    final appliedRaw = _app?['appliedAt']?.toString();
+    if (appliedRaw == null || appliedRaw.isEmpty) return null;
+    try {
+      return DateTime.parse(appliedRaw)
+          .toLocal()
+          .add(const Duration(days: 7));
+    } catch (_) {
+      return null;
+    }
+  }
+
   bool get _canUploadLateMedical {
     if (!_isMedical || _hasProof) return false;
     if (_status != 'pending') return false;
-    final appliedRaw = _app?['appliedAt']?.toString();
-    if (appliedRaw == null || appliedRaw.isEmpty) return false;
-    try {
-      final appliedDateParsed = DateTime.parse(appliedRaw);
-      final now = DateTime.now();
-      final daysDiff = appliedDateParsed
-          .add(const Duration(days: 7))
-          .difference(now)
-          .inDays;
-      return daysDiff >= 0;
-    } catch (_) {
-      return false;
+    final deadline = _medicalProofUploadDeadline;
+    if (deadline == null) return false;
+    return deadline.difference(DateTime.now()).inDays >= 0;
+  }
+
+  /// Shown next to "Proof Document" for medical + pending + within 7-day window.
+  String? get _medicalProofDaysLeftLabel {
+    if (!_isMedical || _hasProof || !_canUploadLateMedical) return null;
+    final deadline = _medicalProofUploadDeadline;
+    if (deadline == null) return null;
+    final now = DateTime.now();
+    if (!now.isBefore(deadline)) return '0 days left';
+    final diff = deadline.difference(now);
+    final n = (diff.inHours / 24).ceil();
+    final days = n < 1 ? 1 : n;
+    return '$days ${days == 1 ? 'day' : 'days'} left';
+  }
+
+  String get _proofDocumentSubtitle {
+    if (_hasProof) return 'Check your proof document.';
+    if (_isMedical && _canUploadLateMedical) {
+      return 'Please upload a valid medical proof';
     }
+    return 'Check your proof document.';
   }
 
   bool get _canCancel => _status == 'pending';
@@ -254,12 +279,31 @@ class _RebateApplicationStatusScreenState
   }
 
   Future<void> _downloadProof() async {
-    final url = _proofUrl;
-    if (url == null) return;
-    final ext = _extFromUrl(url);
+    if (!_hasProof) return;
+    final ext = _extFromUrl(_proofUrl!);
     final name =
         'rebate-proof-${widget.applicationId}.${DateTime.now().millisecondsSinceEpoch}.$ext';
-    await downloadAndShareFromUrl(context, url, name, _mimeForExt(ext));
+    final mime = _mimeForExt(ext);
+    final isPdf = mime == 'application/pdf';
+    final token = await getAccessToken();
+    if (!mounted) return;
+    if (token == 'error') {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Session expired. Please sign in again.')),
+      );
+      return;
+    }
+    await downloadAndShareDocumentFromUrl(
+      context,
+      MessRebateEndpoints.leaveProofDocument(widget.applicationId),
+      fileName: name,
+      mimeType: mime,
+      shareSubject: isPdf ? 'Hostel leave form' : 'Uploaded proof document',
+      emptyDownloadMessage: isPdf
+          ? 'Could not download PDF (empty).'
+          : 'Could not download document (empty).',
+      requestHeaders: {'Authorization': 'Bearer $token'},
+    );
   }
 
   Future<void> _downloadLeavePdf() async {
@@ -306,8 +350,12 @@ class _RebateApplicationStatusScreenState
       if (!mounted) return;
       setState(() => _uploading = false);
       if (r.statusCode == 200 || r.statusCode == 201) {
+        final data = r.data;
+        final msg = data is Map && data['message'] is String
+            ? data['message'] as String
+            : 'Document uploaded successfully';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Document uploaded successfully')),
+          SnackBar(content: Text(msg)),
         );
         widget.onUpdated?.call();
         await _refresh();
@@ -316,12 +364,19 @@ class _RebateApplicationStatusScreenState
           const SnackBar(content: Text('Failed to upload document')),
         );
       }
-    } catch (_) {
+    } catch (e) {
       EasyLoading.dismiss();
       if (mounted) {
         setState(() => _uploading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error uploading document')),
+          SnackBar(
+            content: Text(
+              userFacingApiError(
+                e,
+                fallback: 'Could not upload. Check your connection and try again.',
+              ),
+            ),
+          ),
         );
       }
     }
@@ -364,8 +419,12 @@ class _RebateApplicationStatusScreenState
       EasyLoading.dismiss();
       if (!mounted) return;
       if (r.statusCode == 200 || r.statusCode == 201) {
+        final data = r.data;
+        final msg = data is Map && data['message'] is String
+            ? data['message'] as String
+            : 'Application cancelled successfully';
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Application cancelled successfully')),
+          SnackBar(content: Text(msg)),
         );
         widget.onUpdated?.call();
         Navigator.of(context).pop();
@@ -374,11 +433,18 @@ class _RebateApplicationStatusScreenState
           const SnackBar(content: Text('Failed to cancel application')),
         );
       }
-    } catch (_) {
+    } catch (e) {
       EasyLoading.dismiss();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Error cancelling application')),
+          SnackBar(
+            content: Text(
+              userFacingApiError(
+                e,
+                fallback: 'Could not cancel. Please try again.',
+              ),
+            ),
+          ),
         );
       }
     }
@@ -466,8 +532,9 @@ class _RebateApplicationStatusScreenState
                                       if (_needsProofSection) ...[
                                         _SectionBlock(
                                           title: 'Proof Document',
-                                          subtitle:
-                                              'Check your proof document.',
+                                          subtitle: _proofDocumentSubtitle,
+                                          titleSuffix:
+                                              _medicalProofDaysLeftLabel,
                                           trailing: _buildProofActions(),
                                         ),
                                         const SizedBox(height: 24),
@@ -504,8 +571,8 @@ class _RebateApplicationStatusScreenState
     if (_hasProof) {
       return _BrandOutlineButton(
         onPressed: _downloadProof,
-        icon: Icons.file_present_outlined,
-        label: 'View uploaded document',
+        icon: Icons.download_rounded,
+        label: 'Download uploaded document',
       );
     }
     if (_isMedical && _canUploadLateMedical) {
@@ -635,25 +702,47 @@ class _SectionBlock extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.trailing,
+    this.titleSuffix,
   });
 
   final String title;
   final String subtitle;
   final Widget? trailing;
+  /// Optional text on the right of [title] (e.g. medical proof countdown).
+  final String? titleSuffix;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w500,
-            height: 20 / 16,
-            color: _RbUi.grey2,
-          ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  height: 20 / 16,
+                  color: _RbUi.grey2,
+                ),
+              ),
+            ),
+            if (titleSuffix != null && titleSuffix!.isNotEmpty) ...[
+              const SizedBox(width: 8),
+              Text(
+                titleSuffix!,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  height: 18 / 13,
+                  color: _RbUi.primary,
+                ),
+              ),
+            ],
+          ],
         ),
         const SizedBox(height: 8),
         Text(
