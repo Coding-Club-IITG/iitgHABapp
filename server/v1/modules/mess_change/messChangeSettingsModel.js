@@ -31,14 +31,12 @@ const messChangeSettingsSchema = new mongoose.Schema(
 );
 
 // Ensure only one record exists
-messChangeSettingsSchema.pre("save", async function (next) {
-  if (this.isNew) {
-    const count = await this.constructor.countDocuments();
-    if (count > 0) {
-      return next(new Error("Only one mess change settings record can exist"));
-    }
+messChangeSettingsSchema.pre("save", async function () {
+  if (!this.isNew) return;
+  const count = await this.constructor.countDocuments();
+  if (count > 0) {
+    throw new Error("Only one mess change settings record can exist");
   }
-  next();
 });
 
 export const MessChangeSettings = mongoose.model(

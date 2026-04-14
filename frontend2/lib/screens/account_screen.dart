@@ -7,6 +7,7 @@ import 'package:frontend2/screens/account/hmc_info_screen.dart';
 import 'package:frontend2/screens/account/profile_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import 'package:frontend2/apis/users/user.dart';
 import 'package:frontend2/widgets/common/hostel_name.dart';
@@ -262,6 +263,36 @@ class _AccountScreenState extends State<AccountScreen> {
     }
   }
 
+  Future<void> _openExternalUrl(String url, {String? failMessage}) async {
+    final uri = Uri.parse(url);
+    final ok = await canLaunchUrl(uri);
+    if (ok) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(failMessage ?? 'Could not open link'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    await _openExternalUrl(
+      'https://hab.codingclub.in/privacy',
+      failMessage: 'Could not open privacy policy',
+    );
+  }
+
+  Future<void> _openAboutUs() async {
+    await _openExternalUrl(
+      'https://hab.codingclub.in',
+      failMessage: 'Could not open website',
+    );
+  }
+
   void _openFeedbackSheet() {
     final rootContext = context;
     showModalBottomSheet(
@@ -365,6 +396,36 @@ class _AccountScreenState extends State<AccountScreen> {
                   iconColor: Themes.kAccent,
                   label: 'App Feedback',
                   onTap: _openFeedbackSheet,
+                  roundTop: true,
+                  roundBottom: true,
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 32),
+
+          // ── Support & Information ─────────────────────────────────
+          const _SectionHeader(title: 'Support & Information'),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                _CardSettingsRow(
+                  iconPath: "assets/icon/file-certificate.svg",
+                  iconColor: Themes.kAccent,
+                  label: 'Privacy Policy',
+                  onTap: _openPrivacyPolicy,
+                  roundTop: true,
+                  roundBottom: true,
+                ),
+                const SizedBox(height: 8),
+                _CardSettingsRow(
+                  iconPath: "assets/icon/info-circle.svg",
+                  iconColor: Themes.kAccent,
+                  label: 'About Us',
+                  onTap: _openAboutUs,
                   roundTop: true,
                   roundBottom: true,
                 ),

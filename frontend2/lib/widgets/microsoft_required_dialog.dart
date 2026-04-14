@@ -39,11 +39,11 @@ class MicrosoftRequiredDialog extends StatelessWidget {
             ),
           ),
           content: Text(
-            'To access $featureName, you can optionally link your Student Account. '
+            'To access $featureName, you can link your Student Account. '
             'This allows us to verify your institute roll number to enable student-specific features. '
             '$authMessage',
             style: const TextStyle(
-              fontSize: 14,
+              fontSize: 12,
               color: Colors.black87,
             ),
           ),

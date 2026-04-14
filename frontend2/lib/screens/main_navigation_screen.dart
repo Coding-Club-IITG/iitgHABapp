@@ -12,6 +12,7 @@ import 'package:frontend2/screens/account_screen.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/bottom_nav_bar.dart';
 import 'package:frontend2/widgets/common/shimmer_host.dart';
+import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend2/utilities/startupitem.dart';
@@ -150,11 +151,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
         switch (screenName) {
           case 'mess_change_screen':
-            navigator.push(
-              MaterialPageRoute(
-                builder: (context) => const MessChangePreferenceScreen(),
-              ),
-            );
+            () async {
+              final prefs = await SharedPreferences.getInstance();
+              final hasMicrosoftLinked =
+                  prefs.getBool('hasMicrosoftLinked') ?? false;
+              if (!mounted) return;
+              if (!hasMicrosoftLinked) {
+                showDialog(
+                  context: context,
+                  builder: (context) => const MicrosoftRequiredDialog(
+                    featureName: 'Mess Change',
+                  ),
+                );
+                return;
+              }
+              navigator.push(
+                MaterialPageRoute(
+                  builder: (context) => const MessChangePreferenceScreen(),
+                ),
+              );
+            }();
             break;
           case 'profile_screen':
             navigator.push(
