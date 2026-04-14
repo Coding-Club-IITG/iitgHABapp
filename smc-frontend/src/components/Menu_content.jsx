@@ -121,6 +121,28 @@ const MenuDashboard = ({
 
   const categories = ["Dish", "Breads and Rice", "Others"];
 
+  const isAllowedKey = (e) => {
+    const allowed = /^[a-zA-Z0-9\s]+$/;
+    return (
+      allowed.test(e.key) ||
+      e.key === "Backspace" ||
+      e.key === "Delete" ||
+      e.key === "ArrowLeft" ||
+      e.key === "ArrowRight" ||
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown" ||
+      e.key === "Tab" ||
+      e.ctrlKey ||
+      e.metaKey ||
+      e.altKey
+    );
+  };
+
+  const toTitleCase = (str) =>
+    str.replace(/\w\S*/g, (txt) =>
+      txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()
+    ).trim();
+
   const addItem = async (meal, category) => {
     if (!newItemValue.trim()) return;
 
@@ -136,7 +158,7 @@ const MenuDashboard = ({
       const mealType = meal.charAt(0).toUpperCase() + meal.slice(1);
 
       const payload = {
-        name: newItemValue,
+        name: toTitleCase(newItemValue),
         type: category,
         meal: mealType,
         day: day,
@@ -208,7 +230,7 @@ const MenuDashboard = ({
       // Modify via SMC endpoint
       await axios.post(`${API_BASE_URL}/mess/menu/modify/smc/${messId}`, {
         _Id: itemId,
-        name: editValue,
+        name: toTitleCase(editValue),
       });
 
       setMenus((prev) => ({
@@ -414,10 +436,25 @@ const MenuDashboard = ({
                                       setEditValue(e.target.value)
                                     }
                                     className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-500"
-                                    onKeyPress={(e) => {
+                                    onKeyDown={(e) => {
+                                      if (!isAllowedKey(e)) e.preventDefault();
                                       if (e.key === "Enter")
                                         saveEdit(meal, item.id);
                                       if (e.key === "Escape") cancelEdit();
+                                    }}
+                                    onPaste={(e) => {
+                                      e.preventDefault();
+                                      const pasted = e.clipboardData
+                                        .getData("text")
+                                        .replace(/[^a-zA-Z0-9\s]/g, "");
+                                      const target = e.target;
+                                      const start = target.selectionStart;
+                                      const end = target.selectionEnd;
+                                      setEditValue(
+                                        editValue.slice(0, start) +
+                                          pasted +
+                                          editValue.slice(end)
+                                      );
                                     }}
                                     autoFocus
                                   />
@@ -475,10 +512,25 @@ const MenuDashboard = ({
                                   }
                                   placeholder="Enter item name..."
                                   className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-500"
-                                  onKeyPress={(e) => {
+                                  onKeyDown={(e) => {
+                                    if (!isAllowedKey(e)) e.preventDefault();
                                     if (e.key === "Enter")
                                       addItem(meal, category);
                                     if (e.key === "Escape") cancelAdd();
+                                  }}
+                                  onPaste={(e) => {
+                                    e.preventDefault();
+                                    const pasted = e.clipboardData
+                                      .getData("text")
+                                      .replace(/[^a-zA-Z0-9\s]/g, "");
+                                    const target = e.target;
+                                    const start = target.selectionStart;
+                                    const end = target.selectionEnd;
+                                    setNewItemValue(
+                                      newItemValue.slice(0, start) +
+                                        pasted +
+                                        newItemValue.slice(end)
+                                    );
                                   }}
                                   autoFocus
                                 />
