@@ -31,7 +31,7 @@ class LeaveFormOnlySuccessScreen extends StatelessWidget {
       MaterialPageRoute<void>(
         builder: (_) => const LeaveApplicationListScreen(),
       ),
-      (_) => false,
+      (route) => route.isFirst,
     );
   }
 

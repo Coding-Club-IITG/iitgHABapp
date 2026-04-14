@@ -32,11 +32,12 @@ class RebateApplicationSuccessScreen extends StatelessWidget {
   }
 
   void _goHome(BuildContext context) {
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
         builder: (_) => const LeaveApplicationListScreen(),
       ),
-      (_) => false,
+      (route) => route.isFirst,
     );
   }
 
