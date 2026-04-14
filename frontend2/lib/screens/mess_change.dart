@@ -46,7 +46,7 @@ class _MessChangeReqState extends State<MessChangeReq> {
     return Scaffold(
       appBar: AppBar(
         title: const Text(
-          'Mess Preference',
+          'Mess Change',
           style: TextStyle(
             fontWeight: FontWeight.w700,
           ),

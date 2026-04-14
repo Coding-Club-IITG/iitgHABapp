@@ -654,6 +654,16 @@ export const applyForLeave = async (req, res) => {
 
     const phoneTrim = String(phoneNumber ?? "").trim();
     const emailTrim = String(email ?? "").trim();
+    const bankAcctNorm = String(bankAccountNumber ?? "")
+      .trim()
+      .replace(/\s/g, "");
+    if (!/^\d{6,20}$/.test(bankAcctNorm)) {
+      console.warn(`${LOG_APPLY} 400 invalid bank account number`, { userId });
+      return res.status(400).json({
+        message:
+          "Invalid bank account number. Use 6 to 20 digits only (no letters or symbols).",
+      });
+    }
 
     let proofDocumentUrl = null;
     let leaveDocumentUrl = null;
@@ -795,7 +805,7 @@ export const applyForLeave = async (req, res) => {
       homeAddress: String(homePermanentAddress || "").trim(),
       bankAcName: bankAccountHoldersName,
       bankName,
-      bankAcNo: String(bankAccountNumber),
+      bankAcNo: bankAcctNorm,
       bankIfsc: bankIFSCCode,
       purpose: String(stationLeavePurpose || "").trim(),
       dateFromStr: formatDdMmYyyy(start),
@@ -861,7 +871,7 @@ export const applyForLeave = async (req, res) => {
       leaveDocumentUrl,
       appliedAt,
       messHostel: req.user.curr_subscribed_mess,
-      bankAccountNumber,
+      bankAccountNumber: bankAcctNorm,
       bankIFSCCode,
       bankName,
       bankAccountHoldersName,
