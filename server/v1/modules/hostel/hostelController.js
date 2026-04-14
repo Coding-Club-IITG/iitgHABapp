@@ -200,11 +200,16 @@ export const getHostelbyId = async (req, res) => {
     const skip = (page - 1) * limit;
 
     const cacheKey = `hostel_by_id_${hostelId}_pg${page}_limit${limit}`;
-    const cachedData = await redisClient.get(cacheKey);
-    if (cachedData) {
-      return res
-        .status(200)
-        .json({ message: "Hostel found", hostel: JSON.parse(cachedData) });
+    // Fail-safe Redis check (do not 500 if Redis is down)
+    try {
+      const cachedData = await redisClient.get(cacheKey);
+      if (cachedData) {
+        return res
+          .status(200)
+          .json({ message: "Hostel found", hostel: JSON.parse(cachedData) });
+      }
+    } catch (redisErr) {
+      console.error("Redis get error:", redisErr);
     }
 
     const usersQuery = User.find({ hostel: hostelId })
@@ -249,12 +254,16 @@ export const getHostelbyId = async (req, res) => {
       users: formattedUsers,
     };
 
-    await redisClient.set(
-      cacheKey,
-      JSON.stringify(hostelWithUsers),
-      "EX",
-      3600,
-    );
+    try {
+      await redisClient.set(
+        cacheKey,
+        JSON.stringify(hostelWithUsers),
+        "EX",
+        3600,
+      );
+    } catch (redisErr) {
+      console.error("Redis set error:", redisErr);
+    }
 
     return res
       .status(200)

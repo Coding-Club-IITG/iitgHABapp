@@ -41,9 +41,8 @@ const messChangeSchema = new mongoose.Schema({
 });
 
 // Update the updatedAt field on save
-messChangeSchema.pre("save", function (next) {
+messChangeSchema.pre("save", function () {
   this.updatedAt = new Date();
-  next();
 });
 
 export const MessChange = mongoose.model("MessChange", messChangeSchema);
