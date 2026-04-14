@@ -32,11 +32,12 @@ class RebateApplicationSuccessScreen extends StatelessWidget {
   }
 
   void _goHome(BuildContext context) {
+
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute<void>(
         builder: (_) => const LeaveApplicationListScreen(),
       ),
-      (_) => false,
+      (route) => route.isFirst,
     );
   }
 
@@ -186,6 +187,11 @@ class RebateApplicationSuccessScreen extends StatelessWidget {
                                 ),
                               ),
                             ],
+                          ),
+                          SizedBox(height: 8),
+                          _ActionCallout(
+                            text:
+                                "Take a printout of the form and hand it at the hostel security desk. Your application won't be processed until this is done.",
                           ),
                           SizedBox(height: 8),
                           _ActionCallout(
