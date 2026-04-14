@@ -42,6 +42,28 @@ export default function GalaDinnerContent() {
   const [editName, setEditName] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
+  const isAllowedKey = (e) => {
+    const allowed = /^[a-zA-Z0-9\s]+$/;
+    return (
+      allowed.test(e.key) ||
+      e.key === "Backspace" ||
+      e.key === "Delete" ||
+      e.key === "ArrowLeft" ||
+      e.key === "ArrowRight" ||
+      e.key === "ArrowUp" ||
+      e.key === "ArrowDown" ||
+      e.key === "Tab" ||
+      e.ctrlKey ||
+      e.metaKey ||
+      e.altKey
+    );
+  };
+
+  const toTitleCase = (str) =>
+    str.replace(/\w\S*/g, (txt) =>
+      txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()
+    ).trim();
+
   const refreshMenuItems = useCallback(async (galaDinnerMenuId) => {
     try {
       const response = await apiClient.get(
@@ -87,7 +109,7 @@ export default function GalaDinnerContent() {
       setSubmitting(true);
       await apiClient.post("/gala/menu/item", {
         galaMenuId,
-        name: newItemName.trim(),
+        name: toTitleCase(newItemName.trim()),
         type: typeToSend,
       });
       setAddingTo(null);
@@ -108,7 +130,7 @@ export default function GalaDinnerContent() {
       setSubmitting(true);
       await apiClient.patch("/gala/menu/item", {
         _Id: editingId,
-        name: editName.trim(),
+        name: toTitleCase(editName.trim()),
       });
       setEditingId(null);
       setEditingMenuId(null);
@@ -206,6 +228,23 @@ export default function GalaDinnerContent() {
                         type="text"
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (!isAllowedKey(e)) e.preventDefault();
+                        }}
+                        onPaste={(e) => {
+                          e.preventDefault();
+                          const pasted = e.clipboardData
+                            .getData("text")
+                            .replace(/[^a-zA-Z0-9\s]/g, "");
+                          const target = e.target;
+                          const start = target.selectionStart;
+                          const end = target.selectionEnd;
+                          setEditName(
+                            editName.slice(0, start) +
+                              pasted +
+                              editName.slice(end)
+                          );
+                        }}
                         className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded"
                         autoFocus
                       />
@@ -268,6 +307,23 @@ export default function GalaDinnerContent() {
                   placeholder="Item name"
                   value={newItemName}
                   onChange={(e) => setNewItemName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (!isAllowedKey(e)) e.preventDefault();
+                  }}
+                  onPaste={(e) => {
+                    e.preventDefault();
+                    const pasted = e.clipboardData
+                      .getData("text")
+                      .replace(/[^a-zA-Z0-9\s]/g, "");
+                    const target = e.target;
+                    const start = target.selectionStart;
+                    const end = target.selectionEnd;
+                    setNewItemName(
+                      newItemName.slice(0, start) +
+                        pasted +
+                        newItemName.slice(end)
+                    );
+                  }}
                   className="px-2 py-1.5 text-sm border border-gray-300 rounded"
                 />
                 {menu.category === "Main Course" && (
