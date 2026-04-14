@@ -8,15 +8,14 @@ const messSettingsSchema = new mongoose.Schema(
 );
 
 // Enforce singleton document
-messSettingsSchema.pre("save", async function (next) {
+messSettingsSchema.pre("save", async function () {
   const Model = mongoose.model("MessSettings");
   if (this.isNew) {
     const count = await Model.countDocuments();
     if (count > 0) {
-      return next(new Error("Only one MessSettings document can exist"));
+      throw new Error("Only one MessSettings document can exist");
     }
   }
-  return next();
 });
 
 export const MessSettings = mongoose.model("MessSettings", messSettingsSchema);
