@@ -1093,6 +1093,24 @@ export const streamMyProofDocument = async (req, res) => {
   }
 };
 
+/** Calendar-month split segments from one submission share [leaveDocumentUrl]. */
+function siblingLeaveFilter(userId, leaveDocumentUrl) {
+  return {
+    user: userId,
+    leaveDocumentUrl,
+  };
+}
+
+function leaveSegmentOverlapsToday(startDate, endDate) {
+  const now = new Date();
+  const endExclusive = new Date(
+    endDate.getFullYear(),
+    endDate.getMonth(),
+    endDate.getDate() + 1,
+  );
+  return startDate <= now && now <= endExclusive;
+}
+
 export const validateUploadDoc = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -1106,6 +1124,20 @@ export const validateUploadDoc = async (req, res, next) => {
       .populate("user", "name rollNumber email -_id")
       .lean();
 
+    if (!targetApplication) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+
+    if (String(targetApplication.user) !== String(req.user._id)) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    if (targetApplication.leaveType !== "Medical") {
+      return res.status(400).json({
+        message: "Late upload is only for medical leave",
+      });
+    }
+
     if (targetApplication.status !== "Pending") {
       return res.status(400).json({
         message: "This operation is invalid for this aplication",
@@ -1113,9 +1145,22 @@ export const validateUploadDoc = async (req, res, next) => {
       });
     }
 
-    if (targetApplication.proofDocumentUrl) {
-      res.status(400).json({
+    const siblings = await Leave.find(
+      siblingLeaveFilter(
+        targetApplication.user,
+        targetApplication.leaveDocumentUrl,
+      ),
+    ).lean();
+
+    const hasProofInGroup = siblings.some(
+      (s) => s.proofDocumentUrl && String(s.proofDocumentUrl).trim() !== "",
+    );
+    if (hasProofInGroup) {
+      return res.status(400).json({
         message: "Medical certificate already uploaded",
+        reason:
+          "This leave spans more than one month. A medical proof is already attached to another part of the same leave.",
+        code: "MEDICAL_PROOF_ALREADY_UPLOADED",
       });
     }
     //tentative startdate
@@ -1164,17 +1209,49 @@ export const validateUploadDoc = async (req, res, next) => {
 export const uploadDocForMedicalLeave = async (req, res) => {
   try {
     const { id } = req.params;
-    const query = {
-      proofDocumentUrl: req.uploadedDocuments.proofDocument?.url,
-    };
+    const proofUrl = req.uploadedDocuments?.proofDocument?.url;
+    if (!proofUrl) {
+      return res.status(400).json({
+        message: "No file was uploaded",
+      });
+    }
 
-    const updatedDoc = await Leave.findByIdAndUpdate(id, query, {
-      new: true,
-    }).populate("user", "name rollNumber email -_id");
+    const application = await Leave.findById(id);
+    if (!application || !application.user.equals(req.user._id)) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+    if (application.leaveType !== "Medical") {
+      return res.status(400).json({
+        message: "This upload is only for medical leave",
+      });
+    }
+    if (application.status !== "Pending") {
+      return res.status(400).json({
+        message: "Cannot upload proof for this application",
+        reason: `This application is already ${application.status}`,
+      });
+    }
+
+    const updateResult = await Leave.updateMany(
+      {
+        ...siblingLeaveFilter(
+          req.user._id,
+          application.leaveDocumentUrl,
+        ),
+        leaveType: "Medical",
+        status: "Pending",
+      },
+      { $set: { proofDocumentUrl: proofUrl } },
+    );
+
+    const updatedDoc = await Leave.findById(id)
+      .populate("user", "name rollNumber email -_id");
 
     return res.status(201).json({
-      message: `Medical certificate successfully uploaded for Application ${id}`,
+      message:
+        "Medical certificate uploaded. The same proof is linked to all months of this leave.",
       application: updatedDoc,
+      segmentsUpdated: updateResult.modifiedCount,
     });
   } catch (err) {
     return res.status(500).json({
@@ -1216,30 +1293,73 @@ export const cancelApplication = async (req, res) => {
       });
     }
 
-    const updatedDoc = await Leave.findByIdAndUpdate(
-      id,
-      { status: "Cancelled" },
-      { new: true },
-    ).populate("user", "name rollNumber email");
+    const group = await Leave.find(
+      siblingLeaveFilter(
+        application.user,
+        application.leaveDocumentUrl,
+      ),
+    ).lean();
 
-    if (
-      updatedDoc.startDate <= new Date() &&
-      new Date() <=
-        new Date(
-          updatedDoc.endDate.getFullYear(),
-          updatedDoc.endDate.getMonth(),
-          updatedDoc.endDate.getDate() + 1,
-        )
-    ) {
-      await User.findOneAndUpdate(
-        { _id: updatedDoc.user._id },
-        { scannerPermission: true },
-      );
+    const blocked = group.some(
+      (g) => g.status === "Acknowledged" || g.status === "Processed",
+    );
+    if (blocked) {
+      return res.status(400).json({
+        message: "This leave can no longer be cancelled",
+        reason:
+          "This leave is split across months. Another part has already been acknowledged or processed, so cancellation is not allowed.",
+        code: "LEAVE_GROUP_LOCKED",
+      });
     }
 
+    const pendingSiblings = await Leave.find({
+      ...siblingLeaveFilter(
+        application.user,
+        application.leaveDocumentUrl,
+      ),
+      status: "Pending",
+    })
+      .select("_id startDate endDate")
+      .lean();
+
+    const pendingIds = pendingSiblings.map((p) => p._id);
+    if (pendingIds.length === 0) {
+      return res.status(400).json({
+        message: "This application cannot be cancelled",
+        reason: "No pending segments found for this leave.",
+      });
+    }
+
+    await Leave.updateMany(
+      { _id: { $in: pendingIds } },
+      { $set: { status: "Cancelled" } },
+    );
+
+    for (const doc of pendingSiblings) {
+      if (leaveSegmentOverlapsToday(doc.startDate, doc.endDate)) {
+        await User.findOneAndUpdate(
+          { _id: application.user },
+          { scannerPermission: true },
+        );
+        break;
+      }
+    }
+
+    const updatedDoc = await Leave.findById(id).populate(
+      "user",
+      "name rollNumber email",
+    );
+
+    const modifiedCount = pendingIds.length;
+
     return res.status(201).json({
-      message: `Application with ID ${id} successfully cancelled`,
+      message:
+        modifiedCount > 1
+          ? `Cancelled ${modifiedCount} segments of this leave (same submission across months).`
+          : "Application cancelled successfully",
       application: updatedDoc,
+      cancelledCount: modifiedCount,
+      cancelledIds: pendingIds.map((d) => String(d)),
     });
   } catch (err) {
     return res.status(500).json({
