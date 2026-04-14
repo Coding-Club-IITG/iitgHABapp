@@ -27,12 +27,12 @@ import {
   getCurrentDay,
 } from "../../utils/date.js";
 
-/** Truncate toward zero to 2 decimal places (avoids float rounding to 4.00). */
-function trunc2(n) {
+/** Round half-up to 2 decimal places (matches OPI job + getAllMessInfo $round). */
+function roundToTwoDecimals(n) {
   if (n == null || n === "") return 0;
   const v = Number(n);
   if (Number.isNaN(v)) return 0;
-  return Math.trunc(v * 100) / 100;
+  return Math.round(v * 100) / 100;
 }
 
 export const createMess = async (req, res) => {
@@ -252,11 +252,12 @@ export const getUserMessInfo = async (req, res) => {
       return res.status(404).json({ message: "Mess not found" });
     }
     const messObj = messInfo.toObject();
-    messObj.rating = messObj.rating != null ? trunc2(messObj.rating) : 0;
+    messObj.rating =
+      messObj.rating != null ? roundToTwoDecimals(messObj.rating) : 0;
     messObj.ranking = messObj.ranking != null ? Math.round(messObj.ranking) : 0;
     messObj.feedbackPercentage =
       messObj.feedbackPercentage != null
-        ? trunc2(messObj.feedbackPercentage)
+        ? roundToTwoDecimals(messObj.feedbackPercentage)
         : 0;
     return res.status(200).json(messObj);
   } catch (error) {
@@ -301,26 +302,13 @@ export const getAllMessInfo = async (req, res) => {
             $ifNull: [{ $arrayElemAt: ["$subscribers.count", 0] }, 0],
           },
           rating: {
-            $divide: [
-              {
-                $trunc: [{ $multiply: [{ $ifNull: ["$rating", 0] }, 100] }, 0],
-              },
-              100,
-            ],
+            $round: [{ $ifNull: ["$rating", 0] }, 2],
           },
           ranking: {
             $round: [{ $ifNull: ["$ranking", 0] }, 0],
           },
           feedbackPercentage: {
-            $divide: [
-              {
-                $trunc: [
-                  { $multiply: [{ $ifNull: ["$feedbackPercentage", 0] }, 100] },
-                  0,
-                ],
-              },
-              100,
-            ],
+            $round: [{ $ifNull: ["$feedbackPercentage", 0] }, 2],
           },
         },
       },
