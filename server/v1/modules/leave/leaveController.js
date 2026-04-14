@@ -194,9 +194,14 @@ const LOG_FORM_ONLY = "[Leave][generate-form-only]";
 const LOG_APPLY = "[Leave][applyForLeave]";
 
 function isValidPdfTimeLabel(s) {
-  // Accepts "00:00 AM" style too (requested for rebate hardcode),
-  // plus normal 12-hour labels like "12:05 PM".
-  return typeof s === "string" && /^([0-1]\d|2[0-3]):[0-5]\d (AM|PM)$/.test(s.trim());
+  // Accept both:
+  // - 24h: "HH:MM" (e.g. "00:01", "23:59")
+  // - 12h: "HH:MM AM/PM" (e.g. "12:01 AM", "11:59 PM") for backwards compatibility
+  if (typeof s !== "string") return false;
+  const t = s.trim();
+  const is24h = /^([0-1]\d|2[0-3]):[0-5]\d$/.test(t);
+  const is12h = /^([0-1]\d|2[0-3]):[0-5]\d (AM|PM)$/.test(t);
+  return is24h || is12h;
 }
 
 /** Form-only: no Leave row, no bank/proof. Relaxed advance notice; min 1 calendar day inclusive. */
@@ -250,7 +255,7 @@ export const validateGenerateFormOnly = async (req, res, next) => {
   ) {
     return res.status(400).json({
       message: "Invalid time format",
-      reason: 'Use "HH:MM AM/PM" (e.g. "12:00 AM", "11:59 PM").',
+      reason: 'Use "HH:MM" (24-hour, e.g. "00:01", "23:59").',
     });
   }
   console.log(`${LOG_FORM_ONLY} validate: ok`, { userId });
@@ -834,8 +839,8 @@ export const applyForLeave = async (req, res) => {
       dateFromStr: formatDdMmYyyy(start),
       dateToStr: formatDdMmYyyy(end),
       totalDays: String(inclusiveLeaveDays),
-      leaveTimeStr: "00:01 AM",
-      inTimeStr: "11:59 PM",
+      leaveTimeStr: "00:01",
+      inTimeStr: "23:59",
       subscribedMess: String(subscribedMessDisplay || "").trim(),
       appliedDateStr: "",
       contactDuringLeave: String(contactDuringLeaveAddress || "").trim(),
