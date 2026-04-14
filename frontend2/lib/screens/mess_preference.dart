@@ -18,7 +18,8 @@ abstract final class _MessPrefTheme {
   static const textSecondary = Color(0xFF676767);
   // Lighter than before (avoid grey/dark feel).
   static const pageBg = Color(0xFFFFFFFF);
-  static const danger = Color(0xFFC40205);
+  static const info = Color(0xFFA36500);
+  static const infoSoft = Color(0xFFFFFAEB);
   static const cardRadius = 14.0;
   static List<BoxShadow> get cardShadow => [
         BoxShadow(
@@ -149,7 +150,7 @@ class _MessChangePreferenceScreenState
 
   static const List<String> _messChangeRuleBodies = [
     'SMC members are not allowed to apply for mess change.',
-    'If you have already changed your mess, your mess will automatically reset to your boarding hostel after this month. To continue with your current mess, you must apply again next month.',
+    'If you have already changed your mess, it will automatically reset to your boarding hostel after this month. To continue with your current mess, you must apply again this month.',
     'You cannot apply for a mess change to your own boarding hostel. However, you may apply to a hostel where you are a mess subscriber.',
     'Once you apply for a mess change, it cannot be cancelled.',
   ];
@@ -157,10 +158,11 @@ class _MessChangePreferenceScreenState
   void _showMessChangeRulesSheet() {
     showModalBottomSheet<void>(
       context: context,
-      backgroundColor: Colors.white,
+      backgroundColor: _MessPrefTheme.pageBg,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
+      isScrollControlled: true,
       builder: (ctx) {
         final bottom = MediaQuery.paddingOf(ctx).bottom;
         return Padding(
@@ -186,7 +188,7 @@ class _MessChangePreferenceScreenState
                     child: Text(
                       'Mess change rules',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: 16,
                         fontWeight: FontWeight.w600,
                         height: 24 / 18,
                         color: _MessPrefTheme.textPrimary,
@@ -221,7 +223,7 @@ class _MessChangePreferenceScreenState
                               child: Text(
                                 '${i + 1}.',
                                 style: const TextStyle(
-                                  fontSize: 14,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.w600,
                                   height: 20 / 14,
                                   color: _MessPrefTheme.textSecondary,
@@ -232,8 +234,8 @@ class _MessChangePreferenceScreenState
                               child: Text(
                                 _messChangeRuleBodies[i],
                                 style: const TextStyle(
-                                  fontSize: 14,
-                                  height: 20 / 14,
+                                  fontSize: 13,
+                                  height: 18 / 13,
                                   fontWeight: FontWeight.w400,
                                   color: _MessPrefTheme.textPrimary,
                                 ),
@@ -250,7 +252,7 @@ class _MessChangePreferenceScreenState
               FilledButton(
                 onPressed: () => Navigator.pop(ctx),
                 style: FilledButton.styleFrom(
-                  backgroundColor: _MessPrefTheme.textPrimary,
+                  backgroundColor: _MessPrefTheme.primary,
                   foregroundColor: Colors.white,
                   elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 14),
@@ -467,14 +469,20 @@ class _MessChangePreferenceScreenState
           ),
         ),
         actions: [
-          IconButton(
-            tooltip: 'Mess change rules',
-            onPressed: _showMessChangeRulesSheet,
-            style: IconButton.styleFrom(
-              foregroundColor: _MessPrefTheme.primary,
-              backgroundColor: _MessPrefTheme.primary.withValues(alpha: 0.10),
+          Padding(
+            padding: const EdgeInsets.only(right: 14),
+            child: IconButton(
+              tooltip: 'Mess change rules',
+              onPressed: _showMessChangeRulesSheet,
+              style: IconButton.styleFrom(
+                foregroundColor: _MessPrefTheme.primary,
+                backgroundColor: _MessPrefTheme.primary.withValues(alpha: 0.10),
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.all(10),
+                minimumSize: const Size(40, 40),
+              ),
+              icon: const Icon(Icons.info_outline_rounded, size: 20),
             ),
-            icon: const Icon(Icons.info_outline_rounded),
           ),
         ],
       ),
@@ -526,12 +534,12 @@ class _MessChangePreferenceScreenState
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Choose the mess that suits your taste or convenience. First review the mess change rules using the (i) button at the top.',
+                        'Please select your preferred mess based on your needs. Review the mess change rules using the (i) button at the top.',
                         style: const TextStyle(
                           fontWeight: FontWeight.w500,
                           fontSize: 14,
                           height: 1.45,
-                          color: _MessPrefTheme.primary,
+                          color: _MessPrefTheme.textSecondary,
                         ),
                       ),
                       const SizedBox(height: 10),
@@ -550,13 +558,41 @@ class _MessChangePreferenceScreenState
                         const SizedBox(height: 10),
                       ],
                       if (isMessChangeEnabled == false) ...[
-                        Text(
-                          'Mess change is currently disabled, you will be notified when it opens.',
-                          style: const TextStyle(
-                            fontSize: 14,
-                            height: 1.4,
-                            fontWeight: FontWeight.w600,
-                            color: _MessPrefTheme.danger,
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: _MessPrefTheme.infoSoft,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color:
+                                  _MessPrefTheme.info.withValues(alpha: 0.24),
+                            ),
+                          ),
+                          child: const Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              CircleAvatar(
+                                radius: 12,
+                                backgroundColor: Colors.white,
+                                child: Icon(
+                                  Icons.info_outline_rounded,
+                                  size: 16,
+                                  color: _MessPrefTheme.info,
+                                ),
+                              ),
+                              SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  'Mess change is currently unavailable. You will be notified when it starts.',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    height: 1.4,
+                                    fontWeight: FontWeight.w600,
+                                    color: _MessPrefTheme.info,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                         const SizedBox(height: 12),

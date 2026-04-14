@@ -18,6 +18,7 @@ import '../utilities/startupitem.dart';
 import '../utils/meal_countdown_text.dart';
 import '../widgets/common/hostel_logo.dart';
 import '../widgets/common/shimmer_host.dart';
+import '../widgets/microsoft_required_dialog.dart';
 import 'leave_application_list_screen.dart';
 import 'mess_preference.dart';
 
@@ -564,7 +565,21 @@ class _MessChangeRow extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () {
+          onTap: () async {
+            final prefs = await SharedPreferences.getInstance();
+            final hasMicrosoftLinked =
+                prefs.getBool('hasMicrosoftLinked') ?? false;
+            if (!context.mounted) return;
+
+            if (!hasMicrosoftLinked) {
+              showDialog(
+                context: context,
+                builder: (context) =>
+                    const MicrosoftRequiredDialog(featureName: 'Mess Change'),
+              );
+              return;
+            }
+
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const MessChangePreferenceScreen(),
@@ -1708,7 +1723,21 @@ class _MessRebateRow extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
-          onTap: () {
+          onTap: () async {
+            final prefs = await SharedPreferences.getInstance();
+            final hasMicrosoftLinked =
+                prefs.getBool('hasMicrosoftLinked') ?? false;
+            if (!context.mounted) return;
+
+            if (!hasMicrosoftLinked) {
+              showDialog(
+                context: context,
+                builder: (context) =>
+                    const MicrosoftRequiredDialog(featureName: 'Mess Rebate'),
+              );
+              return;
+            }
+
             Navigator.of(context).push(
               MaterialPageRoute<void>(
                 builder: (_) => const LeaveApplicationListScreen(),
