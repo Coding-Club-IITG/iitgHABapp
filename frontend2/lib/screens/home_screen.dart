@@ -976,15 +976,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Color _getTitleColor() {
-    if (_weatherBackground.backgroundVariant == 'weekend') {
-      return Colors.white;
+    final variant = _weatherBackground.backgroundVariant;
+
+    // For morning, afternoon, and weekend use dark color
+    if (variant == 'morning' ||
+        variant == 'afternoon' ||
+        variant == 'weekend') {
+      return const Color(0xFF4C4EDB); // #4C4EDB
     }
-    final festivalData = FestivalModeService().currentData;
-    final rainPriority = _weatherBackground.weatherGroup == 'rainy';
-    if (festivalData != null && festivalData.isEnabled && !rainPriority) {
-      return _festivalPrimaryColor();
-    }
-    return _heroAccentColor();
+
+    // For evening and raining use light color
+    return const Color(0xFFEDEDFB);
   }
 
   Color _getTextColor() {

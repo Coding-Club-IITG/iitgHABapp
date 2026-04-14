@@ -196,6 +196,11 @@ class RebateApplicationSuccessScreen extends StatelessWidget {
                           SizedBox(height: 8),
                           _ActionCallout(
                             text:
+                                "Take a printout of the form and hand it at the hostel security desk. Your application won't be processed until this is done.",
+                          ),
+                          SizedBox(height: 8),
+                          _ActionCallout(
+                            text:
                                 'Once the mess manager verifies it, the amount will be credited to your bank account',
                           ),
                         ],
