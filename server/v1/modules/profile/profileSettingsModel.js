@@ -8,15 +8,14 @@ const profileSettingsSchema = new mongoose.Schema(
 );
 
 // Enforce singleton document
-profileSettingsSchema.pre("save", async function (next) {
+profileSettingsSchema.pre("save", async function () {
   const Model = mongoose.model("ProfileSettings");
   if (this.isNew) {
     const count = await Model.countDocuments();
     if (count > 0) {
-      return next(new Error("Only one ProfileSettings document can exist"));
+      throw new Error("Only one ProfileSettings document can exist");
     }
   }
-  return next();
 });
 
 export const ProfileSettings = mongoose.model(
