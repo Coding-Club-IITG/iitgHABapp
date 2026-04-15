@@ -1,21 +1,21 @@
-import Redis from "ioredis";
-import { broadcastMessScanToManagers } from "../modules/mess/messManagerWs.js";
-import { broadcastGalaScanToManagers } from "../modules/gala/galaManagerWs.js";
-import redisClient from "./redisClient.js";
-import { redisUrl } from "../config/default.js";
-
 /**
- * Cross-instance broadcast for scan events (cluster-safe).
+ * Cross-instance broadcast for scan events
  *
- * When REDIS_URL is set: publishes to Redis; every api-v1 instance subscribes
+ * When REDIS_URL is set: publishes to Redis; every instance subscribes
  * and runs the local WebSocket broadcast. The instance that has the manager's
  * connection will deliver the message.
  *
  * When REDIS_URL is not set: calls the local broadcast only (single-instance behavior).
  */
 
-const REDIS_CHANNEL_MESS = "hab:mess:scan";
-const REDIS_CHANNEL_GALA = "hab:gala:scan";
+import Redis from "ioredis";
+import { broadcastMessScanToManagers } from "../modules/mess/messManagerWs.js";
+import { broadcastGalaScanToManagers } from "../modules/gala/galaManagerWs.js";
+import redisClient from "./redisClient.js";
+import { redisUrl, REDIS_KEY_PREFIX } from "../config/default.js";
+
+const REDIS_CHANNEL_MESS = `${REDIS_KEY_PREFIX}mess:scan`;
+const REDIS_CHANNEL_GALA = `${REDIS_KEY_PREFIX}gala:scan`;
 
 let redisSubscriber = null;
 let redisDisabled = false;

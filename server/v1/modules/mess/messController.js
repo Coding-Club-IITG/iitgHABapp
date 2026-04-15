@@ -64,7 +64,7 @@ export const createMess = async (req, res) => {
     newMess.qrCode = QRres._id;
     await newMess.save();
 
-    await redisClient.del("all_mess_info:v1", "all_mess_info:v2", "all_mess_info");
+    await redisClient.del("all_mess_info");
 
     return res.status(201).json(newMess);
   } catch (error) {
@@ -268,10 +268,7 @@ export const getUserMessInfo = async (req, res) => {
 
 export const getAllMessInfo = async (req, res) => {
   try {
-    // Use a versioned key so v1/v2 can't poison each other's cache with
-    // different rounding/shape expectations.
-    const CACHE_KEY = "all_mess_info:v1";
-    const cachedData = await redisClient.get(CACHE_KEY);
+    const cachedData = await redisClient.get("all_mess_info");
     if (cachedData) {
       return res.status(200).json(JSON.parse(cachedData));
     }
@@ -327,7 +324,12 @@ export const getAllMessInfo = async (req, res) => {
       return res.status(404).json({ message: "No mess found" });
     }
 
-    await redisClient.set(CACHE_KEY, JSON.stringify(messesWithHostelName), "EX", 300);
+    await redisClient.set(
+      "all_mess_info",
+      JSON.stringify(messesWithHostelName),
+      "EX",
+      300,
+    );
     return res.status(200).json(messesWithHostelName);
   } catch (error) {
     console.error("Error in getAllMessInfo:", error);
@@ -1000,7 +1002,7 @@ export const unassignMess = async (req, res) => {
       console.log("Updated hostel:", updatedHostel);
     }
 
-    await redisClient.del("all_mess_info:v1", "all_mess_info:v2", "all_mess_info");
+    await redisClient.del("all_mess_info");
 
     return res.status(200).json({
       message: "Mess unassigned successfully",
