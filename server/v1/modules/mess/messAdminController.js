@@ -347,8 +347,15 @@ export const reorderMenuItemsSMC = async (req, res) => {
         .json({ message: "Menu not found for this meal/day" });
     }
 
-    const existingIds = menu.items.map((id) => id.toString());
-    if (itemIds.length !== existingIds.length) {
+    // Use MenuItem rows as source of truth — `menu.items` can hold stale ObjectIds
+    // with no document; the SMC UI only ever sees hydrated items, so comparing to
+    // `menu.items.length` caused 400s when those lengths differed.
+    const menuItemRows = await MenuItem.find({ menuId: menu._id })
+      .select("_id")
+      .lean();
+    const canonicalIds = menuItemRows.map((r) => r._id.toString());
+
+    if (itemIds.length !== canonicalIds.length) {
       return res.status(400).json({
         message: "itemIds must list each menu item exactly once",
       });
@@ -357,7 +364,13 @@ export const reorderMenuItemsSMC = async (req, res) => {
     if (incomingSet.size !== itemIds.length) {
       return res.status(400).json({ message: "Duplicate item id in itemIds" });
     }
-    for (const id of existingIds) {
+    const canonSet = new Set(canonicalIds);
+    if (canonSet.size !== canonicalIds.length) {
+      return res.status(500).json({
+        message: "Data inconsistency: duplicate menu items for this meal",
+      });
+    }
+    for (const id of canonicalIds) {
       if (!incomingSet.has(id)) {
         return res.status(400).json({
           message: "itemIds must match the current menu items",
