@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useLayoutEffect } from "react";
 import axios from "axios";
 import { API_BASE_URL } from "../apis";
 import {
@@ -34,8 +34,12 @@ const MenuDashboard = ({
     Sunday: { breakfast: [], lunch: [], dinner: [] },
   });
 
+  const [editingItem, setEditingItem] = useState(null);
+  const [editValue, setEditValue] = useState("");
+
   // Sync incoming props into the menus for the active day whenever they change
   React.useEffect(() => {
+    if (editingItem != null) return;
     setMenus((prev) => ({
       ...prev,
       [activeDay]: {
@@ -44,12 +48,14 @@ const MenuDashboard = ({
         dinner: dinner || [],
       },
     }));
-  }, [activeDay, breakfast, lunch, dinner]);
-
-  const [editingItem, setEditingItem] = useState(null);
-  const [editValue, setEditValue] = useState("");
+  }, [activeDay, breakfast, lunch, dinner, editingItem]);
   const [addingTo, setAddingTo] = useState({ meal: null, category: null });
   const [newItemValue, setNewItemValue] = useState("");
+
+  const editInputRef = useRef(null);
+  const editSelRef = useRef(null);
+  const newItemInputRef = useRef(null);
+  const newItemSelRef = useRef(null);
   // Times for meals per day (start/end). Stored per-day so each day's menu can have its own times.
   // Structure: { Monday: { breakfast: { start: '08:00', end: '09:00' }, ... }, ... }
   const [mealTimes, setMealTimes] = useState({
@@ -138,10 +144,54 @@ const MenuDashboard = ({
     );
   };
 
-  const toTitleCase = (str) =>
+  /** Title-case each word; no trim (safe while typing). */
+  const titleCaseWords = (str) =>
     str.replace(/\w\S*/g, (txt) =>
       txt.charAt(0).toUpperCase() + txt.slice(1).toLowerCase()
-    ).trim();
+    );
+
+  /** Final value for API / stored menu rows. */
+  const normalizeMenuItemName = (str) => titleCaseWords(str).trim();
+
+  const handleMenuNameChange = (e, setValue, selRef) => {
+    const el = e.target;
+    if (e.nativeEvent.isComposing) {
+      setValue(el.value);
+      return;
+    }
+    selRef.current = { start: el.selectionStart, end: el.selectionEnd };
+    setValue(titleCaseWords(el.value));
+  };
+
+  const handleMenuNameCompositionEnd = (e, setValue, selRef) => {
+    const el = e.target;
+    selRef.current = { start: el.selectionStart, end: el.selectionEnd };
+    setValue(titleCaseWords(el.value));
+  };
+
+  useLayoutEffect(() => {
+    if (editingItem == null || !editInputRef.current || !editSelRef.current)
+      return;
+    const { start, end } = editSelRef.current;
+    editSelRef.current = null;
+    const len = editValue.length;
+    editInputRef.current.setSelectionRange(
+      Math.min(start, len),
+      Math.min(end, len)
+    );
+  }, [editValue, editingItem]);
+
+  useLayoutEffect(() => {
+    if (!addingTo.meal || !newItemInputRef.current || !newItemSelRef.current)
+      return;
+    const { start, end } = newItemSelRef.current;
+    newItemSelRef.current = null;
+    const len = newItemValue.length;
+    newItemInputRef.current.setSelectionRange(
+      Math.min(start, len),
+      Math.min(end, len)
+    );
+  }, [newItemValue, addingTo.meal]);
 
   const addItem = async (meal, category) => {
     if (!newItemValue.trim()) return;
@@ -158,7 +208,7 @@ const MenuDashboard = ({
       const mealType = meal.charAt(0).toUpperCase() + meal.slice(1);
 
       const payload = {
-        name: toTitleCase(newItemValue),
+        name: normalizeMenuItemName(newItemValue),
         type: category,
         meal: mealType,
         day: day,
@@ -220,7 +270,7 @@ const MenuDashboard = ({
 
   const startEditing = (item) => {
     setEditingItem(item.id);
-    setEditValue(item.name);
+    setEditValue(titleCaseWords(item.name || ""));
   };
 
   const saveEdit = async (meal, itemId) => {
@@ -230,7 +280,7 @@ const MenuDashboard = ({
       // Modify via SMC endpoint
       await axios.post(`${API_BASE_URL}/mess/menu/modify/smc/${messId}`, {
         _Id: itemId,
-        name: toTitleCase(editValue),
+        name: normalizeMenuItemName(editValue),
       });
 
       setMenus((prev) => ({
@@ -238,7 +288,9 @@ const MenuDashboard = ({
         [activeDay]: {
           ...prev[activeDay],
           [meal]: prev[activeDay][meal].map((item) =>
-            item.id === itemId ? { ...item, name: editValue } : item
+            item.id === itemId
+              ? { ...item, name: normalizeMenuItemName(editValue) }
+              : item
           ),
         },
       }));
@@ -287,7 +339,9 @@ const MenuDashboard = ({
     );
   }
 
-  const MealSection = ({ meal, title }) => (
+  // Must be a render function, not a nested component: a new `const MealSection = () =>`
+  // each render would change component identity and remount inputs (caret jumps to end).
+  const renderMealSection = (meal, title) => (
     <div className="bg-white border border-gray-200 rounded-lg w-full">
       <div className="bg-gray-50 border-b border-gray-200 px-4 py-3 flex items-center justify-between">
         <h3 className="text-lg font-semibold text-gray-900">{title}</h3>
@@ -430,10 +484,22 @@ const MenuDashboard = ({
                               >
                                 {editingItem === item.id ? (
                                   <input
+                                    ref={editInputRef}
                                     type="text"
                                     value={editValue}
                                     onChange={(e) =>
-                                      setEditValue(e.target.value)
+                                      handleMenuNameChange(
+                                        e,
+                                        setEditValue,
+                                        editSelRef
+                                      )
+                                    }
+                                    onCompositionEnd={(e) =>
+                                      handleMenuNameCompositionEnd(
+                                        e,
+                                        setEditValue,
+                                        editSelRef
+                                      )
                                     }
                                     className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-500"
                                     onKeyDown={(e) => {
@@ -450,11 +516,20 @@ const MenuDashboard = ({
                                       const target = e.target;
                                       const start = target.selectionStart;
                                       const end = target.selectionEnd;
-                                      setEditValue(
+                                      const merged =
                                         editValue.slice(0, start) +
-                                          pasted +
-                                          editValue.slice(end)
+                                        pasted +
+                                        editValue.slice(end);
+                                      const next = titleCaseWords(merged);
+                                      const caret = Math.min(
+                                        start + pasted.length,
+                                        next.length
                                       );
+                                      editSelRef.current = {
+                                        start: caret,
+                                        end: caret,
+                                      };
+                                      setEditValue(next);
                                     }}
                                     autoFocus
                                   />
@@ -505,10 +580,22 @@ const MenuDashboard = ({
                             {isAddingHere && (
                               <div className="flex items-center gap-2 bg-blue-50 rounded p-2">
                                 <input
+                                  ref={newItemInputRef}
                                   type="text"
                                   value={newItemValue}
                                   onChange={(e) =>
-                                    setNewItemValue(e.target.value)
+                                    handleMenuNameChange(
+                                      e,
+                                      setNewItemValue,
+                                      newItemSelRef
+                                    )
+                                  }
+                                  onCompositionEnd={(e) =>
+                                    handleMenuNameCompositionEnd(
+                                      e,
+                                      setNewItemValue,
+                                      newItemSelRef
+                                    )
                                   }
                                   placeholder="Enter item name..."
                                   className="flex-1 px-2 py-1 text-sm border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-gray-500"
@@ -526,11 +613,20 @@ const MenuDashboard = ({
                                     const target = e.target;
                                     const start = target.selectionStart;
                                     const end = target.selectionEnd;
-                                    setNewItemValue(
+                                    const merged =
                                       newItemValue.slice(0, start) +
-                                        pasted +
-                                        newItemValue.slice(end)
+                                      pasted +
+                                      newItemValue.slice(end);
+                                    const next = titleCaseWords(merged);
+                                    const caret = Math.min(
+                                      start + pasted.length,
+                                      next.length
                                     );
+                                    newItemSelRef.current = {
+                                      start: caret,
+                                      end: caret,
+                                    };
+                                    setNewItemValue(next);
                                   }}
                                   autoFocus
                                 />
@@ -575,9 +671,9 @@ const MenuDashboard = ({
   return (
     <div className="mt-4 w-full">
       <div className="space-y-6">
-        <MealSection meal="breakfast" title="Breakfast" />
-        <MealSection meal="lunch" title="Lunch" />
-        <MealSection meal="dinner" title="Dinner" />
+        {renderMealSection("breakfast", "Breakfast")}
+        {renderMealSection("lunch", "Lunch")}
+        {renderMealSection("dinner", "Dinner")}
       </div>
     </div>
   );
