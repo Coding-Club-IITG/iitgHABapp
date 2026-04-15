@@ -41,6 +41,7 @@ import {
 import {
   getMessMenuByDayForSMC,
   modifyMenuItemSMC,
+  reorderMenuItemsSMC,
   updateTimeSMC,
 } from "./messAdminController.js";
 
@@ -142,6 +143,11 @@ messRouter.post(
   "/menu/time/update/smc/:messId",
   authenticateUserOrAdminJWT,
   updateTimeSMC,
+);
+messRouter.post(
+  "/menu/items/reorder/smc/:messId",
+  authenticateUserOrAdminJWT,
+  reorderMenuItemsSMC,
 );
 
 // Bill routes moved above /:id to prevent route shadowing

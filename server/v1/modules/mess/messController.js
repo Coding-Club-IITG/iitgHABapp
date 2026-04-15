@@ -14,6 +14,7 @@ import { MessClosure } from "../hostel/messClosureModel.js";
 
 import { publishMessScan } from "../../utils/scanBroadcast.js";
 import redisClient from "../../utils/redisClient.js";
+import { sortMenuItemsByMenuOrder } from "../../utils/sortMenuItemsByMenuOrder.js";
 
 const QR_CODE_DATA_URL_OPTIONS = {
   width: 1024,
@@ -388,7 +389,7 @@ export const getMessMenuByDay = async (req, res) => {
             _id: { $in: menuItems },
           }).lean();
 
-          menuObj.items = menuItemDetails;
+          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
           return menuObj;
         }),
       );
@@ -470,7 +471,7 @@ export const getMessMenuByDayForAdminHAB = async (req, res) => {
             _id: { $in: menuItems },
           }).lean();
 
-          menuObj.items = menuItemDetails;
+          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
           return menuObj;
         }),
       );
