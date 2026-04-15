@@ -9,6 +9,8 @@ import {
   Calendar,
   Check,
   X,
+  ChevronUp,
+  ChevronDown,
 } from "lucide-react";
 
 const MenuDashboard = ({
@@ -51,6 +53,7 @@ const MenuDashboard = ({
   }, [activeDay, breakfast, lunch, dinner, editingItem]);
   const [addingTo, setAddingTo] = useState({ meal: null, category: null });
   const [newItemValue, setNewItemValue] = useState("");
+  const [reorderSaving, setReorderSaving] = useState(false);
 
   const editInputRef = useRef(null);
   const editSelRef = useRef(null);
@@ -319,6 +322,71 @@ const MenuDashboard = ({
     return menus[activeDay][meal].filter((item) => item.category === category);
   };
 
+  const mealNeighborSwapIndex = (list, idx, direction, cat) => {
+    if (direction === "up") {
+      for (let j = idx - 1; j >= 0; j--) {
+        if (list[j].category === cat) return j;
+      }
+    } else {
+      for (let j = idx + 1; j < list.length; j++) {
+        if (list[j].category === cat) return j;
+      }
+    }
+    return -1;
+  };
+
+  const canReorderItem = (meal, itemId, direction) => {
+    const list = menus[activeDay]?.[meal];
+    if (!list?.length) return false;
+    const idx = list.findIndex((i) => i.id === itemId);
+    if (idx === -1) return false;
+    return (
+      mealNeighborSwapIndex(list, idx, direction, list[idx].category) >= 0
+    );
+  };
+
+  const moveMenuItemInCategory = async (meal, itemId, direction) => {
+    if (!messId || editingItem != null || reorderSaving) return;
+    const list = [...menus[activeDay][meal]];
+    const idx = list.findIndex((i) => i.id === itemId);
+    if (idx === -1) return;
+    const cat = list[idx].category;
+    const swapIdx = mealNeighborSwapIndex(list, idx, direction, cat);
+    if (swapIdx === -1) return;
+
+    const next = [...list];
+    [next[idx], next[swapIdx]] = [next[swapIdx], next[idx]];
+    const snapshot = structuredClone(menus);
+
+    setReorderSaving(true);
+    setMenus((prev) => ({
+      ...prev,
+      [activeDay]: {
+        ...prev[activeDay],
+        [meal]: next,
+      },
+    }));
+
+    const mealType = meal.charAt(0).toUpperCase() + meal.slice(1);
+    try {
+      await axios.post(
+        `${API_BASE_URL}/mess/menu/items/reorder/smc/${messId}`,
+        {
+          day,
+          type: mealType,
+          itemIds: next.map((i) => i.id),
+        }
+      );
+      if (onSuccessfulItemCreation) onSuccessfulItemCreation();
+    } catch (err) {
+      setMenus(snapshot);
+      console.error(err);
+      alert(err.response?.data?.message || "Could not save item order");
+    } finally {
+      setReorderSaving(false);
+    }
+  };
+
   // If menu for this day doesn't exist, show a CTA to create it
   if (!menuExists) {
     return (
@@ -453,7 +521,7 @@ const MenuDashboard = ({
                 <th className="text-left py-2 px-3 text-sm font-medium text-gray-700">
                   Items
                 </th>
-                <th className="text-right py-2 px-3 text-sm font-medium text-gray-700 w-20">
+                <th className="text-right py-2 px-3 text-sm font-medium text-gray-700 w-36">
                   Actions
                 </th>
               </tr>
@@ -558,12 +626,58 @@ const MenuDashboard = ({
                                   ) : (
                                     <>
                                       <button
+                                        type="button"
+                                        title="Move up in this category"
+                                        disabled={
+                                          reorderSaving ||
+                                          !canReorderItem(
+                                            meal,
+                                            item.id,
+                                            "up"
+                                          )
+                                        }
+                                        onClick={() =>
+                                          moveMenuItemInCategory(
+                                            meal,
+                                            item.id,
+                                            "up"
+                                          )
+                                        }
+                                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:pointer-events-none"
+                                      >
+                                        <ChevronUp className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        title="Move down in this category"
+                                        disabled={
+                                          reorderSaving ||
+                                          !canReorderItem(
+                                            meal,
+                                            item.id,
+                                            "down"
+                                          )
+                                        }
+                                        onClick={() =>
+                                          moveMenuItemInCategory(
+                                            meal,
+                                            item.id,
+                                            "down"
+                                          )
+                                        }
+                                        className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded disabled:opacity-30 disabled:pointer-events-none"
+                                      >
+                                        <ChevronDown className="w-4 h-4" />
+                                      </button>
+                                      <button
+                                        type="button"
                                         onClick={() => startEditing(item)}
                                         className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded"
                                       >
                                         <Edit3 className="w-4 h-4" />
                                       </button>
                                       <button
+                                        type="button"
                                         onClick={() =>
                                           removeItem(meal, item.id)
                                         }
@@ -647,7 +761,7 @@ const MenuDashboard = ({
                           </div>
                         )}
                       </td>
-                      <td className="py-3 px-3 align-top w-20 text-right">
+                      <td className="py-3 px-3 align-top w-36 text-right">
                         <button
                           onClick={() => setAddingTo({ meal, category })}
                           disabled={isAddingHere}

@@ -1,7 +1,10 @@
+import mongoose from "mongoose";
+
 import { Menu } from "./menuModel.js";
 import { MenuItem } from "./menuItemModel.js";
 
 import redisClient from "../../utils/redisClient.js";
+import { sortMenuItemsByMenuOrder } from "../../utils/sortMenuItemsByMenuOrder.js";
 
 export const getMessMenuByDayForAdmin = async (req, res) => {
   try {
@@ -31,7 +34,7 @@ export const getMessMenuByDayForAdmin = async (req, res) => {
             _id: { $in: menuItems },
           }).lean();
 
-          menuObj.items = menuItemDetails;
+          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
           return menuObj;
         }),
       );
@@ -242,7 +245,7 @@ export const getMessMenuByDayForSMC = async (req, res) => {
             _id: { $in: menuItems },
           }).lean();
 
-          menuObj.items = menuItemDetails;
+          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
           return menuObj;
         }),
       );
@@ -303,6 +306,80 @@ export const modifyMenuItemSMC = async (req, res) => {
     return res
       .status(200)
       .json({ message: "Menu item updated successfully", menuItem });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/** SMC: persist `Menu.items` order (same sequence the mobile app lists). */
+export const reorderMenuItemsSMC = async (req, res) => {
+  try {
+    const messId = req.params.messId;
+    const { day, type, itemIds } = req.body;
+    const user = req.user;
+    const isAuthorized = (user && user.isSMC) || !!req.hostel;
+    if (!isAuthorized) {
+      return res.status(403).json({
+        message: "Unauthorized: User is not an SMC member",
+      });
+    }
+
+    if (!messId || !day || !type || !Array.isArray(itemIds)) {
+      return res.status(400).json({
+        message: "messId, day, type, and itemIds[] are required",
+      });
+    }
+    if (!["Breakfast", "Lunch", "Dinner"].includes(type)) {
+      return res.status(400).json({ message: "Invalid meal type" });
+    }
+
+    for (const id of itemIds) {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid item id" });
+      }
+    }
+
+    const menu = await Menu.findOne({ messId, day, type });
+    if (!menu) {
+      return res
+        .status(404)
+        .json({ message: "Menu not found for this meal/day" });
+    }
+
+    const existingIds = menu.items.map((id) => id.toString());
+    if (itemIds.length !== existingIds.length) {
+      return res.status(400).json({
+        message: "itemIds must list each menu item exactly once",
+      });
+    }
+    const incomingSet = new Set(itemIds.map(String));
+    if (incomingSet.size !== itemIds.length) {
+      return res.status(400).json({ message: "Duplicate item id in itemIds" });
+    }
+    for (const id of existingIds) {
+      if (!incomingSet.has(id)) {
+        return res.status(400).json({
+          message: "itemIds must match the current menu items",
+        });
+      }
+    }
+
+    const count = await MenuItem.countDocuments({
+      _id: { $in: itemIds },
+      menuId: menu._id,
+    });
+    if (count !== itemIds.length) {
+      return res.status(400).json({
+        message: "One or more items do not belong to this menu",
+      });
+    }
+
+    menu.items = itemIds.map((id) => new mongoose.Types.ObjectId(id));
+    await menu.save();
+    await redisClient.del(`menu_${messId}_${day}`);
+
+    return res.status(200).json({ message: "Menu order updated", menu });
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
