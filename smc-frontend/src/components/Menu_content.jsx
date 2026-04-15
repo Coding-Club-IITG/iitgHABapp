@@ -322,6 +322,15 @@ const MenuDashboard = ({
     return menus[activeDay][meal].filter((item) => item.category === category);
   };
 
+  /** Stable string id for API (handles `_id` from JSON and rare object shapes). */
+  const rowItemId = (item) => {
+    const raw = item?.id ?? item?._id;
+    if (raw == null) return "";
+    return typeof raw === "object" && raw !== null && "toString" in raw
+      ? String(raw.toString())
+      : String(raw);
+  };
+
   const mealNeighborSwapIndex = (list, idx, direction, cat) => {
     if (direction === "up") {
       for (let j = idx - 1; j >= 0; j--) {
@@ -338,7 +347,7 @@ const MenuDashboard = ({
   const canReorderItem = (meal, itemId, direction) => {
     const list = menus[activeDay]?.[meal];
     if (!list?.length) return false;
-    const idx = list.findIndex((i) => i.id === itemId);
+    const idx = list.findIndex((i) => rowItemId(i) === String(itemId));
     if (idx === -1) return false;
     return (
       mealNeighborSwapIndex(list, idx, direction, list[idx].category) >= 0
@@ -348,7 +357,7 @@ const MenuDashboard = ({
   const moveMenuItemInCategory = async (meal, itemId, direction) => {
     if (!messId || editingItem != null || reorderSaving) return;
     const list = [...menus[activeDay][meal]];
-    const idx = list.findIndex((i) => i.id === itemId);
+    const idx = list.findIndex((i) => rowItemId(i) === String(itemId));
     if (idx === -1) return;
     const cat = list[idx].category;
     const swapIdx = mealNeighborSwapIndex(list, idx, direction, cat);
@@ -374,7 +383,7 @@ const MenuDashboard = ({
         {
           day,
           type: mealType,
-          itemIds: next.map((i) => i.id),
+          itemIds: next.map((i) => rowItemId(i)).filter(Boolean),
         }
       );
       if (onSuccessfulItemCreation) onSuccessfulItemCreation();
@@ -632,14 +641,14 @@ const MenuDashboard = ({
                                           reorderSaving ||
                                           !canReorderItem(
                                             meal,
-                                            item.id,
+                                            rowItemId(item),
                                             "up"
                                           )
                                         }
                                         onClick={() =>
                                           moveMenuItemInCategory(
                                             meal,
-                                            item.id,
+                                            rowItemId(item),
                                             "up"
                                           )
                                         }
@@ -654,14 +663,14 @@ const MenuDashboard = ({
                                           reorderSaving ||
                                           !canReorderItem(
                                             meal,
-                                            item.id,
+                                            rowItemId(item),
                                             "down"
                                           )
                                         }
                                         onClick={() =>
                                           moveMenuItemInCategory(
                                             meal,
-                                            item.id,
+                                            rowItemId(item),
                                             "down"
                                           )
                                         }
