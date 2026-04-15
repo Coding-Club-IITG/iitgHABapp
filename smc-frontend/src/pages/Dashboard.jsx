@@ -10,6 +10,7 @@ import GalaDinnerContent from "../components/GalaDinnerContent";
 import Button from "../components/ui/Button";
 import Card from "../components/ui/Card";
 import Tabs from "../components/ui/Tabs";
+import { getHostelId } from "../utils/hostelId";
 
 const days = [
   "Monday",
@@ -52,8 +53,9 @@ export const Dashboard = () => {
   // Get user's hostel and messId
   const getUserHostel = async () => {
     try {
-      if (!user?.hostel) return null;
-      const response = await apiClient.get(`/hostel/all/smc/${user.hostel}`);
+      const hid = getHostelId(user);
+      if (!hid) return null;
+      const response = await apiClient.get(`/hostel/all/smc/${hid}`);
       return response.data?.hostel || response.data;
     } catch (err) {
       console.error("Error fetching hostel:", err);
@@ -64,7 +66,7 @@ export const Dashboard = () => {
   // Fetch hostel and messId on mount
   useEffect(() => {
     const fetchHostel = async () => {
-      if (!user?.hostel) return;
+      if (!getHostelId(user)) return;
       const hostel = await getUserHostel();
       if (hostel?.messId) {
         setMessId(hostel.messId._id || hostel.messId);
@@ -74,7 +76,7 @@ export const Dashboard = () => {
   }, [user]);
 
   const fetchMess = useCallback(async () => {
-    if (!messId || !user?.hostel) {
+    if (!messId || !getHostelId(user)) {
       setIsLoading(false);
       return;
     }

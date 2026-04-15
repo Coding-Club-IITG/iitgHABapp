@@ -3,6 +3,7 @@ import apiClient from "../apiClient";
 import Button from "./ui/Button";
 import { DatePicker } from "antd";
 import { useAuth } from "../context/AuthProvider";
+import { getHostelId } from "../utils/hostelId";
 
 const NotificationSender = () => {
   const [title, setTitle] = useState("");
@@ -21,7 +22,8 @@ const NotificationSender = () => {
       return;
     }
 
-    if (!user?.hostel) {
+    const hostelId = getHostelId(user);
+    if (!hostelId) {
       alert("Hostel information not available");
       return;
     }
@@ -45,7 +47,7 @@ const NotificationSender = () => {
         }
 
         const targetType = userType === "boarders" ? "hostel" : "mess";
-        const targetIds = [user.hostel];
+        const targetIds = [hostelId];
 
         await apiClient.post("/alerts/create", {
           title,
@@ -57,7 +59,7 @@ const NotificationSender = () => {
         });
       } else {
         // Get hostel name from user's hostel
-        const response = await apiClient.get(`/hostel/all/smc/${user.hostel}`);
+        const response = await apiClient.get(`/hostel/all/smc/${hostelId}`);
         const hostelData = response.data?.hostel || response.data;
         const hostelName = hostelData?.hostel_name?.replaceAll(" ", "_") || "";
 
