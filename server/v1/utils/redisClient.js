@@ -1,5 +1,5 @@
 import Redis from "ioredis";
-import { redisUrl } from "../config/default.js";
+import { redisUrl, REDIS_KEY_PREFIX } from "../config/default.js";
 
 let client = null;
 let isConnected = false;
@@ -9,6 +9,7 @@ if (redisUrl) {
     maxRetriesPerRequest: 0,
     enableOfflineQueue: false,
     retryStrategy: (times) => Math.min(times * 50, 2000),
+    keyPrefix: REDIS_KEY_PREFIX,
   });
 
   client.on("error", (err) => {

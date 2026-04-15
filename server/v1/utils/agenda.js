@@ -6,10 +6,10 @@
 import { Agenda } from "agenda";
 import { MongoBackend } from "@agendajs/mongo-backend";
 import { RedisNotificationChannel } from "@agendajs/redis-backend";
-import { mongodbUri, redisUrl } from "../config/default.js";
+import { mongodbUri, redisUrl, API_VERSION } from "../config/default.js";
 
 const agenda = new Agenda({
-  backend: new MongoBackend({ address: mongodbUri, collection: "agendaJobs" }),
+  backend: new MongoBackend({ address: mongodbUri, collection: `agendaJobs_${API_VERSION}` }),
   notificationChannel: new RedisNotificationChannel({
     connectionString: redisUrl,
   }),
