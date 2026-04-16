@@ -847,11 +847,11 @@ class _RebateApplicationDetailScreenState
       (_app['status'] ?? widget.application['status'] ?? '').toString();
 
   String _guessFileExt(Uri uri) {
+    // Best-effort fallback when server doesn't provide Content-Type.
     final p = uri.path.toLowerCase();
     if (p.endsWith('.pdf')) return 'pdf';
     if (p.endsWith('.png')) return 'png';
-    if (p.endsWith('.jpg')) return 'jpg';
-    if (p.endsWith('.jpeg')) return 'jpeg';
+    if (p.endsWith('.jpg') || p.endsWith('.jpeg')) return 'jpg';
     return 'bin';
   }
 
@@ -874,12 +874,14 @@ class _RebateApplicationDetailScreenState
     String? downloadedFileName;
 
     try {
-      final bytes = await ManagerApi.downloadLeaveDocumentBytes(
+      final dl = await ManagerApi.downloadLeaveDocument(
         token: widget.authToken,
         documentUrl: u,
       );
 
-      final ext = _guessFileExt(uri);
+      final ext = ManagerApi.extFromContentType(dl.contentType) != 'bin'
+          ? ManagerApi.extFromContentType(dl.contentType)
+          : _guessFileExt(uri);
       final safeLabel =
           label.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
       final filename =
@@ -890,7 +892,7 @@ class _RebateApplicationDetailScreenState
         await downloadsDir.create(recursive: true);
       }
       final file = File('${downloadsDir.path}/$filename');
-      await file.writeAsBytes(bytes, flush: true);
+      await file.writeAsBytes(dl.bytes, flush: true);
       downloadedFile = file;
       downloadedFileName = filename;
 

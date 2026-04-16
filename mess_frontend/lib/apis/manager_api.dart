@@ -6,6 +6,29 @@ import '../constants/endpoint.dart';
 class ManagerApi {
   ManagerApi._();
 
+  static String? _contentType(Response r) =>
+      r.headers.value('content-type')?.trim();
+
+  static String? _normalizeMime(String? ct) {
+    if (ct == null || ct.isEmpty) return null;
+    return ct.split(';').first.trim().toLowerCase();
+  }
+
+  static String extFromContentType(String? contentType) {
+    final ct = _normalizeMime(contentType);
+    switch (ct) {
+      case 'application/pdf':
+        return 'pdf';
+      case 'image/png':
+        return 'png';
+      case 'image/jpg':
+      case 'image/jpeg':
+        return 'jpg';
+      default:
+        return 'bin';
+    }
+  }
+
   /// Shared Dio client with verbose logging to help debug real-device issues.
   static final Dio _dio = Dio()
     ..interceptors.add(
@@ -125,7 +148,7 @@ class ManagerApi {
 
   /// Download a proof/leave document via authenticated backend endpoint.
   /// The backend streams OneDrive bytes so the client doesn't hit 401/403.
-  static Future<Uint8List> downloadLeaveDocumentBytes({
+  static Future<({Uint8List bytes, String? contentType})> downloadLeaveDocument({
     required String token,
     required String documentUrl,
   }) async {
@@ -142,7 +165,10 @@ class ManagerApi {
     if (bytes == null || bytes.isEmpty) {
       throw Exception('Empty download response');
     }
-    return Uint8List.fromList(bytes);
+    return (
+      bytes: Uint8List.fromList(bytes),
+      contentType: _contentType(response),
+    );
   }
 
   static Future<Map<String, dynamic>> fetchUserProfileForManager({
