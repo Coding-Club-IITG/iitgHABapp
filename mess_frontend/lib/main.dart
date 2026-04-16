@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
+import 'package:open_filex/open_filex.dart';
 
 import 'apis/manager_api.dart';
 import 'constants/endpoint.dart';
@@ -553,22 +558,51 @@ class ManagerHomeScreen extends StatefulWidget {
 class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   int _currentIndex = 0;
   bool _galaInitialized = false;
+  bool _hasGalaToday = false;
+  bool _rebateInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshHasGalaToday();
+  }
+
+  Future<void> _refreshHasGalaToday() async {
+    try {
+      final has = await ManagerApi.hasTodayGala(widget.authToken);
+      if (!mounted) return;
+      setState(() {
+        _hasGalaToday = has;
+        if (!_hasGalaToday && _currentIndex != 0) {
+          _currentIndex = 0;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _hasGalaToday = false;
+        if (_currentIndex != 0) _currentIndex = 0;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final screens = <Widget>[
-      TodayMessScreen(
-        hostelName: widget.hostelName,
-        authToken: widget.authToken,
-      ),
-      // Lazily create GalaSummaryScreen only after the Gala tab is visited
-      if (_galaInitialized)
-        GalaSummaryScreen(
-          hostelName: widget.hostelName,
-          authToken: widget.authToken,
-        )
-      else
-        const SizedBox.shrink(),
+      TodayMessScreen(hostelName: widget.hostelName, authToken: widget.authToken),
+      if (_hasGalaToday)
+        (_galaInitialized
+            ? GalaSummaryScreen(
+                hostelName: widget.hostelName,
+                authToken: widget.authToken,
+              )
+            : const SizedBox.shrink()),
+      (_rebateInitialized
+          ? RebateSummaryScreen(
+              hostelName: widget.hostelName,
+              authToken: widget.authToken,
+            )
+          : const SizedBox.shrink()),
     ];
 
     final items = <BottomNavigationBarItem>[
@@ -576,11 +610,18 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         icon: Icon(Icons.restaurant),
         label: 'Today Mess',
       ),
+      if (_hasGalaToday)
+        const BottomNavigationBarItem(
+          icon: Icon(Icons.celebration),
+          label: 'Gala Dinner',
+        ),
       const BottomNavigationBarItem(
-        icon: Icon(Icons.celebration),
-        label: 'Gala Dinner',
+        icon: Icon(Icons.receipt_long),
+        label: 'Rebate',
       ),
     ];
+
+    final rebateIndex = _hasGalaToday ? 2 : 1;
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -595,8 +636,11 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         items: items,
         onTap: (index) {
           setState(() {
-            if (index == 1) {
+            if (_hasGalaToday && index == 1) {
               _galaInitialized = true;
+            }
+            if (index == rebateIndex) {
+              _rebateInitialized = true;
             }
             _currentIndex = index;
           });
@@ -605,6 +649,968 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         unselectedItemColor: const Color(0xFF9CA3AF),
         backgroundColor: Colors.white,
         type: BottomNavigationBarType.fixed,
+      ),
+    );
+  }
+}
+
+// ---- Mess Rebate (leave) summary screen ----
+
+class _MonthYear {
+  const _MonthYear(this.month, this.year);
+  final int month; // 1-12
+  final int year;
+
+  @override
+  bool operator ==(Object other) =>
+      other is _MonthYear && other.month == month && other.year == year;
+
+  @override
+  int get hashCode => Object.hash(month, year);
+}
+
+String _monthYearLabel(_MonthYear my) {
+  const names = <String>[
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+  final m = (my.month >= 1 && my.month <= 12) ? names[my.month - 1] : 'Month';
+  return '$m ${my.year}';
+}
+
+DateTime? _safeParseIsoDate(dynamic v) {
+  final s = v?.toString().trim();
+  if (s == null || s.isEmpty) return null;
+  try {
+    return DateTime.parse(s);
+  } catch (_) {
+    return null;
+  }
+}
+
+/// Convert a timestamp to an IST calendar date-time.
+///
+/// We convert via UTC to avoid device-local timezone affecting the calendar day.
+DateTime _toIst(DateTime d) {
+  final utc = d.isUtc ? d : d.toUtc();
+  return utc.add(const Duration(hours: 5, minutes: 30));
+}
+
+String _formatYyyyMmDdIst(DateTime d) {
+  final x = _toIst(d);
+  final yyyy = x.year.toString().padLeft(4, '0');
+  final mm = x.month.toString().padLeft(2, '0');
+  final dd = x.day.toString().padLeft(2, '0');
+  return '$yyyy-$mm-$dd';
+}
+
+String _formatDdMmm(DateTime d) {
+  final x = _toIst(d);
+  const m = <String>[
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final mm = (x.month >= 1 && x.month <= 12) ? m[x.month - 1] : '';
+  return '${x.day.toString().padLeft(2, '0')} $mm';
+}
+
+class RebateSummaryScreen extends StatefulWidget {
+  const RebateSummaryScreen({
+    super.key,
+    required this.hostelName,
+    required this.authToken,
+  });
+
+  final String hostelName;
+  final String authToken;
+
+  @override
+  State<RebateSummaryScreen> createState() => _RebateSummaryScreenState();
+}
+
+class _KeyValueRow extends StatelessWidget {
+  const _KeyValueRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF111827),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF374151),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DocButton extends StatelessWidget {
+  const _DocButton({
+    required this.label,
+    required this.url,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  final String label;
+  final String url;
+  final VoidCallback onTap;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      width: double.infinity,
+      child: OutlinedButton.icon(
+        onPressed: (loading || url.trim().isEmpty) ? null : onTap,
+        icon: loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Icon(Icons.download),
+        label: Text(label),
+      ),
+    );
+  }
+}
+
+class RebateApplicationDetailScreen extends StatefulWidget {
+  const RebateApplicationDetailScreen({
+    super.key,
+    required this.application,
+    required this.authToken,
+  });
+
+  final Map<String, dynamic> application;
+  final String authToken;
+
+  @override
+  State<RebateApplicationDetailScreen> createState() =>
+      _RebateApplicationDetailScreenState();
+}
+
+class _RebateApplicationDetailScreenState
+    extends State<RebateApplicationDetailScreen> {
+  bool _ackLoading = false;
+  String? _error;
+  late Map<String, dynamic> _app = widget.application;
+  String? _downloadingDocKey; // 'proof' | 'leave'
+
+  String get _status =>
+      (_app['status'] ?? widget.application['status'] ?? '').toString();
+
+  String _guessFileExt(Uri uri) {
+    final p = uri.path.toLowerCase();
+    if (p.endsWith('.pdf')) return 'pdf';
+    if (p.endsWith('.png')) return 'png';
+    if (p.endsWith('.jpg')) return 'jpg';
+    if (p.endsWith('.jpeg')) return 'jpeg';
+    return 'bin';
+  }
+
+  Future<void> _downloadAndOpen({
+    required String label,
+    required String url,
+    required String docKey,
+  }) async {
+    final u = url.trim();
+    if (u.isEmpty) return;
+    final uri = Uri.tryParse(u);
+    if (uri == null) return;
+
+    setState(() {
+      _downloadingDocKey = docKey;
+      _error = null;
+    });
+
+    File? downloadedFile;
+    String? downloadedFileName;
+
+    try {
+      final bytes = await ManagerApi.downloadLeaveDocumentBytes(
+        token: widget.authToken,
+        documentUrl: u,
+      );
+
+      final ext = _guessFileExt(uri);
+      final safeLabel =
+          label.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '-');
+      final filename =
+          '$safeLabel-${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final docsDir = await getApplicationDocumentsDirectory();
+      final downloadsDir = Directory('${docsDir.path}/downloads');
+      if (!await downloadsDir.exists()) {
+        await downloadsDir.create(recursive: true);
+      }
+      final file = File('${downloadsDir.path}/$filename');
+      await file.writeAsBytes(bytes, flush: true);
+      downloadedFile = file;
+      downloadedFileName = filename;
+
+      if (!mounted) return;
+
+      await _showOpenOptionsSheet(
+        file: file,
+        fileName: filename,
+        ext: ext,
+      );
+    } on MissingPluginException catch (_) {
+      // iOS/Android build not fully rebuilt after adding share_plus (hot reload
+      // can trigger this). Fall back to opening the local file directly.
+      if (!mounted) return;
+      final f = downloadedFile;
+      if (f == null) {
+        setState(() {
+          _error =
+              'Could not open file because it was not downloaded successfully.';
+        });
+        return;
+      }
+      final fileUri = Uri.file(f.path);
+      final ok = await canLaunchUrl(fileUri);
+      if (ok) {
+        await launchUrl(fileUri, mode: LaunchMode.externalApplication);
+      } else {
+        if (!mounted) return;
+        final name = downloadedFileName ?? 'file';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Downloaded $name, but could not open it.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _error = 'Failed to download $label.\n$e';
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (_downloadingDocKey == docKey) _downloadingDocKey = null;
+        });
+      }
+    }
+  }
+
+  Future<void> _showOpenOptionsSheet({
+    required File file,
+    required String fileName,
+    required String ext,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: Colors.white,
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Downloaded',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  fileName,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF6B7280),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                FilledButton.icon(
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    await OpenFilex.open(file.path);
+                  },
+                  icon: const Icon(Icons.open_in_new),
+                  label: const Text('Open'),
+                ),
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    Navigator.of(ctx).pop();
+                    final box = context.findRenderObject() as RenderBox?;
+                    Rect? origin;
+                    if (box != null && box.hasSize) {
+                      final topLeft = box.localToGlobal(Offset.zero);
+                      origin = topLeft & box.size;
+                    }
+                    await Share.shareXFiles(
+                      [
+                        XFile(
+                          file.path,
+                          name: fileName,
+                          mimeType: ext == 'pdf' ? 'application/pdf' : null,
+                        ),
+                      ],
+                      subject: fileName,
+                      sharePositionOrigin: origin,
+                    );
+                  },
+                  icon: const Icon(Icons.ios_share),
+                  label: const Text('Share / Save to Files'),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _acknowledge() async {
+    final id = _app['_id']?.toString() ?? '';
+    if (id.isEmpty) return;
+    setState(() {
+      _ackLoading = true;
+      _error = null;
+    });
+    try {
+      final data = await ManagerApi.acknowledgeMessRebateApplication(
+        token: widget.authToken,
+        applicationId: id,
+      );
+      final updated = data['updatedApplication'];
+      if (updated is Map) {
+        setState(() {
+          _app = Map<String, dynamic>.from(updated);
+        });
+      } else {
+        setState(() {
+          _app = {..._app, 'status': 'Acknowledged'};
+        });
+      }
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _ackLoading = false;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final user = _app['user'] is Map
+        ? Map<String, dynamic>.from(_app['user'] as Map)
+        : const <String, dynamic>{};
+    final name = (user['name'] ?? '').toString().trim();
+    final roll = (user['rollNumber'] ?? '').toString().trim();
+
+    final leaveType = (_app['leaveType'] ?? '').toString().trim();
+    final start = _safeParseIsoDate(_app['startDate']);
+    final end = _safeParseIsoDate(_app['endDate']);
+    final duration = (start != null && end != null)
+        ? '${_formatYyyyMmDdIst(start)} to ${_formatYyyyMmDdIst(end)}'
+        : '';
+
+    final proofUrl = (_app['proofDocumentUrl'] ?? '').toString().trim();
+    final leavePdfUrl = (_app['leaveDocumentUrl'] ?? '').toString().trim();
+
+    final showProof = leaveType.toLowerCase() == 'medical' ||
+        leaveType.toLowerCase() == 'academic';
+    final canAck = _status.toLowerCase() == 'pending';
+
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'Application',
+          style: TextStyle(
+            color: Color(0xFF111827),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+      ),
+      floatingActionButton: canAck
+          ? FloatingActionButton.extended(
+              onPressed: _ackLoading ? null : _acknowledge,
+              backgroundColor: const Color(0xFF111827),
+              foregroundColor: Colors.white,
+              icon: _ackLoading
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Icon(Icons.done),
+              label: const Text(
+                'Acknowledge',
+                style: TextStyle(fontWeight: FontWeight.w700),
+              ),
+            )
+          : null,
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name.isEmpty ? 'Student' : name,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    roll.isEmpty ? '' : roll,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  _KeyValueRow(label: 'Status:', value: _status),
+                  _KeyValueRow(
+                    label: 'Leave Type:',
+                    value: leaveType.isEmpty ? '—' : leaveType,
+                  ),
+                  _KeyValueRow(
+                    label: 'Leave Duration:',
+                    value: duration.isEmpty ? '—' : duration,
+                  ),
+                ],
+              ),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                _error!,
+                style: const TextStyle(
+                  color: Color(0xFFB91C1C),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+            const SizedBox(height: 12),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Documents',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  if (showProof)
+                    _DocButton(
+                      label: 'Proof document',
+                      url: proofUrl,
+                      loading: _downloadingDocKey == 'proof',
+                      onTap: () => _downloadAndOpen(
+                        label: 'Proof document',
+                        url: proofUrl,
+                        docKey: 'proof',
+                      ),
+                    ),
+                  _DocButton(
+                    label: 'Hostel Leave application',
+                    url: leavePdfUrl,
+                    loading: _downloadingDocKey == 'leave',
+                    onTap: () => _downloadAndOpen(
+                      label: 'Hostel Leave application',
+                      url: leavePdfUrl,
+                      docKey: 'leave',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RebateSummaryScreenState extends State<RebateSummaryScreen> {
+  bool _loadingMonths = true;
+  String? _monthsError;
+  List<_MonthYear> _availableMonths = const [];
+  _MonthYear? _selected;
+
+  bool _loadingApps = false;
+  String? _appsError;
+  List<Map<String, dynamic>> _apps = const [];
+
+  final Map<_MonthYear, List<Map<String, dynamic>>> _monthCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAvailableMonths();
+  }
+
+  Future<void> _loadAvailableMonths() async {
+    setState(() {
+      _loadingMonths = true;
+      _monthsError = null;
+      _availableMonths = const [];
+      _selected = null;
+      _apps = const [];
+      _appsError = null;
+    });
+
+    final now = DateTime.now();
+    // Scan backwards for a bounded window; dropdown will include only non-empty months.
+    const lookbackMonths = 24;
+    final found = <_MonthYear>[];
+
+    for (int i = 0; i < lookbackMonths; i++) {
+      final d = DateTime(now.year, now.month - i, 1);
+      final my = _MonthYear(d.month, d.year);
+      try {
+        final apps = await ManagerApi.fetchMessRebateApplications(
+          token: widget.authToken,
+          month: my.month,
+          year: my.year,
+        );
+        if (!mounted) return;
+        if (apps.isNotEmpty) {
+          _monthCache[my] = apps;
+          found.add(my);
+        }
+      } catch (_) {
+        if (!mounted) return;
+        // Ignore month fetch errors; user can retry.
+      }
+    }
+
+    if (!mounted) return;
+    found.sort((a, b) {
+      final ad = DateTime(a.year, a.month, 1);
+      final bd = DateTime(b.year, b.month, 1);
+      return bd.compareTo(ad); // latest first
+    });
+
+    setState(() {
+      _availableMonths = found;
+      _selected = found.isNotEmpty ? found.first : null;
+      _loadingMonths = false;
+    });
+
+    if (_selected != null) {
+      await _loadApplicationsForSelected();
+    }
+  }
+
+  Future<void> _loadApplicationsForSelected() async {
+    final sel = _selected;
+    if (sel == null) return;
+    setState(() {
+      _loadingApps = true;
+      _appsError = null;
+    });
+
+    try {
+      final cached = _monthCache[sel];
+      final apps = cached ??
+          await ManagerApi.fetchMessRebateApplications(
+            token: widget.authToken,
+            month: sel.month,
+            year: sel.year,
+          );
+      if (!mounted) return;
+      _monthCache[sel] = apps;
+      setState(() {
+        _apps = apps;
+        _loadingApps = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _apps = const [];
+        _appsError = e.toString();
+        _loadingApps = false;
+      });
+    }
+  }
+
+  List<Map<String, dynamic>> _byStatus(String status) {
+    final want = status.toLowerCase();
+    return _apps
+        .where((a) => (a['status'] ?? '').toString().toLowerCase() == want)
+        .toList();
+  }
+
+  Widget _applicationRow(Map<String, dynamic> a) {
+    final user = a['user'] is Map ? Map<String, dynamic>.from(a['user'] as Map) : const <String, dynamic>{};
+    final name = (user['name'] ?? '').toString().trim();
+    final roll = (user['rollNumber'] ?? '').toString().trim();
+    final type = (a['leaveType'] ?? 'Leave').toString().trim();
+    final start = _safeParseIsoDate(a['startDate']);
+    final end = _safeParseIsoDate(a['endDate']);
+    final range = (start != null && end != null)
+        ? '${_formatDdMmm(start)} \u2013 ${_formatDdMmm(end)}'
+        : '';
+    final id = a['_id']?.toString() ?? '';
+
+    return InkWell(
+      onTap: id.isEmpty
+          ? null
+          : () async {
+              final didUpdate = await Navigator.of(context).push<bool>(
+                MaterialPageRoute<bool>(
+                  builder: (_) => RebateApplicationDetailScreen(
+                    application: a,
+                    authToken: widget.authToken,
+                  ),
+                ),
+              );
+              if (didUpdate == true && mounted) {
+                await _loadApplicationsForSelected();
+              }
+            },
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFE5E7EB)),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Icon(Icons.description_outlined, color: Color(0xFF6B7280)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name.isEmpty ? 'Student' : name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    [roll, type, range]
+                        .where((s) => s.trim().isNotEmpty)
+                        .join(' • '),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: Color(0xFF6B7280),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(Icons.chevron_right, color: Color(0xFF9CA3AF)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: const Color(0xFFF9FAFB),
+      appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        title: const Text(
+          'Rebate',
+          style: TextStyle(
+            color: Color(0xFF111827),
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        actions: [
+          IconButton(
+            onPressed: _loadAvailableMonths,
+            icon: const Icon(Icons.refresh, color: Color(0xFF111827)),
+            tooltip: 'Refresh',
+          ),
+        ],
+      ),
+      body: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (_loadingMonths)
+              const Expanded(
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_availableMonths.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: const Text(
+                  'No mess rebate applications found.',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF111827),
+                  ),
+                ),
+              )
+            else ...[
+              const Text(
+                'Month',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF111827),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: const Color(0xFFE5E7EB)),
+                ),
+                child: DropdownButton<_MonthYear>(
+                  value: _selected,
+                  isExpanded: true,
+                  underline: const SizedBox.shrink(),
+                  items: _availableMonths
+                      .map(
+                        (m) => DropdownMenuItem<_MonthYear>(
+                          value: m,
+                          child: Text(_monthYearLabel(m)),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (v) async {
+                    if (v == null) return;
+                    setState(() {
+                      _selected = v;
+                    });
+                    await _loadApplicationsForSelected();
+                  },
+                ),
+              ),
+            ],
+            if (_monthsError != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  _monthsError!,
+                  style: const TextStyle(color: Colors.red),
+                ),
+              ),
+            if (!_loadingMonths) ...[
+              const SizedBox(height: 12),
+              Expanded(
+                child: _loadingApps
+                    ? const Center(child: CircularProgressIndicator())
+                    : (_appsError != null
+                        ? Center(
+                            child: Text(
+                              'Failed to load applications.\n$_appsError',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                color: Color(0xFFB91C1C),
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          )
+                        : Builder(
+                            builder: (context) {
+                              final pending = _byStatus('Pending');
+                              final ack = _byStatus('Acknowledged');
+                              return DefaultTabController(
+                                length: 2,
+                                child: Column(
+                                  crossAxisAlignment:
+                                      CrossAxisAlignment.stretch,
+                                  children: [
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        borderRadius:
+                                            BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: const Color(0xFFE5E7EB),
+                                        ),
+                                      ),
+                                      child: TabBar(
+                                        labelColor: const Color(0xFF111827),
+                                        unselectedLabelColor:
+                                            const Color(0xFF6B7280),
+                                        labelStyle: const TextStyle(
+                                          fontWeight: FontWeight.w700,
+                                        ),
+                                        indicator: BoxDecoration(
+                                          color: const Color(0xFFEFF6FF),
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                        ),
+                                        indicatorSize:
+                                            TabBarIndicatorSize.tab,
+                                        dividerColor: Colors.transparent,
+                                        tabs: [
+                                          Tab(
+                                            text:
+                                                'Pending (${pending.length})',
+                                          ),
+                                          Tab(
+                                            text:
+                                                'Acknowledged (${ack.length})',
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Expanded(
+                                      child: TabBarView(
+                                        children: [
+                                          pending.isEmpty
+                                              ? const Center(
+                                                  child: Text(
+                                                    'No pending applications for this month.',
+                                                    textAlign:
+                                                        TextAlign.center,
+                                                    style: TextStyle(
+                                                      color:
+                                                          Color(0xFF6B7280),
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                )
+                                              : ListView(
+                                                  children: pending
+                                                      .map(_applicationRow)
+                                                      .toList(),
+                                                ),
+                                          ack.isEmpty
+                                              ? const Center(
+                                                  child: Text(
+                                                    'No acknowledged applications for this month.',
+                                                    textAlign:
+                                                        TextAlign.center,
+                                                    style: TextStyle(
+                                                      color:
+                                                          Color(0xFF6B7280),
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                )
+                                              : ListView(
+                                                  children: ack
+                                                      .map(_applicationRow)
+                                                      .toList(),
+                                                ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          )),
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }

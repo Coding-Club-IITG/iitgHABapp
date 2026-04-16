@@ -84,6 +84,67 @@ class ManagerApi {
     return data['galaDinner'] != null;
   }
 
+  static Future<List<Map<String, dynamic>>> fetchMessRebateApplications({
+    required String token,
+    int? month,
+    int? year,
+    String? status,
+  }) async {
+    final query = <String, dynamic>{};
+    if (month != null) query['month'] = month;
+    if (year != null) query['year'] = year;
+    if (status != null && status.trim().isNotEmpty) query['status'] = status;
+
+    final response = await _dio.get(
+      MessRebateManagerEndpoints.messApplications,
+      queryParameters: query.isEmpty ? null : query,
+      options: Options(headers: _authHeaders(token)),
+    );
+
+    final data = response.data;
+    if (data is Map && data['applications'] is List) {
+      return (data['applications'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return const [];
+  }
+
+  static Future<Map<String, dynamic>> acknowledgeMessRebateApplication({
+    required String token,
+    required String applicationId,
+  }) async {
+    final response = await _dio.post(
+      MessRebateManagerEndpoints.acknowledge(applicationId),
+      options: Options(headers: _authHeaders(token)),
+    );
+    final data = response.data;
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
+
+  /// Download a proof/leave document via authenticated backend endpoint.
+  /// The backend streams OneDrive bytes so the client doesn't hit 401/403.
+  static Future<Uint8List> downloadLeaveDocumentBytes({
+    required String token,
+    required String documentUrl,
+  }) async {
+    final response = await _dio.post<List<int>>(
+      MessRebateManagerEndpoints.download,
+      data: {'proofDocumentUrl': documentUrl},
+      options: Options(
+        headers: _authHeaders(token),
+        responseType: ResponseType.bytes,
+        validateStatus: (code) => code != null && code >= 200 && code < 400,
+      ),
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw Exception('Empty download response');
+    }
+    return Uint8List.fromList(bytes);
+  }
+
   static Future<Map<String, dynamic>> fetchUserProfileForManager({
     required String token,
     required String userId,
