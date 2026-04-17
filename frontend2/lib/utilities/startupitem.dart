@@ -12,6 +12,15 @@ class MessInfoProvider with ChangeNotifier {
   Map<String, HostelData> get hostelMap =>
       _hostelMap; //getter for accessing pvt variables
 
+  void applyMessInfoList(List<dynamic> data) {
+    _messList = data
+        .map((e) => MessInfoModel.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+    _hostelMap = mapHostelsByName(_messList);
+    isLoading = false;
+    notifyListeners();
+  }
+
   Future<void> fetchMessID() async {
     try {
       if (kDebugMode) debugPrint('api calling');

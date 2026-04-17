@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
+import 'package:frontend2/apis/app_bootstrap.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:frontend2/apis/mess/user_mess_info.dart';
@@ -43,13 +44,22 @@ Future<void> authenticate() async {
       debugPrint('Refresh Token: $refreshToken');
     }
 
-    await fetchUserDetails();
-    await fetchUserProfilePicture();
-    await getUserMessInfo();
-    // await registerFcmToken();
-    await HostelsNotifier.init();
+    final bootstrapPayload =
+        await fetchAppBootstrapData(preferFreshCache: false);
+    if (bootstrapPayload != null) {
+      await applyAppBootstrapData(
+        bootstrapPayload,
+        fetchProfilePictureIfMissing: true,
+      );
+    } else {
+      await fetchUserDetails();
+      await fetchUserProfilePicture();
+      await getUserMessInfo();
+      // await registerFcmToken();
+      await HostelsNotifier.init();
+      await AlertsManager.syncAlerts();
+    }
     ProfilePictureProvider.init();
-    await AlertsManager.syncAlerts();
   } on PlatformException catch (_) {
     rethrow;
   } catch (e) {
@@ -87,13 +97,19 @@ Future<void> guestAuthenticate() async {
       await prefs.setString('refresh_token', refreshToken);
     }
 
-    // Initialize required app data before navigating
-    await fetchUserDetails();
-    await getUserMessInfo();
-    //debugPrint("Guest authentication successful");
-    await HostelsNotifier.init();
+    // Initialize required app data before navigating.
+    final bootstrapPayload =
+        await fetchAppBootstrapData(preferFreshCache: false);
+    if (bootstrapPayload != null) {
+      await applyAppBootstrapData(bootstrapPayload);
+    } else {
+      await fetchUserDetails();
+      await getUserMessInfo();
+      //debugPrint("Guest authentication successful");
+      await HostelsNotifier.init();
+      await AlertsManager.syncAlerts();
+    }
     ProfilePictureProvider.init();
-    await AlertsManager.syncAlerts();
   } catch (e) {
     debugPrint('Guest Auth Error: $e');
     rethrow;
@@ -153,6 +169,7 @@ Future<void> logoutHandler(context) async {
 
   final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
+  AppBootstrapCache.clear();
   // Instantly wipe the local alerts cache and UI
   await AlertsManager.clearAlerts();
   // Use the global navigator if available; the dialog's build context may be
@@ -220,15 +237,21 @@ Future<void> signInWithApple() async {
     prefs.setString('access_token', token);
     prefs.setBool('hasMicrosoftLinked', hasMicrosoftLinked);
 
-    await fetchUserDetails();
-    // Only fetch mess info if user has Microsoft linked (has roll number and mess subscription)
-    if (hasMicrosoftLinked) {
-      await getUserMessInfo();
+    final bootstrapPayload =
+        await fetchAppBootstrapData(preferFreshCache: false);
+    if (bootstrapPayload != null) {
+      await applyAppBootstrapData(bootstrapPayload);
+    } else {
+      await fetchUserDetails();
+      // Only fetch mess info if user has Microsoft linked (has roll number and mess subscription)
+      if (hasMicrosoftLinked) {
+        await getUserMessInfo();
+      }
+      // await registerFcmToken();
+      await HostelsNotifier.init();
+      await AlertsManager.syncAlerts();
     }
-    // await registerFcmToken();
-    await HostelsNotifier.init();
     ProfilePictureProvider.init();
-    await AlertsManager.syncAlerts();
   } on SignInWithAppleAuthorizationException catch (e) {
     // Error code 1000 often means simulator limitation or missing configuration
     if (e.code == AuthorizationErrorCode.unknown) {
@@ -288,11 +311,20 @@ Future<void> linkMicrosoftAccount() async {
       prefs.setString('refresh_token', response.data['refreshToken']);
     }
 
-    // Refresh user details to get updated name, roll number, hostel, etc.
-    // This will update SharedPreferences with the latest user data
-    await fetchUserDetails();
-    await getUserMessInfo();
-    await fetchUserProfilePicture();
+    final bootstrapPayload =
+        await fetchAppBootstrapData(preferFreshCache: false);
+    if (bootstrapPayload != null) {
+      await applyAppBootstrapData(
+        bootstrapPayload,
+        fetchProfilePictureIfMissing: true,
+      );
+    } else {
+      // Refresh user details to get updated name, roll number, hostel, etc.
+      // This will update SharedPreferences with the latest user data
+      await fetchUserDetails();
+      await getUserMessInfo();
+      await fetchUserProfilePicture();
+    }
     ProfilePictureProvider.init();
 
     // Re-register FCM token to subscribe to hostel/mess-specific topics

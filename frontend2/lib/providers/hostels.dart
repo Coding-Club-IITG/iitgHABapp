@@ -36,42 +36,81 @@ class HostelsNotifier {
     'Umiam',
   ];
 
-  static Future<void> init() async {
+  static void _applyHostelRows(List<dynamic> raw) {
+    hostels = [];
+    hostelIdToNameMap = {};
+    hostelIdToLaundry = {};
+
+    for (final item in raw) {
+      if (item is! Map) continue;
+      final hostel = Map<String, dynamic>.from(item);
+      final hostelName = hostel['hostel_name'] as String?;
+      final hostelId = hostel['_id']?.toString();
+      if (hostelName == null ||
+          hostelName.isEmpty ||
+          hostelId == null ||
+          hostelId.isEmpty) {
+        continue;
+      }
+      hostels.add(hostelName);
+      hostelIdToNameMap[hostelId] = hostelName;
+      hostelIdToLaundry[hostelId] = hostel['isLaundryAvailable'] == true;
+    }
+  }
+
+  static Future<void> _persistHostelMaps(SharedPreferences prefs) async {
+    final mapJson = hostelIdToNameMap.map((key, value) => MapEntry(key, value));
+    await prefs.setString('hostelIdToNameMap', jsonEncode(mapJson));
+    await prefs.setString(
+      'hostelIdToLaundry',
+      jsonEncode(hostelIdToLaundry.map((k, v) => MapEntry(k, v))),
+    );
+    updateHostelIdCache(hostelIdToNameMap);
+  }
+
+  static void _finalizeHostelState(SharedPreferences prefs) {
+    hostelNotifier.value = hostels;
+    prefs.setStringList("hostels", hostels);
+
+    if (prefs.getString('hostelID') != null) {
+      currSubscribedMess = calculateHostel(prefs.getString('hostelID') ?? "");
+      if (hostels.contains(currSubscribedMess)) {
+        userHostel = currSubscribedMess;
+        prefs.setString("curr_subscribed_mess", currSubscribedMess);
+      }
+    } else {
+      // API can return [] (empty DB) — never index hostels[0] blindly.
+      if (hostels.isEmpty) {
+        hostels = List<String>.from(_fallbackHostelNames);
+      }
+      userHostel = hostels.isNotEmpty ? hostels.first : '';
+    }
+
+    for (var onChange in onHostelChanged) {
+      onChange();
+    }
+  }
+
+  static Future<void> applyHostelsFromPayload(List<dynamic> raw) async {
+    final prefs = await SharedPreferences.getInstance();
+    _applyHostelRows(raw);
+    await _persistHostelMaps(prefs);
+    _finalizeHostelState(prefs);
+  }
+
+  static Future<void> init({List<dynamic>? preloadedHostels}) async {
     final prefs = await SharedPreferences.getInstance();
     try {
-      final dio = DioClient().dio;
-      final response = await dio.get(
-        '$baseUrl/hostel/all', // Match your backend route
-      );
-      hostels = [];
-      hostelIdToNameMap = {};
-      hostelIdToLaundry = {};
-      final raw = response.data;
+      final raw = preloadedHostels ??
+          (await DioClient().dio.get(
+            '$baseUrl/hostel/all', // Match your backend route
+          ))
+              .data;
       if (raw is! List) {
         throw FormatException('hostel/all: expected JSON array, got ${raw.runtimeType}');
       }
-      for (final item in raw) {
-        if (item is! Map) continue;
-        final hostel = Map<String, dynamic>.from(item);
-        final hostelName = hostel['hostel_name'] as String?;
-        final hostelId = hostel['_id']?.toString();
-        if (hostelName == null || hostelName.isEmpty || hostelId == null || hostelId.isEmpty) {
-          continue;
-        }
-        hostels.add(hostelName);
-        hostelIdToNameMap[hostelId] = hostelName;
-        hostelIdToLaundry[hostelId] = hostel['isLaundryAvailable'] == true;
-      }
-      // Store the mapping in SharedPreferences for offline access
-      final mapJson =
-          hostelIdToNameMap.map((key, value) => MapEntry(key, value));
-      await prefs.setString('hostelIdToNameMap', jsonEncode(mapJson));
-      await prefs.setString(
-        'hostelIdToLaundry',
-        jsonEncode(hostelIdToLaundry.map((k, v) => MapEntry(k, v))),
-      );
-      // Update the cache in hostel_name.dart
-      updateHostelIdCache(hostelIdToNameMap);
+      _applyHostelRows(raw);
+      await _persistHostelMaps(prefs);
     } catch (e) {
       hostels = List<String>.from(_fallbackHostelNames);
       // Try to load cached mapping if API call fails
@@ -93,26 +132,7 @@ class HostelsNotifier {
         // If cache is also unavailable, map will remain empty
       }
     } finally {
-      hostelNotifier.value = hostels;
-
-      prefs.setStringList("hostels", hostels);
-
-      if (prefs.getString('hostelID') != null) {
-        currSubscribedMess = calculateHostel(prefs.getString('hostelID') ?? "");
-        if (hostels.contains(currSubscribedMess)) {
-          userHostel = currSubscribedMess;
-          prefs.setString("curr_subscribed_mess", currSubscribedMess);
-        }
-      } else {
-        // API can return [] (empty DB) — never index hostels[0] blindly.
-        if (hostels.isEmpty) {
-          hostels = List<String>.from(_fallbackHostelNames);
-        }
-        userHostel = hostels.isNotEmpty ? hostels.first : '';
-      }
-      for (var onChange in onHostelChanged) {
-        onChange();
-      }
+      _finalizeHostelState(prefs);
     }
   }
 

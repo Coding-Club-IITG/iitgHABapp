@@ -11,6 +11,14 @@ class AlertsManager {
   // UI listens to this to rebuild without Stateful widget boilerplate
   static final ValueNotifier<List<AlertModel>> activeAlertsNotifier = ValueNotifier([]);
 
+  static Future<void> applyAlertsFromServerJson(List<dynamic> alertsJson) async {
+    await _updateAndFilterAlerts(
+      alertsJson
+          .map((e) => AlertModel.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList(),
+    );
+  }
+
   /// 1. App Open / Login Sync (Solves Reinstall Issue)
   static Future<void> syncAlerts() async {
     try {
@@ -18,7 +26,7 @@ class AlertsManager {
       final response = await dio.get('$baseUrl/api/v2/alerts');
       if (response.statusCode == 200 && response.data['alerts'] != null) {
         final List<dynamic> alertsJson = response.data['alerts'];
-        await _updateAndFilterAlerts(alertsJson.map((e) => AlertModel.fromJson(e)).toList());
+        await applyAlertsFromServerJson(alertsJson);
       }
     } catch (e) {
       if (kDebugMode) debugPrint("Error syncing alerts: $e");

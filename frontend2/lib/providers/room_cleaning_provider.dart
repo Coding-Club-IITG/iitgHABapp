@@ -104,6 +104,19 @@ class RoomCleaningProvider extends ChangeNotifier {
     }
   }
 
+  void applyBookingsFromJson(List<dynamic> bookingsJson) {
+    myBookings = bookingsJson
+        .map(
+          (e) => RoomCleaningBooking.fromJson(
+            Map<String, dynamic>.from(e as Map),
+          ),
+        )
+        .toList();
+    isBookingsLoading = false;
+    bookingsError = null;
+    notifyListeners();
+  }
+
   Future<RoomCleaningActionResult> bookSlot({
     required DateTime date,
     required String slot,
