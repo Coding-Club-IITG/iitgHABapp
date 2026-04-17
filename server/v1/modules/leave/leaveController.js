@@ -1480,6 +1480,86 @@ export const getApplicationSummary = async (req, res) => {
   });
 };
 
+function getCurrentSemesterRange(now = new Date()) {
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-based
+  // Semester definition:
+  // - Spring: Jan 1 .. Jun 30
+  // - Autumn: Jul 1 .. Dec 31
+  if (m <= 5) {
+    return {
+      semesterLabel: `Spring ${y}`,
+      start: new Date(y, 0, 1),
+      end: new Date(y, 5, 30, 23, 59, 59, 999),
+    };
+  }
+  return {
+    semesterLabel: `Autumn ${y}`,
+    start: new Date(y, 6, 1),
+    end: new Date(y, 11, 31, 23, 59, 59, 999),
+  };
+}
+
+/**
+ * Hostel-office: list all rebate applications in the current semester
+ * that are acknowledged but not processed.
+ *
+ * This is intended for mess bill generation workflow.
+ */
+export const getSemesterAcknowledgedRebateApplications = async (req, res) => {
+  try {
+    const hostelId = req.hostel?._id;
+    if (!hostelId) {
+      return res.status(400).json({ message: "Hostel context missing" });
+    }
+
+    const { semesterLabel, start, end } = getCurrentSemesterRange(new Date());
+
+    // Optional filter: only include applications acknowledged on/before the selected bill month.
+    // This prevents loading applications acknowledged in later months (e.g. April) for a Feb bill.
+    const month = req.query.month ? parseInt(req.query.month, 10) : null; // 1-12
+    const year = req.query.year ? parseInt(req.query.year, 10) : null;
+    let acknowledgedCutoff = null;
+    if (month && year && month >= 1 && month <= 12 && Number.isFinite(year)) {
+      acknowledgedCutoff = new Date(year, month, 0, 23, 59, 59, 999); // end of month
+    }
+
+    const query = {
+      messHostel: hostelId,
+      status: "Acknowledged",
+      $or: [{ startDate: { $lte: end }, endDate: { $gte: start } }],
+    };
+    if (acknowledgedCutoff) {
+      // Only take applications that were acknowledged by that time.
+      query.acknowledgedAt = { $lte: acknowledgedCutoff };
+    }
+
+    const applications = await Leave.find(query)
+      .sort({ appliedAt: -1 })
+      .populate("user", "name rollNumber email -_id")
+      .lean();
+
+    const totalRebateDays = applications.reduce(
+      (sum, a) => sum + (Number(a?.numberOfDays) || 0),
+      0,
+    );
+
+    return res.status(200).json({
+      message: "Semester rebate applications retrieved successfully",
+      semester: semesterLabel,
+      start,
+      end,
+      totalRebateDays,
+      applications,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Error retrieving semester rebate applications",
+      error: err.message,
+    });
+  }
+};
+
 export const acknowledgeRebateApplication = async (req, res) => {
   const { id } = req.params;
 

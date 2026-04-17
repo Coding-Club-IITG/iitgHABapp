@@ -2,7 +2,6 @@ import bcrypt from "bcrypt";
 
 import { User } from "../user/userModel.js";
 import { Hostel } from "./hostelModel.js";
-import { MessClosure } from "./messClosureModel.js";
 
 import { getCurrentDate } from "../../utils/date.js";
 import {
@@ -190,16 +189,7 @@ export const getAllHostelsWithMess = async (req, res) => {
 export const getHostelbyId = async (req, res) => {
   const { hostelId } = req.params;
   try {
-    // Safe pagination parsing to prevent NaN or negative skip values
-    let page = parseInt(req.query.page, 10);
-    let limit = parseInt(req.query.limit, 10);
-
-    page = !isNaN(page) && page > 0 ? page : 1;
-    limit = !isNaN(limit) && limit > 0 ? limit : 50;
-
-    const skip = (page - 1) * limit;
-
-    const cacheKey = `hostel_by_id_${hostelId}_pg${page}_limit${limit}`;
+    const cacheKey = `hostel_by_id_${hostelId}`;
     // Fail-safe Redis check (do not 500 if Redis is down)
     try {
       const cachedData = await redisClient.get(cacheKey);
@@ -212,20 +202,15 @@ export const getHostelbyId = async (req, res) => {
       console.error("Redis get error:", redisErr);
     }
 
-    const usersQuery = User.find({ hostel: hostelId })
-      .select(
-        "name rollNumber email roomNumber phoneNumber degree curr_subscribed_mess",
-      )
-      .populate(populateCurrSubscribedMess)
-      .sort({ rollNumber: 1 });
-
-    if (limit > 0) {
-      usersQuery.skip(skip).limit(limit);
-    }
-
     const [hostel, users, totalUsersCount] = await Promise.all([
       Hostel.findById(hostelId).populate("messId", "name").lean(),
-      usersQuery.lean(),
+      User.find({ hostel: hostelId })
+        .select(
+          "name rollNumber email roomNumber phoneNumber degree curr_subscribed_mess",
+        )
+        .populate(populateCurrSubscribedMess)
+        .sort({ rollNumber: 1 })
+        .lean(),
       User.countDocuments({ hostel: hostelId }),
     ]);
 
@@ -343,6 +328,8 @@ export const getCatererInfo = async (req, res) => {
     const responsePayload = {
       messId: mess._id,
       catererName: mess.name,
+      rating: mess.rating,
+      ranking: mess.ranking,
       hostelName: hostel.hostel_name,
     };
     await redisClient.set(
@@ -362,31 +349,17 @@ export const getCatererInfo = async (req, res) => {
 export const getBoarders = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
-    // Safe pagination parsing to prevent NaN or negative skip values
-    let page = parseInt(req.query.page, 10);
-    let limit = parseInt(req.query.limit, 10);
-
-    page = !isNaN(page) && page > 0 ? page : 1;
-    limit = !isNaN(limit) && limit > 0 ? limit : 50;
-
-    const skip = (page - 1) * limit;
-
-    const cacheKey = `hostel_${hostelId}_boarders_pg${page}_limit${limit}`;
+    const cacheKey = `hostel_${hostelId}_boarders_all`;
     const cachedBoarders = await redisClient.get(cacheKey);
     if (cachedBoarders) {
       return res.status(200).json(JSON.parse(cachedBoarders));
     }
 
-    const boardersQuery = User.find({ hostel: hostelId })
-      .select("name rollNumber email roomNumber phoneNumber degree")
-      .sort({ rollNumber: 1 });
-
-    if (limit > 0) {
-      boardersQuery.skip(skip).limit(limit);
-    }
-
     const [boarders, totalCount] = await Promise.all([
-      boardersQuery.lean(),
+      User.find({ hostel: hostelId })
+        .select("name rollNumber email roomNumber phoneNumber degree")
+        .sort({ rollNumber: 1 })
+        .lean(),
       User.countDocuments({ hostel: hostelId }),
     ]);
 
@@ -452,36 +425,21 @@ export const formatMessSubscribers = (subscribers, hostelId) => {
 export const getMessSubscribers = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
-    // Safe pagination parsing to prevent NaN or negative skip values
-    let page = parseInt(req.query.page, 10);
-    let limit = parseInt(req.query.limit, 10);
-
-    page = !isNaN(page) && page > 0 ? page : 1;
-    limit = !isNaN(limit) && limit > 0 ? limit : 50;
-
-    const skip = (page - 1) * limit;
-
-    const cacheKey = `hostel_${hostelId}_mess_subscribers_pg${page}_limit${limit}`;
+    const cacheKey = `hostel_${hostelId}_mess_subscribers_all`;
     const cachedSubscribers = await redisClient.get(cacheKey);
     if (cachedSubscribers) {
       return res.status(200).json(JSON.parse(cachedSubscribers));
     }
 
-    // Find all users subscribed to this hostel's mess
-    const subscribersQuery = User.find({ curr_subscribed_mess: hostelId })
-      .select(
-        "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
-      )
-      .populate("hostel", "hostel_name")
-      .populate(populateCurrSubscribedMess)
-      .sort({ rollNumber: 1 });
-
-    if (limit > 0) {
-      subscribersQuery.skip(skip).limit(limit);
-    }
-
     const [subscribers, totalCount] = await Promise.all([
-      subscribersQuery.lean(),
+      User.find({ curr_subscribed_mess: hostelId })
+        .select(
+          "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
+        )
+        .populate("hostel", "hostel_name")
+        .populate(populateCurrSubscribedMess)
+        .sort({ rollNumber: 1 })
+        .lean(),
       User.countDocuments({ curr_subscribed_mess: hostelId }),
     ]);
 
@@ -515,6 +473,7 @@ export const getMessSubscribersByHostelId = async (req, res) => {
     }
 
     const page = parseInt(req.query.page) || 1;
+    // For the public variant, keep a conservative default page size.
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
 
@@ -698,58 +657,6 @@ export const getSMCMembers = async (req, res) => {
   } catch (err) {
     console.error(err);
     return res.status(500).json({ message: "Error occurred" });
-  }
-};
-
-// Set the closure date for the current month
-export const finalizeMessClosure = async (req, res) => {
-  try {
-    const { date } = req.body; // Expecting YYYY-MM-DD
-    const hostelId = req.hostel._id;
-
-    const selectedDate = new Date(date);
-    const month = selectedDate.getMonth() + 1;
-    const year = selectedDate.getFullYear();
-
-    // Upsert: Update if exists for this month, else create
-    const closure = await MessClosure.findOneAndUpdate(
-      { hostelId, month, year },
-      { hostelId, closureDate: new Date(date), month, year },
-      { upsert: true, new: true },
-    );
-
-    // Invalidate this month's closure date cache
-    await redisClient.del(`hostel_${hostelId}_closure_date_${month}_${year}`);
-
-    return res.status(200).json({
-      message: "Mess closure date finalized successfully",
-      closure,
-    });
-  } catch (err) {
-    console.error(err);
-    return res.status(500).json({ message: "Error finalizing closure" });
-  }
-};
-
-// Get the current closure date for the hostel
-export const getMessClosureDate = async (req, res) => {
-  try {
-    const hostelId = req.hostel._id;
-    const officialDate = new Date(getCurrentDate());
-    const currentMonth = officialDate.getMonth() + 1;
-    const currentYear = officialDate.getFullYear();
-
-    const closure = await MessClosure.findOne({
-      hostelId,
-      month: currentMonth,
-      year: currentYear,
-    });
-
-    return res
-      .status(200)
-      .json({ closureDate: closure ? closure.closureDate : null });
-  } catch (err) {
-    return res.status(500).json({ message: "Error fetching closure date" });
   }
 };
 
