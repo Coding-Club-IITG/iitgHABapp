@@ -9,6 +9,27 @@ import {
   subscribedMessDisplayName,
 } from "../../utils/subscribedMessDisplay.js";
 import redisClient from "../../utils/redisClient.js";
+import UserAllocHostel from "./hostelAllocModel.js";
+import { getNowIST } from "../reports/reportUtils.js";
+import { MessSubscribersSnapshot } from "../reports/messSubscribersSnapshotModel.js";
+
+const ALLOC_POPULATE_MESS = {
+  path: "current_subscribed_mess",
+  select: "hostel_name messId",
+  populate: { path: "messId", select: "name" },
+};
+
+async function usersByRollNumbers(rollNumbers) {
+  const rolls = [...new Set(rollNumbers.filter(Boolean).map(String))];
+  if (!rolls.length) return new Map();
+  const users = await User.find({ rollNumber: { $in: rolls } })
+    .select(
+      "name rollNumber email roomNumber phoneNumber degree hostel",
+    )
+    .populate("hostel", "hostel_name")
+    .lean();
+  return new Map(users.map((u) => [String(u.rollNumber), u]));
+}
 
 export const createHostel = async (req, res) => {
   try {
@@ -345,36 +366,41 @@ export const getCatererInfo = async (req, res) => {
   }
 };
 
-// Get boarders (users in this hostel) with room numbers
+// Get boarders from UserAllocHostel (boarding hostel), merged with User by roll
 export const getBoarders = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
-    const cacheKey = `hostel_${hostelId}_boarders_all`;
+    const cacheKey = `hostel_${hostelId}_boarders_alloc_v1`;
     const cachedBoarders = await redisClient.get(cacheKey);
     if (cachedBoarders) {
       return res.status(200).json(JSON.parse(cachedBoarders));
     }
 
-    const [boarders, totalCount] = await Promise.all([
-      User.find({ hostel: hostelId })
-        .select("name rollNumber email roomNumber phoneNumber degree")
-        .sort({ rollNumber: 1 })
-        .lean(),
-      User.countDocuments({ hostel: hostelId }),
-    ]);
+    const allocs = await UserAllocHostel.find({ hostel: hostelId })
+      .sort({ rollno: 1 })
+      .lean();
+
+    const byRoll = await usersByRollNumbers(allocs.map((a) => a.rollno));
+
+    const boarders = allocs.map((a) => {
+      const u = byRoll.get(String(a.rollno));
+      return {
+        _id: u?._id ?? a._id,
+        name: u?.name ?? "N/A",
+        rollNumber: a.rollno,
+        email: u?.email ?? "N/A",
+        phoneNumber: u?.phoneNumber || "N/A",
+        roomNumber: u?.roomNumber || "N/A",
+        degree: u?.degree || "N/A",
+      };
+    });
+
+    const totalCount = allocs.length;
 
     const responsePayload = {
       count: boarders.length,
-      totalCount: totalCount,
-      boarders: boarders.map((b) => ({
-        _id: b._id,
-        name: b.name,
-        rollNumber: b.rollNumber,
-        email: b.email,
-        phoneNumber: b.phoneNumber || "N/A",
-        roomNumber: b.roomNumber || "N/A",
-        degree: b.degree || "N/A",
-      })),
+      totalCount,
+      boarders,
     };
 
     await redisClient.set(
@@ -393,8 +419,10 @@ export const getBoarders = async (req, res) => {
 // Helper function to format and sort mess subscribers
 export const formatMessSubscribers = (subscribers, hostelId) => {
   const subscribersList = subscribers.map((sub) => {
+    const boardingId = sub.hostel?._id;
     const isDifferentHostel =
-      sub.hostel && sub.hostel._id.toString() !== hostelId.toString();
+      Boolean(boardingId) &&
+      boardingId.toString() !== hostelId.toString();
 
     return {
       _id: sub._id,
@@ -421,39 +449,208 @@ export const formatMessSubscribers = (subscribers, hostelId) => {
   return subscribersList;
 };
 
-// Get mess subscribers with their current hostel (highlight if different)
+async function buildMessSubscribersFromSnapshot(hostelId, month, year) {
+  const snap = await MessSubscribersSnapshot.findOne({
+    hostelId,
+    month,
+    year,
+  }).lean();
+
+  if (!snap?.subscribers?.length) {
+    return {
+      subscribers: [],
+      totalCount: 0,
+      source: "snapshot",
+      month,
+      year,
+    };
+  }
+
+  const messHostel = await Hostel.findById(hostelId)
+    .select("hostel_name messId")
+    .populate({ path: "messId", select: "name" })
+    .lean();
+
+  const byRoll = await usersByRollNumbers(
+    snap.subscribers.map((s) => s.rollNumber),
+  );
+
+  const merged = snap.subscribers.map((row, idx) => {
+    const u = byRoll.get(String(row.rollNumber));
+    const boarding =
+      row.boardingHostelId != null
+        ? {
+            _id: row.boardingHostelId,
+            hostel_name: row.boardingHostelName || "",
+          }
+        : row.boardingHostelName
+          ? { hostel_name: row.boardingHostelName }
+          : null;
+
+    const caterer =
+      messHostel?.messId &&
+      typeof messHostel.messId === "object" &&
+      messHostel.messId.name
+        ? { name: messHostel.messId.name }
+        : undefined;
+    const currSub = {
+      hostel_name:
+        row.subscribedMessHostelName || messHostel?.hostel_name || "",
+      ...(caterer ? { messId: caterer } : {}),
+    };
+
+    return {
+      _id: u?._id ?? `${String(row.rollNumber)}_${idx}`,
+      name: u?.name ?? "N/A",
+      rollNumber: row.rollNumber,
+      email: u?.email ?? "N/A",
+      phoneNumber: u?.phoneNumber,
+      roomNumber: u?.roomNumber,
+      hostel: boarding,
+      curr_subscribed_mess: currSub,
+    };
+  });
+
+  const subscribersList = formatMessSubscribers(merged, hostelId);
+
+  return {
+    subscribers: subscribersList,
+    totalCount: snap.totalCount ?? subscribersList.length,
+    source: "snapshot",
+    month,
+    year,
+  };
+}
+
+/** Months/years that have a MessSubscribersSnapshot for this mess hostel (IST “current” also returned for UI). */
+export const getMessSubscribersSnapshotMonths = async (req, res) => {
+  try {
+    const hostelId = req.hostel?._id;
+    if (!hostelId) return res.status(403).json({ message: "Unauthorized" });
+
+    const nowIST = getNowIST();
+    const currentMonth = nowIST.getMonth() + 1;
+    const currentYear = nowIST.getFullYear();
+
+    const raw = await MessSubscribersSnapshot.find({ hostelId })
+      .select("month year")
+      .sort({ year: -1, month: -1 })
+      .lean();
+
+    const seen = new Set();
+    const snapshots = [];
+    for (const r of raw) {
+      const key = `${r.year}-${r.month}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      snapshots.push({ month: r.month, year: r.year });
+    }
+
+    return res.status(200).json({
+      currentMonth,
+      currentYear,
+      snapshots,
+    });
+  } catch (err) {
+    console.error("Error listing mess subscriber snapshot months:", err);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+// Get mess subscribers from UserAllocHostel (subscribed mess), merged with User by roll;
+// or from MessSubscribersSnapshot when ?month=&year= is a past/archived month.
 export const getMessSubscribers = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
-    const cacheKey = `hostel_${hostelId}_mess_subscribers_all`;
-    const cachedSubscribers = await redisClient.get(cacheKey);
-    if (cachedSubscribers) {
-      return res.status(200).json(JSON.parse(cachedSubscribers));
+
+    const nowIST = getNowIST();
+    const currentMonth = nowIST.getMonth() + 1;
+    const currentYear = nowIST.getFullYear();
+
+    const qMonth = req.query?.month != null ? Number(req.query.month) : null;
+    const qYear = req.query?.year != null ? Number(req.query.year) : null;
+    const snapshotFlag =
+      req.query?.snapshot === "1" || req.query?.snapshot === "true";
+    const wantsSnapshot =
+      snapshotFlag &&
+      qMonth != null &&
+      qYear != null &&
+      !Number.isNaN(qMonth) &&
+      !Number.isNaN(qYear) &&
+      qMonth >= 1 &&
+      qMonth <= 12;
+
+    if (wantsSnapshot) {
+      const payload = await buildMessSubscribersFromSnapshot(
+        hostelId,
+        qMonth,
+        qYear,
+      );
+      return res.status(200).json({
+        count: payload.subscribers.length,
+        totalCount: payload.totalCount,
+        subscribers: payload.subscribers,
+        source: payload.source,
+        month: payload.month,
+        year: payload.year,
+      });
     }
 
-    const [subscribers, totalCount] = await Promise.all([
-      User.find({ curr_subscribed_mess: hostelId })
-        .select(
-          "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
-        )
+    const cacheKey = `hostel_${hostelId}_mess_subscribers_alloc_v1`;
+    const cachedSubscribers = await redisClient.get(cacheKey);
+    if (cachedSubscribers) {
+      const parsed = JSON.parse(cachedSubscribers);
+      return res.status(200).json({
+        ...parsed,
+        source: "live",
+        month: currentMonth,
+        year: currentYear,
+      });
+    }
+
+    const [allocs, totalCount] = await Promise.all([
+      UserAllocHostel.find({ current_subscribed_mess: hostelId })
         .populate("hostel", "hostel_name")
-        .populate(populateCurrSubscribedMess)
-        .sort({ rollNumber: 1 })
+        .populate(ALLOC_POPULATE_MESS)
+        .sort({ rollno: 1 })
         .lean(),
-      User.countDocuments({ curr_subscribed_mess: hostelId }),
+      UserAllocHostel.countDocuments({ current_subscribed_mess: hostelId }),
     ]);
 
-    const subscribersList = formatMessSubscribers(subscribers, hostelId);
+    const byRoll = await usersByRollNumbers(allocs.map((a) => a.rollno));
+
+    const merged = allocs.map((a) => {
+      const u = byRoll.get(String(a.rollno));
+      return {
+        _id: u?._id ?? a._id,
+        name: u?.name ?? "N/A",
+        rollNumber: a.rollno,
+        email: u?.email ?? "N/A",
+        phoneNumber: u?.phoneNumber,
+        roomNumber: u?.roomNumber,
+        hostel: a.hostel,
+        curr_subscribed_mess: a.current_subscribed_mess,
+      };
+    });
+
+    const subscribersList = formatMessSubscribers(merged, hostelId);
 
     const responsePayload = {
       count: subscribersList.length,
-      totalCount: totalCount,
+      totalCount,
       subscribers: subscribersList,
+      source: "live",
+      month: currentMonth,
+      year: currentYear,
     };
 
     await redisClient.set(
       cacheKey,
-      JSON.stringify(responsePayload),
+      JSON.stringify({
+        count: responsePayload.count,
+        totalCount: responsePayload.totalCount,
+        subscribers: responsePayload.subscribers,
+      }),
       "EX",
       3600,
     );
@@ -461,6 +658,49 @@ export const getMessSubscribers = async (req, res) => {
   } catch (err) {
     console.log(err);
     return res.status(500).json({ message: "Error occurred" });
+  }
+};
+
+// Get mess subscriber count for a selected month/year.
+// - For current month (IST), returns live count from UserAllocHostel.
+// - For older months, returns snapshot count from MessSubscribersSnapshot.
+export const getMessSubscribersCountByMonth = async (req, res) => {
+  try {
+    const hostelId = req.hostel?._id;
+    if (!hostelId) return res.status(403).json({ message: "Unauthorized" });
+
+    const month = Number(req.query?.month);
+    const year = Number(req.query?.year);
+    if (!month || month < 1 || month > 12 || !year) {
+      return res.status(400).json({ message: "month and year are required" });
+    }
+
+    const nowIST = getNowIST();
+    const currentMonth = nowIST.getMonth() + 1;
+    const currentYear = nowIST.getFullYear();
+
+    // Current month => compute live count from allocation table
+    if (month === currentMonth && year === currentYear) {
+      const count = await UserAllocHostel.countDocuments({
+        current_subscribed_mess: hostelId,
+      });
+      return res.status(200).json({ count, source: "live" });
+    }
+
+    const snap = await MessSubscribersSnapshot.findOne({
+      hostelId,
+      month,
+      year,
+    })
+      .select("totalCount")
+      .lean();
+
+    return res
+      .status(200)
+      .json({ count: snap?.totalCount || 0, source: "snapshot" });
+  } catch (err) {
+    console.error("Error fetching mess subscriber count by month:", err);
+    return res.status(500).json({ message: "Internal server error" });
   }
 };
 
@@ -477,30 +717,41 @@ export const getMessSubscribersByHostelId = async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
 
-    const cacheKey = `hostel_${hostelId}_mess_subscribers_public_pg${page}_limit${limit}`;
+    const cacheKey = `hostel_${hostelId}_mess_subscribers_public_alloc_v1_pg${page}_limit${limit}`;
     const cachedSubscribers = await redisClient.get(cacheKey);
     if (cachedSubscribers) {
       return res.status(200).json(JSON.parse(cachedSubscribers));
     }
 
-    const subscribersQuery = User.find({ curr_subscribed_mess: hostelId })
-      .select(
-        "name rollNumber email roomNumber phoneNumber hostel curr_subscribed_mess",
-      )
+    const baseQuery = UserAllocHostel.find({
+      current_subscribed_mess: hostelId,
+    })
       .populate("hostel", "hostel_name")
-      .populate(populateCurrSubscribedMess)
-      .sort({ rollNumber: 1 });
+      .populate(ALLOC_POPULATE_MESS)
+      .sort({ rollno: 1 });
 
-    if (limit > 0) {
-      subscribersQuery.skip(skip).limit(limit);
-    }
-
-    const [subscribers, totalCount] = await Promise.all([
-      subscribersQuery.lean(),
-      User.countDocuments({ curr_subscribed_mess: hostelId }),
+    const [allocs, totalCount] = await Promise.all([
+      limit > 0 ? baseQuery.skip(skip).limit(limit).lean() : baseQuery.lean(),
+      UserAllocHostel.countDocuments({ current_subscribed_mess: hostelId }),
     ]);
 
-    const subscribersList = formatMessSubscribers(subscribers, hostelId);
+    const byRoll = await usersByRollNumbers(allocs.map((a) => a.rollno));
+
+    const merged = allocs.map((a) => {
+      const u = byRoll.get(String(a.rollno));
+      return {
+        _id: u?._id ?? a._id,
+        name: u?.name ?? "N/A",
+        rollNumber: a.rollno,
+        email: u?.email ?? "N/A",
+        phoneNumber: u?.phoneNumber,
+        roomNumber: u?.roomNumber,
+        hostel: a.hostel,
+        curr_subscribed_mess: a.current_subscribed_mess,
+      };
+    });
+
+    const subscribersList = formatMessSubscribers(merged, hostelId);
 
     const responsePayload = {
       count: subscribersList.length,

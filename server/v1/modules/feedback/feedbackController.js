@@ -19,6 +19,7 @@ import redisClient from "../../utils/redisClient.js";
 import { uploadReportToOnedrive } from "../../utils/onedriveController.js";
 import { withTransaction } from "../../utils/withTransaction.js";
 import { getNowIST, saveReportEntry } from "../reports/reportUtils.js";
+import { snapshotMessSubscribersByHostel } from "../reports/messSubscribersSnapshotService.js";
 
 // Rating helpers
 const ratingMap = {
@@ -776,6 +777,19 @@ export const disableFeedbackAutomatic = async () => {
         } catch (e) {
           console.error("[OPI] Failed to save report entry:", e);
         }
+      }
+
+      // Snapshot mess subscribers for this month/year (DB snapshot for reuse elsewhere)
+      try {
+        const snapRes = await snapshotMessSubscribersByHostel({
+          month: nowIST.getMonth() + 1,
+          year,
+        });
+        console.log(
+          `[Snapshot] Mess subscribers snapshot: upserted=${snapRes.created} hostels=${snapRes.totalHostels}`,
+        );
+      } catch (e) {
+        console.error("[Snapshot] Failed to snapshot mess subscribers:", e);
       }
     } catch (reportErr) {
       // Report generation failure must not abort the disable flow
