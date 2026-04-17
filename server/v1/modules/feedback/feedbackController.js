@@ -18,6 +18,7 @@ import {
 import redisClient from "../../utils/redisClient.js";
 import { uploadReportToOnedrive } from "../../utils/onedriveController.js";
 import { withTransaction } from "../../utils/withTransaction.js";
+import { getNowIST, saveReportEntry } from "../reports/reportUtils.js";
 
 // Rating helpers
 const ratingMap = {
@@ -734,12 +735,12 @@ export const disableFeedbackAutomatic = async () => {
       const { feedbacks, subscribers, messes } =
         await buildOpiReportData(windowNumber);
 
-      const now = new Date();
-      const monthName = now.toLocaleString("en-IN", {
+      const nowIST = getNowIST();
+      const monthName = nowIST.toLocaleString("en-IN", {
         month: "long",
         timeZone: "Asia/Kolkata",
       });
-      const year = now.getFullYear();
+      const year = nowIST.getFullYear();
       const windowLabel = `${monthName} ${year}`;
 
       const reportBuffer = await generateOpiReport({
@@ -761,6 +762,20 @@ export const disableFeedbackAutomatic = async () => {
         console.log(`[OPI] Report uploaded to OneDrive: ${url}`);
       } else {
         console.warn("[OPI] OneDrive upload skipped or failed");
+      }
+
+      // Save to reports table (OneDrive link only)
+      if (url) {
+        try {
+          await saveReportEntry({
+            fileType: "FeedbackReport",
+            month: nowIST.getMonth() + 1,
+            year,
+            link: url,
+          });
+        } catch (e) {
+          console.error("[OPI] Failed to save report entry:", e);
+        }
       }
     } catch (reportErr) {
       // Report generation failure must not abort the disable flow
