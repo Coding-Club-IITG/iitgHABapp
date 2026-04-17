@@ -10,7 +10,9 @@ import { Hostel } from "../hostel/hostelModel.js";
 import { ScanLogs } from "./ScanLogsModel.js";
 import MessBill from "./messBillModel.js";
 import { QR } from "../qr/qrModel.js";
-import { MessClosure } from "../hostel/messClosureModel.js";
+import ExcelJS from "exceljs";
+import { uploadReportToOnedrive } from "../../utils/onedriveController.js";
+import { MessShutdown } from "./messShutdownModel.js";
 
 import { publishMessScan } from "../../utils/scanBroadcast.js";
 import redisClient from "../../utils/redisClient.js";
@@ -418,22 +420,23 @@ export const getMessMenuByDay = async (req, res) => {
       return mClone;
     });
 
-    // Check if the mess is closed today
+    // Check if the mess is shut down today
     const mess = await Mess.findById(messId);
     const currentDate = getCurrentDate();
     const todayDate = new Date(currentDate);
-    let isClosed = null;
+    let shutdown = null;
     if (mess && mess.hostelId) {
-      isClosed = await MessClosure.findOne({
+      shutdown = await MessShutdown.findOne({
         hostelId: mess.hostelId,
-        closureDate: todayDate,
+        startDate: { $lte: todayDate },
+        endDate: { $gte: todayDate },
       }).lean();
     }
 
-    if (isClosed) {
+    if (shutdown) {
       return res.status(200).json({
         isMessClosed: true,
-        message: "The mess is closed today as per the monthly schedule.",
+        message: "The mess is shut down for the selected date range.",
       });
     }
 
@@ -657,14 +660,15 @@ export const ScanMess = async (req, res) => {
     const currentTime = getCurrentTime();
     const currentDay = getCurrentDay();
 
-    // Check for closure BEFORE scanning
-    const closureRecord = await MessClosure.findOne({
+    const shutdownRecord = await MessShutdown.findOne({
       hostelId: messInfo.hostelId,
-      closureDate: new Date(currentDate),
+      startDate: { $lte: new Date(currentDate) },
+      endDate: { $gte: new Date(currentDate) },
     }).lean();
-    if (closureRecord) {
+
+    if (shutdownRecord) {
       return res.status(400).json({
-        message: "Scan failed: Mess is closed today.",
+        message: "Scan failed: Mess is shut down for the selected dates.",
         success: false,
       });
     }
@@ -1099,6 +1103,36 @@ export const deleteMessWorker = async (req, res) => {
   }
 };
 
+export const updateMessWorker = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, designation, rate } = req.body || {};
+
+    if (!name || !designation || rate === undefined) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+    const parsedRate = Number(rate);
+    if (Number.isNaN(parsedRate) || parsedRate < 0) {
+      return res.status(400).json({ message: "Invalid rate" });
+    }
+
+    const updated = await MessWorker.findByIdAndUpdate(
+      id,
+      { name: String(name).trim(), designation, rate: parsedRate },
+      { new: true, runValidators: true },
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Mess worker not found" });
+    }
+
+    return res.status(200).json({ message: "Mess worker updated successfully", worker: updated });
+  } catch (error) {
+    console.error("Error updating mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const generateMessBill = async (req, res) => {
   try {
     const { hostelId, billData } = req.body;
@@ -1111,6 +1145,9 @@ export const generateMessBill = async (req, res) => {
         .status(403)
         .json({ message: "Unauthorized to generate bill for another hostel" });
     }
+
+    // Generate an Excel report and upload it to OneDrive.
+    // Persist the bill metadata + report URL in MessBill collection.
 
     const existingBill = await MessBill.findOne({
       hostel: hostelId,
@@ -1129,7 +1166,7 @@ export const generateMessBill = async (req, res) => {
       year,
       accountNumber,
       operatingDays,
-      shutdownDate,
+      shutdownDate, // kept for backward compatibility
       totalSubscribers,
       totalSubscribersOffset,
       messDays,
@@ -1150,6 +1187,75 @@ export const generateMessBill = async (req, res) => {
       totalExpenditure,
       workerAttendances,
     } = billData;
+
+    const safeMonth = String(month).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filename = `mess-bill_${hostelId}_${safeMonth}_${year}.xlsx`;
+
+    const wb = new ExcelJS.Workbook();
+    wb.creator = "HAB";
+    wb.created = new Date();
+
+    const ws = wb.addWorksheet("Bill Summary");
+    ws.columns = [
+      { header: "Field", key: "field", width: 32 },
+      { header: "Value", key: "value", width: 28 },
+    ];
+
+    const rows = [
+      ["Month", month],
+      ["Year", year],
+      ["Hostel Name", hostelName],
+      ["Hostel ID", hostelId],
+      ["Account Number", accountNumber],
+      ["Operating Days (D)", operatingDays],
+      ["Shutdown (legacy)", shutdownDate],
+      ["Total Subscribers", totalSubscribers],
+      ["Subscribers Offset", totalSubscribersOffset],
+      ["Mess Days (M)", messDays],
+      ["Rebate Days", rebateDays],
+      ["Rebate Days Offset", rebateDaysOffset],
+      ["Consuming Days (T1)", consumingDays],
+      ["Food Cost", foodCost],
+      ["Total Wage (W)", totalWage],
+      ["Mess Bill (F + W)", messBill],
+      ["Mess Bill Claimed (B)", messBillClaimed],
+      ["GST Amount", gstAmount],
+      ["TDS Amount (T2)", tdsAmount],
+      ["First Installment (P1)", firstInstallment],
+      ["Second Installment (P2)", secondInstallment],
+      ["Rebate Reimbursement (RR)", rebateReimbursement],
+      ["Misc Deduction", miscDeduction],
+      ["HAB Transfer (T3)", habTransfer],
+      ["Total Expenditure", totalExpenditure],
+    ];
+
+    rows.forEach(([field, value]) => ws.addRow({ field, value }));
+    ws.getRow(1).font = { bold: true };
+    ws.views = [{ state: "frozen", ySplit: 1 }];
+
+    const wsWorkers = wb.addWorksheet("Worker Attendances");
+    wsWorkers.columns = [
+      { header: "Worker ID", key: "workerId", width: 28 },
+      { header: "Attendance Days", key: "days", width: 18 },
+    ];
+
+    const entries = workerAttendances && typeof workerAttendances === "object"
+      ? Object.entries(workerAttendances)
+      : [];
+    entries.forEach(([workerId, days]) => {
+      wsWorkers.addRow({ workerId, days: Number(days) || 0 });
+    });
+    wsWorkers.getRow(1).font = { bold: true };
+    wsWorkers.views = [{ state: "frozen", ySplit: 1 }];
+
+    // Upload to OneDrive + save URL (do not store local path)
+    const fileBuffer = await wb.xlsx.writeBuffer();
+    const url = await uploadReportToOnedrive(fileBuffer, filename);
+    if (!url) {
+      return res.status(500).json({
+        message: "OneDrive upload failed",
+      });
+    }
 
     const newBill = new MessBill({
       hostel: hostelId,
@@ -1178,13 +1284,18 @@ export const generateMessBill = async (req, res) => {
       habTransfer,
       totalExpenditure,
       workerAttendances,
+      billLink: url,
       generatedBy: req.hostel ? req.hostel._id : req.user ? req.user.id : null,
     });
 
     await newBill.save();
-    return res
-      .status(201)
-      .json({ message: "Bill generated successfully", bill: newBill });
+
+    return res.status(201).json({
+      message: "Mess bill report generated and uploaded to OneDrive",
+      filename,
+      url,
+      billId: newBill._id,
+    });
   } catch (error) {
     console.error("Error generating mess bill:", error);
     return res.status(500).json({ message: "Internal server error" });

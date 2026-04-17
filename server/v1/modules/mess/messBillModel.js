@@ -108,6 +108,10 @@ const messBillSchema = new mongoose.Schema(
       of: Number,
       default: {},
     },
+    billLink: {
+      type: String,
+      default: "",
+    },
     generatedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
