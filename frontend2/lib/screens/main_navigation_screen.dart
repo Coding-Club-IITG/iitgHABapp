@@ -22,8 +22,6 @@ import 'package:frontend2/utilities/startupitem.dart';
 import 'home_screen.dart';
 import 'mess_screen.dart';
 
-final _dio = DioClient().dio;
-
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
@@ -59,6 +57,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     bool bootstrapApplied = false;
     final bootstrapPayload = await fetchAppBootstrapData();
+    final hasBootstrapPayload = bootstrapPayload != null;
     if (bootstrapPayload != null) {
       bootstrapApplied = await applyAppBootstrapData(
         bootstrapPayload,
@@ -75,6 +74,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       } catch (_) {}
       await _resolveGalaTabVisibility(
         preloadedUpcoming: _upcomingGalaFromBootstrap,
+        hasPreloadedUpcoming: true,
       );
       if (mounted) setState(() => _homeDataReady = true);
       return;
@@ -94,7 +94,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     try {
       await AlertsManager.syncAlerts();
     } catch (_) {}
-    await _resolveGalaTabVisibility();
+    await _resolveGalaTabVisibility(
+      preloadedUpcoming: _upcomingGalaFromBootstrap,
+      hasPreloadedUpcoming: hasBootstrapPayload,
+    );
     if (mounted) setState(() => _homeDataReady = true);
   }
 
@@ -112,7 +115,10 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   /// Gala tab: for SMC show when any upcoming gala; for non-SMC show only when
   /// gala date is within 3 days (visible from galaDate-2 days through gala date).
-  Future<void> _resolveGalaTabVisibility({dynamic preloadedUpcoming}) async {
+  Future<void> _resolveGalaTabVisibility({
+    dynamic preloadedUpcoming,
+    bool hasPreloadedUpcoming = false,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final isSMC = prefs.getBool('isSMC') ?? false;
@@ -127,7 +133,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         return;
       }
 
-      final galaData = preloadedUpcoming ?? (await _dio.get(GalaEndpoints.upcoming)).data;
+      // Trust bootstrap data (including null) when available; only fetch when
+      // bootstrap payload is unavailable.
+      final galaData = hasPreloadedUpcoming
+          ? preloadedUpcoming
+          : (await DioClient().dio.get(GalaEndpoints.upcoming)).data;
       final galaDateRaw = galaData is Map ? galaData['date'] : null;
       if (galaDateRaw == null) {
         if (mounted) setState(() => _showGalaTab = false);

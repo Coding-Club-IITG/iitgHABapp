@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import 'package:frontend2/apis/dio_client.dart';
@@ -61,16 +64,56 @@ Future<Map<String, dynamic>?> fetchAppBootstrapData({
     final dio = DioClient().dio;
     final response = await dio.get(AppBootstrapEndpoints.bootstrap);
 
-    if (response.statusCode == 200 &&
-        response.data is Map<String, dynamic> &&
-        response.data['data'] is Map<String, dynamic>) {
-      final payload = Map<String, dynamic>.from(response.data['data'] as Map);
-      AppBootstrapCache.set(payload);
-      return payload;
+    if (response.statusCode == 200) {
+      Map<String, dynamic>? root;
+
+      if (response.data is Map<String, dynamic>) {
+        root = response.data as Map<String, dynamic>;
+      } else if (response.data is Map) {
+        root = Map<String, dynamic>.from(response.data as Map);
+      } else if (response.data is String) {
+        final decoded = jsonDecode(response.data as String);
+        if (decoded is Map) {
+          root = Map<String, dynamic>.from(decoded);
+        }
+      }
+
+      if (root != null) {
+        final wrappedPayload = root['data'];
+        if (wrappedPayload is Map) {
+          final payload = Map<String, dynamic>.from(wrappedPayload);
+          AppBootstrapCache.set(payload);
+          return payload;
+        }
+
+        // Backward compatible: accept direct payload shape if server omits wrapper.
+        if (root.containsKey('user') ||
+            root.containsKey('upcomingGala') ||
+            root.containsKey('todayMenu')) {
+          AppBootstrapCache.set(root);
+          return root;
+        }
+      }
+
+      if (kDebugMode) {
+        debugPrint(
+          'App bootstrap response had unexpected shape: '
+          'status=${response.statusCode}, dataType=${response.data.runtimeType}',
+        );
+      }
     }
   } catch (e) {
     if (kDebugMode) {
-      debugPrint('App bootstrap fetch failed: $e');
+      if (e is DioException) {
+        debugPrint(
+          'App bootstrap fetch failed: '
+          'status=${e.response?.statusCode}, '
+          'path=${e.requestOptions.path}, '
+          'response=${e.response?.data}',
+        );
+      } else {
+        debugPrint('App bootstrap fetch failed: $e');
+      }
     }
   }
 

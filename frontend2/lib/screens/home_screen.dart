@@ -201,12 +201,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         AlertsManager.activeAlertsNotifier.value = dummyAlerts;
       }
 
-      final roomCleaningProvider = context.read<RoomCleaningProvider>();
-      if (!roomCleaningProvider.isBookingsLoading &&
-          roomCleaningProvider.myBookings.isEmpty &&
-          roomCleaningProvider.bookingsError == null) {
-        roomCleaningProvider.loadMyBookings();
-      }
+      // Room-cleaning bookings are hydrated by bootstrap when available.
+      // Do not auto-fetch here; explicit user actions should drive refresh.
     });
   }
 

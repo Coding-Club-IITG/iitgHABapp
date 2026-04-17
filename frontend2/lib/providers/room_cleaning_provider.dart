@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../apis/room_cleaning/room_cleaning_api.dart';
@@ -22,6 +23,8 @@ class RoomCleaningProvider extends ChangeNotifier {
   List<RoomCleaningBooking> myBookings = [];
   bool isBookingsLoading = false;
   String? bookingsError;
+  // Treat initial empty bookings as a valid state; avoid auto-fetch loops.
+  bool hasBookingsHydrated = true;
 
   String _normalizeBookingMessage(Object value) {
     var raw = value.toString();
@@ -88,13 +91,17 @@ class RoomCleaningProvider extends ChangeNotifier {
     }
   }
 
-  Future<void> loadMyBookings() async {
+  Future<void> loadMyBookings({String reason = 'manual'}) async {
+    if (kDebugMode) {
+      debugPrint('[RoomCleaning] loadMyBookings reason=$reason');
+    }
     isBookingsLoading = true;
     bookingsError = null;
     notifyListeners();
 
     try {
       myBookings = await _api.getMyBookings();
+      hasBookingsHydrated = true;
     } catch (e) {
       myBookings = [];
       bookingsError = e.toString();
@@ -112,6 +119,7 @@ class RoomCleaningProvider extends ChangeNotifier {
           ),
         )
         .toList();
+    hasBookingsHydrated = true;
     isBookingsLoading = false;
     bookingsError = null;
     notifyListeners();
@@ -133,7 +141,7 @@ class RoomCleaningProvider extends ChangeNotifier {
       // Refresh availability and bookings after a successful booking.
       await Future.wait([
         loadAvailability(),
-        loadMyBookings(),
+        loadMyBookings(reason: 'post-booking-refresh'),
       ]);
       final msg =
           response['message']?.toString() ?? 'Room cleaning booking created.';
@@ -154,7 +162,7 @@ class RoomCleaningProvider extends ChangeNotifier {
       final response = await _api.cancelBooking(bookingId);
       await Future.wait([
         loadAvailability(),
-        loadMyBookings(),
+        loadMyBookings(reason: 'post-cancel-refresh'),
       ]);
       final msg = response['message']?.toString() ??
           'Room cleaning booking cancelled successfully.';
@@ -185,7 +193,7 @@ class RoomCleaningProvider extends ChangeNotifier {
         satisfaction: satisfaction,
         remarks: remarks,
       );
-      await loadMyBookings();
+      await loadMyBookings(reason: 'post-feedback-refresh');
       final msg = response['message']?.toString() ??
           'Thank you for sharing your feedback.';
       return RoomCleaningActionResult(
@@ -200,4 +208,3 @@ class RoomCleaningProvider extends ChangeNotifier {
     }
   }
 }
-
