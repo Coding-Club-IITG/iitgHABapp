@@ -4,6 +4,7 @@ import multer from "multer";
 
 import FestivalMode from "./festivalModeModel.js";
 import AppError from "../../utils/appError.js";
+import { wipeFestivalVisibleContent } from "./festivalModeStateUtils.js";
 import {
   uploadFestivalImageToOneDrive,
   deleteFestivalImageFromOneDrive,
@@ -42,6 +43,18 @@ const firstNonEmptyText = (texts, fallback = "Happy Diwali") => {
   return found ? found : fallback;
 };
 
+const parseFestivalExpiry = (rawExpiresAt) => {
+  if (rawExpiresAt === null || rawExpiresAt === undefined || rawExpiresAt === "") {
+    return null;
+  }
+
+  const parsed = new Date(rawExpiresAt);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new AppError(400, "Invalid expiresAt value");
+  }
+  return parsed;
+};
+
 /**
  * GET /api/festival-mode/active-summary
  * Minimal payload for mobile cold-start / pre-home: compare festivalId + isEnabled to Hive cache.
@@ -58,7 +71,7 @@ export const getFestivalActiveSummary = async (req, res, next) => {
     }
 
     if (festivalMode.expiresAt && new Date() > festivalMode.expiresAt) {
-      festivalMode.isEnabled = false;
+      wipeFestivalVisibleContent(festivalMode, new Date());
       await festivalMode.save();
     }
 
@@ -93,8 +106,28 @@ export const getFestivalModeStatus = async (req, res, next) => {
 
     // Check if it has expired
     if (festivalMode.expiresAt && new Date() > festivalMode.expiresAt) {
-      festivalMode.isEnabled = false;
+      wipeFestivalVisibleContent(festivalMode, new Date());
       await festivalMode.save();
+    }
+
+    if (!festivalMode.isEnabled) {
+      return res.status(200).json({
+        festivalId: festivalMode._id,
+        isEnabled: false,
+        imageWithAlerts: null,
+        imageWithoutAlerts: null,
+        overlayTextWithAlerts: "",
+        overlayTextWithoutAlerts: "",
+        themeColor: "#4C4EDB",
+        greetingTextColor: "",
+        notificationSubtitleColor: "",
+        imagesWithAlerts: [],
+        imagesWithoutAlerts: [],
+        textsWithAlerts: [],
+        textsWithoutAlerts: [],
+        lastUpdatedAt: festivalMode.lastUpdatedAt,
+        cacheUntil: festivalMode.cacheUntil,
+      });
     }
 
     // Prefer new array-based config; fall back to legacy single-image fields.
@@ -257,7 +290,8 @@ export const uploadFestivalImage = async (req, res, next) => {
  */
 export const toggleFestivalMode = async (req, res, next) => {
   try {
-    const { isEnabled, expiresAt } = req.body;
+    const body = req.body || {};
+    const { isEnabled } = body;
 
     let festivalMode = await FestivalMode.findOne();
     if (!festivalMode) {
@@ -265,26 +299,34 @@ export const toggleFestivalMode = async (req, res, next) => {
     }
 
     festivalMode.isEnabled = Boolean(isEnabled);
-    if (expiresAt) {
-      festivalMode.expiresAt = new Date(expiresAt);
+    if (festivalMode.isEnabled) {
+      if (Object.prototype.hasOwnProperty.call(body, "expiresAt")) {
+        festivalMode.expiresAt = parseFestivalExpiry(body.expiresAt);
+      }
+      festivalMode.lastUpdatedAt = new Date();
+      // Reset cache timer on any change
+      festivalMode.cacheUntil = new Date(
+        Date.now() + 6 * 60 * 60 * 1000
+      );
+    } else {
+      wipeFestivalVisibleContent(festivalMode, new Date());
     }
 
     festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
-    festivalMode.lastUpdatedAt = new Date();
-    // Reset cache timer on any change
-    festivalMode.cacheUntil = new Date(
-      Date.now() + 6 * 60 * 60 * 1000
-    );
 
     await festivalMode.save();
 
     res.status(200).json({
       success: true,
       isEnabled: festivalMode.isEnabled,
+      expiresAt: festivalMode.expiresAt,
       message: `Festival mode ${isEnabled ? "enabled" : "disabled"}`,
     });
   } catch (err) {
     console.error("Error toggling festival mode:", err);
+    if (err instanceof AppError) {
+      return next(err);
+    }
     next(new AppError(500, "Failed to update festival mode"));
   }
 };
@@ -483,13 +525,14 @@ export const getAdminFestivalConfig = async (req, res, next) => {
  */
 export const updateAdminFestivalConfig = async (req, res, next) => {
   try {
+    const body = req.body || {};
     const {
       textsWithAlerts,
       textsWithoutAlerts,
       themeColor,
       greetingTextColor,
       notificationSubtitleColor,
-    } = req.body || {};
+    } = body;
 
     let festivalMode = await FestivalMode.findOne();
     if (!festivalMode) festivalMode = await FestivalMode.create({ isEnabled: false });
@@ -514,6 +557,9 @@ export const updateAdminFestivalConfig = async (req, res, next) => {
     }
     if (typeof notificationSubtitleColor === "string") {
       festivalMode.notificationSubtitleColor = notificationSubtitleColor.trim();
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "expiresAt")) {
+      festivalMode.expiresAt = parseFestivalExpiry(body.expiresAt);
     }
 
     // Keep legacy overlay text in sync (best-effort)
@@ -554,11 +600,15 @@ export const updateAdminFestivalConfig = async (req, res, next) => {
       notificationSubtitleColor: festivalMode.notificationSubtitleColor || "",
       textsWithAlerts: festivalMode.textsWithAlerts,
       textsWithoutAlerts: festivalMode.textsWithoutAlerts,
+      expiresAt: festivalMode.expiresAt,
       lastUpdatedAt: festivalMode.lastUpdatedAt,
       cacheUntil: festivalMode.cacheUntil,
     });
   } catch (err) {
     console.error("Error updating admin festival config:", err);
+    if (err instanceof AppError) {
+      return next(err);
+    }
     next(new AppError(500, "Failed to update festival config"));
   }
 };

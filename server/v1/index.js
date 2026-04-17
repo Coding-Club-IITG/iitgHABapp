@@ -51,6 +51,7 @@ import { initializeAnonymizedUser } from "./modules/user/anonymizedUserInit.js";
 import { initializeGuestCleanupScheduler } from "./modules/auth/autoGuestCleanupScheduler.js";
 import { initializeMessRebateAutoScheduler } from "./modules/leave/autoMessRebateScheduler.js";
 import { initializeRoomCleaningAutoResolveScheduler } from "./modules/room_cleaning/autoRoomCleaningResolveScheduler.js";
+import { initializeFestivalModeAutoDisableScheduler } from "./modules/festival_mode/autoFestivalModeDisableScheduler.js";
 
 import { initMessManagerWs } from "./modules/mess/messManagerWs.js";
 import { initGalaManagerWs } from "./modules/gala/galaManagerWs.js";
@@ -410,6 +411,7 @@ async function bootstrap() {
       initializeMessRebateAutoScheduler();
       initializeRoomCleaningAutoResolveScheduler();
       initializeGuestCleanupScheduler();
+      initializeFestivalModeAutoDisableScheduler();
     }
   } else {
     console.log("Schedulers are Disabled!");

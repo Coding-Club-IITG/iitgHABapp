@@ -1033,14 +1033,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return _festivalPrimaryColor();
     }
 
-    // For morning, afternoon, and weekend use dark color
-    if (variant == 'morning' ||
-        variant == 'afternoon' ||
-        variant == 'weekend') {
+    // For morning and afternoon use default purple.
+    if (variant == 'morning' || variant == 'afternoon') {
       return const Color(0xFF4C4EDB); // default purple
     }
 
-    // For evening and raining use light color
+    // Weekend/evening/rain use light color so title stays readable.
     return const Color(0xFFEDEDFB);
   }
 
@@ -1085,15 +1083,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     return _getTextColor();
   }
 
-  /// First name: weekend uses [primary]; else festival or [_heroAccentColor].
+  /// First name: festival color wins (except rain); otherwise weekend uses [primary].
   Color _heroUserNameColor() {
-    if (_weatherBackground.backgroundVariant == 'weekend') {
-      return primary;
-    }
     final festivalData = FestivalModeService().currentData;
     final rainPriority = _weatherBackground.weatherGroup == 'rainy';
     if (festivalData != null && festivalData.isEnabled && !rainPriority) {
       return _festivalPrimaryColor();
+    }
+    if (_weatherBackground.backgroundVariant == 'weekend') {
+      return primary;
     }
     return _heroAccentColor();
   }
@@ -1135,9 +1133,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           'assets/images/Habit_logo_Purple_colored.svg',
                           height: 28,
                           // Tint the logo to match the active hero title color:
-                          // - default purple on morning/afternoon/weekend
+                          // - default purple on morning/afternoon
+                          // - light on weekend/evening/rain
                           // - festival primary when enabled (non-rain)
-                          // - light in evening/rain
                           colorFilter:
                               ColorFilter.mode(titleColor, BlendMode.srcIn),
                         ),

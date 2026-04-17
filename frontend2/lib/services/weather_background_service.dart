@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
@@ -67,11 +68,41 @@ class WeatherBackgroundData {
 }
 
 class WeatherBackgroundService {
-  static const String _apiKey = "";     
+  static const MethodChannel _configChannel =
+      MethodChannel('in.codingclub.hab/config');
+  static String? _cachedApiKey;
+
+  Future<String> _resolveApiKey() async {
+    if (_cachedApiKey != null) {
+      return _cachedApiKey!;
+    }
+
+    var key = '';
+    try {
+      key = (await _configChannel
+              .invokeMethod<String>('getOpenWeatherApiKey'))
+              ?.trim() ??
+          '';
+    } catch (_) {
+      key = '';
+    }
+
+    // Keep support for non-Android/testing builds via dart-define.
+    if (key.isEmpty) {
+      key = const String.fromEnvironment(
+        'OPENWEATHER_API_KEY',
+        defaultValue: '',
+      ).trim();
+    }
+
+    _cachedApiKey = key;
+    return key;
+  }
 
   Future<WeatherBackgroundData> fetchBackground() async {
     try {
-      if (_apiKey.isEmpty) {
+      final apiKey = await _resolveApiKey();
+      if (apiKey.isEmpty) {
         return WeatherBackgroundData.fallback();
       }
 
@@ -99,7 +130,7 @@ class WeatherBackgroundService {
       final uri = Uri.https('api.openweathermap.org', '/data/2.5/weather', {
         'lat': position.latitude.toString(),
         'lon': position.longitude.toString(),
-        'appid': _apiKey,
+        'appid': apiKey,
       });
 
       final response = await http.get(uri).timeout(const Duration(seconds: 12));
