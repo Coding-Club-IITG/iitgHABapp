@@ -6,7 +6,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:frontend2/apis/authentication/login.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:frontend2/screens/main_navigation_screen.dart';
-import 'package:frontend2/widgets/login screen/login_button.dart';
+import 'package:frontend2/widgets/login/login_button.dart';
 import 'package:lottie/lottie.dart';
 
 class LoginScreen extends StatelessWidget {
@@ -55,11 +55,9 @@ String _getErrorMessage(dynamic error) {
 
 class _OnboardingScreenState extends State<OnboardingScreen>
     with SingleTickerProviderStateMixin {
-  bool _inprogress = false;
-
   late AnimationController _controller;
   late Animation<double> _curvedAnimation;
-  late Animation<double> _expand_animation;
+  late Animation<double> _expandAnimation;
 
   @override
   void initState() {
@@ -78,7 +76,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
     );
 
     // Define the range of the value
-    _expand_animation =
+    _expandAnimation =
         Tween<double>(begin: 0, end: 1).animate(_curvedAnimation);
   }
 
@@ -156,13 +154,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         final navigator = Navigator.of(sheetContext);
         final messenger = ScaffoldMessenger.of(sheetContext);
         try {
-          setModalState(() {
-            _inprogress = true;
-          });
           await signInWithApple();
-          setModalState(() {
-            _inprogress = false;
-          });
           if (!mounted) return;
           await FestivalModeService().bootstrapBeforeHome();
           if (!mounted) return;
@@ -189,9 +181,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           );
         } catch (e) {
           navigator.pop();
-          setModalState(() {
-            _inprogress = false;
-          });
           final errorMessage = _getErrorMessage(e);
           messenger.showSnackBar(
             SnackBar(
@@ -303,13 +292,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               final navigator = Navigator.of(context);
                               final messenger = ScaffoldMessenger.of(context);
                               try {
-                                setModalState(() {
-                                  _inprogress = true;
-                                });
                                 await authenticate();
-                                setModalState(() {
-                                  _inprogress = false;
-                                });
                                 if (!mounted) return;
                                 await FestivalModeService()
                                     .bootstrapBeforeHome();
@@ -338,9 +321,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 );
                               } catch (e) {
                                 navigator.pop();
-                                setModalState(() {
-                                  _inprogress = false;
-                                });
                                 final errorMessage = _getErrorMessage(e);
                                 messenger.showSnackBar(
                                   SnackBar(
@@ -412,13 +392,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 final navigator = Navigator.of(context);
                                 final messenger = ScaffoldMessenger.of(context);
                                 try {
-                                  setModalState(() {
-                                    _inprogress = true;
-                                  });
                                   await guestAuthenticate();
-                                  setModalState(() {
-                                    _inprogress = false;
-                                  });
                                   if (!mounted) return;
                                   await FestivalModeService()
                                       .bootstrapBeforeHome();
@@ -447,9 +421,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                   );
                                 } catch (e) {
                                   navigator.pop();
-                                  setModalState(() {
-                                    _inprogress = false;
-                                  });
                                   final errorMessage = _getErrorMessage(e);
                                   messenger.showSnackBar(
                                     SnackBar(
@@ -497,25 +468,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
                   ),
                 ),
-
-                // Lottie loader overlay
-                // if (_inprogress)
-                //   Positioned.fill(
-                //     child: AbsorbPointer(
-                //       absorbing: true,
-                //       child: Container(
-                //         color: const Color.fromRGBO(0, 0, 0, 0.7),
-                //         child: Center(
-                //           child: Lottie.asset(
-                //             'assets/lottie/loader.json',
-                //             width: 240,
-                //             height: 240,
-                //             fit: BoxFit.contain,
-                //           ),
-                //         ),
-                //       ),
-                //     ),
-                //   ),
               ],
             );
           },
@@ -566,7 +518,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                       ),
                     ),
                     AnimatedBuilder(
-                      animation: _expand_animation,
+                      animation: _expandAnimation,
                       builder: (context, child) => Expanded(
                         flex: 4,
                         child: LayoutBuilder(
@@ -577,9 +529,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               fit: StackFit.loose,
                               children: [
                                 Positioned(
-                                    left: (40 + 10 * _expand_animation.value) *
+                                    left: (40 + 10 * _expandAnimation.value) *
                                         scaleFactor,
-                                    top: (40 - 5 * _expand_animation.value) *
+                                    top: (40 - 5 * _expandAnimation.value) *
                                         scaleFactor,
                                     child: Image.asset(
                                       'assets/icon/LoginIcon4.png',
@@ -587,9 +539,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                       height: 49,
                                     )),
                                 Positioned(
-                                    right: (40 + 10 * _expand_animation.value) *
+                                    right: (40 + 10 * _expandAnimation.value) *
                                         scaleFactor,
-                                    top: (50 - 20 * _expand_animation.value) *
+                                    top: (50 - 20 * _expandAnimation.value) *
                                         scaleFactor,
                                     child: Image.asset(
                                       'assets/icon/LoginIcon2.png',
@@ -597,9 +549,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                       height: 49,
                                     )),
                                 Positioned(
-                                    left: (10 + 10 * _expand_animation.value) *
+                                    left: (10 + 10 * _expandAnimation.value) *
                                         scaleFactor,
-                                    top: (130 - 30 * _expand_animation.value) *
+                                    top: (130 - 30 * _expandAnimation.value) *
                                         scaleFactor,
                                     child: Image.asset(
                                       'assets/icon/LoginIcon3.png',
@@ -607,9 +559,9 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                       height: 49,
                                     )),
                                 Positioned(
-                                    right: (0 + 10 * _expand_animation.value) *
+                                    right: (0 + 10 * _expandAnimation.value) *
                                         scaleFactor,
-                                    top: (140 - 40 * _expand_animation.value) *
+                                    top: (140 - 40 * _expandAnimation.value) *
                                         scaleFactor,
                                     child: Image.asset(
                                       'assets/icon/LoginIcon1.png',
@@ -648,7 +600,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 Positioned(
                                   right: 0,
                                   left: 0,
-                                  top: (120 - 45 * _expand_animation.value) *
+                                  top: (120 - 45 * _expandAnimation.value) *
                                       scaleFactor,
                                   child: Text(
                                     'A space built\naround your\nhostel life',
@@ -672,7 +624,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                           color: Color.lerp(
                             const Color(0xFF2E2F31), // Original dark color
                             const Color(0xFF535353), // Target grey color
-                            _expand_animation.value, // The interpolation factor
+                            _expandAnimation.value, // The interpolation factor
                           ),
                           fontSize: 12,
                           fontWeight: FontWeight.w500),

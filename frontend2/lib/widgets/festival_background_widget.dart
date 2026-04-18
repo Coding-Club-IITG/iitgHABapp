@@ -78,13 +78,13 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
   /// Build default background (fallback when festival disabled or error)
   Widget _buildDefaultBackground(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            const Color(0xFF1a1a2e),
-            const Color(0xFF16213e),
+            Color(0xFF1a1a2e),
+            Color(0xFF16213e),
           ],
         ),
       ),
@@ -100,34 +100,12 @@ class _FestivalBackgroundWidgetState extends State<FestivalBackgroundWidget> {
       child: widget.child,
     );
   }
-
-  /// Show placeholder while image loads (prevents blank space)
-  Widget _buildLoadingPlaceholder() {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            const Color(0xFF1a1a2e).withOpacity(0.8),
-            const Color(0xFF16213e).withOpacity(0.8),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Optional: Add semi-transparent overlay to ensure readability
-  BoxDecoration _buildOverlayIfNeeded() {
-    return BoxDecoration(
-      color: Colors.black.withOpacity(0.1),
-    );
-  }
 }
 
 /// Festival Background Builder - simpler API for common use case
 class FestivalBackgroundBuilder extends StatelessWidget {
   final bool hasAlerts;
+
   /// When true, skips festival imagery so callers can show weather (e.g. rain) instead.
   final bool suppressFestivalBackdrop;
   final WidgetBuilder builder;
@@ -151,7 +129,8 @@ class FestivalBackgroundBuilder extends StatelessWidget {
     return ValueListenableBuilder<FestivalModeData>(
       valueListenable: FestivalModeService().festivalVisualNotifier,
       builder: (context, data, _) {
-        final backgroundImage = FestivalModeService().getAppropriateFestivalImage(
+        final backgroundImage =
+            FestivalModeService().getAppropriateFestivalImage(
           data,
           hasAlerts,
         );
@@ -165,7 +144,6 @@ class FestivalBackgroundBuilder extends StatelessWidget {
   }
 }
 
-/// Reusable background container with all error handling
 /// Reusable background container with all error handling
 class _BackgroundContainer extends StatelessWidget {
   final String? backgroundImage;

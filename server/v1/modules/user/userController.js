@@ -4,7 +4,6 @@ import { User } from "./userModel.js";
 import Feedback from "../feedback/feedbackModel.js";
 import { ScanLogs } from "../mess/ScanLogsModel.js";
 import FCMToken from "../notification/FCMToken.js";
-import Notification from "../notification/notificationModel.js";
 import { MenuItem } from "../mess/menuItemModel.js";
 import { MessChange } from "../mess_change/messChangeModel.js";
 import UserAllocHostel from "../hostel/hostelAllocModel.js";
@@ -454,40 +453,28 @@ export const deleteUserAccount = async (req, res, next) => {
       // 1. FCM Tokens - DELETE (no historical value)
       await FCMToken.deleteMany({ user: userId }, { session });
 
-      // 2. Notifications - Remove user from recipients and readBy
-      await Notification.updateMany(
-        { recipients: userId },
-        { $pull: { recipients: userId } },
-        { session },
-      );
-      await Notification.updateMany(
-        { readBy: userId },
-        { $pull: { readBy: userId } },
-        { session },
-      );
-
-      // 3. Menu Item Likes - Remove user from likes arrays
+      // 2. Menu Item Likes - Remove user from likes arrays
       await MenuItem.updateMany(
         { likes: userId },
         { $pull: { likes: userId } },
         { session },
       );
 
-      // 4. Feedback - Anonymize user reference only (keep feedback content unchanged)
+      // 3. Feedback - Anonymize user reference only (keep feedback content unchanged)
       await Feedback.updateMany(
         { user: userId },
         { $set: { user: ANONYMIZED_USER_ID } },
         { session },
       );
 
-      // 5. Scan Logs - Anonymize (keep historical scan data)
+      // 4. Scan Logs - Anonymize (keep historical scan data)
       await ScanLogs.updateMany(
         { userId: userId },
         { $set: { userId: ANONYMIZED_USER_ID } },
         { session },
       );
 
-      // 6. Update UserAllocHostel with user's final hostel and mess before deletion
+      // 5. Update UserAllocHostel with user's final hostel and mess before deletion
       if (user.rollNumber && user.hostel && user.curr_subscribed_mess) {
         await UserAllocHostel.updateOne(
           { rollno: user.rollNumber },
@@ -501,7 +488,7 @@ export const deleteUserAccount = async (req, res, next) => {
         );
       }
 
-      // 7. Anonymize MessChange records (update userName)
+      // 6. Anonymize MessChange records (update userName)
       if (user.rollNumber) {
         await MessChange.updateMany(
           { rollNumber: user.rollNumber },

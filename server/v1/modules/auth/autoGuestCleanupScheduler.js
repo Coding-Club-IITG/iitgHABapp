@@ -2,7 +2,6 @@ import mongoose from "mongoose";
 
 import { User } from "../user/userModel.js";
 import FCMToken from "../notification/FCMToken.js";
-import Notification from "../notification/notificationModel.js";
 import { MenuItem } from "../mess/menuItemModel.js";
 import Feedback from "../feedback/feedbackModel.js";
 import { ScanLogs } from "../mess/ScanLogsModel.js";
@@ -51,42 +50,28 @@ const cleanupOldGuestAccounts = async () => {
     // 1. Delete FCM tokens
     await FCMToken.deleteMany({ user: { $in: userIds } }, { session });
 
-    // 2. Remove from notification recipient lists
-    await Notification.updateMany(
-      { recipients: { $in: userIds } },
-      { $pull: { recipients: { $in: userIds } } },
-      { session },
-    );
-
-    // 3. Remove from notification readBy lists
-    await Notification.updateMany(
-      { readBy: { $in: userIds } },
-      { $pull: { readBy: { $in: userIds } } },
-      { session },
-    );
-
-    // 4. Remove from menu item likes
+    // 2. Remove from menu item likes
     await MenuItem.updateMany(
       { likes: { $in: userIds } },
       { $pull: { likes: { $in: userIds } } },
       { session },
     );
 
-    // 5. Anonymize feedback
+    // 3. Anonymize feedback
     await Feedback.updateMany(
       { user: { $in: userIds } },
       { $set: { user: ANONYMIZED_USER_ID } },
       { session },
     );
 
-    // 6. Anonymize scan logs
+    // 4. Anonymize scan logs
     await ScanLogs.updateMany(
       { userId: { $in: userIds } },
       { $set: { userId: ANONYMIZED_USER_ID } },
       { session },
     );
 
-    // 7. Delete the user documents themselves
+    // 5. Delete the user documents themselves
     await User.deleteMany({ _id: { $in: userIds } }, { session });
   });
 

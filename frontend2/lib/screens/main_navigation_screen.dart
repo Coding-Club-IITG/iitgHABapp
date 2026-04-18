@@ -11,14 +11,13 @@ import 'package:frontend2/screens/gala_dinner_screen.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/mess_preference.dart';
 import 'package:frontend2/screens/account_screen.dart';
-import 'package:frontend2/utilities/alert_manager.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/providers/notification_provider.dart';
 import 'package:frontend2/widgets/common/bottom_nav_bar.dart';
 import 'package:frontend2/widgets/common/shimmer_host.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend2/utilities/startupitem.dart';
+import 'package:frontend2/providers/mess_info_provider.dart';
 import 'home_screen.dart';
 import 'mess_screen.dart';
 
@@ -44,8 +43,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
-    tabNavigationNotifier.addListener(_onTabNavigationRequested);
-    deepNavigationNotifier.addListener(_onDeepNavigationRequested);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<NotificationProvider>().addListener(_onProviderChanged);
+      }
+    });
     _runPhase2AndPhase3();
   }
 
@@ -92,7 +94,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       await getUserMessInfo();
     } catch (_) {}
     try {
-      await AlertsManager.syncAlerts();
+      await globalNotificationProvider.syncAlerts();
     } catch (_) {}
     await _resolveGalaTabVisibility(
       preloadedUpcoming: _upcomingGalaFromBootstrap,
@@ -102,7 +104,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   }
 
   void _runPhase3Background({required bool fromBootstrap}) {
-    registerFcmToken();
+    globalNotificationProvider.registerFcmToken();
     FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
     if (!fromBootstrap) {
       HostelsNotifier.init();
@@ -171,19 +173,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  void _onTabNavigationRequested() {
-    final targetTab = tabNavigationNotifier.value;
+  void _onProviderChanged() {
+    if (!mounted) return;
+    final provider = globalNotificationProvider;
+    final targetTab = provider.tabNavigation;
     if (targetTab != null && targetTab != _selectedIndex) {
       setState(() {
         _selectedIndex = targetTab;
       });
-      // Clear the navigation request
-      tabNavigationNotifier.value = null;
+      provider.clearTabNavigation();
     }
-  }
 
-  void _onDeepNavigationRequested() {
-    final screenName = deepNavigationNotifier.value;
+    final screenName = provider.deepNavigation;
     if (screenName != null && mounted) {
       // Capture navigator before creating an async gap and wait briefly
       final navigator = Navigator.of(context);
@@ -224,15 +225,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         }
 
         // Clear the navigation request
-        deepNavigationNotifier.value = null;
+        provider.clearDeepNavigation();
       });
     }
   }
 
   @override
+  @override
   void dispose() {
-    tabNavigationNotifier.removeListener(_onTabNavigationRequested);
-    deepNavigationNotifier.removeListener(_onDeepNavigationRequested);
+    globalNotificationProvider.removeListener(_onProviderChanged);
     super.dispose();
   }
 

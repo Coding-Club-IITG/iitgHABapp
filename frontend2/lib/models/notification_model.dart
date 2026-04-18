@@ -1,17 +1,19 @@
-// notification_model.dart
-
 class NotificationModel {
+  final String? id;
   final String title;
   final String body;
   final String? redirectType;
   final DateTime timestamp;
   final bool isAlert;
   final bool isRead;
+
   /// When true and [expiresAt] > 0, [isAlertActive] uses server expiry (epoch ms).
   final bool hasCountdown;
   final int expiresAt;
+  final String? targetType;
 
   NotificationModel({
+    this.id,
     required this.title,
     required this.body,
     this.redirectType,
@@ -20,11 +22,13 @@ class NotificationModel {
     this.isRead = false,
     this.hasCountdown = false,
     this.expiresAt = 0,
+    this.targetType,
   });
 
   // Convert to JSON for storage
   Map<String, dynamic> toJson() {
     return {
+      if (id != null) 'id': id,
       'title': title,
       'body': body,
       'redirectType': redirectType,
@@ -33,16 +37,20 @@ class NotificationModel {
       'isRead': isRead,
       'hasCountdown': hasCountdown,
       'expiresAt': expiresAt,
+      if (targetType != null) 'targetType': targetType,
     };
   }
 
   // Create from JSON
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
+      id: json['id']?.toString(),
       title: json['title'] ?? '',
       body: json['body'] ?? '',
       redirectType: json['redirectType'],
-      timestamp: DateTime.parse(json['timestamp']),
+      timestamp: json['timestamp'] != null
+          ? DateTime.tryParse(json['timestamp']) ?? DateTime.now()
+          : DateTime.now(),
       // FCM / JS often send "true" strings; match [hasCountdown] parsing.
       isAlert: json['isAlert'] == true ||
           json['isAlert'] == 'true' ||
@@ -52,32 +60,13 @@ class NotificationModel {
       hasCountdown:
           json['hasCountdown'] == 'true' || json['hasCountdown'] == true,
       expiresAt: int.tryParse(json['expiresAt']?.toString() ?? '') ?? 0,
-    );
-  }
-
-  // Convert to old string format for backward compatibility
-  String toLegacyString() {
-    return '$title: $body';
-  }
-
-  // Try to parse from old string format
-  factory NotificationModel.fromLegacyString(String str,
-      {DateTime? timestamp}) {
-    final parts = str.split(':');
-    return NotificationModel(
-      title: parts.first.trim(),
-      body: parts.length > 1 ? parts.sublist(1).join(':').trim() : '',
-      redirectType: null,
-      timestamp: timestamp ?? DateTime.now(),
-      isAlert: false,
-      isRead: false,
-      hasCountdown: false,
-      expiresAt: 0,
+      targetType: json['targetType']?.toString(),
     );
   }
 
   // Create a copy with updated fields
   NotificationModel copyWith({
+    String? id,
     String? title,
     String? body,
     String? redirectType,
@@ -86,8 +75,10 @@ class NotificationModel {
     bool? isRead,
     bool? hasCountdown,
     int? expiresAt,
+    String? targetType,
   }) {
     return NotificationModel(
+      id: id ?? this.id,
       title: title ?? this.title,
       body: body ?? this.body,
       redirectType: redirectType ?? this.redirectType,
@@ -96,6 +87,7 @@ class NotificationModel {
       isRead: isRead ?? this.isRead,
       hasCountdown: hasCountdown ?? this.hasCountdown,
       expiresAt: expiresAt ?? this.expiresAt,
+      targetType: targetType ?? this.targetType,
     );
   }
 
@@ -150,15 +142,4 @@ class NotificationModel {
     final diff = DateTime.now().difference(timestamp);
     return diff.inDays > 7;
   }
-
-  /// Active alert: [expiresAt] (ms) when present (matches server TTL), else 2h from [timestamp].
-  bool get isAlertActive {
-    if (!isAlert) return false;
-    if (expiresAt > 0) {
-      return DateTime.now().millisecondsSinceEpoch < expiresAt;
-    }
-    final diff = DateTime.now().difference(timestamp);
-    return diff.inHours < 2;
-  }
-
 }
