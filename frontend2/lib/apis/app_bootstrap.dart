@@ -10,8 +10,8 @@ import 'package:frontend2/apis/users/user.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/providers/room_cleaning_provider.dart';
-import 'package:frontend2/utilities/notifications.dart';
-import 'package:frontend2/utilities/startupitem.dart';
+import 'package:frontend2/providers/notification_provider.dart';
+import 'package:frontend2/providers/mess_info_provider.dart';
 
 class AppBootstrapCache {
   static Map<String, dynamic>? _data;
@@ -153,7 +153,7 @@ Future<bool> applyAppBootstrapData(
 
     final alertsRaw = payload['alerts'];
     if (alertsRaw is List) {
-      await applyAlertsFromServerJson(alertsRaw);
+      await globalNotificationProvider.applyAlertsFromServerJson(alertsRaw);
     }
 
     final roomCleaningRaw = payload['roomCleaningBookings'];

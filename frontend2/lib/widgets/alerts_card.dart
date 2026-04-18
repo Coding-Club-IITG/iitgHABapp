@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../utilities/notifications.dart';
+import '../providers/notification_provider.dart';
+import 'package:provider/provider.dart';
 import '../models/notification_model.dart';
 
 class AlertsCard extends StatelessWidget {
@@ -8,9 +9,9 @@ class AlertsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<NotificationModel>>(
-      valueListenable: activeAlertsNotifier,
-      builder: (context, activeAlerts, child) {
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, child) {
+        final activeAlerts = provider.activeAlerts;
         if (activeAlerts.isEmpty) {
           return const SizedBox.shrink(); // Hide entirely if no active alerts
         }

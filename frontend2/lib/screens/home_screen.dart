@@ -19,8 +19,8 @@ import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
 import 'package:frontend2/utils/meal_countdown_text.dart';
-import 'package:frontend2/utilities/alert_expirer.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/widgets/common/alert_expirer.dart';
+import 'package:frontend2/providers/notification_provider.dart';
 import 'package:frontend2/widgets/alert_countdown_text.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
 import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
@@ -32,7 +32,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend2/apis/protected.dart';
 
-import '../utilities/startupitem.dart';
+import '../providers/mess_info_provider.dart';
 import 'initial_setup_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -162,7 +162,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _startScanQrStatusTicker();
     _deferredHomeNetworkTimer =
         Timer(_kDeferredHomeNetworkDelay, _runDeferredHomeNetworkWork);
-    homeScreenRefreshNotifier.addListener(_onRefreshRequested);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<NotificationProvider>().addListener(_onProviderChanged);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _syncFestivalConfigFromServerIfPending();
@@ -197,7 +201,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             isRead: false,
           ),
         ];
-        activeAlertsNotifier.value = dummyAlerts;
+        globalNotificationProvider.setTestingAlerts(dummyAlerts);
       }
 
       // Room-cleaning bookings are hydrated by bootstrap when available.
@@ -232,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _reloadAlertsFromPrefs() async {
     try {
-      await filterAndLoadLocalAlerts();
+      await globalNotificationProvider.filterAndLoadLocalAlerts();
       if (kDebugMode) {
         debugPrint('✅ Reloaded alerts from prefs on app resume');
       }
@@ -245,11 +249,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _reloadNotificationsFromPrefs() async {
     try {
-      final notifications = await getNotificationHistory();
-      notificationHistoryNotifier.value = notifications;
+      await globalNotificationProvider.filterAndLoadLocalAlerts();
       if (kDebugMode) {
-        debugPrint(
-            '✅ Reloaded ${notifications.length} notifications from prefs on app resume');
+        debugPrint('✅ Reloaded notifications from prefs on app resume');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -265,12 +267,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _weatherBackgroundTimer?.cancel();
     _deferredHomeNetworkTimer?.cancel();
     _scanQrStatusNotifier.dispose();
-    homeScreenRefreshNotifier.removeListener(_onRefreshRequested);
+
     super.dispose();
   }
 
+  void _onProviderChanged() {
+    if (!mounted) return;
+    final provider = globalNotificationProvider;
+    if (provider.homeScreenRefresh) {
+      _onRefreshRequested();
+      provider.clearHomeScreenRefresh();
+    }
+  }
+
   Future<void> _onRefreshRequested() async {
-    if (homeScreenRefreshNotifier.value) {
+    {
       await FestivalModeService()
           .fetchFestivalMode(context: context, forceRefresh: true)
           .catchError((_) => FestivalModeData.disabled());
@@ -281,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await _loadWeatherBackground();
       await _reloadNotificationsFromPrefs();
       await _reloadAlertsFromPrefs();
-      homeScreenRefreshNotifier.value = false;
+      globalNotificationProvider.clearHomeScreenRefresh();
     }
   }
 
@@ -997,7 +1008,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   String _getBackgroundAssetPath(String basePath) {
     // Check if there are important messages
-    final activeAlerts = activeAlertsNotifier.value;
+    final activeAlerts = context.read<NotificationProvider>().activeAlerts;
     if (activeAlerts.isNotEmpty) {
       // Use extended version when there are important messages
       if (basePath.contains('.png')) {
@@ -1274,7 +1285,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onTap: () async {
         // Clear alert badges; notification read state is updated from the sheet
         // (Mark all read / per-item tap), not when opening.
-        await markAllAlertsAsRead();
+        await globalNotificationProvider.markAllAlertsAsRead();
         _openNotificationsSheet();
       },
       child: Container(
@@ -1311,52 +1322,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildAlertsSection() {
-    return ValueListenableBuilder<List<NotificationModel>>(
-      valueListenable: activeAlertsNotifier,
-      builder: (context, activeAlerts, child) {
-        return ValueListenableBuilder<List<NotificationModel>>(
-          valueListenable: notificationHistoryNotifier,
-          builder: (context, storedNotifications, child) {
-            final notifications = storedNotifications;
-            // notifications.forEach((notification) {print(notification.timestamp);});
-            // notifications.forEach((notification) {print(notification.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)));});
-            final unreadNotifCount =
-                notifications.where((n) => !n.isRead).length;
-            // final unreadAlertsCount =
-            //     activeAlerts.where((a) => !a.isRead).length;
-            // final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
-            final updatesCount = unreadNotifCount;
-            final todayNotificationCount = notifications
-                .where((n) =>
-                    (!n.isAlert) &&
-                    n.timestamp.isAfter(DateTime(DateTime.now().year,
-                        DateTime.now().month, DateTime.now().day)))
-                .length;
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, child) {
+        final activeAlerts = provider.activeAlerts;
+        {
+          final notifications = provider.notificationHistory;
+          final unreadNotifCount = notifications.where((n) => !n.isRead).length;
+          final updatesCount = unreadNotifCount;
+          final todayNotificationCount = notifications
+              .where((n) =>
+                  (!n.isAlert) &&
+                  n.timestamp.isAfter(DateTime(DateTime.now().year,
+                      DateTime.now().month, DateTime.now().day)))
+              .length;
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildWeatherHeroHeader(
-                  unreadCount: todayNotificationCount,
-                  hasImportantMessages: activeAlerts.isNotEmpty,
-                ),
-                const SizedBox(height: 32),
-                if (activeAlerts.isNotEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildImportantMessagesCard(activeAlerts),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWeatherHeroHeader(
+                unreadCount: todayNotificationCount,
+                hasImportantMessages: activeAlerts.isNotEmpty,
+              ),
+              const SizedBox(height: 32),
+              if (activeAlerts.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildUpdatesCard(updatesCount),
+                  child: _buildImportantMessagesCard(activeAlerts),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
               ],
-            );
-          },
-        );
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildUpdatesCard(updatesCount),
+              ),
+              const SizedBox(height: 32),
+            ],
+          );
+        }
       },
     );
   }
@@ -1535,9 +1537,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return ValueListenableBuilder<FestivalModeData>(
         valueListenable: FestivalModeService().festivalVisualNotifier,
         builder: (context, festData, _) {
-          return ValueListenableBuilder<List<NotificationModel>>(
-            valueListenable: activeAlertsNotifier,
-            builder: (context, activeAlerts, _) {
+          return Consumer<NotificationProvider>(
+            builder: (context, provider, _) {
+              final activeAlerts = provider.activeAlerts;
               final hasAlerts = activeAlerts.isNotEmpty;
               final rawUrl = FestivalModeService()
                   .getAppropriateFestivalImage(festData, hasAlerts);
@@ -1612,9 +1614,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<NotificationModel>>(
-      valueListenable: activeAlertsNotifier,
-      builder: (context, activeAlerts, _) {
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, _) {
+        final activeAlerts = provider.activeAlerts;
         final rainPriority = _weatherBackground.weatherGroup == 'rainy';
         return FestivalBackgroundBuilder(
           hasAlerts: activeAlerts.isNotEmpty,

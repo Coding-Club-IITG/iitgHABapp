@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/providers/notification_provider.dart';
 
 class SilentAlertExpirer extends StatefulWidget {
   final int expiresAt;
@@ -37,12 +37,12 @@ class SilentAlertExpirerState extends State<SilentAlertExpirer> {
     if (diff <= 0) {
       // If it's somehow already expired, clean it up immediately
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        filterAndLoadLocalAlerts();
+        globalNotificationProvider.filterAndLoadLocalAlerts();
       });
     } else {
       // Set a precise one-off timer to fire the exact millisecond it expires!
       _timer = Timer(Duration(milliseconds: diff), () {
-        filterAndLoadLocalAlerts();
+        globalNotificationProvider.filterAndLoadLocalAlerts();
       });
     }
   }

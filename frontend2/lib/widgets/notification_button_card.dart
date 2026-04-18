@@ -2,7 +2,8 @@
 
 import 'package:flutter/material.dart';
 import 'package:frontend2/screens/notification.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/providers/notification_provider.dart';
+import 'package:provider/provider.dart';
 
 class NotificationButtonCard extends StatelessWidget {
   const NotificationButtonCard({super.key});
@@ -48,12 +49,10 @@ class NotificationButtonCard extends StatelessWidget {
                       fontSize: 16,
                     ),
               ),
-              ValueListenableBuilder(
-                // This listens to the standard history, NOT the active alerts
-                valueListenable: notificationHistoryNotifier,
-                builder: (context, storedNotifications, child) {
+              Consumer<NotificationProvider>(
+                builder: (context, provider, child) {
                   final unreadCount =
-                      storedNotifications.where((n) => !n.isRead).length;
+                      provider.notificationHistory.where((n) => !n.isRead).length;
 
                   if (unreadCount == 0) return const SizedBox.shrink();
 

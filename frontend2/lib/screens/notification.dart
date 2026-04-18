@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:frontend2/constants/app_ui_tokens.dart';
 import 'package:frontend2/models/notification_model.dart';
-import 'package:frontend2/utilities/notification_card.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/widgets/common/notification_card.dart';
+import 'package:frontend2/providers/notification_provider.dart';
+import 'package:provider/provider.dart';
 
 class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
@@ -99,10 +100,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child: ValueListenableBuilder<
-                                  List<NotificationModel>>(
-                                valueListenable: notificationHistoryNotifier,
-                                builder: (context, notifications, _) {
+                              child: Consumer<NotificationProvider>(
+                                builder: (context, provider, _) {
+                                  final notifications =
+                                      provider.notificationHistory;
                                   final unread = notifications
                                       .where((n) => !n.isRead)
                                       .length;
@@ -126,15 +127,18 @@ class _NotificationScreenState extends State<NotificationScreen> {
                                 },
                               ),
                             ),
-                            ValueListenableBuilder<List<NotificationModel>>(
-                              valueListenable: notificationHistoryNotifier,
-                              builder: (context, notifications, _) {
+                            Consumer<NotificationProvider>(
+                              builder: (context, provider, _) {
+                                final notifications =
+                                    provider.notificationHistory;
                                 final hasUnread =
                                     notifications.any((n) => !n.isRead);
                                 if (!hasUnread) return const SizedBox.shrink();
                                 return TextButton(
                                   onPressed: () async {
-                                    await markAllNotificationsAsRead();
+                                    await context
+                                        .read<NotificationProvider>()
+                                        .markAllNotificationsAsRead();
                                   },
                                   style: TextButton.styleFrom(
                                     foregroundColor: AppUi.primary,
@@ -160,11 +164,10 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         color: AppUi.sectionDivider,
                       ),
                       Expanded(
-                        child: ValueListenableBuilder<List<NotificationModel>>(
-                          valueListenable: notificationHistoryNotifier,
-                          builder: (context, storedNotifications, child) {
+                        child: Consumer<NotificationProvider>(
+                          builder: (context, provider, child) {
                             final List<NotificationModel> notifications =
-                                storedNotifications.toList();
+                                provider.notificationHistory.toList();
 
                             if (notifications.isEmpty) {
                               return CustomScrollView(

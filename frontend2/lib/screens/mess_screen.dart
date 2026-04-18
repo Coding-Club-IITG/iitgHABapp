@@ -14,7 +14,7 @@ import '../constants/endpoint.dart';
 import '../models/mess_menu_model.dart';
 import '../providers/hostels.dart';
 import '../models/mess_info_model.dart';
-import '../utilities/startupitem.dart';
+import '../providers/mess_info_provider.dart';
 import '../utils/meal_countdown_text.dart';
 import '../widgets/common/hostel_logo.dart';
 import '../widgets/common/shimmer_host.dart';
@@ -64,9 +64,7 @@ class _MessScreenState extends State<MessScreen> {
   static const redSoft = Color(0xFFFCF0F0);
   static const greySoft = Color(0xFFF5F5F5);
   static const shadow = Color(0x14000000);
-  /// Figma: section separator between menu and lower blocks
   static const sectionDividerGrey = Color(0xFFF0F0F0);
-  /// Vertical gap between content and full-bleed section dividers (matches Figma rhythm).
   static const double sectionGap = 20;
 
   bool _isLoading = true;
@@ -176,6 +174,7 @@ class _MenuSectionState extends State<_MenuSection> {
   bool _isMenuLoading = true;
   bool _messRebateEnabled = false;
   bool _messRebateSettingLoaded = false;
+
   /// True while loading after user picked another hostel — full-page shimmers.
   bool _hostelTransitionLoading = false;
   String? _menuError;
@@ -191,7 +190,9 @@ class _MenuSectionState extends State<_MenuSection> {
     selectedDay = DateFormat('EEEE').format(DateTime.now());
     selectedHostel = HostelsNotifier.userHostel.isNotEmpty
         ? HostelsNotifier.userHostel
-        : (HostelsNotifier.hostels.isNotEmpty ? HostelsNotifier.hostels.first : null);
+        : (HostelsNotifier.hostels.isNotEmpty
+            ? HostelsNotifier.hostels.first
+            : null);
     _loadPreferences();
     _loadMessSettings();
     _statusTicker = Timer.periodic(const Duration(minutes: 1), (_) {
@@ -403,8 +404,7 @@ class _MenuSectionState extends State<_MenuSection> {
     _initializeFromProvider(hostelMap);
     _requestInitialMenuLoad();
 
-    final fullPageShimmer =
-        _hostelTransitionLoading || _isMenuLoading;
+    final fullPageShimmer = _hostelTransitionLoading || _isMenuLoading;
 
     if (fullPageShimmer) {
       return ShimmerHost(
@@ -719,11 +719,11 @@ class _DayChip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: selected ? _MessScreenState.primarySoft : _MessScreenState.surface,
+          color: selected
+              ? _MessScreenState.primarySoft
+              : _MessScreenState.surface,
           borderRadius: BorderRadius.circular(8),
-          border: selected
-              ? null
-              : Border.all(color: _MessScreenState.border),
+          border: selected ? null : Border.all(color: _MessScreenState.border),
         ),
         child: Text(
           label,
@@ -792,7 +792,8 @@ class _MealListState extends State<_MealList> {
   }
 
   void _syncExpandedMeal() {
-    final suggested = _suggestExpandedMealType(widget.menus, widget.selectedDay);
+    final suggested =
+        _suggestExpandedMealType(widget.menus, widget.selectedDay);
     _expandedMealType ??= suggested;
     if (!widget.menus.any((menu) => menu.type == _expandedMealType)) {
       _expandedMealType = suggested;
@@ -819,8 +820,8 @@ class _MealListState extends State<_MealList> {
     for (final menu in menus) {
       final start = _parseTime(menu.startTime);
       final end = _parseTime(menu.endTime);
-      final isOngoing =
-          (now.isAfter(start) || now.isAtSameMomentAs(start)) && now.isBefore(end);
+      final isOngoing = (now.isAfter(start) || now.isAtSameMomentAs(start)) &&
+          now.isBefore(end);
       if (now.isBefore(start) || isOngoing) {
         return menu.type;
       }
@@ -947,7 +948,9 @@ class _MealCardState extends State<_MealCard> {
   }
 
   String _statusText() {
-    if (!widget.statusDisplay || _menu.startTime.isEmpty || _menu.endTime.isEmpty) {
+    if (!widget.statusDisplay ||
+        _menu.startTime.isEmpty ||
+        _menu.endTime.isEmpty) {
       return '';
     }
 
@@ -959,8 +962,8 @@ class _MealCardState extends State<_MealCard> {
       return mealTimeUntilStart(start.difference(now));
     }
 
-    final isOngoing =
-        (now.isAfter(start) || now.isAtSameMomentAs(start)) && now.isBefore(end);
+    final isOngoing = (now.isAfter(start) || now.isAtSameMomentAs(start)) &&
+        now.isBefore(end);
     if (isOngoing) {
       return mealTimeRemaining(end.difference(now));
     }
@@ -1095,7 +1098,8 @@ class _MealCardState extends State<_MealCard> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              for (final item in items) _buildMenuChip(item, _menu.items.indexOf(item)),
+              for (final item in items)
+                _buildMenuChip(item, _menu.items.indexOf(item)),
             ],
           ),
       ],
@@ -1168,7 +1172,8 @@ class _MealCardState extends State<_MealCard> {
                                 ),
                               ),
                             ),
-                          ] else if (!widget.expanded && widget.isSubscribed) ...[
+                          ] else if (!widget.expanded &&
+                              widget.isSubscribed) ...[
                             const SizedBox(width: 12),
                             Container(
                               padding: const EdgeInsets.symmetric(
@@ -1805,8 +1810,9 @@ class _MessInfoSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hostel = selectedHostel;
-    final data =
-        hostel != null && hostelMap.containsKey(hostel) ? hostelMap[hostel] : null;
+    final data = hostel != null && hostelMap.containsKey(hostel)
+        ? hostelMap[hostel]
+        : null;
 
     final catererName = data?.messname ?? '—';
     final rating = data?.rating;
@@ -1817,9 +1823,7 @@ class _MessInfoSection extends StatelessWidget {
 
     final ratingText = rating == null
         ? '—'
-        : (rating == 0
-            ? '—'
-            : roundToTwoDecimals(rating).toStringAsFixed(2));
+        : (rating == 0 ? '—' : roundToTwoDecimals(rating).toStringAsFixed(2));
     final feedbackText = feedbackPct == null
         ? '—'
         : '${roundToTwoDecimals(feedbackPct).toStringAsFixed(2)}%';

@@ -13,7 +13,7 @@ import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/main.dart';
 import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/providers/notification_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../screens/login_screen.dart';
@@ -53,9 +53,8 @@ Future<void> authenticate() async {
       await fetchUserDetails();
       await fetchUserProfilePicture();
       await getUserMessInfo();
-      // await registerFcmToken();
       await HostelsNotifier.init();
-      await syncAlerts();
+      await globalNotificationProvider.syncAlerts();
     }
     ProfilePictureProvider.init();
   } on PlatformException catch (_) {
@@ -105,7 +104,7 @@ Future<void> guestAuthenticate() async {
       await getUserMessInfo();
       //debugPrint("Guest authentication successful");
       await HostelsNotifier.init();
-      await syncAlerts();
+      await globalNotificationProvider.syncAlerts();
     }
     ProfilePictureProvider.init();
   } catch (e) {
@@ -170,7 +169,7 @@ Future<void> logoutHandler(context) async {
   AppBootstrapCache.clear();
   AppBootstrapCache.clear();
   // Instantly wipe the local alerts cache and UI
-  await clearAlerts();
+  await globalNotificationProvider.clearAlerts();
   // Use the global navigator if available; the dialog's build context may be
   // deactivated after calling Navigator.pop() in the dialog. This avoids the
   // "Looking up a deactivated widget's ancestor is unsafe" error.
@@ -246,9 +245,8 @@ Future<void> signInWithApple() async {
       if (hasMicrosoftLinked) {
         await getUserMessInfo();
       }
-      // await registerFcmToken();
       await HostelsNotifier.init();
-      await syncAlerts();
+      await globalNotificationProvider.syncAlerts();
     }
     ProfilePictureProvider.init();
   } on SignInWithAppleAuthorizationException catch (e) {
@@ -327,10 +325,10 @@ Future<void> linkMicrosoftAccount() async {
     ProfilePictureProvider.init();
 
     // Re-register FCM token to subscribe to hostel/mess-specific topics
-    await registerFcmToken();
+    await globalNotificationProvider.registerFcmToken();
 
     // Trigger home screen refresh to update displayed name
-    homeScreenRefreshNotifier.value = true;
+    globalNotificationProvider.triggerHomeScreenRefresh();
   } catch (e) {
     rethrow;
   }
