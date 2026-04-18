@@ -1,5 +1,3 @@
-// notifications.dart
-
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
@@ -11,7 +9,6 @@ import 'package:dio/dio.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend2/models/notification_model.dart';
 import 'package:firebase_core/firebase_core.dart';
@@ -28,6 +25,10 @@ SharedPreferences? _sharedPrefs;
 
 // ✅ Global ValueNotifier for notification updates (can be listened to by UI)
 final ValueNotifier<List<NotificationModel>> notificationHistoryNotifier =
+    ValueNotifier<List<NotificationModel>>([]);
+
+// ✅ Global ValueNotifier for active alerts
+final ValueNotifier<List<NotificationModel>> activeAlertsNotifier =
     ValueNotifier<List<NotificationModel>>([]);
 
 // ✅ Global ValueNotifier to trigger feedback card refresh
@@ -72,11 +73,23 @@ Future<void> setupNotificationChannel() async {
   await androidImplementation?.createNotificationChannel(highImportanceChannel);
 }
 
+void _updateActiveAlerts() {
+  final now = DateTime.now().millisecondsSinceEpoch;
+  final activeAlerts = notificationHistoryNotifier.value
+      .where((n) => n.isAlert && n.expiresAt > now)
+      .toList();
+  // Sort them so the one ending soonest is first
+  activeAlerts.sort((a, b) => a.expiresAt.compareTo(b.expiresAt));
+  activeAlertsNotifier.value = activeAlerts;
+}
+
 // ✅ Helper function to save notification to SharedPreferences for history
 Future<void> _saveNotificationToHistory(
   String title,
   String body, {
+  String? id,
   String? redirectType,
+  String? targetType,
   bool isAlert = false,
   bool hasCountdown = false,
   int expiresAt = 0,
@@ -85,6 +98,7 @@ Future<void> _saveNotificationToHistory(
     _sharedPrefs ??= await SharedPreferences.getInstance();
 
     final notification = NotificationModel(
+      id: id,
       title: title,
       body: body,
       redirectType: redirectType,
@@ -93,16 +107,25 @@ Future<void> _saveNotificationToHistory(
       isRead: false,
       hasCountdown: hasCountdown,
       expiresAt: expiresAt,
+      targetType: targetType,
     );
 
     List<NotificationModel> notifications = _loadNotificationsFromPrefs();
     notifications = _cleanupExpiredNotifications(notifications);
+
+    // Deduplicate by ID if present
+    if (id != null && id.isNotEmpty) {
+      notifications.removeWhere((n) => n.id == id);
+    }
+
     notifications.add(notification);
 
     final jsonList = notifications.map((n) => jsonEncode(n.toJson())).toList();
     await _sharedPrefs?.setStringList('notifications', jsonList);
 
     notificationHistoryNotifier.value = notifications;
+    _updateActiveAlerts();
+
     if (kDebugMode) {
       debugPrint(
           '✅ Saved notification to history: $title: $body (isAlert: $isAlert)');
@@ -222,7 +245,7 @@ bool _shouldPersistHistoryFromMessage(RemoteMessage message) {
   final title = (nt != null && nt.isNotEmpty)
       ? nt
       : ((dt != null && dt.isNotEmpty) ? dt : 'No Title');
-  // Prefer data body when present (e.g. alerts: FCM notification body may add ⏱ timer line).
+  // Prefer data body when present
   final body = (db != null && db.isNotEmpty)
       ? db
       : ((nb != null && nb.isNotEmpty) ? nb : 'No Body');
@@ -239,7 +262,9 @@ Future<void> _saveHistoryFromRemoteMessage(RemoteMessage message) async {
   await _saveNotificationToHistory(
     title,
     body,
+    id: data['id']?.toString(),
     redirectType: data['redirectType'] as String?,
+    targetType: data['targetType'] as String?,
     isAlert: isAlert,
     hasCountdown: hasCountdown,
     expiresAt: expiresAt,
@@ -257,12 +282,8 @@ List<NotificationModel> _loadNotificationsFromPrefs() {
         final json = jsonDecode(jsonString);
         notifications.add(NotificationModel.fromJson(json));
       } catch (e) {
-        // Try legacy string format
-        try {
-          notifications.add(NotificationModel.fromLegacyString(jsonString));
-        } catch (_) {
-          // Skip invalid entries
-        }
+        // Skip invalid entries
+        if (kDebugMode) debugPrint('❌ Invalid notification entry: $e');
       }
     }
 
@@ -302,9 +323,97 @@ Future<void> _updateNotificationsInPrefs(
     final jsonList = notifications.map((n) => jsonEncode(n.toJson())).toList();
     await _sharedPrefs?.setStringList('notifications', jsonList);
     notificationHistoryNotifier.value = notifications;
+    _updateActiveAlerts();
   } catch (e) {
     if (kDebugMode) debugPrint('❌ Error updating notifications: $e');
   }
+}
+
+// ✅ Apply alerts from server JSON payload (e.g. bootstrap)
+Future<void> applyAlertsFromServerJson(List<dynamic> alertsJson) async {
+  _sharedPrefs ??= await SharedPreferences.getInstance();
+  List<NotificationModel> history = _loadNotificationsFromPrefs();
+  bool changed = false;
+
+  for (var e in alertsJson) {
+    if (e is! Map) continue;
+    final data = Map<String, dynamic>.from(e);
+    final alertId = data['id']?.toString();
+
+    if (alertId != null && !history.any((n) => n.id == alertId)) {
+      final serverAlert = NotificationModel.fromJson({
+        ...data,
+        'isAlert': true,
+        'timestamp': DateTime.now().toIso8601String(),
+      });
+      history.add(serverAlert);
+      changed = true;
+    }
+  }
+
+  if (changed) {
+    history = _cleanupExpiredNotifications(history);
+    await _updateNotificationsInPrefs(history);
+  } else {
+    _updateActiveAlerts();
+  }
+}
+
+// ✅ Sync active alerts from server
+Future<void> syncAlerts() async {
+  try {
+    final dio = DioClient().dio;
+    final response = await dio.get(NotificationEndpoints.getAlerts);
+    if (response.statusCode == 200 && response.data['alerts'] != null) {
+      _sharedPrefs ??= await SharedPreferences.getInstance();
+      final List<dynamic> alertsJson = response.data['alerts'];
+
+      List<NotificationModel> history = _loadNotificationsFromPrefs();
+      bool changed = false;
+
+      for (var e in alertsJson) {
+        final alertId = e['id']?.toString();
+        // Only add if we don't already have an alert with this ID
+        if (alertId != null && !history.any((n) => n.id == alertId)) {
+          final serverAlert = NotificationModel.fromJson({
+            ...e,
+            'isAlert': true,
+            'timestamp': DateTime.now().toIso8601String(),
+          });
+          history.add(serverAlert);
+          changed = true;
+        }
+      }
+
+      if (changed) {
+        history = _cleanupExpiredNotifications(history);
+        await _updateNotificationsInPrefs(history);
+      } else {
+        // Even if no new alerts, re-evaluate active alerts
+        _updateActiveAlerts();
+      }
+    }
+  } catch (e) {
+    if (kDebugMode) debugPrint("Error syncing alerts: $e");
+    // Fallback to local cache evaluation
+    _updateActiveAlerts();
+  }
+}
+
+// ✅ The Filter Loop (Run on every App Foreground / Resume)
+Future<void> filterAndLoadLocalAlerts() async {
+  _sharedPrefs ??= await SharedPreferences.getInstance();
+  var notifications = _loadNotificationsFromPrefs();
+  notificationHistoryNotifier.value = notifications;
+  _updateActiveAlerts();
+}
+
+// ✅ Clear notifications/alerts
+Future<void> clearAlerts() async {
+  activeAlertsNotifier.value = []; // Instantly clear the UI
+  notificationHistoryNotifier.value = [];
+  _sharedPrefs ??= await SharedPreferences.getInstance();
+  await _sharedPrefs?.remove('notifications'); // Wipe the local cache
 }
 
 // ✅ Mark notification as read by index
@@ -333,16 +442,35 @@ Future<void> markAllNotificationsAsRead() async {
   }
 }
 
+// ✅ Mark all active alerts as read (e.g. from Updates card)
+Future<void> markAllAlertsAsRead() async {
+  try {
+    List<NotificationModel> notifications = _loadNotificationsFromPrefs();
+    bool changed = false;
+    final now = DateTime.now().millisecondsSinceEpoch;
+
+    for (int i = 0; i < notifications.length; i++) {
+      if (notifications[i].isAlert &&
+          !notifications[i].isRead &&
+          notifications[i].expiresAt > now) {
+        notifications[i] = notifications[i].copyWith(isRead: true);
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await _updateNotificationsInPrefs(notifications);
+      if (kDebugMode) debugPrint('✅ Marked all active alerts as read');
+    }
+  } catch (e) {
+    if (kDebugMode) debugPrint('❌ Error marking alerts as read: $e');
+  }
+}
+
 // ✅ Get unread notifications count
 int getUnreadNotificationsCount() {
   final notifications = _loadNotificationsFromPrefs();
   return notifications.where((n) => !n.isRead).length;
-}
-
-// ✅ Get active alerts (less than 2 hours old)
-List<NotificationModel> getActiveAlerts() {
-  final notifications = _loadNotificationsFromPrefs();
-  return notifications.where((n) => n.isAlertActive).toList();
 }
 
 // ✅ Background message handler (must be top-level function)
@@ -357,7 +485,6 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 
   // --- SCENARIO 1: Unified alert (`alert: true` from server createAlert, etc.) ---
   if (_dataBoolTrue(Map<String, dynamic>.from(message.data), 'alert')) {
-    await AlertsManager.addAlertFromFCM(message.data);
     if (_shouldPersistHistoryFromMessage(message)) {
       await _saveHistoryFromRemoteMessage(message);
     }
@@ -401,6 +528,7 @@ Future<void> initializeFcm() async {
   var notifications = _loadNotificationsFromPrefs();
   notifications = _cleanupExpiredNotifications(notifications);
   notificationHistoryNotifier.value = notifications;
+  _updateActiveAlerts();
 
   // ✅ Foreground message handler
   FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
@@ -409,9 +537,6 @@ Future<void> initializeFcm() async {
     }
 
     final data = Map<String, dynamic>.from(message.data);
-    if (_dataBoolTrue(data, 'alert')) {
-      await AlertsManager.addAlertFromFCM(message.data);
-    }
 
     if (_shouldPersistHistoryFromMessage(message)) {
       await _saveHistoryFromRemoteMessage(message);
@@ -488,11 +613,8 @@ void _showLocalNotification(
   final dataMap = data ?? {};
   final hasCountdown = _hasCountdownFromData(dataMap);
   final expiresAt = _expiresAtFromData(dataMap);
-  final dataBody = dataMap['body']?.toString().trim();
   final displayTitle = notification.title ?? '';
-  final displayBody = (dataBody != null && dataBody.isNotEmpty)
-      ? dataBody
-      : (notification.body ?? '');
+  final displayBody = notification.body ?? '';
 
   final alertIdStr = dataMap['id']?.toString() ?? '';
 
@@ -502,10 +624,10 @@ void _showLocalNotification(
       expiresAt > 0 &&
       alertIdStr.isNotEmpty) {
     final ttlSec = _ttlSecondsFromData(dataMap);
-    final fallbackTtl = ((expiresAt - DateTime.now().millisecondsSinceEpoch) /
-            1000)
-        .ceil()
-        .clamp(1, 8640000);
+    final fallbackTtl =
+        ((expiresAt - DateTime.now().millisecondsSinceEpoch) / 1000)
+            .ceil()
+            .clamp(1, 8640000);
     _startAndroidAlertProgressNotification(
       notificationId: _notificationIdForAlertData(dataMap),
       alertId: alertIdStr,
@@ -540,11 +662,6 @@ void _showLocalNotification(
               playSound: true,
             );
 
-  // Tray body: Android uses clean data body + optional chronometer; iOS uses FCM text (server may append ⏱).
-  final String bodyForShow = Platform.isAndroid
-      ? displayBody
-      : (notification.body ?? displayBody);
-
   const DarwinNotificationDetails iosDarwin = DarwinNotificationDetails(
     presentAlert: true,
     presentBadge: true,
@@ -561,7 +678,7 @@ void _showLocalNotification(
   flutterLocalNotificationsPlugin.show(
     id,
     displayTitle,
-    bodyForShow,
+    displayBody,
     notificationDetails,
     payload: redirectType,
   );
@@ -570,7 +687,9 @@ void _showLocalNotification(
 // ✅ Handler for local notification taps
 @pragma('vm:entry-point')
 void _onNotificationTap(NotificationResponse response) {
-  if (kDebugMode) debugPrint('🔔 Local notification tapped: ${response.payload}');
+  if (kDebugMode) {
+    debugPrint('🔔 Local notification tapped: ${response.payload}');
+  }
   if (response.payload != null && response.payload!.isNotEmpty) {
     final redirectType = response.payload!;
     _handleNotificationNavigation({'redirectType': redirectType});
@@ -584,7 +703,9 @@ Future<void> registerFcmToken() async {
 
     // Return early if user is not authenticated
     if (header == 'error') {
-      if (kDebugMode) debugPrint('⚠️ Cannot register FCM token: User not authenticated');
+      if (kDebugMode) {
+        debugPrint('⚠️ Cannot register FCM token: User not authenticated');
+      }
       return;
     }
 
@@ -652,7 +773,7 @@ Future<void> registerFcmToken() async {
               'Content-Type': 'application/json',
             },
           ),
-          data: jsonEncode({'fcmToken': fcmToken}), 
+          data: jsonEncode({'fcmToken': fcmToken}),
         );
         if (res.statusCode == 200) {
           if (kDebugMode) debugPrint('🔄 FCM token re-registered: $fcmToken');
@@ -743,6 +864,3 @@ Future<List<NotificationModel>> getNotificationHistory() async {
     return [];
   }
 }
-
-// ✅ Exposed helper functions for UI access
-// These are already accessible through the module, but keeping for explicit access

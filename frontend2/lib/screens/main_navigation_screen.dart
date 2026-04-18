@@ -11,7 +11,6 @@ import 'package:frontend2/screens/gala_dinner_screen.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/mess_preference.dart';
 import 'package:frontend2/screens/account_screen.dart';
-import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/common/bottom_nav_bar.dart';
 import 'package:frontend2/widgets/common/shimmer_host.dart';
@@ -92,7 +91,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       await getUserMessInfo();
     } catch (_) {}
     try {
-      await AlertsManager.syncAlerts();
+      await syncAlerts();
     } catch (_) {}
     await _resolveGalaTabVisibility(
       preloadedUpcoming: _upcomingGalaFromBootstrap,

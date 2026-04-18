@@ -8,11 +8,9 @@ import 'package:frontend2/apis/mess/mess_menu.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:frontend2/models/alert_model.dart';
 import 'package:frontend2/models/mess_menu_model.dart';
 import 'package:frontend2/models/notification_model.dart';
 import 'package:frontend2/providers/hostels.dart';
-import 'package:frontend2/providers/notifications.dart';
 import 'package:frontend2/providers/room_cleaning_provider.dart';
 import 'package:frontend2/screens/laundry/laundry_screen.dart';
 import 'package:frontend2/screens/notification.dart';
@@ -22,12 +20,10 @@ import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
 import 'package:frontend2/utils/meal_countdown_text.dart';
 import 'package:frontend2/utilities/alert_expirer.dart';
-import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/widgets/alert_countdown_text.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
 import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
-// import 'package:frontend2/widgets/countdown.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:frontend2/widgets/festival_background_widget.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
@@ -81,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _weatherBackgroundTimer;
   Timer? _deferredHomeNetworkTimer;
   int _debugTitleTapCount = 0;
+
   /// First weather + optional deferred festival hit server after this delay (not on Home mount).
   static const Duration _kDeferredHomeNetworkDelay = Duration(seconds: 60);
   WeatherBackgroundData _weatherBackground =
@@ -173,11 +170,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Add dummy alerts for testing extended background
       if (_isTestingNotifications) {
         final dummyAlerts = [
-          AlertModel(
+          NotificationModel(
             id: 'dummy-1',
             title: 'Important Messages',
             body: 'Mess will be closed on 29 May, Sunday',
             hasCountdown: false,
+            timestamp: DateTime.now(),
             expiresAt: DateTime.now()
                     .add(const Duration(days: 1))
                     .millisecondsSinceEpoch ~/
@@ -185,11 +183,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             targetType: 'global',
             isRead: false,
           ),
-          AlertModel(
+          NotificationModel(
             id: 'dummy-2',
             title: 'Important Messages',
             body: 'Use the scanning feature for filling the complaints',
             hasCountdown: false,
+            timestamp: DateTime.now(),
             expiresAt: DateTime.now()
                     .add(const Duration(days: 1))
                     .millisecondsSinceEpoch ~/
@@ -198,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             isRead: false,
           ),
         ];
-        AlertsManager.activeAlertsNotifier.value = dummyAlerts;
+        activeAlertsNotifier.value = dummyAlerts;
       }
 
       // Room-cleaning bookings are hydrated by bootstrap when available.
@@ -233,7 +232,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _reloadAlertsFromPrefs() async {
     try {
-      await AlertsManager.filterAndLoadLocalAlerts();
+      await filterAndLoadLocalAlerts();
       if (kDebugMode) {
         debugPrint('✅ Reloaded alerts from prefs on app resume');
       }
@@ -249,7 +248,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       final notifications = await getNotificationHistory();
       notificationHistoryNotifier.value = notifications;
       if (kDebugMode) {
-        debugPrint('✅ Reloaded ${notifications.length} notifications from prefs on app resume');
+        debugPrint(
+            '✅ Reloaded ${notifications.length} notifications from prefs on app resume');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -781,8 +781,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         InkWell(
           onTap: () => widget.onNavigateToTab?.call(1),
           borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 2),
             child: Row(
               children: [
                 Text(
@@ -794,7 +794,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     color: accent,
                   ),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
@@ -997,7 +997,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   String _getBackgroundAssetPath(String basePath) {
     // Check if there are important messages
-    final activeAlerts = AlertsManager.activeAlertsNotifier.value;
+    final activeAlerts = activeAlertsNotifier.value;
     if (activeAlerts.isNotEmpty) {
       // Use extended version when there are important messages
       if (basePath.contains('.png')) {
@@ -1108,8 +1108,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final subtitleColor = _heroNotificationSubtitleColor();
 
     final greetingFontSize = hasImportantMessages ? 16.0 : 24.0;
-    final greetingLineHeight =
-        hasImportantMessages ? (20 / 16) : (32 / 24);
+    final greetingLineHeight = hasImportantMessages ? (20 / 16) : (32 / 24);
 
     return SafeArea(
       bottom: false,
@@ -1189,7 +1188,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildImportantMessagesCard(List<AlertModel> activeAlerts) {
+  Widget _buildImportantMessagesCard(List<NotificationModel> activeAlerts) {
     if (activeAlerts.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1275,7 +1274,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onTap: () async {
         // Clear alert badges; notification read state is updated from the sheet
         // (Mark all read / per-item tap), not when opening.
-        await AlertsManager.markAllAlertsAsRead();
+        await markAllAlertsAsRead();
         _openNotificationsSheet();
       },
       child: Container(
@@ -1304,7 +1303,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
             const Spacer(),
-            Icon(Icons.chevron_right_rounded, size: 16, color: accent),
+            const Icon(Icons.chevron_right_rounded, size: 16, color: accent),
           ],
         ),
       ),
@@ -1312,21 +1311,27 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildAlertsSection() {
-    return ValueListenableBuilder<List<AlertModel>>(
-      valueListenable: AlertsManager.activeAlertsNotifier,
+    return ValueListenableBuilder<List<NotificationModel>>(
+      valueListenable: activeAlertsNotifier,
       builder: (context, activeAlerts, child) {
-            return ValueListenableBuilder<List<NotificationModel>>(
-              valueListenable: NotificationProvider.notificationProvider,
-              builder: (context, storedNotifications, child) {
-                final notifications = storedNotifications;
-                // notifications.forEach((notification) {print(notification.timestamp);});
-                // notifications.forEach((notification) {print(notification.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)));});
-              final unreadNotifCount = notifications.where((n) => !n.isRead).length;
-              // final unreadAlertsCount =
-              //     activeAlerts.where((a) => !a.isRead).length;
+        return ValueListenableBuilder<List<NotificationModel>>(
+          valueListenable: notificationHistoryNotifier,
+          builder: (context, storedNotifications, child) {
+            final notifications = storedNotifications;
+            // notifications.forEach((notification) {print(notification.timestamp);});
+            // notifications.forEach((notification) {print(notification.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)));});
+            final unreadNotifCount =
+                notifications.where((n) => !n.isRead).length;
+            // final unreadAlertsCount =
+            //     activeAlerts.where((a) => !a.isRead).length;
             // final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
             final updatesCount = unreadNotifCount;
-            final todayNotificationCount = notifications.where((n) => (!n.isAlert) && n.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day))).length;
+            final todayNotificationCount = notifications
+                .where((n) =>
+                    (!n.isAlert) &&
+                    n.timestamp.isAfter(DateTime(DateTime.now().year,
+                        DateTime.now().month, DateTime.now().day)))
+                .length;
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1363,7 +1368,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             action.iconAsset!,
             width: 24,
             height: 24,
-            colorFilter: ColorFilter.mode(accent, BlendMode.srcIn),
+            colorFilter: const ColorFilter.mode(accent, BlendMode.srcIn),
           )
         : Icon(action.icon, color: accent, size: 24);
 
@@ -1522,8 +1527,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildWeatherHeroSection() {
-    final festivalModeOn =
-        FestivalModeService().currentData?.isEnabled == true;
+    final festivalModeOn = FestivalModeService().currentData?.isEnabled == true;
     final rainPriority = _weatherBackground.weatherGroup == 'rainy';
     final festivalOn = festivalModeOn && !rainPriority;
 
@@ -1531,8 +1535,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return ValueListenableBuilder<FestivalModeData>(
         valueListenable: FestivalModeService().festivalVisualNotifier,
         builder: (context, festData, _) {
-          return ValueListenableBuilder<List<AlertModel>>(
-            valueListenable: AlertsManager.activeAlertsNotifier,
+          return ValueListenableBuilder<List<NotificationModel>>(
+            valueListenable: activeAlertsNotifier,
             builder: (context, activeAlerts, _) {
               final hasAlerts = activeAlerts.isNotEmpty;
               final rawUrl = FestivalModeService()
@@ -1608,8 +1612,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<AlertModel>>(
-      valueListenable: AlertsManager.activeAlertsNotifier,
+    return ValueListenableBuilder<List<NotificationModel>>(
+      valueListenable: activeAlertsNotifier,
       builder: (context, activeAlerts, _) {
         final rainPriority = _weatherBackground.weatherGroup == 'rainy';
         return FestivalBackgroundBuilder(
@@ -1620,8 +1624,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 FestivalModeService().currentData?.isEnabled ?? false;
             final festivalOn = festivalModeOn && !rainPriority;
             return Scaffold(
-              backgroundColor:
-                  festivalOn ? Colors.transparent : pageBackground,
+              backgroundColor: festivalOn ? Colors.transparent : pageBackground,
               body: currSubscribedMess.isEmpty
                   ? SingleChildScrollView(
                       child: Column(
@@ -1636,8 +1639,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 Padding(
                                   padding:
                                       const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                                  child:
-                                      ValueListenableBuilder<List<String>>(
+                                  child: ValueListenableBuilder<List<String>>(
                                     valueListenable:
                                         HostelsNotifier.hostelNotifier,
                                     builder: (context, _, __) =>
@@ -1680,8 +1682,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                               16, 32, 16, 32),
                                           child: ValueListenableBuilder<
                                               List<String>>(
-                                            valueListenable: HostelsNotifier
-                                                .hostelNotifier,
+                                            valueListenable:
+                                                HostelsNotifier.hostelNotifier,
                                             builder: (context, _, __) =>
                                                 _buildQuickActionsSection(),
                                           ),
@@ -1691,8 +1693,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           padding: const EdgeInsets.fromLTRB(
                                               16, 32, 16, 32),
                                           child: menuSnap.hasError
-                                              ? _buildMessSectionError(
-                                                  messName)
+                                              ? _buildMessSectionError(messName)
                                               : _buildMessSectionForMenus(
                                                   messName,
                                                   menuSnap.data ??

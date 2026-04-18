@@ -55,8 +55,6 @@ String _getErrorMessage(dynamic error) {
 
 class _OnboardingScreenState extends State<OnboardingScreen>
     with SingleTickerProviderStateMixin {
-  bool _inprogress = false;
-
   late AnimationController _controller;
   late Animation<double> _curvedAnimation;
   late Animation<double> _expand_animation;
@@ -156,13 +154,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         final navigator = Navigator.of(sheetContext);
         final messenger = ScaffoldMessenger.of(sheetContext);
         try {
-          setModalState(() {
-            _inprogress = true;
-          });
           await signInWithApple();
-          setModalState(() {
-            _inprogress = false;
-          });
           if (!mounted) return;
           await FestivalModeService().bootstrapBeforeHome();
           if (!mounted) return;
@@ -189,9 +181,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
           );
         } catch (e) {
           navigator.pop();
-          setModalState(() {
-            _inprogress = false;
-          });
           final errorMessage = _getErrorMessage(e);
           messenger.showSnackBar(
             SnackBar(
@@ -303,13 +292,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                               final navigator = Navigator.of(context);
                               final messenger = ScaffoldMessenger.of(context);
                               try {
-                                setModalState(() {
-                                  _inprogress = true;
-                                });
                                 await authenticate();
-                                setModalState(() {
-                                  _inprogress = false;
-                                });
                                 if (!mounted) return;
                                 await FestivalModeService()
                                     .bootstrapBeforeHome();
@@ -338,9 +321,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 );
                               } catch (e) {
                                 navigator.pop();
-                                setModalState(() {
-                                  _inprogress = false;
-                                });
                                 final errorMessage = _getErrorMessage(e);
                                 messenger.showSnackBar(
                                   SnackBar(
@@ -412,13 +392,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                 final navigator = Navigator.of(context);
                                 final messenger = ScaffoldMessenger.of(context);
                                 try {
-                                  setModalState(() {
-                                    _inprogress = true;
-                                  });
                                   await guestAuthenticate();
-                                  setModalState(() {
-                                    _inprogress = false;
-                                  });
                                   if (!mounted) return;
                                   await FestivalModeService()
                                       .bootstrapBeforeHome();
@@ -447,9 +421,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                                   );
                                 } catch (e) {
                                   navigator.pop();
-                                  setModalState(() {
-                                    _inprogress = false;
-                                  });
                                   final errorMessage = _getErrorMessage(e);
                                   messenger.showSnackBar(
                                     SnackBar(
@@ -497,25 +468,6 @@ class _OnboardingScreenState extends State<OnboardingScreen>
                     ),
                   ),
                 ),
-
-                // Lottie loader overlay
-                // if (_inprogress)
-                //   Positioned.fill(
-                //     child: AbsorbPointer(
-                //       absorbing: true,
-                //       child: Container(
-                //         color: const Color.fromRGBO(0, 0, 0, 0.7),
-                //         child: Center(
-                //           child: Lottie.asset(
-                //             'assets/lottie/loader.json',
-                //             width: 240,
-                //             height: 240,
-                //             fit: BoxFit.contain,
-                //           ),
-                //         ),
-                //       ),
-                //     ),
-                //   ),
               ],
             );
           },

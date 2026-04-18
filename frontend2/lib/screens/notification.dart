@@ -1,9 +1,6 @@
-// notification.dart
-
 import 'package:flutter/material.dart';
 import 'package:frontend2/constants/app_ui_tokens.dart';
 import 'package:frontend2/models/notification_model.dart';
-import 'package:frontend2/providers/notifications.dart';
 import 'package:frontend2/utilities/notification_card.dart';
 import 'package:frontend2/utilities/notifications.dart';
 
@@ -45,9 +42,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
     final sheetMaxHeight = h * _sheetHostHeightFactor;
     // Visible panel height = extent * host height. Everything above that inside
     // DraggableScrollableSheet still hit-tests and blocks the modal barrier.
-    final extent = _sheetController.isAttached
-        ? _sheetController.size
-        : _initialChildSize;
+    final extent =
+        _sheetController.isAttached ? _sheetController.size : _initialChildSize;
     final topDismissHeight = (h - extent * sheetMaxHeight).clamp(0.0, h);
 
     return Stack(
@@ -81,7 +77,8 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             margin: const EdgeInsets.only(bottom: 4),
                             decoration: const BoxDecoration(
                               color: AppUi.sheetHandle,
-                              borderRadius: BorderRadius.all(Radius.circular(999)),
+                              borderRadius:
+                                  BorderRadius.all(Radius.circular(999)),
                             ),
                           ),
                         ),
@@ -102,16 +99,16 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             ),
                             const SizedBox(width: 12),
                             Expanded(
-                              child:
-                                  ValueListenableBuilder<List<NotificationModel>>(
-                                valueListenable:
-                                    NotificationProvider.notificationProvider,
+                              child: ValueListenableBuilder<
+                                  List<NotificationModel>>(
+                                valueListenable: notificationHistoryNotifier,
                                 builder: (context, notifications, _) {
                                   final unread = notifications
                                       .where((n) => !n.isRead)
                                       .length;
                                   return Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       const Text(
                                         'Notifications',
@@ -130,8 +127,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                               ),
                             ),
                             ValueListenableBuilder<List<NotificationModel>>(
-                              valueListenable:
-                                  NotificationProvider.notificationProvider,
+                              valueListenable: notificationHistoryNotifier,
                               builder: (context, notifications, _) {
                                 final hasUnread =
                                     notifications.any((n) => !n.isRead);
@@ -165,8 +161,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                       ),
                       Expanded(
                         child: ValueListenableBuilder<List<NotificationModel>>(
-                          valueListenable:
-                              NotificationProvider.notificationProvider,
+                          valueListenable: notificationHistoryNotifier,
                           builder: (context, storedNotifications, child) {
                             final List<NotificationModel> notifications =
                                 storedNotifications.toList();

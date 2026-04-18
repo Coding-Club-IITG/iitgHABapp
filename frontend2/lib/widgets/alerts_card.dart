@@ -1,15 +1,15 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../utilities/alert_manager.dart';
-import '../models/alert_model.dart';
+import '../utilities/notifications.dart';
+import '../models/notification_model.dart';
 
 class AlertsCard extends StatelessWidget {
   const AlertsCard({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<AlertModel>>(
-      valueListenable: AlertsManager.activeAlertsNotifier,
+    return ValueListenableBuilder<List<NotificationModel>>(
+      valueListenable: activeAlertsNotifier,
       builder: (context, activeAlerts, child) {
         if (activeAlerts.isEmpty) {
           return const SizedBox.shrink(); // Hide entirely if no active alerts
@@ -17,10 +17,10 @@ class AlertsCard extends StatelessWidget {
 
         // We filter out alerts locally if the user has already completed the action
         final validAlerts = activeAlerts.where((alert) {
-             // If you want to check local state (like hasAppliedForMessChange), you can do it here
-             // bool hasApplied = Provider.of<UserProvider>(context).user.hasAppliedForMessChange;
-             // if (alert.targetType == 'mess' && hasApplied) return false;
-             return true; 
+          // If you want to check local state (like hasAppliedForMessChange), you can do it here
+          // bool hasApplied = Provider.of<UserProvider>(context).user.hasAppliedForMessChange;
+          // if (alert.targetType == 'mess' && hasApplied) return false;
+          return true;
         }).toList();
 
         if (validAlerts.isEmpty) return const SizedBox.shrink();
@@ -38,7 +38,8 @@ class AlertsCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  Icon(Icons.warning_amber_outlined, color: Colors.red[800], size: 20),
+                  Icon(Icons.warning_amber_outlined,
+                      color: Colors.red[800], size: 20),
                   const SizedBox(width: 8),
                   Text(
                     "Active Alerts",
@@ -59,7 +60,7 @@ class AlertsCard extends StatelessWidget {
     );
   }
 
-  Widget _buildAlertItem(AlertModel alert) {
+  Widget _buildAlertItem(NotificationModel alert) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: Column(
@@ -95,7 +96,8 @@ class _CountdownTextState extends State<_CountdownText> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(minutes: 1), (timer) => setState(() {}));
+    _timer =
+        Timer.periodic(const Duration(minutes: 1), (timer) => setState(() {}));
   }
 
   @override
@@ -108,7 +110,7 @@ class _CountdownTextState extends State<_CountdownText> {
   Widget build(BuildContext context) {
     final now = DateTime.now().millisecondsSinceEpoch;
     final diff = widget.expiresAt - now;
-    
+
     if (diff <= 0) return const SizedBox.shrink();
 
     final hours = diff ~/ (1000 * 60 * 60);
@@ -118,7 +120,8 @@ class _CountdownTextState extends State<_CountdownText> {
       padding: const EdgeInsets.only(top: 4.0),
       child: Text(
         "Expires in ${hours}h ${minutes}m",
-        style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red[900]),
+        style: TextStyle(
+            fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red[900]),
       ),
     );
   }

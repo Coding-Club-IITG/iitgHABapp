@@ -97,7 +97,7 @@ const Notifications = () => {
           targetIds = [selectedHostel];
         }
 
-        url = `${BACKEND_URL}/alerts/create`;
+        url = `${BACKEND_URL}/notification/alerts/create`;
         payload = {
           title,
           body,

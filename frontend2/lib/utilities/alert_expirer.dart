@@ -1,15 +1,12 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:frontend2/utilities/alert_manager.dart';
+import 'package:frontend2/utilities/notifications.dart';
 
 class SilentAlertExpirer extends StatefulWidget {
   final int expiresAt;
-  
-  const SilentAlertExpirer({
-    super.key,
-    required this.expiresAt
-  });
+
+  const SilentAlertExpirer({super.key, required this.expiresAt});
 
   @override
   State<SilentAlertExpirer> createState() => SilentAlertExpirerState();
@@ -40,12 +37,12 @@ class SilentAlertExpirerState extends State<SilentAlertExpirer> {
     if (diff <= 0) {
       // If it's somehow already expired, clean it up immediately
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        AlertsManager.filterAndLoadLocalAlerts();
+        filterAndLoadLocalAlerts();
       });
     } else {
       // Set a precise one-off timer to fire the exact millisecond it expires!
       _timer = Timer(Duration(milliseconds: diff), () {
-        AlertsManager.filterAndLoadLocalAlerts();
+        filterAndLoadLocalAlerts();
       });
     }
   }
@@ -59,6 +56,6 @@ class SilentAlertExpirerState extends State<SilentAlertExpirer> {
   @override
   Widget build(BuildContext context) {
     // This widget is completely invisible and takes up 0 space in the UI
-    return const SizedBox.shrink(); 
+    return const SizedBox.shrink();
   }
 }

@@ -13,7 +13,6 @@ import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/main_navigation_screen.dart';
 import 'package:frontend2/screens/login_screen.dart';
 import 'package:frontend2/screens/mess_screen.dart';
-import 'package:frontend2/utilities/alert_manager.dart';
 import 'package:frontend2/utilities/notifications.dart';
 import 'package:frontend2/constants/themes.dart';
 import 'package:frontend2/utilities/startupitem.dart';
@@ -69,8 +68,10 @@ ThemeData buildAppTheme() {
     ),
     cardTheme: const CardThemeData(surfaceTintColor: Colors.transparent),
     dialogTheme: const DialogThemeData(surfaceTintColor: Colors.transparent),
-    bottomSheetTheme: const BottomSheetThemeData(surfaceTintColor: Colors.transparent),
-    navigationBarTheme: const NavigationBarThemeData(surfaceTintColor: Colors.transparent),
+    bottomSheetTheme:
+        const BottomSheetThemeData(surfaceTintColor: Colors.transparent),
+    navigationBarTheme:
+        const NavigationBarThemeData(surfaceTintColor: Colors.transparent),
     drawerTheme: const DrawerThemeData(surfaceTintColor: Colors.transparent),
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ButtonStyle(surfaceTintColor: noTint),
@@ -226,7 +227,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       // The Filter Loop: Run on every foreground resume
-      AlertsManager.filterAndLoadLocalAlerts();
+      filterAndLoadLocalAlerts();
     }
   }
 }

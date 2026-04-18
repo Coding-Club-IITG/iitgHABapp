@@ -4,7 +4,7 @@ import { Mess } from "../mess/messModel.js";
 import { Menu } from "../mess/menuModel.js";
 import { MenuItem } from "../mess/menuItemModel.js";
 import { MessClosure } from "../hostel/messClosureModel.js";
-import Alert from "../alert/alertModel.js";
+import Alert from "../notification/notificationModel.js";
 import { GalaDinner } from "../gala/galaDinnerModel.js";
 import { RoomCleaningBooking } from "../room_cleaning/roomCleaningBookingModel.js";
 
@@ -98,8 +98,7 @@ async function getUserMessInfoData(subscribedHostelId) {
 
   return {
     ...messInfo,
-    rating:
-      messInfo.rating != null ? roundToTwoDecimals(messInfo.rating) : 0,
+    rating: messInfo.rating != null ? roundToTwoDecimals(messInfo.rating) : 0,
     ranking: messInfo.ranking != null ? Math.round(messInfo.ranking) : 0,
     feedbackPercentage:
       messInfo.feedbackPercentage != null
@@ -343,12 +342,7 @@ export const getAppBootstrap = async (req, res) => {
         upcomingGala: settleResult(settled, "upcomingGala", null, errors),
         alerts: settleResult(settled, "alerts", [], errors),
         roomCleaningBookings: {
-          bookings: settleResult(
-            settled,
-            "roomCleaningBookings",
-            [],
-            errors,
-          ),
+          bookings: settleResult(settled, "roomCleaningBookings", [], errors),
         },
         todayMenu: settleResult(
           settled,

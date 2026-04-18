@@ -37,7 +37,6 @@ import logsRoute from "./modules/mess/ScanLogsRoute.js";
 import bugReportRoute from "./modules/bug_report/bugReportRoute.js";
 import roomCleaningRoute from "./modules/room_cleaning/roomCleaningRoute.js";
 import laundryRoute from "./modules/laundry/laundryRoute.js";
-import alertRoutes from "./modules/alert/alertRoute.js";
 import galaRoute from "./modules/gala/galaRoute.js";
 import messChangeRoute from "./modules/mess_change/messchangeRoute.js";
 import profileRoute from "./modules/profile/profileRoute.js";
@@ -278,9 +277,6 @@ app.use("/api/leave", leaveRoute);
 
 // Mess Change route
 app.use("/api/mess-change", messChangeRoute);
-
-// Alert route
-app.use("/api/alerts", alertRoutes);
 
 // Profile route
 app.use("/api/profile", profileRoute);
