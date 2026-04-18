@@ -9,9 +9,14 @@ import { User } from "../user/userModel.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import { ScanLogs } from "./ScanLogsModel.js";
 import MessBill from "./messBillModel.js";
+import Leave from "../leave/leaveModel.js";
 import { QR } from "../qr/qrModel.js";
 import ExcelJS from "exceljs";
-import { uploadReportToOnedrive } from "../../utils/onedriveController.js";
+import {
+  uploadReportToOnedrive,
+  downloadFromOnedrive,
+} from "../../utils/onedriveController.js";
+import { buildMessBillExcelWorkbook } from "./messBillExcelGenerator.js";
 import { MessShutdown } from "./messShutdownModel.js";
 
 import { publishMessScan } from "../../utils/scanBroadcast.js";
@@ -1165,6 +1170,7 @@ export const generateMessBill = async (req, res) => {
       month,
       year,
       accountNumber,
+      catererName,
       operatingDays,
       shutdownDate, // kept for backward compatibility
       totalSubscribers,
@@ -1188,68 +1194,31 @@ export const generateMessBill = async (req, res) => {
       workerAttendances,
     } = billData;
 
+    const rebateIds = (billData.rebateApplicationIds || [])
+      .filter((id) => id && mongoose.isValidObjectId(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+    if (rebateIds.length) {
+      await Leave.updateMany(
+        {
+          _id: { $in: rebateIds },
+          messHostel: hostelId,
+          status: "Acknowledged",
+        },
+        { $set: { status: "Processed", processedAt: new Date() } },
+      );
+    }
+
     const safeMonth = String(month).replace(/[^a-zA-Z0-9_-]/g, "_");
     const filename = `mess-bill_${hostelId}_${safeMonth}_${year}.xlsx`;
 
-    const wb = new ExcelJS.Workbook();
-    wb.creator = "HAB";
-    wb.created = new Date();
-
-    const ws = wb.addWorksheet("Bill Summary");
-    ws.columns = [
-      { header: "Field", key: "field", width: 32 },
-      { header: "Value", key: "value", width: 28 },
-    ];
-
-    const rows = [
-      ["Month", month],
-      ["Year", year],
-      ["Hostel Name", hostelName],
-      ["Hostel ID", hostelId],
-      ["Account Number", accountNumber],
-      ["Operating Days (D)", operatingDays],
-      ["Shutdown (legacy)", shutdownDate],
-      ["Total Subscribers", totalSubscribers],
-      ["Subscribers Offset", totalSubscribersOffset],
-      ["Mess Days (M)", messDays],
-      ["Rebate Days", rebateDays],
-      ["Rebate Days Offset", rebateDaysOffset],
-      ["Consuming Days (T1)", consumingDays],
-      ["Food Cost", foodCost],
-      ["Total Wage (W)", totalWage],
-      ["Mess Bill (F + W)", messBill],
-      ["Mess Bill Claimed (B)", messBillClaimed],
-      ["GST Amount", gstAmount],
-      ["TDS Amount (T2)", tdsAmount],
-      ["First Installment (P1)", firstInstallment],
-      ["Second Installment (P2)", secondInstallment],
-      ["Rebate Reimbursement (RR)", rebateReimbursement],
-      ["Misc Deduction", miscDeduction],
-      ["HAB Transfer (T3)", habTransfer],
-      ["Total Expenditure", totalExpenditure],
-    ];
-
-    rows.forEach(([field, value]) => ws.addRow({ field, value }));
-    ws.getRow(1).font = { bold: true };
-    ws.views = [{ state: "frozen", ySplit: 1 }];
-
-    const wsWorkers = wb.addWorksheet("Worker Attendances");
-    wsWorkers.columns = [
-      { header: "Worker ID", key: "workerId", width: 28 },
-      { header: "Attendance Days", key: "days", width: 18 },
-    ];
-
-    const entries = workerAttendances && typeof workerAttendances === "object"
-      ? Object.entries(workerAttendances)
-      : [];
-    entries.forEach(([workerId, days]) => {
-      wsWorkers.addRow({ workerId, days: Number(days) || 0 });
+    const messIdForWorkers = req.hostel?.messId || null;
+    const fileBuffer = await buildMessBillExcelWorkbook({
+      hostelId,
+      billData,
+      workerAttendances,
+      messId: messIdForWorkers,
     });
-    wsWorkers.getRow(1).font = { bold: true };
-    wsWorkers.views = [{ state: "frozen", ySplit: 1 }];
-
-    // Upload to OneDrive + save URL (do not store local path)
-    const fileBuffer = await wb.xlsx.writeBuffer();
     const url = await uploadReportToOnedrive(fileBuffer, filename);
     if (!url) {
       return res.status(500).json({
@@ -1263,6 +1232,7 @@ export const generateMessBill = async (req, res) => {
       month,
       year,
       accountNumber,
+      catererName: catererName ?? "",
       operatingDays,
       shutdownDate,
       totalSubscribers,
@@ -1324,6 +1294,51 @@ export const getMessBill = async (req, res) => {
   } catch (error) {
     console.error("Error fetching mess bill:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/** Stream bill .xlsx with Content-Disposition: attachment (browser saves file, not OneDrive preview). */
+export const downloadMessBillFile = async (req, res) => {
+  try {
+    const { hostelId, month, year } = req.query;
+    if (!hostelId || !month || year === undefined || year === "") {
+      return res.status(400).json({
+        message: "hostelId, month, and year are required",
+      });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res.status(403).json({
+        message: "Unauthorized to download bill for another hostel",
+      });
+    }
+
+    const yearNum = parseInt(String(year), 10);
+    const bill = await MessBill.findOne({
+      hostel: hostelId,
+      month: String(month),
+      year: Number.isFinite(yearNum) ? yearNum : year,
+    });
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
+    const url = bill.billLink?.trim();
+    if (!url) {
+      return res.status(404).json({ message: "No file link on this bill" });
+    }
+
+    const safeMonth = String(month).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const y = Number.isFinite(yearNum) ? yearNum : year;
+    const filename = `mess-bill_${safeMonth}_${y}.xlsx`;
+
+    return downloadFromOnedrive(url, res, { inline: false, filename });
+  } catch (error) {
+    console.error("Error downloading mess bill file:", error);
+    if (!res.headersSent) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
   }
 };
 

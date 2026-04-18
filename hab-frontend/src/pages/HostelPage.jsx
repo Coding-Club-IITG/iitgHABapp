@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import HostelStats from "./stats/HostelStats";
 import HostelUsersList from "../components/HostelUsersList";
 import MessSubscribersList from "../components/MessSubscribersList";
+import MessShutdowns from "../components/MessShutdowns";
 import {
   getUnassignedMesses,
   assignMessToHostel,
@@ -244,6 +245,16 @@ export default function HostelPage() {
             >
               Hostel Stats
             </button>
+            <button
+              onClick={() => setActiveTab("mess_shutdowns")}
+              className={`py-2 px-1 border-b-2 font-medium text-sm ${
+                activeTab === "mess_shutdowns"
+                  ? "border-blue-500 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+              }`}
+            >
+              Mess Shutdowns
+            </button>
           </nav>
         </div>
 
@@ -378,6 +389,10 @@ export default function HostelPage() {
             hostelName={hostel.hostel_name}
             messId={messDetails._id}
           />
+        )}
+
+        {activeTab === "mess_shutdowns" && (
+          <MessShutdowns hostelId={hostelId} />
         )}
 
         {successMessage && (

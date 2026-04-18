@@ -20,6 +20,7 @@ import {
   getApplicationSummary,
   acknowledgeRebateApplication,
   getSemesterAcknowledgedRebateApplications,
+  streamHostelLeaveDocument,
   validateApply,
   validateGenerateFormOnly,
   generateStationLeaveFormOnly,
@@ -71,6 +72,12 @@ leaveRouter.post(
 leaveRouter.delete("/my-applications/:id", authenticateJWT, cancelApplication);
 
 // Hostel Office Endpoints
+leaveRouter.get(
+  "/hostel/applications/:id/document",
+  authenticateAdminJWT,
+  streamHostelLeaveDocument,
+);
+
 leaveRouter.get(
   "/hostel/mess-applications",
   authenticateMessManagerJWT,

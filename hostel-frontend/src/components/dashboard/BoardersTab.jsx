@@ -6,6 +6,7 @@ const BoardersTab = () => {
   const [boarders, setBoarders] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
 
   const fetchBoarders = async () => {
     try {
@@ -23,15 +24,31 @@ const BoardersTab = () => {
     fetchBoarders();
   }, []);
 
+  const filteredBoarders = boarders.filter((b) => {
+    const q = search.trim().toLowerCase();
+    if (!q) return true;
+    const name = String(b.name ?? "").toLowerCase();
+    const rollNumber = String(b.rollNumber ?? "").toLowerCase();
+    const roomNumber = String(b.roomNumber ?? "").toLowerCase();
+    const email = String(b.email ?? "").toLowerCase();
+    return (
+      name.includes(q) ||
+      rollNumber.includes(q) ||
+      roomNumber.includes(q) ||
+      email.includes(q)
+    );
+  });
+
   return (
     <Card>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-bold">Boarders</h2>
-        {boarders.length > 0 && (
+        {filteredBoarders.length > 0 && (
           <button
             onClick={() => {
               const title = "Hostel Boarders";
               const headers = [
+                "Sl. No.",
                 "Name",
                 "Roll Number",
                 "Email",
@@ -39,7 +56,8 @@ const BoardersTab = () => {
                 "Room Number",
                 "Degree",
               ];
-              const rows = boarders.map((b) => [
+              const rows = filteredBoarders.map((b, idx) => [
+                String(idx + 1),
                 b.name || "",
                 b.rollNumber || "",
                 b.email || "",
@@ -97,6 +115,16 @@ const BoardersTab = () => {
           </button>
         )}
       </div>
+
+      <div className="mb-4 flex justify-end">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search..."
+          className="w-full sm:w-64 border border-gray-300 rounded-md px-3 py-2 text-sm bg-white"
+        />
+      </div>
       
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700">
@@ -113,6 +141,7 @@ const BoardersTab = () => {
           <table className="min-w-full border border-gray-300">
             <thead className="bg-gray-100">
               <tr>
+                <th className="border border-gray-300 px-4 py-2 text-left">Sl. No.</th>
                 <th className="border border-gray-300 px-4 py-2 text-left">Name</th>
                 <th className="border border-gray-300 px-4 py-2 text-left">Roll Number</th>
                 <th className="border border-gray-300 px-4 py-2 text-left">Email</th>
@@ -122,8 +151,9 @@ const BoardersTab = () => {
               </tr>
             </thead>
             <tbody>
-              {boarders.map((boarder) => (
+              {filteredBoarders.map((boarder, idx) => (
                 <tr key={boarder._id}>
+                  <td className="border border-gray-300 px-4 py-2">{idx + 1}</td>
                   <td className="border border-gray-300 px-4 py-2">{boarder.name}</td>
                   <td className="border border-gray-300 px-4 py-2">{boarder.rollNumber}</td>
                   <td className="border border-gray-300 px-4 py-2">{boarder.email}</td>

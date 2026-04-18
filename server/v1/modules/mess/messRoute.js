@@ -43,6 +43,7 @@ import {
   updateMessWorker,
   generateMessBill,
   getMessBill,
+  downloadMessBillFile,
   getAllMessBillsByMonth,
 } from "./messController.js";
 import {
@@ -117,6 +118,7 @@ messRouter.post("/workers", authenticateAdminJWT, createMessWorker);
 messRouter.put("/workers/:id", authenticateAdminJWT, updateMessWorker);
 messRouter.delete("/workers/:id", authenticateAdminJWT, deleteMessWorker);
 messRouter.post("/bill/generate", authenticateAdminJWT, generateMessBill);
+messRouter.get("/bill/download", authenticateAdminJWT, downloadMessBillFile);
 messRouter.get("/bill", authenticateAdminJWT, getMessBill);
 messRouter.get("/bills/all", authenticateHabJWT, getAllMessBillsByMonth);
 

@@ -1117,6 +1117,85 @@ export const streamMyProofDocument = async (req, res) => {
   }
 };
 
+/**
+ * Hostel office: stream leave or proof document bytes for an application on this mess.
+ * Uses inline disposition for PDFs so the browser opens its viewer instead of OneDrive web UI.
+ */
+export const streamHostelLeaveDocument = async (req, res) => {
+  const { id } = req.params;
+  const type = String(req.query.type || "proof").toLowerCase();
+  if (!["leave", "proof"].includes(type)) {
+    return res.status(400).json({ message: "type must be leave or proof" });
+  }
+  const hostelId = req.hostel?._id;
+  if (!hostelId) {
+    return res.status(403).json({ message: "Hostel context missing" });
+  }
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid application ID" });
+  }
+
+  try {
+    const application = await Leave.findById(id).lean();
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+    if (String(application.messHostel) !== String(hostelId)) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const url =
+      type === "leave"
+        ? application.leaveDocumentUrl?.trim()
+        : application.proofDocumentUrl?.trim();
+    if (!url) {
+      return res.status(404).json({ message: "No document attached" });
+    }
+
+    const setInlineHeaders = (mimeRaw) => {
+      const mime = String(mimeRaw || "")
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+      res.setHeader("Content-Type", mime || "application/octet-stream");
+      const isPdf = mime.includes("pdf");
+      const name = isPdf ? `document-${Date.now()}.pdf` : `document-${Date.now()}`;
+      res.setHeader("Content-Disposition", `inline; filename="${name}"`);
+    };
+
+    try {
+      const r = await axios.get(url, {
+        responseType: "arraybuffer",
+        maxRedirects: 15,
+        timeout: 120000,
+        headers: {
+          Accept: "*/*",
+          "User-Agent":
+            "Mozilla/5.0 (compatible; IITG-HAB/1.0; +https://hab.codingclub.in)",
+        },
+        validateStatus: (s) => s >= 200 && s < 400,
+      });
+      const ct = String(r.headers["content-type"] || "").toLowerCase();
+      if (r.status === 200 && r.data && !ct.includes("text/html")) {
+        setInlineHeaders(r.headers["content-type"]);
+        return res.send(Buffer.from(r.data));
+      }
+    } catch (e) {
+      console.warn("[Leave] Direct document URL fetch failed (hostel):", e?.message || e);
+    }
+
+    return downloadFromOnedrive(url, res, { inline: true });
+  } catch (err) {
+    console.error("[Leave] streamHostelLeaveDocument", err);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: "Failed to fetch document",
+        error: err.message,
+      });
+    }
+  }
+};
+
 /** Calendar-month split segments from one submission share [leaveDocumentUrl]. */
 function siblingLeaveFilter(userId, leaveDocumentUrl) {
   return {
