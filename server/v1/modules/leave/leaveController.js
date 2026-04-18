@@ -1117,6 +1117,85 @@ export const streamMyProofDocument = async (req, res) => {
   }
 };
 
+/**
+ * Hostel office: stream leave or proof document bytes for an application on this mess.
+ * Uses inline disposition for PDFs so the browser opens its viewer instead of OneDrive web UI.
+ */
+export const streamHostelLeaveDocument = async (req, res) => {
+  const { id } = req.params;
+  const type = String(req.query.type || "proof").toLowerCase();
+  if (!["leave", "proof"].includes(type)) {
+    return res.status(400).json({ message: "type must be leave or proof" });
+  }
+  const hostelId = req.hostel?._id;
+  if (!hostelId) {
+    return res.status(403).json({ message: "Hostel context missing" });
+  }
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({ message: "Invalid application ID" });
+  }
+
+  try {
+    const application = await Leave.findById(id).lean();
+    if (!application) {
+      return res.status(404).json({ message: "Application not found" });
+    }
+    if (String(application.messHostel) !== String(hostelId)) {
+      return res.status(403).json({ message: "Not authorized" });
+    }
+
+    const url =
+      type === "leave"
+        ? application.leaveDocumentUrl?.trim()
+        : application.proofDocumentUrl?.trim();
+    if (!url) {
+      return res.status(404).json({ message: "No document attached" });
+    }
+
+    const setInlineHeaders = (mimeRaw) => {
+      const mime = String(mimeRaw || "")
+        .split(";")[0]
+        .trim()
+        .toLowerCase();
+      res.setHeader("Content-Type", mime || "application/octet-stream");
+      const isPdf = mime.includes("pdf");
+      const name = isPdf ? `document-${Date.now()}.pdf` : `document-${Date.now()}`;
+      res.setHeader("Content-Disposition", `inline; filename="${name}"`);
+    };
+
+    try {
+      const r = await axios.get(url, {
+        responseType: "arraybuffer",
+        maxRedirects: 15,
+        timeout: 120000,
+        headers: {
+          Accept: "*/*",
+          "User-Agent":
+            "Mozilla/5.0 (compatible; IITG-HAB/1.0; +https://hab.codingclub.in)",
+        },
+        validateStatus: (s) => s >= 200 && s < 400,
+      });
+      const ct = String(r.headers["content-type"] || "").toLowerCase();
+      if (r.status === 200 && r.data && !ct.includes("text/html")) {
+        setInlineHeaders(r.headers["content-type"]);
+        return res.send(Buffer.from(r.data));
+      }
+    } catch (e) {
+      console.warn("[Leave] Direct document URL fetch failed (hostel):", e?.message || e);
+    }
+
+    return downloadFromOnedrive(url, res, { inline: true });
+  } catch (err) {
+    console.error("[Leave] streamHostelLeaveDocument", err);
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: "Failed to fetch document",
+        error: err.message,
+      });
+    }
+  }
+};
+
 /** Calendar-month split segments from one submission share [leaveDocumentUrl]. */
 function siblingLeaveFilter(userId, leaveDocumentUrl) {
   return {
@@ -1478,6 +1557,86 @@ export const getApplicationSummary = async (req, res) => {
     applicationSummary,
     rebateSummary: applicationSummary,
   });
+};
+
+function getCurrentSemesterRange(now = new Date()) {
+  const y = now.getFullYear();
+  const m = now.getMonth(); // 0-based
+  // Semester definition:
+  // - Spring: Jan 1 .. Jun 30
+  // - Autumn: Jul 1 .. Dec 31
+  if (m <= 5) {
+    return {
+      semesterLabel: `Spring ${y}`,
+      start: new Date(y, 0, 1),
+      end: new Date(y, 5, 30, 23, 59, 59, 999),
+    };
+  }
+  return {
+    semesterLabel: `Autumn ${y}`,
+    start: new Date(y, 6, 1),
+    end: new Date(y, 11, 31, 23, 59, 59, 999),
+  };
+}
+
+/**
+ * Hostel-office: list all rebate applications in the current semester
+ * that are acknowledged but not processed.
+ *
+ * This is intended for mess bill generation workflow.
+ */
+export const getSemesterAcknowledgedRebateApplications = async (req, res) => {
+  try {
+    const hostelId = req.hostel?._id;
+    if (!hostelId) {
+      return res.status(400).json({ message: "Hostel context missing" });
+    }
+
+    const { semesterLabel, start, end } = getCurrentSemesterRange(new Date());
+
+    // Optional filter: only include applications acknowledged on/before the selected bill month.
+    // This prevents loading applications acknowledged in later months (e.g. April) for a Feb bill.
+    const month = req.query.month ? parseInt(req.query.month, 10) : null; // 1-12
+    const year = req.query.year ? parseInt(req.query.year, 10) : null;
+    let acknowledgedCutoff = null;
+    if (month && year && month >= 1 && month <= 12 && Number.isFinite(year)) {
+      acknowledgedCutoff = new Date(year, month, 0, 23, 59, 59, 999); // end of month
+    }
+
+    const query = {
+      messHostel: hostelId,
+      status: "Acknowledged",
+      $or: [{ startDate: { $lte: end }, endDate: { $gte: start } }],
+    };
+    if (acknowledgedCutoff) {
+      // Only take applications that were acknowledged by that time.
+      query.acknowledgedAt = { $lte: acknowledgedCutoff };
+    }
+
+    const applications = await Leave.find(query)
+      .sort({ appliedAt: -1 })
+      .populate("user", "name rollNumber email -_id")
+      .lean();
+
+    const totalRebateDays = applications.reduce(
+      (sum, a) => sum + (Number(a?.numberOfDays) || 0),
+      0,
+    );
+
+    return res.status(200).json({
+      message: "Semester rebate applications retrieved successfully",
+      semester: semesterLabel,
+      start,
+      end,
+      totalRebateDays,
+      applications,
+    });
+  } catch (err) {
+    return res.status(500).json({
+      message: "Error retrieving semester rebate applications",
+      error: err.message,
+    });
+  }
 };
 
 export const acknowledgeRebateApplication = async (req, res) => {

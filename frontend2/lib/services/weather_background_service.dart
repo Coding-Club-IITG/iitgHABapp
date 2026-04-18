@@ -67,7 +67,9 @@ class WeatherBackgroundData {
 }
 
 class WeatherBackgroundService {
-  static const String _apiKey = "";     
+  /// Provided at build time via:
+  /// `--dart-define=OPENWEATHER_API_KEY=...`
+  static const String _apiKey = String.fromEnvironment('OPENWEATHER_API_KEY');
 
   Future<WeatherBackgroundData> fetchBackground() async {
     try {

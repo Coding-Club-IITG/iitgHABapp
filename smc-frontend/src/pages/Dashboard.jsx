@@ -75,14 +75,18 @@ export const Dashboard = () => {
     fetchHostel();
   }, [user]);
 
-  const fetchMess = useCallback(async () => {
+  const fetchMess = useCallback(async (options) => {
+    const silent = options?.silent === true;
+
     if (!messId || !getHostelId(user)) {
       setIsLoading(false);
       return;
     }
 
     try {
-      setIsLoading(true);
+      if (!silent) {
+        setIsLoading(true);
+      }
       const response = await apiClient.post(`/mess/menu/smc/${messId}`, {
         day: days[activeTab],
       });
@@ -153,9 +157,11 @@ export const Dashboard = () => {
       setShowCreateMenu(true);
       setCurrentMenu({ breakfast: [], lunch: [], dinner: [] });
     } finally {
-      setIsLoading(false);
+      if (!silent) {
+        setIsLoading(false);
+      }
     }
-  }, [messId, activeTab]);
+  }, [messId, activeTab, user]);
 
   useEffect(() => {
     fetchMess();
@@ -163,11 +169,11 @@ export const Dashboard = () => {
 
   const handleSuccessfulMenuCreation = () => {
     setShowCreateMenu(false);
-    fetchMess();
+    fetchMess({ silent: true });
   };
 
   const handleSuccessfulMenuItemCreation = () => {
-    fetchMess();
+    fetchMess({ silent: true });
   };
 
   const handleGoToCreateMenu = () => {

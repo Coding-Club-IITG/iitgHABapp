@@ -3,6 +3,7 @@ import express from "express";
 import {
   authenticateJWT,
   authenticateMessManagerJWT,
+  authenticateAdminJWT,
 } from "../../middleware/authenticateJWT.js";
 
 import { uploadSingleToOnedrive, sendDocument } from "./OnedriveController.js";
@@ -18,6 +19,8 @@ import {
   getMessApplications,
   getApplicationSummary,
   acknowledgeRebateApplication,
+  getSemesterAcknowledgedRebateApplications,
+  streamHostelLeaveDocument,
   validateApply,
   validateGenerateFormOnly,
   generateStationLeaveFormOnly,
@@ -70,6 +73,12 @@ leaveRouter.delete("/my-applications/:id", authenticateJWT, cancelApplication);
 
 // Hostel Office Endpoints
 leaveRouter.get(
+  "/hostel/applications/:id/document",
+  authenticateAdminJWT,
+  streamHostelLeaveDocument,
+);
+
+leaveRouter.get(
   "/hostel/mess-applications",
   authenticateMessManagerJWT,
   getMessApplications,
@@ -79,6 +88,13 @@ leaveRouter.get(
   "/hostel/application-summary",
   authenticateMessManagerJWT,
   getApplicationSummary,
+);
+
+// Hostel office: semester-wise acknowledged, unprocessed applications
+leaveRouter.get(
+  "/hostel/semester-rebate-applications",
+  authenticateAdminJWT,
+  getSemesterAcknowledgedRebateApplications,
 );
 
 leaveRouter.post(

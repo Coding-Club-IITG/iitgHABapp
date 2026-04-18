@@ -138,3 +138,37 @@ export const getAllBillsByMonth = async (month, year) => {
     throw error;
   }
 };
+
+export const getMessShutdowns = async (hostelId) => {
+  try {
+    const response = await axios.get(`${BACKEND_URL}/mess/shutdowns`, {
+      params: { hostelId },
+    });
+    return response.data?.shutdowns || [];
+  } catch (error) {
+    console.error("Error fetching mess shutdowns:", error);
+    throw error;
+  }
+};
+
+export const createMessShutdown = async (payload) => {
+  try {
+    const response = await axios.post(`${BACKEND_URL}/mess/shutdowns`, payload);
+    return response.data;
+  } catch (error) {
+    console.error("Error creating mess shutdown:", error);
+    throw error;
+  }
+};
+
+export const deleteMessShutdown = async (shutdownId) => {
+  try {
+    const response = await axios.delete(
+      `${BACKEND_URL}/mess/shutdowns/${shutdownId}`,
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error deleting mess shutdown:", error);
+    throw error;
+  }
+};

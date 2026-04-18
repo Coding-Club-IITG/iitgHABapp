@@ -257,8 +257,10 @@ export async function uploadReportToOnedrive(buffer, filename) {
 
 /**
  * Resolve a OneDrive org-view share URL and stream the file bytes to `res`
+ * @param {{ inline?: boolean; filename?: string }} [options] - inline=true uses Content-Disposition: inline; filename sets attachment name
  */
-export async function downloadFromOnedrive(url, res) {
+export async function downloadFromOnedrive(url, res, options = {}) {
+  const { inline = false, filename: suggestedFilename } = options;
   try {
     if (!url)
       return res.status(404).json({ message: "No document URL attached" });
@@ -291,9 +293,18 @@ export async function downloadFromOnedrive(url, res) {
     const contentType = response.headers["content-type"] || "application/pdf";
     const ext = extensionMap[contentType] || ".bin";
     res.setHeader("Content-Type", contentType);
+    const disposition = inline ? "inline" : "attachment";
+    let fileName =
+      suggestedFilename && String(suggestedFilename).trim()
+        ? String(suggestedFilename).trim()
+        : `document-${Date.now()}${ext}`;
+    if (suggestedFilename && !/\.[a-z0-9]+$/i.test(fileName)) {
+      fileName = `${fileName}${ext}`;
+    }
+    const safe = fileName.replace(/[\r\n"]/g, "").slice(0, 180);
     res.setHeader(
       "Content-Disposition",
-      `attachment; filename="document-${Date.now()}${ext}"`,
+      `${disposition}; filename="${safe}"`,
     );
     return res.send(Buffer.from(response.data));
   } catch (err) {

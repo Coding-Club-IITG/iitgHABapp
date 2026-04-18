@@ -23,6 +23,10 @@ const messBillSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    catererName: {
+      type: String,
+      default: "",
+    },
     operatingDays: {
       type: Number,
       default: 30,
@@ -107,6 +111,10 @@ const messBillSchema = new mongoose.Schema(
       type: Map,
       of: Number,
       default: {},
+    },
+    billLink: {
+      type: String,
+      default: "",
     },
     generatedBy: {
       type: mongoose.Schema.Types.ObjectId,

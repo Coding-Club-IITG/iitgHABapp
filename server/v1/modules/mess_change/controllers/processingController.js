@@ -19,8 +19,11 @@ import {
   processUsersInIterations,
 } from "../utils/messChangeLogic.js";
 import { generateMessChangeReport } from "../utils/messChangeReportGenerator.js";
-import { uploadReportToOnedrive } from "../../../utils/onedriveController.js";
+import {
+  uploadReportToOnedrive,
+} from "../../../utils/onedriveController.js";
 import { withTransaction } from "../../../utils/withTransaction.js";
+import { getNowIST, saveReportEntry } from "../../reports/reportUtils.js";
 
 // Helper Functions
 
@@ -198,7 +201,8 @@ export const createBackup = (users, hostels) => {
     xlsx.utils.book_append_sheet(wb, sheet, "Backup");
 
     const filename = `applications_backup_${Date.now()}.csv`;
-    xlsx.writeFile(wb, path.join(backupDir, filename), { bookType: "csv" });
+    const filePath = path.join(backupDir, filename);
+    xlsx.writeFile(wb, filePath, { bookType: "csv" });
     console.log(`[MESS CHANGE] Created applications CSV backup: ${filename}`);
   } catch (err) {
     console.error("[MESS CHANGE] Error creating backup CSV:", err);
@@ -235,6 +239,17 @@ export const generateAndUploadReport = async (
     if (url) {
       console.log("[MESS CHANGE] Report uploaded to OneDrive:", url);
     }
+
+    // Save to reports table (OneDrive link only)
+    if (!url) return;
+    const now = new Date();
+    const nowIST = getNowIST();
+    await saveReportEntry({
+      fileType: "MessChangeReport",
+      month: nowIST.getMonth() + 1,
+      year: nowIST.getFullYear(),
+      link: url,
+    });
   } catch (err) {
     console.error("[MESS CHANGE] Error generating/uploading report:", err);
   }

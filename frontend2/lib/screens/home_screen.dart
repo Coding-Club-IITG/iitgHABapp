@@ -489,7 +489,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _startWeatherBackgroundTicker() {
     _weatherBackgroundTimer?.cancel();
-    _weatherBackgroundTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+    _weatherBackgroundTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!mounted) return;
       _loadWeatherBackground();
     });

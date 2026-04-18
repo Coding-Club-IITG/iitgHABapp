@@ -26,7 +26,7 @@ const Dashboard = () => {
 
   const tabItems = [
     { label: "Boarders", value: "boarders", icon: Users },
-    { label: "Mess Subscribers", value: "subscribers", icon: Building2 },
+    { label: "Mess", value: "subscribers", icon: Building2 },
     { label: "SMC Management", value: "smc", icon: UserCheck },
     { label: "HMC Management", value: "hmc", icon: UserCheck },
     { label: "Room Cleaners", value: "cleaners", icon: Users },

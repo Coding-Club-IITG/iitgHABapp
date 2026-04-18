@@ -20,8 +20,6 @@ const FestivalModeAdmin = () => {
     const [isEnabled, setIsEnabled] = useState(false);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
-    const [imageWithAlerts, setImageWithAlerts] = useState(null); // legacy
-    const [imageWithoutAlerts, setImageWithoutAlerts] = useState(null); // legacy
     const [previewAlerts, setPreviewAlerts] = useState(null); // primary preview
     const [previewNoAlerts, setPreviewNoAlerts] = useState(null); // primary preview
     const [textWithAlerts, setTextWithAlerts] = useState("Happy Diwali");
@@ -33,7 +31,6 @@ const FestivalModeAdmin = () => {
     const [notificationHexInput, setNotificationHexInput] = useState("");
     const [textColorHexError, setTextColorHexError] = useState("");
     const [lastUpdated, setLastUpdated] = useState(null);
-    const [cacheUntil, setCacheUntil] = useState(null);
     const [expiresAt, setExpiresAt] = useState("");
     const [token, setToken] = useState("");
 
@@ -130,8 +127,6 @@ const FestivalModeAdmin = () => {
             // Always update state with fresh data
             setFestivalId(id);
             setIsEnabled(data.isEnabled);
-            setImageWithAlerts(data.imageWithAlerts);
-            setImageWithoutAlerts(data.imageWithoutAlerts);
             setTextWithAlerts(greetingFromServer(data.textsWithAlerts, data.imageWithAlerts?.overlayText));
             setTextWithoutAlerts(
                 greetingFromServer(data.textsWithoutAlerts, data.imageWithoutAlerts?.overlayText)
@@ -148,7 +143,6 @@ const FestivalModeAdmin = () => {
                     : ""
             );
             setLastUpdated(data.lastUpdatedAt);
-            setCacheUntil(data.cacheUntil);
             if (data.expiresAt) {
                 setExpiresAt(data.expiresAt.split("T")[0]);
             }
@@ -185,8 +179,6 @@ const FestivalModeAdmin = () => {
                             const id = cachedData.festivalId;
                             setFestivalId(id);
                             setIsEnabled(cachedData.isEnabled);
-                            setImageWithAlerts(cachedData.imageWithAlerts);
-                            setImageWithoutAlerts(cachedData.imageWithoutAlerts);
                             setTextWithAlerts(
                                 greetingFromServer(cachedData.textsWithAlerts, cachedData.imageWithAlerts?.overlayText)
                             );
@@ -210,7 +202,6 @@ const FestivalModeAdmin = () => {
                                     : ""
                             );
                             setLastUpdated(cachedData.lastUpdatedAt);
-                            setCacheUntil(cachedData.cacheUntil);
                             if (cachedData.expiresAt) {
                                 setExpiresAt(cachedData.expiresAt.split("T")[0]);
                             }
