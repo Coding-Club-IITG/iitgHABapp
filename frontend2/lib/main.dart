@@ -159,9 +159,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
       _handleConnectivityChange(result);
     });
 
-    if (widget.isLoggedIn) {
-      AlertsManager.syncAlerts();
-    }
+    // Alerts are hydrated through grouped bootstrap calls after navigation.
   }
 
   void _handleConnectivityChange(ConnectivityResult result) {

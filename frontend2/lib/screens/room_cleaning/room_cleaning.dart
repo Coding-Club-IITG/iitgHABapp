@@ -15,70 +15,86 @@ const Map<String, String> _slotTimeRange = {
   'D': '18:00–20:00',
 };
 
-class RoomCleaningScreen extends StatelessWidget {
+class RoomCleaningScreen extends StatefulWidget {
   const RoomCleaningScreen({super.key});
+
+  @override
+  State<RoomCleaningScreen> createState() => _RoomCleaningScreenState();
+}
+
+class _RoomCleaningScreenState extends State<RoomCleaningScreen> {
+  bool _didRunInitialLoad = false;
+
+  void _runInitialLoadIfNeeded() {
+    if (_didRunInitialLoad || !mounted) return;
+    _didRunInitialLoad = true;
+
+    final provider = Provider.of<RoomCleaningProvider>(context, listen: false);
+
+    if (!provider.isAvailabilityLoading &&
+        provider.availability == null &&
+        provider.availabilityError == null) {
+      provider.loadAvailability();
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _runInitialLoadIfNeeded();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
       length: 2,
-      child: Builder(
-        builder: (context) {
-          // Kick off initial loads after first frame.
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            final provider =
-                Provider.of<RoomCleaningProvider>(context, listen: false);
-            provider.loadAvailability();
-            provider.loadMyBookings();
-          });
-
-          return Scaffold(
-            backgroundColor: Colors.white,
-            appBar: AppBar(
-              backgroundColor: Colors.white,
-              foregroundColor: Colors.black,
-              elevation: 0,
-              title: const Text(
-                'Room Cleaning',
-                style: TextStyle(
+      child: Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+          title: const Text(
+            'Room Cleaning',
+            style: TextStyle(
+              fontWeight: FontWeight.w500,
+              fontSize: 18,
+              color: Colors.black,
+            ),
+          ),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(44),
+            child: Container(
+              alignment: Alignment.centerLeft,
+              child: const TabBar(
+                labelColor: Color(0xFF3754DB),
+                unselectedLabelColor: Color(0xFF6B7280),
+                indicatorColor: Color(0xFF3754DB),
+                indicatorSize: TabBarIndicatorSize.label,
+                labelStyle: TextStyle(
                   fontWeight: FontWeight.w500,
-                  fontSize: 18,
-                  color: Colors.black,
+                  fontSize: 14,
                 ),
-              ),
-              bottom: PreferredSize(
-                preferredSize: const Size.fromHeight(44),
-                child: Container(
-                  alignment: Alignment.centerLeft,
-                  child: const TabBar(
-                    labelColor: Color(0xFF3754DB),
-                    unselectedLabelColor: Color(0xFF6B7280),
-                    indicatorColor: Color(0xFF3754DB),
-                    indicatorSize: TabBarIndicatorSize.label,
-                    labelStyle: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      fontSize: 14,
-                    ),
-                    unselectedLabelStyle: TextStyle(
-                      fontWeight: FontWeight.w400,
-                      fontSize: 14,
-                    ),
-                    tabs: [
-                      Tab(text: 'Book Slot'),
-                      Tab(text: 'My Bookings'),
-                    ],
-                  ),
+                unselectedLabelStyle: TextStyle(
+                  fontWeight: FontWeight.w400,
+                  fontSize: 14,
                 ),
+                tabs: [
+                  Tab(text: 'Book Slot'),
+                  Tab(text: 'My Bookings'),
+                ],
               ),
             ),
-            body: const TabBarView(
-              children: [
-                _BookSlotTab(),
-                _MyBookingsTab(),
-              ],
-            ),
-          );
-        },
+          ),
+        ),
+        body: const TabBarView(
+          children: [
+            _BookSlotTab(),
+            _MyBookingsTab(),
+          ],
+        ),
       ),
     );
   }
@@ -641,7 +657,6 @@ class _SlotTile extends StatelessWidget {
     );
 
     if (result.success) {
-      await provider.loadMyBookings();
       if (!context.mounted) return;
       DefaultTabController.of(context).animateTo(1);
     }
@@ -836,7 +851,8 @@ class _MyBookingsTab extends StatelessWidget {
         }
 
         return RefreshIndicator(
-          onRefresh: provider.loadMyBookings,
+          onRefresh: () =>
+              provider.loadMyBookings(reason: 'pull-to-refresh-bookings'),
           child: ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
             itemCount: bookings.length,

@@ -6,6 +6,25 @@ import 'package:frontend2/models/mess_info_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 
+Future<void> persistUserMessInfoFromPayload(Map<String, dynamic> userData) async {
+  final prefs = await SharedPreferences.getInstance();
+
+  final String messID = userData['_id']?.toString() ?? "Not found";
+  final String messName = userData['name']?.toString() ?? "Not found";
+  final String hostelID = userData['hostelId']?.toString() ?? "Not found";
+  final double rating = roundToTwoDecimals(userData['rating'] as num?);
+  final int ranking = (userData['ranking'] as num?)?.toInt() ?? 0;
+  final double feedbackPercentage =
+      roundToTwoDecimals(userData['feedbackPercentage'] as num?);
+
+  prefs.setString('messID', messID);
+  prefs.setString('messName', messName);
+  prefs.setString('hostelID', hostelID);
+  prefs.setDouble('rating', rating);
+  prefs.setInt('ranking', ranking);
+  prefs.setDouble('feedbackPercentage', feedbackPercentage);
+}
+
 Future<void> getUserMessInfo() async {
   try {
     if (kDebugMode) debugPrint('API calling getusermessinfo');
@@ -26,25 +45,10 @@ Future<void> getUserMessInfo() async {
       debugPrint(response.toString());
     }
     if (response.statusCode == 200) {
-      final prefs = await SharedPreferences.getInstance();
-
       final Map<String, dynamic> userData =
           response.data as Map<String, dynamic>;
       if (kDebugMode) debugPrint('user mess info is $userData');
-      final String messID = userData['_id']?.toString() ?? "Not found";
-      final String messName = userData['name']?.toString() ?? "Not found";
-      final String hostelID = userData['hostelId']?.toString() ?? "Not found";
-      final double rating = roundToTwoDecimals(userData['rating'] as num?);
-      final int ranking = (userData['ranking'] as num?)?.toInt() ?? 0;
-      final double feedbackPercentage =
-          roundToTwoDecimals(userData['feedbackPercentage'] as num?);
-
-      prefs.setString('messID', messID);
-      prefs.setString('messName', messName);
-      prefs.setString('hostelID', hostelID);
-      prefs.setDouble('rating', rating);
-      prefs.setInt('ranking', ranking);
-      prefs.setDouble('feedbackPercentage', feedbackPercentage);
+      await persistUserMessInfoFromPayload(userData);
     }
   } catch (e) {
     if (kDebugMode) debugPrint('API Error in userMessInfo: $e');
