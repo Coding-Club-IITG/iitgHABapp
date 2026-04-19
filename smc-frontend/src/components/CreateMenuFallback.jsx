@@ -1,24 +1,18 @@
-import React, { useState, useEffect, use } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios"; // Assuming you'll make an API call
-// Corrected import path for AuthProvider - assuming a common src/context/AuthProvider structure
-import { useAuth } from "../context/AuthProvider"; // Adjust this path based on your actual project structure
 import { API_BASE_URL } from "../apis"; // Assuming you have a common API base URL defined
 import Button from "./ui/Button";
 import Card from "./ui/Card";
 
 // CreateMenuFallback component receives onSuccessfulCreation prop
 function CreateMenuFallback({ onSuccessfulCreation, activeDay, messId }) {
-  const { user } = useAuth();
   const [day, setDay] = useState(activeDay); // Default to Friday
-  const [BisGala, setBIsGala] = useState(false);
   const [BstartTime, setBStartTime] = useState("");
   const [BendTime, setBEndTime] = useState("");
   const [LstartTime, setLStartTime] = useState("");
   const [LendTime, setLEndTime] = useState("");
-  const [LisGala, setLIsGala] = useState(false);
   const [DstartTime, setDStartTime] = useState("");
   const [DendTime, setDEndTime] = useState("");
-  const [DisGala, setDIsGala] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
@@ -44,13 +38,10 @@ function CreateMenuFallback({ onSuccessfulCreation, activeDay, messId }) {
       day: day,
       BstartTime: BstartTime,
       BendTime: BendTime,
-      BisGala: BisGala,
       LstartTime: LstartTime,
       LendTime: LendTime,
-      LisGala: LisGala,
       DstartTime: DstartTime,
       DendTime: DendTime,
-      DisGala: DisGala,
       items: [],
     };
 
@@ -73,14 +64,11 @@ function CreateMenuFallback({ onSuccessfulCreation, activeDay, messId }) {
       }
 
       // Reset form
-      setBIsGala(false);
       setDay("");
       setBStartTime("");
       setBEndTime("");
-      setLIsGala(false);
       setLStartTime("");
       setLEndTime("");
-      setDIsGala(false);
       setDStartTime("");
       setDEndTime("");
     } catch (err) {
@@ -101,13 +89,10 @@ function CreateMenuFallback({ onSuccessfulCreation, activeDay, messId }) {
     // Reset form when activeDay changes
     if (activeDay) {
       setDay(activeDay);
-      setBIsGala(false);
       setBStartTime("");
       setBEndTime("");
-      setLIsGala(false);
       setLStartTime("");
       setLEndTime("");
-      setDIsGala(false);
       setDStartTime("");
       setDEndTime("");
     }
@@ -198,23 +183,6 @@ function CreateMenuFallback({ onSuccessfulCreation, activeDay, messId }) {
                   />
                 </div>
               </div>
-
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="breakfast-gala"
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={BisGala}
-                  onChange={(e) => setBIsGala(e.target.checked)}
-                  disabled={isSubmitting}
-                />
-                <label
-                  htmlFor="breakfast-gala"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Is this a Gala Menu?
-                </label>
-              </div>
             </div>
 
             {/* Lunch Section */}
@@ -252,23 +220,6 @@ function CreateMenuFallback({ onSuccessfulCreation, activeDay, messId }) {
                   />
                 </div>
               </div>
-
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="lunch-gala"
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={LisGala}
-                  onChange={(e) => setLIsGala(e.target.checked)}
-                  disabled={isSubmitting}
-                />
-                <label
-                  htmlFor="lunch-gala"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Is this a Gala Menu?
-                </label>
-              </div>
             </div>
 
             {/* Dinner Section */}
@@ -305,23 +256,6 @@ function CreateMenuFallback({ onSuccessfulCreation, activeDay, messId }) {
                     disabled={isSubmitting}
                   />
                 </div>
-              </div>
-
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="dinner-gala"
-                  className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  checked={DisGala}
-                  onChange={(e) => setDIsGala(e.target.checked)}
-                  disabled={isSubmitting}
-                />
-                <label
-                  htmlFor="dinner-gala"
-                  className="text-sm font-medium text-gray-700"
-                >
-                  Is this a Gala Menu?
-                </label>
               </div>
             </div>
 
