@@ -27,6 +27,18 @@ class MessManagerEndpoints {
       'wss://hab.codingclub.in/api/mess/manager/scan-logs?meal=$meal&token=$token';
 }
 
+class MessRebateManagerEndpoints {
+  /// Mess manager view of mess-rebate leave applications (server/v1: /leave/hostel/mess-applications).
+  static const String messApplications = '$baseUrl/leave/hostel/mess-applications';
+
+  /// Acknowledge a single rebate application as mess manager.
+  static String acknowledge(String id) =>
+      '$baseUrl/leave/hostel/applications/$id/acknowledge';
+
+  /// Streams the file bytes via server-side OneDrive download (auth required).
+  static const String download = '$baseUrl/leave/download';
+}
+
 class HqAppVersionEndpoints {
   // HABit HQ (manager app) Android version info
   static const String getAndroidVersion = '$baseUrl/hq-app-version/android';

@@ -5,8 +5,7 @@ import {
   enableMessChangeAutomatic,
   disableMessChangeAutomatic,
 } from "./controllers/schedulerController.js";
-import admin from "../notification/firebase.js";
-import FCMToken from "../notification/FCMToken.js";
+import { sendNotificationToMultipleUsers } from "../notification/notificationController.js";
 
 import { getMessChangeWindowDates } from "../../utils/windowDates.js";
 import agenda from "../../utils/agenda.js";
@@ -22,7 +21,7 @@ const JOB_REMIND_2H = "messchange-reminder-2h";
  */
 const sendMessChangeReminder = async (hoursLeft) => {
   try {
-    // 1. Find all users who have NOT applied for a mess change this month
+    // Find all users who have NOT applied for a mess change this month
     const slackers = await User.find({
       applied_for_mess_changed: false,
     }).select("_id");
@@ -34,27 +33,12 @@ const sendMessChangeReminder = async (hoursLeft) => {
 
     const userIds = slackers.map((u) => u._id);
 
-    // 2. Fetch all registered device tokens for those specific users
-    const tokens = await FCMToken.find({ user: { $in: userIds } }).select(
-      "token",
+    const response = await sendNotificationToMultipleUsers(
+      userIds,
+      "Mess Change Window Closing! ⏳",
+      `You have ${hoursLeft} hours left to apply for a mess change for next month.`,
+      "hab_mess_updates",
     );
-    const tokenArray = tokens.map((t) => t.token);
-
-    if (tokenArray.length === 0) return;
-
-    // 3. Blast the Multicast using the correct Native Channel ID
-    const response = await admin.messaging().sendMulticast({
-      tokens: tokenArray,
-      notification: {
-        title: "Mess Change Window Closing! ⏳",
-        body: `You have ${hoursLeft} hours left to apply for a mess change for next month.`,
-      },
-      android: {
-        notification: {
-          channelId: "hab_mess_updates",
-        },
-      },
-    });
 
     console.log(
       `[MESS CHANGE] Sent ${hoursLeft}hr reminder to ${response.successCount} users`,

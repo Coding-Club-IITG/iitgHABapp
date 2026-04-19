@@ -9,8 +9,15 @@ import { User } from "../user/userModel.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import { ScanLogs } from "./ScanLogsModel.js";
 import MessBill from "./messBillModel.js";
+import Leave from "../leave/leaveModel.js";
 import { QR } from "../qr/qrModel.js";
-import { MessClosure } from "../hostel/messClosureModel.js";
+import ExcelJS from "exceljs";
+import {
+  uploadReportToOnedrive,
+  downloadFromOnedrive,
+} from "../../utils/onedriveController.js";
+import { buildMessBillExcelWorkbook } from "./messBillExcelGenerator.js";
+import { MessShutdown } from "./messShutdownModel.js";
 
 import { publishMessScan } from "../../utils/scanBroadcast.js";
 import redisClient from "../../utils/redisClient.js";
@@ -418,22 +425,23 @@ export const getMessMenuByDay = async (req, res) => {
       return mClone;
     });
 
-    // Check if the mess is closed today
+    // Check if the mess is shut down today
     const mess = await Mess.findById(messId);
     const currentDate = getCurrentDate();
     const todayDate = new Date(currentDate);
-    let isClosed = null;
+    let shutdown = null;
     if (mess && mess.hostelId) {
-      isClosed = await MessClosure.findOne({
+      shutdown = await MessShutdown.findOne({
         hostelId: mess.hostelId,
-        closureDate: todayDate,
+        startDate: { $lte: todayDate },
+        endDate: { $gte: todayDate },
       }).lean();
     }
 
-    if (isClosed) {
+    if (shutdown) {
       return res.status(200).json({
         isMessClosed: true,
-        message: "The mess is closed today as per the monthly schedule.",
+        message: "The mess is shut down for the selected date range.",
       });
     }
 
@@ -657,14 +665,15 @@ export const ScanMess = async (req, res) => {
     const currentTime = getCurrentTime();
     const currentDay = getCurrentDay();
 
-    // Check for closure BEFORE scanning
-    const closureRecord = await MessClosure.findOne({
+    const shutdownRecord = await MessShutdown.findOne({
       hostelId: messInfo.hostelId,
-      closureDate: new Date(currentDate),
+      startDate: { $lte: new Date(currentDate) },
+      endDate: { $gte: new Date(currentDate) },
     }).lean();
-    if (closureRecord) {
+
+    if (shutdownRecord) {
       return res.status(400).json({
-        message: "Scan failed: Mess is closed today.",
+        message: "Scan failed: Mess is shut down for the selected dates.",
         success: false,
       });
     }
@@ -1099,6 +1108,36 @@ export const deleteMessWorker = async (req, res) => {
   }
 };
 
+export const updateMessWorker = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, designation, rate } = req.body || {};
+
+    if (!name || !designation || rate === undefined) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+    const parsedRate = Number(rate);
+    if (Number.isNaN(parsedRate) || parsedRate < 0) {
+      return res.status(400).json({ message: "Invalid rate" });
+    }
+
+    const updated = await MessWorker.findByIdAndUpdate(
+      id,
+      { name: String(name).trim(), designation, rate: parsedRate },
+      { new: true, runValidators: true },
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Mess worker not found" });
+    }
+
+    return res.status(200).json({ message: "Mess worker updated successfully", worker: updated });
+  } catch (error) {
+    console.error("Error updating mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
 export const generateMessBill = async (req, res) => {
   try {
     const { hostelId, billData } = req.body;
@@ -1111,6 +1150,9 @@ export const generateMessBill = async (req, res) => {
         .status(403)
         .json({ message: "Unauthorized to generate bill for another hostel" });
     }
+
+    // Generate an Excel report and upload it to OneDrive.
+    // Persist the bill metadata + report URL in MessBill collection.
 
     const existingBill = await MessBill.findOne({
       hostel: hostelId,
@@ -1128,8 +1170,9 @@ export const generateMessBill = async (req, res) => {
       month,
       year,
       accountNumber,
+      catererName,
       operatingDays,
-      shutdownDate,
+      shutdownDate, // kept for backward compatibility
       totalSubscribers,
       totalSubscribersOffset,
       messDays,
@@ -1151,12 +1194,45 @@ export const generateMessBill = async (req, res) => {
       workerAttendances,
     } = billData;
 
+    const rebateIds = (billData.rebateApplicationIds || [])
+      .filter((id) => id && mongoose.isValidObjectId(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+    if (rebateIds.length) {
+      await Leave.updateMany(
+        {
+          _id: { $in: rebateIds },
+          messHostel: hostelId,
+          status: "Acknowledged",
+        },
+        { $set: { status: "Processed", processedAt: new Date() } },
+      );
+    }
+
+    const safeMonth = String(month).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filename = `mess-bill_${hostelId}_${safeMonth}_${year}.xlsx`;
+
+    const messIdForWorkers = req.hostel?.messId || null;
+    const fileBuffer = await buildMessBillExcelWorkbook({
+      hostelId,
+      billData,
+      workerAttendances,
+      messId: messIdForWorkers,
+    });
+    const url = await uploadReportToOnedrive(fileBuffer, filename);
+    if (!url) {
+      return res.status(500).json({
+        message: "OneDrive upload failed",
+      });
+    }
+
     const newBill = new MessBill({
       hostel: hostelId,
       hostelName,
       month,
       year,
       accountNumber,
+      catererName: catererName ?? "",
       operatingDays,
       shutdownDate,
       totalSubscribers,
@@ -1178,13 +1254,18 @@ export const generateMessBill = async (req, res) => {
       habTransfer,
       totalExpenditure,
       workerAttendances,
+      billLink: url,
       generatedBy: req.hostel ? req.hostel._id : req.user ? req.user.id : null,
     });
 
     await newBill.save();
-    return res
-      .status(201)
-      .json({ message: "Bill generated successfully", bill: newBill });
+
+    return res.status(201).json({
+      message: "Mess bill report generated and uploaded to OneDrive",
+      filename,
+      url,
+      billId: newBill._id,
+    });
   } catch (error) {
     console.error("Error generating mess bill:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -1213,6 +1294,51 @@ export const getMessBill = async (req, res) => {
   } catch (error) {
     console.error("Error fetching mess bill:", error);
     return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/** Stream bill .xlsx with Content-Disposition: attachment (browser saves file, not OneDrive preview). */
+export const downloadMessBillFile = async (req, res) => {
+  try {
+    const { hostelId, month, year } = req.query;
+    if (!hostelId || !month || year === undefined || year === "") {
+      return res.status(400).json({
+        message: "hostelId, month, and year are required",
+      });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res.status(403).json({
+        message: "Unauthorized to download bill for another hostel",
+      });
+    }
+
+    const yearNum = parseInt(String(year), 10);
+    const bill = await MessBill.findOne({
+      hostel: hostelId,
+      month: String(month),
+      year: Number.isFinite(yearNum) ? yearNum : year,
+    });
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
+    const url = bill.billLink?.trim();
+    if (!url) {
+      return res.status(404).json({ message: "No file link on this bill" });
+    }
+
+    const safeMonth = String(month).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const y = Number.isFinite(yearNum) ? yearNum : year;
+    const filename = `mess-bill_${safeMonth}_${y}.xlsx`;
+
+    return downloadFromOnedrive(url, res, { inline: false, filename });
+  } catch (error) {
+    console.error("Error downloading mess bill file:", error);
+    if (!res.headersSent) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
   }
 };
 

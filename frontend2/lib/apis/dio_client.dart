@@ -2,7 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend2/screens/login_screen.dart';
-import 'package:frontend2/utilities/version_checker.dart';
+import 'package:frontend2/utils/version_checker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:frontend2/apis/authentication/login.dart'; // for refreshAccessToken
 import 'package:frontend2/main.dart'; // for navigatorKey

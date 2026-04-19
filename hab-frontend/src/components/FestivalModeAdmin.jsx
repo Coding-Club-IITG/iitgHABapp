@@ -20,8 +20,8 @@ const FestivalModeAdmin = () => {
     const [isEnabled, setIsEnabled] = useState(false);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
-    const [_imageWithAlerts, setImageWithAlerts] = useState(null); // legacy
-    const [_imageWithoutAlerts, setImageWithoutAlerts] = useState(null); // legacy
+    const [_imageWithAlerts, _setImageWithAlerts] = useState(null); // legacy
+    const [_imageWithoutAlerts, _setImageWithoutAlerts] = useState(null); // legacy
     const [previewAlerts, setPreviewAlerts] = useState(null); // primary preview
     const [previewNoAlerts, setPreviewNoAlerts] = useState(null); // primary preview
     const [textWithAlerts, setTextWithAlerts] = useState("Happy Diwali");
@@ -131,8 +131,6 @@ const FestivalModeAdmin = () => {
             // Always update state with fresh data
             setFestivalId(id);
             setIsEnabled(data.isEnabled);
-            setImageWithAlerts(data.imageWithAlerts);
-            setImageWithoutAlerts(data.imageWithoutAlerts);
             setTextWithAlerts(greetingFromServer(data.textsWithAlerts, data.imageWithAlerts?.overlayText));
             setTextWithoutAlerts(
                 greetingFromServer(data.textsWithoutAlerts, data.imageWithoutAlerts?.overlayText)
@@ -184,8 +182,6 @@ const FestivalModeAdmin = () => {
                             const id = cachedData.festivalId;
                             setFestivalId(id);
                             setIsEnabled(cachedData.isEnabled);
-                            setImageWithAlerts(cachedData.imageWithAlerts);
-                            setImageWithoutAlerts(cachedData.imageWithoutAlerts);
                             setTextWithAlerts(
                                 greetingFromServer(cachedData.textsWithAlerts, cachedData.imageWithAlerts?.overlayText)
                             );
@@ -472,8 +468,8 @@ const FestivalModeAdmin = () => {
                                 type="button"
                                 onClick={() => setThemeFromPalette(hex)}
                                 className={`w-10 h-10 rounded-full border-2 transition-all ${themeColor.toUpperCase() === hex.toUpperCase()
-                                        ? "border-gray-900 scale-105"
-                                        : "border-gray-200"
+                                    ? "border-gray-900 scale-105"
+                                    : "border-gray-200"
                                     }`}
                                 style={{ backgroundColor: hex }}
                                 title={hex}

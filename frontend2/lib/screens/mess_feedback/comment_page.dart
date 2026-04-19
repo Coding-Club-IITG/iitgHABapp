@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:dio/dio.dart';
@@ -8,7 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../apis/protected.dart';
 import '../../constants/themes.dart';
 import '../../providers/feedback_provider.dart';
-import '../../utilities/notifications.dart';
+import '../../providers/notification_provider.dart';
 
 class CommentPage extends StatefulWidget {
   const CommentPage({super.key});
@@ -87,7 +86,7 @@ class _CommentPageState extends State<CommentPage> {
           const SnackBar(content: Text('Feedback submitted successfully')),
         );
         provider.clear();
-        feedbackRefreshNotifier.value = !feedbackRefreshNotifier.value;
+        globalNotificationProvider.triggerFeedbackRefresh();
         if (!mounted) return;
         navigator.pop();
         if (navigator.canPop()) {

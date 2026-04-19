@@ -8,11 +8,9 @@ import 'package:frontend2/apis/mess/mess_menu.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-import 'package:frontend2/models/alert_model.dart';
 import 'package:frontend2/models/mess_menu_model.dart';
 import 'package:frontend2/models/notification_model.dart';
 import 'package:frontend2/providers/hostels.dart';
-import 'package:frontend2/providers/notifications.dart';
 import 'package:frontend2/providers/room_cleaning_provider.dart';
 import 'package:frontend2/screens/laundry/laundry_screen.dart';
 import 'package:frontend2/screens/notification.dart';
@@ -21,13 +19,11 @@ import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
 import 'package:frontend2/utils/meal_countdown_text.dart';
-import 'package:frontend2/utilities/alert_expirer.dart';
-import 'package:frontend2/utilities/alert_manager.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/widgets/common/alert_expirer.dart';
+import 'package:frontend2/providers/notification_provider.dart';
 import 'package:frontend2/widgets/alert_countdown_text.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
 import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
-// import 'package:frontend2/widgets/countdown.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:frontend2/widgets/festival_background_widget.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
@@ -36,7 +32,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend2/apis/protected.dart';
 
-import '../utilities/startupitem.dart';
+import '../providers/mess_info_provider.dart';
 import 'initial_setup_screen.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -81,6 +77,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _weatherBackgroundTimer;
   Timer? _deferredHomeNetworkTimer;
   int _debugTitleTapCount = 0;
+
   /// First weather + optional deferred festival hit server after this delay (not on Home mount).
   static const Duration _kDeferredHomeNetworkDelay = Duration(seconds: 60);
   WeatherBackgroundData _weatherBackground =
@@ -165,7 +162,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _startScanQrStatusTicker();
     _deferredHomeNetworkTimer =
         Timer(_kDeferredHomeNetworkDelay, _runDeferredHomeNetworkWork);
-    homeScreenRefreshNotifier.addListener(_onRefreshRequested);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<NotificationProvider>().addListener(_onProviderChanged);
+      }
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _syncFestivalConfigFromServerIfPending();
@@ -173,11 +174,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Add dummy alerts for testing extended background
       if (_isTestingNotifications) {
         final dummyAlerts = [
-          AlertModel(
+          NotificationModel(
             id: 'dummy-1',
             title: 'Important Messages',
             body: 'Mess will be closed on 29 May, Sunday',
             hasCountdown: false,
+            timestamp: DateTime.now(),
             expiresAt: DateTime.now()
                     .add(const Duration(days: 1))
                     .millisecondsSinceEpoch ~/
@@ -185,11 +187,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             targetType: 'global',
             isRead: false,
           ),
-          AlertModel(
+          NotificationModel(
             id: 'dummy-2',
             title: 'Important Messages',
             body: 'Use the scanning feature for filling the complaints',
             hasCountdown: false,
+            timestamp: DateTime.now(),
             expiresAt: DateTime.now()
                     .add(const Duration(days: 1))
                     .millisecondsSinceEpoch ~/
@@ -198,15 +201,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             isRead: false,
           ),
         ];
-        AlertsManager.activeAlertsNotifier.value = dummyAlerts;
+        globalNotificationProvider.setTestingAlerts(dummyAlerts);
       }
 
-      final roomCleaningProvider = context.read<RoomCleaningProvider>();
-      if (!roomCleaningProvider.isBookingsLoading &&
-          roomCleaningProvider.myBookings.isEmpty &&
-          roomCleaningProvider.bookingsError == null) {
-        roomCleaningProvider.loadMyBookings();
-      }
+      // Room-cleaning bookings are hydrated by bootstrap when available.
+      // Do not auto-fetch here; explicit user actions should drive refresh.
     });
   }
 
@@ -237,7 +236,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _reloadAlertsFromPrefs() async {
     try {
-      await AlertsManager.filterAndLoadLocalAlerts();
+      await globalNotificationProvider.filterAndLoadLocalAlerts();
       if (kDebugMode) {
         debugPrint('✅ Reloaded alerts from prefs on app resume');
       }
@@ -250,10 +249,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   Future<void> _reloadNotificationsFromPrefs() async {
     try {
-      final notifications = await getNotificationHistory();
-      notificationHistoryNotifier.value = notifications;
+      await globalNotificationProvider.filterAndLoadLocalAlerts();
       if (kDebugMode) {
-        debugPrint('✅ Reloaded ${notifications.length} notifications from prefs on app resume');
+        debugPrint('✅ Reloaded notifications from prefs on app resume');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -269,12 +267,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     _weatherBackgroundTimer?.cancel();
     _deferredHomeNetworkTimer?.cancel();
     _scanQrStatusNotifier.dispose();
-    homeScreenRefreshNotifier.removeListener(_onRefreshRequested);
+
     super.dispose();
   }
 
+  void _onProviderChanged() {
+    if (!mounted) return;
+    final provider = globalNotificationProvider;
+    if (provider.homeScreenRefresh) {
+      _onRefreshRequested();
+      provider.clearHomeScreenRefresh();
+    }
+  }
+
   Future<void> _onRefreshRequested() async {
-    if (homeScreenRefreshNotifier.value) {
+    {
       await FestivalModeService()
           .fetchFestivalMode(context: context, forceRefresh: true)
           .catchError((_) => FestivalModeData.disabled());
@@ -285,7 +292,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       await _loadWeatherBackground();
       await _reloadNotificationsFromPrefs();
       await _reloadAlertsFromPrefs();
-      homeScreenRefreshNotifier.value = false;
+      globalNotificationProvider.clearHomeScreenRefresh();
     }
   }
 
@@ -493,7 +500,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   void _startWeatherBackgroundTicker() {
     _weatherBackgroundTimer?.cancel();
-    _weatherBackgroundTimer = Timer.periodic(const Duration(minutes: 1), (_) {
+    _weatherBackgroundTimer = Timer.periodic(const Duration(seconds: 10), (_) {
       if (!mounted) return;
       _loadWeatherBackground();
     });
@@ -785,8 +792,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         InkWell(
           onTap: () => widget.onNavigateToTab?.call(1),
           borderRadius: BorderRadius.circular(16),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 2),
+          child: const Padding(
+            padding: EdgeInsets.symmetric(vertical: 2),
             child: Row(
               children: [
                 Text(
@@ -798,7 +805,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     color: accent,
                   ),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 Icon(
                   Icons.chevron_right_rounded,
                   size: 20,
@@ -1001,7 +1008,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   String _getBackgroundAssetPath(String basePath) {
     // Check if there are important messages
-    final activeAlerts = AlertsManager.activeAlertsNotifier.value;
+    final activeAlerts = context.read<NotificationProvider>().activeAlerts;
     if (activeAlerts.isNotEmpty) {
       // Use extended version when there are important messages
       if (basePath.contains('.png')) {
@@ -1110,8 +1117,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final subtitleColor = _heroNotificationSubtitleColor();
 
     final greetingFontSize = hasImportantMessages ? 16.0 : 24.0;
-    final greetingLineHeight =
-        hasImportantMessages ? (20 / 16) : (32 / 24);
+    final greetingLineHeight = hasImportantMessages ? (20 / 16) : (32 / 24);
 
     return SafeArea(
       bottom: false,
@@ -1191,7 +1197,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildImportantMessagesCard(List<AlertModel> activeAlerts) {
+  Widget _buildImportantMessagesCard(List<NotificationModel> activeAlerts) {
     if (activeAlerts.isEmpty) {
       return const SizedBox.shrink();
     }
@@ -1277,7 +1283,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       onTap: () async {
         // Clear alert badges; notification read state is updated from the sheet
         // (Mark all read / per-item tap), not when opening.
-        await AlertsManager.markAllAlertsAsRead();
+        await globalNotificationProvider.markAllAlertsAsRead();
         _openNotificationsSheet();
       },
       child: Container(
@@ -1306,7 +1312,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             ),
             const Spacer(),
-            Icon(Icons.chevron_right_rounded, size: 16, color: accent),
+            const Icon(Icons.chevron_right_rounded, size: 16, color: accent),
           ],
         ),
       ),
@@ -1314,46 +1320,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildAlertsSection() {
-    return ValueListenableBuilder<List<AlertModel>>(
-      valueListenable: AlertsManager.activeAlertsNotifier,
-      builder: (context, activeAlerts, child) {
-            return ValueListenableBuilder<List<NotificationModel>>(
-              valueListenable: NotificationProvider.notificationProvider,
-              builder: (context, storedNotifications, child) {
-                final notifications = storedNotifications;
-                // notifications.forEach((notification) {print(notification.timestamp);});
-                // notifications.forEach((notification) {print(notification.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day)));});
-              final unreadNotifCount = notifications.where((n) => !n.isRead).length;
-              // final unreadAlertsCount =
-              //     activeAlerts.where((a) => !a.isRead).length;
-            // final totalUnreadCount = unreadNotifCount + unreadAlertsCount;
-            final updatesCount = unreadNotifCount;
-            final todayNotificationCount = notifications.where((n) => (!n.isAlert) && n.timestamp.isAfter(DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day))).length;
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, child) {
+        final activeAlerts = provider.activeAlerts;
+        {
+          final notifications = provider.notificationHistory;
+          final unreadNotifCount = notifications.where((n) => !n.isRead).length;
+          final updatesCount = unreadNotifCount;
+          final todayNotificationCount = notifications
+              .where((n) =>
+                  (!n.isAlert) &&
+                  n.timestamp.isAfter(DateTime(DateTime.now().year,
+                      DateTime.now().month, DateTime.now().day)))
+              .length;
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                _buildWeatherHeroHeader(
-                  unreadCount: todayNotificationCount,
-                  hasImportantMessages: activeAlerts.isNotEmpty,
-                ),
-                const SizedBox(height: 32),
-                if (activeAlerts.isNotEmpty) ...[
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16),
-                    child: _buildImportantMessagesCard(activeAlerts),
-                  ),
-                  const SizedBox(height: 16),
-                ],
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildWeatherHeroHeader(
+                unreadCount: todayNotificationCount,
+                hasImportantMessages: activeAlerts.isNotEmpty,
+              ),
+              const SizedBox(height: 32),
+              if (activeAlerts.isNotEmpty) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: _buildUpdatesCard(updatesCount),
+                  child: _buildImportantMessagesCard(activeAlerts),
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
               ],
-            );
-          },
-        );
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildUpdatesCard(updatesCount),
+              ),
+              const SizedBox(height: 32),
+            ],
+          );
+        }
       },
     );
   }
@@ -1365,7 +1368,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             action.iconAsset!,
             width: 24,
             height: 24,
-            colorFilter: ColorFilter.mode(accent, BlendMode.srcIn),
+            colorFilter: const ColorFilter.mode(accent, BlendMode.srcIn),
           )
         : Icon(action.icon, color: accent, size: 24);
 
@@ -1524,8 +1527,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   Widget _buildWeatherHeroSection() {
-    final festivalModeOn =
-        FestivalModeService().currentData?.isEnabled == true;
+    final festivalModeOn = FestivalModeService().currentData?.isEnabled == true;
     final rainPriority = _weatherBackground.weatherGroup == 'rainy';
     final festivalOn = festivalModeOn && !rainPriority;
 
@@ -1533,9 +1535,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return ValueListenableBuilder<FestivalModeData>(
         valueListenable: FestivalModeService().festivalVisualNotifier,
         builder: (context, festData, _) {
-          return ValueListenableBuilder<List<AlertModel>>(
-            valueListenable: AlertsManager.activeAlertsNotifier,
-            builder: (context, activeAlerts, _) {
+          return Consumer<NotificationProvider>(
+            builder: (context, provider, _) {
+              final activeAlerts = provider.activeAlerts;
               final hasAlerts = activeAlerts.isNotEmpty;
               final rawUrl = FestivalModeService()
                   .getAppropriateFestivalImage(festData, hasAlerts);
@@ -1610,9 +1612,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<List<AlertModel>>(
-      valueListenable: AlertsManager.activeAlertsNotifier,
-      builder: (context, activeAlerts, _) {
+    return Consumer<NotificationProvider>(
+      builder: (context, provider, _) {
+        final activeAlerts = provider.activeAlerts;
         final rainPriority = _weatherBackground.weatherGroup == 'rainy';
         return FestivalBackgroundBuilder(
           hasAlerts: activeAlerts.isNotEmpty,
@@ -1622,8 +1624,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 FestivalModeService().currentData?.isEnabled ?? false;
             final festivalOn = festivalModeOn && !rainPriority;
             return Scaffold(
-              backgroundColor:
-                  festivalOn ? Colors.transparent : pageBackground,
+              backgroundColor: festivalOn ? Colors.transparent : pageBackground,
               body: currSubscribedMess.isEmpty
                   ? SingleChildScrollView(
                       child: Column(
@@ -1638,8 +1639,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                 Padding(
                                   padding:
                                       const EdgeInsets.fromLTRB(16, 32, 16, 32),
-                                  child:
-                                      ValueListenableBuilder<List<String>>(
+                                  child: ValueListenableBuilder<List<String>>(
                                     valueListenable:
                                         HostelsNotifier.hostelNotifier,
                                     builder: (context, _, __) =>
@@ -1682,8 +1682,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                               16, 32, 16, 32),
                                           child: ValueListenableBuilder<
                                               List<String>>(
-                                            valueListenable: HostelsNotifier
-                                                .hostelNotifier,
+                                            valueListenable:
+                                                HostelsNotifier.hostelNotifier,
                                             builder: (context, _, __) =>
                                                 _buildQuickActionsSection(),
                                           ),
@@ -1693,8 +1693,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                                           padding: const EdgeInsets.fromLTRB(
                                               16, 32, 16, 32),
                                           child: menuSnap.hasError
-                                              ? _buildMessSectionError(
-                                                  messName)
+                                              ? _buildMessSectionError(messName)
                                               : _buildMessSectionForMenus(
                                                   messName,
                                                   menuSnap.data ??

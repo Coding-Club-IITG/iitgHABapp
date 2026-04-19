@@ -12,6 +12,12 @@ import {
   enableMessRebate,
   disableMessRebate,
 } from "./messSettingsController.js";
+import {
+  createMessShutdown,
+  deleteMessShutdown,
+  listMessShutdowns,
+  listMyMessShutdowns,
+} from "./messShutdownController.js";
 
 import {
   createMess,
@@ -34,8 +40,10 @@ import {
   getMessWorkers,
   createMessWorker,
   deleteMessWorker,
+  updateMessWorker,
   generateMessBill,
   getMessBill,
+  downloadMessBillFile,
   getAllMessBillsByMonth,
 } from "./messController.js";
 import {
@@ -63,6 +71,14 @@ messRouter.post(
   authenticateHabJWT,
   disableMessRebate,
 );
+
+// HAB: Mess shutdowns (single day or range per hostel)
+messRouter.get("/shutdowns", authenticateHabJWT, listMessShutdowns);
+messRouter.post("/shutdowns", authenticateHabJWT, createMessShutdown);
+messRouter.delete("/shutdowns/:id", authenticateHabJWT, deleteMessShutdown);
+
+// Hostel: view shutdowns for current hostel (used in bill calculator)
+messRouter.get("/shutdowns/my", authenticateAdminJWT, listMyMessShutdowns);
 
 messRouter.post("/create", authenticateHabJWT, createMess);
 messRouter.post(
@@ -99,8 +115,10 @@ messRouter.post("/all", getAllMessInfo);
 // Move workers and bill routes before /:id to prevent route shadowing
 messRouter.get("/workers", authenticateAdminJWT, getMessWorkers);
 messRouter.post("/workers", authenticateAdminJWT, createMessWorker);
+messRouter.put("/workers/:id", authenticateAdminJWT, updateMessWorker);
 messRouter.delete("/workers/:id", authenticateAdminJWT, deleteMessWorker);
 messRouter.post("/bill/generate", authenticateAdminJWT, generateMessBill);
+messRouter.get("/bill/download", authenticateAdminJWT, downloadMessBillFile);
 messRouter.get("/bill", authenticateAdminJWT, getMessBill);
 messRouter.get("/bills/all", authenticateHabJWT, getAllMessBillsByMonth);
 

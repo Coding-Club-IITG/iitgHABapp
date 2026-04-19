@@ -6,6 +6,29 @@ import '../constants/endpoint.dart';
 class ManagerApi {
   ManagerApi._();
 
+  static String? _contentType(Response r) =>
+      r.headers.value('content-type')?.trim();
+
+  static String? _normalizeMime(String? ct) {
+    if (ct == null || ct.isEmpty) return null;
+    return ct.split(';').first.trim().toLowerCase();
+  }
+
+  static String extFromContentType(String? contentType) {
+    final ct = _normalizeMime(contentType);
+    switch (ct) {
+      case 'application/pdf':
+        return 'pdf';
+      case 'image/png':
+        return 'png';
+      case 'image/jpg':
+      case 'image/jpeg':
+        return 'jpg';
+      default:
+        return 'bin';
+    }
+  }
+
   /// Shared Dio client with verbose logging to help debug real-device issues.
   static final Dio _dio = Dio()
     ..interceptors.add(
@@ -82,6 +105,70 @@ class ManagerApi {
   static Future<bool> hasTodayGala(String token) async {
     final data = await fetchGalaSummary(token);
     return data['galaDinner'] != null;
+  }
+
+  static Future<List<Map<String, dynamic>>> fetchMessRebateApplications({
+    required String token,
+    int? month,
+    int? year,
+    String? status,
+  }) async {
+    final query = <String, dynamic>{};
+    if (month != null) query['month'] = month;
+    if (year != null) query['year'] = year;
+    if (status != null && status.trim().isNotEmpty) query['status'] = status;
+
+    final response = await _dio.get(
+      MessRebateManagerEndpoints.messApplications,
+      queryParameters: query.isEmpty ? null : query,
+      options: Options(headers: _authHeaders(token)),
+    );
+
+    final data = response.data;
+    if (data is Map && data['applications'] is List) {
+      return (data['applications'] as List)
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+    }
+    return const [];
+  }
+
+  static Future<Map<String, dynamic>> acknowledgeMessRebateApplication({
+    required String token,
+    required String applicationId,
+  }) async {
+    final response = await _dio.post(
+      MessRebateManagerEndpoints.acknowledge(applicationId),
+      options: Options(headers: _authHeaders(token)),
+    );
+    final data = response.data;
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
+
+  /// Download a proof/leave document via authenticated backend endpoint.
+  /// The backend streams OneDrive bytes so the client doesn't hit 401/403.
+  static Future<({Uint8List bytes, String? contentType})> downloadLeaveDocument({
+    required String token,
+    required String documentUrl,
+  }) async {
+    final response = await _dio.post<List<int>>(
+      MessRebateManagerEndpoints.download,
+      data: {'proofDocumentUrl': documentUrl},
+      options: Options(
+        headers: _authHeaders(token),
+        responseType: ResponseType.bytes,
+        validateStatus: (code) => code != null && code >= 200 && code < 400,
+      ),
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw Exception('Empty download response');
+    }
+    return (
+      bytes: Uint8List.fromList(bytes),
+      contentType: _contentType(response),
+    );
   }
 
   static Future<Map<String, dynamic>> fetchUserProfileForManager({

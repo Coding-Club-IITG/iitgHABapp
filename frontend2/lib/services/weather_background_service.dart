@@ -40,14 +40,16 @@ class WeatherBackgroundData {
   }
 
   /// Clear-sky hero from local clock + weekend rules only (no sunrise/sunset API).
-  factory WeatherBackgroundData.localTimeDefault() => WeatherBackgroundData.fallback();
+  factory WeatherBackgroundData.localTimeDefault() =>
+      WeatherBackgroundData.fallback();
 
   factory WeatherBackgroundData.testing({
     required String group,
     required bool isDay,
     String? backgroundVariant,
   }) {
-    final resolvedVariant = backgroundVariant ?? (isDay ? 'afternoon' : 'evening');
+    final resolvedVariant =
+        backgroundVariant ?? (isDay ? 'afternoon' : 'evening');
     return WeatherBackgroundData(
       assetPath: WeatherBackgroundService._assetFor(
         group: group,
@@ -79,8 +81,7 @@ class WeatherBackgroundService {
 
     var key = '';
     try {
-      key = (await _configChannel
-              .invokeMethod<String>('getOpenWeatherApiKey'))
+      key = (await _configChannel.invokeMethod<String>('getOpenWeatherApiKey'))
               ?.trim() ??
           '';
     } catch (_) {
@@ -221,7 +222,7 @@ class WeatherBackgroundService {
   static bool _isWeekendPeriod() {
     final now = DateTime.now();
     final hour = now.hour;
-    
+
     // Friday (5): 7PM (19:00) onwards
     if (now.weekday == DateTime.friday && hour >= 19) {
       return true;
@@ -254,7 +255,7 @@ class WeatherBackgroundService {
       // morning: sunrise to 12PM (solar noon)
       // afternoon: 12PM to sunset
       // evening: sunset to sunrise (next day)
-      
+
       final noonUnix = sunriseUnix + ((sunsetUnix - sunriseUnix) ~/ 2);
 
       if (nowUnix >= sunriseUnix && nowUnix < noonUnix) {

@@ -1,16 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BACKEND_URL } from "../apis/server";
 import { createHostel } from "../apis/hostel";
-import { getUnassignedMesses } from "../apis/mess";
 
 export default function HostelForm() {
   const navigate = useNavigate();
 
   const [hostelName, setHostelName] = useState("");
   const [capacity, setCapacity] = useState("");
-  const [messId, setMessId] = useState("");
-  const [unassignedMess, setUnassignedMess] = useState([]);
   const [error, setError] = useState(null);
   const [microsoftEmail, setMicrosoftEmail] = useState("");
   const [secretaryEmail, setSecretaryEmail] = useState("");
@@ -36,22 +32,6 @@ export default function HostelForm() {
       setError("Something went wrong while uploading.");
     }
   };
-
-  useEffect(() => {
-    const fetchUnassignedMess = async () => {
-      try {
-        const data = await getUnassignedMesses();
-        const list = Array.isArray(data) ? data : data?.data || [];
-        setUnassignedMess(list);
-        setMessId(list.length > 0 ? list[0]._id : "");
-      } catch (error) {
-        console.error("Failed to fetch unassigned mess:", error);
-        setError("Failed to load mess caterers.");
-      }
-    };
-
-    fetchUnassignedMess();
-  }, []);
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-center justify-center p-6">

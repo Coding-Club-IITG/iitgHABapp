@@ -347,44 +347,36 @@ export const reorderMenuItemsSMC = async (req, res) => {
         .json({ message: "Menu not found for this meal/day" });
     }
 
-    // Use MenuItem rows as source of truth — `menu.items` can hold stale ObjectIds
-    // with no document; the SMC UI only ever sees hydrated items, so comparing to
-    // `menu.items.length` caused 400s when those lengths differed.
-    const menuItemRows = await MenuItem.find({ menuId: menu._id })
-      .select("_id")
-      .lean();
-    const canonicalIds = menuItemRows.map((r) => r._id.toString());
+    // Same multiset + order semantics as GET menu: hydrate by `menu.items` refs,
+    // not `MenuItem.menuId`. Items can appear in the list while `menuId` points
+    // elsewhere; the old `menuId` check caused 400 even when the UI matched DB.
+    const menuItemsOrder = menu.items;
+    const menuItemDetails = await MenuItem.find({
+      _id: { $in: menuItemsOrder },
+    }).lean();
+    const sortedVisible = sortMenuItemsByMenuOrder(
+      menuItemsOrder,
+      menuItemDetails,
+    );
+    const canonicalIds = sortedVisible.map((d) => d._id.toString());
 
     if (itemIds.length !== canonicalIds.length) {
       return res.status(400).json({
         message: "itemIds must list each menu item exactly once",
       });
     }
-    const incomingSet = new Set(itemIds.map(String));
-    if (incomingSet.size !== itemIds.length) {
+    if (new Set(itemIds.map(String)).size !== itemIds.length) {
       return res.status(400).json({ message: "Duplicate item id in itemIds" });
     }
-    const canonSet = new Set(canonicalIds);
-    if (canonSet.size !== canonicalIds.length) {
-      return res.status(500).json({
-        message: "Data inconsistency: duplicate menu items for this meal",
-      });
-    }
-    for (const id of canonicalIds) {
-      if (!incomingSet.has(id)) {
-        return res.status(400).json({
-          message: "itemIds must match the current menu items",
-        });
-      }
-    }
 
-    const count = await MenuItem.countDocuments({
-      _id: { $in: itemIds },
-      menuId: menu._id,
-    });
-    if (count !== itemIds.length) {
+    const sortedIncoming = [...itemIds].map(String).sort();
+    const sortedCanon = [...canonicalIds].map(String).sort();
+    if (
+      sortedIncoming.length !== sortedCanon.length ||
+      !sortedIncoming.every((v, i) => v === sortedCanon[i])
+    ) {
       return res.status(400).json({
-        message: "One or more items do not belong to this menu",
+        message: "itemIds must match the current menu items",
       });
     }
 

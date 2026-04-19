@@ -2,7 +2,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:frontend2/constants/app_ui_tokens.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/providers/notification_provider.dart';
 
 class NotificationCard extends StatelessWidget {
   final String title;
@@ -37,26 +37,27 @@ class NotificationCard extends StatelessWidget {
 
   Future<void> _handleTap(BuildContext context) async {
     if (!isRead && notificationIndex != null) {
-      await markNotificationAsRead(notificationIndex!);
+      await globalNotificationProvider
+          .markNotificationAsRead(notificationIndex!);
     }
 
     if (redirectType == null) return;
 
     switch (redirectType) {
       case 'mess_screen':
-        tabNavigationNotifier.value = 1;
-        feedbackRefreshNotifier.value = !feedbackRefreshNotifier.value;
+        globalNotificationProvider.setTabNavigation(1);
+        globalNotificationProvider.triggerFeedbackRefresh();
         if (context.mounted) {
           Navigator.of(context).pop();
         }
         break;
       case 'mess_change':
-        tabNavigationNotifier.value = 0;
-        deepNavigationNotifier.value = 'mess_change_screen';
+        globalNotificationProvider.setTabNavigation(0);
+        globalNotificationProvider.setDeepNavigation('mess_change_screen');
         break;
       case 'profile':
-        tabNavigationNotifier.value = 0;
-        deepNavigationNotifier.value = 'profile_screen';
+        globalNotificationProvider.setTabNavigation(0);
+        globalNotificationProvider.setDeepNavigation('profile_screen');
         break;
     }
   }

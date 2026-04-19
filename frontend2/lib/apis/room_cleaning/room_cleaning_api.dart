@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:frontend2/apis/dio_client.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:dio/dio.dart';
 
@@ -144,11 +141,6 @@ class RoomCleaningBooking {
 }
 
 class RoomCleaningApi {
-  Future<String?> _getToken() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getString('access_token');
-  }
-
   Future<RoomCleaningAvailability> fetchAvailability() async {
     final dio = DioClient().dio;
     final response = await dio.get('$baseUrl/room-cleaning/availability');

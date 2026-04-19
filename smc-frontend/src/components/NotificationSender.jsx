@@ -49,7 +49,7 @@ const NotificationSender = () => {
         const targetType = userType === "boarders" ? "hostel" : "mess";
         const targetIds = [hostelId];
 
-        await apiClient.post("/alerts/create", {
+        await apiClient.post("/notification/alerts/create", {
           title,
           body,
           ttlSeconds,

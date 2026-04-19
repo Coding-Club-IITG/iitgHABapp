@@ -7,7 +7,8 @@ import 'package:frontend2/apis/dio_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../constants/endpoint.dart';
 import '../../screens/mess_feedback/mess_feedback_page.dart';
-import '../../utilities/notifications.dart';
+import '../../providers/notification_provider.dart';
+
 import '../../widgets/microsoft_required_dialog.dart';
 import '../common/shimmer_host.dart';
 
@@ -31,7 +32,7 @@ class _FeedbackCardState extends State<FeedbackCard> {
     _fetchWindowTimeLeft();
 
     // Listen to feedback refresh notifier
-    feedbackRefreshNotifier.addListener(_onRefreshNotified);
+    globalNotificationProvider.addListener(_onRefreshNotified);
   }
 
   void _onRefreshNotified() {
@@ -42,7 +43,7 @@ class _FeedbackCardState extends State<FeedbackCard> {
 
   @override
   void dispose() {
-    feedbackRefreshNotifier.removeListener(_onRefreshNotified);
+    globalNotificationProvider.removeListener(_onRefreshNotified);
     super.dispose();
   }
 

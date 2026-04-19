@@ -19,6 +19,8 @@ import {
   getCatererInfo,
   getBoarders,
   getMessSubscribers,
+  getMessSubscribersSnapshotMonths,
+  getMessSubscribersCountByMonth,
   getMessSubscribersByHostelId,
   markAsSMC,
   unmarkAsSMC,
@@ -209,6 +211,16 @@ hostelRouter.post(
 hostelRouter.get("/caterer-info", authenticateAdminJWT, getCatererInfo);
 hostelRouter.get("/boarders", authenticateAdminJWT, getBoarders);
 hostelRouter.get("/mess-subscribers", authenticateAdminJWT, getMessSubscribers);
+hostelRouter.get(
+  "/mess-subscribers/snapshot-months",
+  authenticateAdminJWT,
+  getMessSubscribersSnapshotMonths,
+);
+hostelRouter.get(
+  "/mess-subscribers/count",
+  authenticateAdminJWT,
+  getMessSubscribersCountByMonth,
+);
 // HAB endpoint to get mess subscribers for a given hostel ID
 hostelRouter.get(
   "/mess-subscribers/:hostelId",

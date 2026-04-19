@@ -14,7 +14,7 @@ class VersionChecker {
   static String? _storeUrl;
   static String? _updateMessage;
 
-  // Defaults to 'v1' (Latest) until we check with the server
+  // Defaults to 'v1' until we check with the server
   static String _apiVersion = 'v1';
 
   static String getDeviceType() {
