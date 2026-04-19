@@ -29,39 +29,52 @@ class ManagerApi {
     }
   }
 
-  /// Shared Dio client with verbose logging to help debug real-device issues.
-  static final Dio _dio = Dio()
-    ..interceptors.add(
-      LogInterceptor(
-        request: true,
-        requestBody: true,
-        responseBody: true,
-        responseHeader: false,
-        error: true,
-        logPrint: (obj) => debugPrint('[DIO] $obj'),
-      ),
-    );
+  /// Shared Dio client. Full request/response logging only in debug builds.
+  static final Dio _dio = () {
+    final d = Dio();
+    if (kDebugMode) {
+      d.interceptors.add(
+        LogInterceptor(
+          request: true,
+          requestBody: true,
+          responseBody: true,
+          responseHeader: false,
+          error: true,
+          logPrint: (obj) => debugPrint('[DIO] $obj'),
+        ),
+      );
+    }
+    return d;
+  }();
 
   static Map<String, String> _authHeaders(String token) => {
         'Authorization': 'Bearer $token',
       };
 
   static Future<List<String>> fetchHostels() async {
-    debugPrint(
-        '[ManagerApi] Fetching hostels from ${HostelEndpoints.allHostels} ...');
+    if (kDebugMode) {
+      debugPrint(
+          '[ManagerApi] Fetching hostels from ${HostelEndpoints.allHostels} ...');
+    }
     try {
       final response = await _dio.get(HostelEndpoints.allHostels);
-      debugPrint(
-          '[ManagerApi] /hostel/all -> status=${response.statusCode}, dataType=${response.data.runtimeType}');
+      if (kDebugMode) {
+        debugPrint(
+            '[ManagerApi] /hostel/all -> status=${response.statusCode}, dataType=${response.data.runtimeType}');
+      }
       final data = response.data as List<dynamic>;
       final hostels = data
           .map((raw) => (raw as Map<String, dynamic>)['hostel_name'] as String)
           .toList();
-      debugPrint('[ManagerApi] Parsed ${hostels.length} hostels: $hostels');
+      if (kDebugMode) {
+        debugPrint('[ManagerApi] Parsed ${hostels.length} hostels: $hostels');
+      }
       return hostels;
     } catch (e, st) {
-      debugPrint('[ManagerApi] fetchHostels error: $e');
-      debugPrint('[ManagerApi] fetchHostels stack: $st');
+      if (kDebugMode) {
+        debugPrint('[ManagerApi] fetchHostels error: $e');
+        debugPrint('[ManagerApi] fetchHostels stack: $st');
+      }
       rethrow;
     }
   }
@@ -70,8 +83,10 @@ class ManagerApi {
     required String hostelName,
     required String password,
   }) async {
-    debugPrint(
-        '[ManagerApi] Login manager: hostel=$hostelName url=${AuthEndpoints.managerLogin}');
+    if (kDebugMode) {
+      debugPrint(
+          '[ManagerApi] Login manager: hostel=$hostelName url=${AuthEndpoints.managerLogin}');
+    }
     final response = await _dio.post(
       AuthEndpoints.managerLogin,
       data: {
@@ -79,8 +94,10 @@ class ManagerApi {
         'password': password,
       },
     );
-    debugPrint(
-        '[ManagerApi] /auth/manager/login -> status=${response.statusCode}, data=${response.data}');
+    if (kDebugMode) {
+      debugPrint(
+          '[ManagerApi] /auth/manager/login -> status=${response.statusCode}, data=${response.data}');
+    }
     return response.data as Map<String, dynamic>;
   }
 
