@@ -1,6 +1,9 @@
 import java.util.Properties
 import java.io.FileInputStream
 
+// Note: keep app-specific custom fields in app/build.gradle, which is the
+// authoritative module script currently evaluated by Gradle for :app.
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -17,19 +20,10 @@ if (keystorePropertiesFile.exists()) {
     println("⚠️ Warning: key.properties not found — release signing may fail.")
 }
 
-val openWeatherApiKey =
-    ((keystoreProperties["OPENWEATHER_API_KEY"] as String?) ?: "")
-        .replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-
 android {
     namespace = "in.codingclub.hab"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
-
-    buildFeatures {
-        buildConfig = true
-    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -48,7 +42,6 @@ android {
         versionCode = flutterVersionCode.toInt()
         versionName = flutterVersionName
         manifestPlaceholders["appAuthRedirectScheme"] = "placeholder-text"
-        buildConfigField("String", "OPENWEATHER_API_KEY", "\"$openWeatherApiKey\"")
     }
 
     signingConfigs {

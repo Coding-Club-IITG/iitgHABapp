@@ -4,7 +4,10 @@ import multer from "multer";
 
 import FestivalMode from "./festivalModeModel.js";
 import AppError from "../../utils/appError.js";
-import { wipeFestivalVisibleContent } from "./festivalModeStateUtils.js";
+import {
+  getFestivalCacheUntil,
+  wipeFestivalVisibleContent,
+} from "./festivalModeStateUtils.js";
 import {
   uploadFestivalImageToOneDrive,
   deleteFestivalImageFromOneDrive,
@@ -66,7 +69,7 @@ export const getFestivalActiveSummary = async (req, res, next) => {
     if (!festivalMode) {
       festivalMode = await FestivalMode.create({
         isEnabled: false,
-        cacheUntil: new Date(Date.now() + 6 * 60 * 60 * 1000),
+        cacheUntil: getFestivalCacheUntil(),
       });
     }
 
@@ -100,7 +103,7 @@ export const getFestivalModeStatus = async (req, res, next) => {
     if (!festivalMode) {
       festivalMode = await FestivalMode.create({
         isEnabled: false,
-        cacheUntil: new Date(Date.now() + 6 * 60 * 60 * 1000),
+        cacheUntil: getFestivalCacheUntil(),
       });
     }
 
@@ -263,7 +266,7 @@ export const uploadFestivalImage = async (req, res, next) => {
 
     festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
     festivalMode.lastUpdatedAt = new Date();
-    festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    festivalMode.cacheUntil = getFestivalCacheUntil();
     await festivalMode.save();
 
     const proxyUrl = buildFestivalImageProxyUrl(req, uploaded.itemId);
@@ -305,9 +308,7 @@ export const toggleFestivalMode = async (req, res, next) => {
       }
       festivalMode.lastUpdatedAt = new Date();
       // Reset cache timer on any change
-      festivalMode.cacheUntil = new Date(
-        Date.now() + 6 * 60 * 60 * 1000
-      );
+      festivalMode.cacheUntil = getFestivalCacheUntil();
     } else {
       wipeFestivalVisibleContent(festivalMode, new Date());
     }
@@ -320,7 +321,7 @@ export const toggleFestivalMode = async (req, res, next) => {
       success: true,
       isEnabled: festivalMode.isEnabled,
       expiresAt: festivalMode.expiresAt,
-      message: `Festival mode ${isEnabled ? "enabled" : "disabled"}`,
+      message: `Festival mode ${festivalMode.isEnabled ? "enabled" : "disabled"}`,
     });
   } catch (err) {
     console.error("Error toggling festival mode:", err);
@@ -377,7 +378,7 @@ export const deleteFestivalImage = async (req, res, next) => {
 
     festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
     festivalMode.lastUpdatedAt = new Date();
-    festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    festivalMode.cacheUntil = getFestivalCacheUntil();
 
     await festivalMode.save();
 
@@ -436,7 +437,7 @@ export const deleteFestivalImageByItemId = async (req, res, next) => {
 
     festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
     festivalMode.lastUpdatedAt = new Date();
-    festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    festivalMode.cacheUntil = getFestivalCacheUntil();
     await festivalMode.save();
 
     const removed = (beforeWith - (festivalMode.imagesWithAlerts || []).length) +
@@ -579,7 +580,7 @@ export const updateAdminFestivalConfig = async (req, res, next) => {
 
     festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
     festivalMode.lastUpdatedAt = new Date();
-    festivalMode.cacheUntil = new Date(Date.now() + 6 * 60 * 60 * 1000);
+    festivalMode.cacheUntil = getFestivalCacheUntil();
     try {
       await festivalMode.save();
     } catch (saveErr) {

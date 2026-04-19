@@ -1,4 +1,8 @@
-const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+export const FESTIVAL_MODE_CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+
+export const getFestivalCacheUntil = (now = new Date()) => {
+  return new Date(now.getTime() + FESTIVAL_MODE_CACHE_TTL_MS);
+};
 
 /**
  * Clear all festival-visible content when mode is disabled.
@@ -26,5 +30,5 @@ export const wipeFestivalVisibleContent = (festivalMode, now = new Date()) => {
   festivalMode.notificationSubtitleColor = "";
 
   festivalMode.lastUpdatedAt = now;
-  festivalMode.cacheUntil = new Date(now.getTime() + CACHE_TTL_MS);
+  festivalMode.cacheUntil = getFestivalCacheUntil(now);
 };
