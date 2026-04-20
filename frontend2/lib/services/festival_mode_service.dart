@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:frontend2/constants/endpoint.dart';
 
 /// Default palette (web admin quick-picks). Server may send any valid hex; we use it as-is.
@@ -61,10 +62,12 @@ class FestivalModeData {
   final String themeColor; // hex color like "#4C4EDB"
   /// Greeting prefix ("Good morning, ") — empty means use weather [_getTextColor].
   final String greetingTextColor;
+
   /// "N notifications today" — empty means use weather [_getTextColor].
   final String notificationSubtitleColor;
   final DateTime lastUpdatedAt;
   final DateTime cacheUntil;
+  final DateTime? expiresAt; // Auto-disable festival on this date
 
   FestivalModeData({
     this.festivalId,
@@ -82,6 +85,7 @@ class FestivalModeData {
     this.notificationSubtitleColor = '',
     required this.lastUpdatedAt,
     required this.cacheUntil,
+    this.expiresAt,
   });
 
   static String _overlayFromJson(dynamic value) {
@@ -124,10 +128,16 @@ class FestivalModeData {
         .whereType<String>()
         .toList();
 
-    final textsWithAlerts =
-        rawTextsWith.whereType<String>().map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
-    final textsWithoutAlerts =
-        rawTextsWithout.whereType<String>().map((t) => t.trim()).where((t) => t.isNotEmpty).toList();
+    final textsWithAlerts = rawTextsWith
+        .whereType<String>()
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
+    final textsWithoutAlerts = rawTextsWithout
+        .whereType<String>()
+        .map((t) => t.trim())
+        .where((t) => t.isNotEmpty)
+        .toList();
 
     final themeColor = (json['themeColor'] is String &&
             (json['themeColor'] as String).trim().isNotEmpty)
@@ -161,6 +171,9 @@ class FestivalModeData {
           json['lastUpdatedAt'] ?? DateTime.now().toIso8601String()),
       cacheUntil: DateTime.parse(json['cacheUntil'] ??
           DateTime.now().add(const Duration(hours: 6)).toIso8601String()),
+      expiresAt: json['expiresAt'] != null
+          ? DateTime.parse(json['expiresAt'].toString())
+          : null,
     );
   }
 
@@ -181,6 +194,7 @@ class FestivalModeData {
       notificationSubtitleColor: '',
       lastUpdatedAt: DateTime.now(),
       cacheUntil: DateTime.now().add(Duration(hours: 6)),
+      expiresAt: null,
     );
   }
 
@@ -201,6 +215,7 @@ class FestivalModeData {
       'notificationSubtitleColor': notificationSubtitleColor,
       'lastUpdatedAt': lastUpdatedAt.toIso8601String(),
       'cacheUntil': cacheUntil.toIso8601String(),
+      'expiresAt': expiresAt?.toIso8601String(),
     };
   }
 
@@ -248,8 +263,8 @@ class FestivalModeService {
       try {
         final cachedJson = _festivalBox.get('current_festival_config');
         if (cachedJson != null) {
-          final cached = FestivalModeData.fromJson(
-              Map<String, dynamic>.from(cachedJson));
+          final cached =
+              FestivalModeData.fromJson(Map<String, dynamic>.from(cachedJson));
           // _currentData = cached; // Don't permanently override memory cache during a sync read
           return cached;
         }
@@ -279,8 +294,8 @@ class FestivalModeService {
     try {
       final cachedJson = _festivalBox.get('current_festival_config');
       if (cachedJson != null) {
-        final cached = FestivalModeData.fromJson(
-            Map<String, dynamic>.from(cachedJson));
+        final cached =
+            FestivalModeData.fromJson(Map<String, dynamic>.from(cachedJson));
         _lastKnownFestivalId = cached.festivalId;
       }
     } catch (e) {
@@ -296,8 +311,7 @@ class FestivalModeService {
     try {
       final raw = _festivalBox.get('current_festival_config');
       if (raw != null) {
-        hiveCurrent =
-            FestivalModeData.fromJson(Map<String, dynamic>.from(raw));
+        hiveCurrent = FestivalModeData.fromJson(Map<String, dynamic>.from(raw));
       }
     } catch (e) {
       debugPrint('[FestivalMode] bootstrap hive read failed: $e');
@@ -334,7 +348,8 @@ class FestivalModeService {
       final hiveLastUpdated = hiveCurrent?.lastUpdatedAt;
       final serverHasNewerConfig = remoteLastUpdated != null &&
           hiveLastUpdated != null &&
-          remoteLastUpdated.isAfter(hiveLastUpdated.add(const Duration(seconds: 2)));
+          remoteLastUpdated
+              .isAfter(hiveLastUpdated.add(const Duration(seconds: 2)));
 
       final hasAnyImageCache = hiveCurrent != null &&
           (hiveCurrent.imageWithAlerts != null ||
@@ -369,8 +384,7 @@ class FestivalModeService {
       _needsDeferredFullFestivalFetch = true;
       _publishFestivalVisual();
       debugPrint(
-        '[FestivalMode] bootstrap: full /status sync needed (serverUpdated=$serverHasNewerConfig)');
-
+          '[FestivalMode] bootstrap: full /status sync needed (serverUpdated=$serverHasNewerConfig)');
     } catch (e) {
       debugPrint('[FestivalMode] bootstrap network error: $e');
       final hiveHasImages = hiveCurrent != null &&
@@ -459,16 +473,31 @@ class FestivalModeService {
         await _preCacheImages(newData, context);
       }
 
-      // Save to Hive with festivalId-based key
-      if (newData.festivalId != null) {
-        final cacheKey = 'festival_${newData.festivalId}';
-        await _festivalBox.put(cacheKey, newData.toJson());
-        
-        // Save as the absolute current config for bulletproof cold-start offline fallback
-        await _festivalBox.put('current_festival_config', newData.toJson());
-        
-        _lastKnownFestivalId = newData.festivalId;
-        debugPrint('[FestivalMode] Caching to key: $cacheKey');
+      // If disabled, clear ALL cached festival data
+      if (!newData.isEnabled) {
+        try {
+          await _festivalBox.delete('current_festival_config');
+          if (_lastKnownFestivalId != null) {
+            final cacheKey = 'festival_${_lastKnownFestivalId}';
+            await _festivalBox.delete(cacheKey);
+          }
+          debugPrint(
+              '[FestivalMode] Cleared all cached festival data (disabled by admin)');
+        } catch (e) {
+          debugPrint('[FestivalMode] Error clearing cache on disable: $e');
+        }
+      } else {
+        // Save to Hive with festivalId-based key only if enabled
+        if (newData.festivalId != null) {
+          final cacheKey = 'festival_${newData.festivalId}';
+          await _festivalBox.put(cacheKey, newData.toJson());
+
+          // Save as the absolute current config for bulletproof cold-start offline fallback
+          await _festivalBox.put('current_festival_config', newData.toJson());
+
+          _lastKnownFestivalId = newData.festivalId;
+          debugPrint('[FestivalMode] Caching to key: $cacheKey');
+        }
       }
       _currentData = newData;
       _needsDeferredFullFestivalFetch = false;
@@ -479,16 +508,22 @@ class FestivalModeService {
     } catch (e) {
       debugPrint('[FestivalMode] Error fetching from server: $e');
 
-      // BULLETPROOF FALLBACK: Return cached data (even if expired)
+      // Fallback to cache only when it is still valid.
+      // This prevents old enabled-festival visuals from reappearing after
+      // server-side disable when the app is temporarily offline.
       try {
         final cachedJson = _festivalBox.get('current_festival_config');
         if (cachedJson != null) {
-          debugPrint('[FestivalMode] Using expired Hive cache as fallback');
-          final cached = FestivalModeData.fromJson(
-              Map<String, dynamic>.from(cachedJson));
-          _currentData = cached;
-          _publishFestivalVisual();
-          return cached;
+          final cached =
+              FestivalModeData.fromJson(Map<String, dynamic>.from(cachedJson));
+          if (!cached.isCacheExpired()) {
+            debugPrint('[FestivalMode] Using valid Hive cache as fallback');
+            _currentData = cached;
+            _publishFestivalVisual();
+            return cached;
+          }
+          debugPrint(
+              '[FestivalMode] Cached festival config expired during fallback; showing disabled mode');
         }
       } catch (cacheErr) {
         debugPrint('[FestivalMode] Error reading Hive fallback: $cacheErr');
@@ -555,7 +590,8 @@ class FestivalModeService {
       if (data.imagesWithAlerts.isNotEmpty) return data.imagesWithAlerts.first;
       return data.imageWithAlerts;
     } else {
-      if (data.imagesWithoutAlerts.isNotEmpty) return data.imagesWithoutAlerts.first;
+      if (data.imagesWithoutAlerts.isNotEmpty)
+        return data.imagesWithoutAlerts.first;
       return data.imageWithoutAlerts;
     }
   }
@@ -563,16 +599,19 @@ class FestivalModeService {
   /// Invalidate cache (call after admin updates)
   Future<void> invalidateCache() async {
     _currentData = null;
+    _lastKnownFestivalId = null; // Clear to prevent stale Hive lookups
     if (_festivalBox.isOpen) {
       try {
         await _festivalBox.delete('current_festival_config');
       } catch (_) {}
-      if (_lastKnownFestivalId != null) {
-        final cacheKey = 'festival_${_lastKnownFestivalId}';
-        await _festivalBox.delete(cacheKey);
-        debugPrint(
-            '[FestivalMode] Cache invalidated for festival: $_lastKnownFestivalId');
-      }
+      // Note: Festival-specific cache keys will expire naturally in Hive
+    }
+    // Clear image cache provider to prevent old cached images from reappearing
+    try {
+      await DefaultCacheManager().emptyCache();
+      debugPrint('[FestivalMode] Cleared image cache provider');
+    } catch (e) {
+      debugPrint('[FestivalMode] Note: Could not clear image cache ($e)');
     }
     _publishFestivalVisual();
   }
