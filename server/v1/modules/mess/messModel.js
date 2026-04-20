@@ -32,6 +32,18 @@ const messSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "QR",
   },
+  /**
+   * HABit HQ (caterer Google sign-in): verified Google Workspace / Gmail allowed for this mess.
+   * Lowercase; unique when set.
+   */
+  managerGoogleEmail: {
+    type: String,
+    trim: true,
+    lowercase: true,
+    sparse: true,
+    unique: true,
+    index: true,
+  },
 });
 
 export const Mess = mongoose.model("Mess", messSchema);

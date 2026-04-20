@@ -11,6 +11,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../apis/manager_api.dart';
 import '../providers/auth_controller.dart';
 import '../utils/rebate_formatting.dart';
+import '../utils/name_case.dart';
 
 class RebateApplicationDetailScreen extends StatefulWidget {
   const RebateApplicationDetailScreen({
@@ -247,7 +248,7 @@ class _RebateApplicationDetailScreenState
     final user = _app['user'] is Map
         ? Map<String, dynamic>.from(_app['user'] as Map)
         : const <String, dynamic>{};
-    final name = (user['name'] ?? '').toString().trim();
+    final name = toTitleCase((user['name'] ?? '').toString());
     final roll = (user['rollNumber'] ?? '').toString().trim();
 
     final leaveType = (_app['leaveType'] ?? '').toString().trim();
@@ -256,6 +257,15 @@ class _RebateApplicationDetailScreenState
     final duration = (start != null && end != null)
         ? '${formatYyyyMmDdIst(start)} to ${formatYyyyMmDdIst(end)}'
         : '';
+    final days = (start != null && end != null)
+        ? () {
+            final s = DateTime(start.year, start.month, start.day);
+            final e = DateTime(end.year, end.month, end.day);
+            final diff = e.difference(s).inDays;
+            if (diff < 0) return null;
+            return diff + 1; // inclusive of both start and end date
+          }()
+        : null;
 
     final proofUrl = (_app['proofDocumentUrl'] ?? '').toString().trim();
     final leavePdfUrl = (_app['leaveDocumentUrl'] ?? '').toString().trim();
@@ -341,6 +351,10 @@ class _RebateApplicationDetailScreenState
                   _KeyValueRow(
                     label: 'Leave Duration:',
                     value: duration.isEmpty ? '—' : duration,
+                  ),
+                  _KeyValueRow(
+                    label: 'No. of Days:',
+                    value: days == null ? '—' : '$days ${days == 1 ? 'day' : 'days'}',
                   ),
                 ],
               ),

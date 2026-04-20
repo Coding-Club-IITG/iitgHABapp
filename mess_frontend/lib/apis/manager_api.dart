@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../constants/endpoint.dart';
+import 'manager_dio.dart';
 
 class ManagerApi {
   ManagerApi._();
@@ -29,24 +30,6 @@ class ManagerApi {
     }
   }
 
-  /// Shared Dio client. Full request/response logging only in debug builds.
-  static final Dio _dio = () {
-    final d = Dio();
-    if (kDebugMode) {
-      d.interceptors.add(
-        LogInterceptor(
-          request: true,
-          requestBody: true,
-          responseBody: true,
-          responseHeader: false,
-          error: true,
-          logPrint: (obj) => debugPrint('[DIO] $obj'),
-        ),
-      );
-    }
-    return d;
-  }();
-
   static Map<String, String> _authHeaders(String token) => {
         'Authorization': 'Bearer $token',
       };
@@ -57,7 +40,7 @@ class ManagerApi {
           '[ManagerApi] Fetching hostels from ${HostelEndpoints.allHostels} ...');
     }
     try {
-      final response = await _dio.get(HostelEndpoints.allHostels);
+      final response = await ManagerDio.dio.get(HostelEndpoints.allHostels);
       if (kDebugMode) {
         debugPrint(
             '[ManagerApi] /hostel/all -> status=${response.statusCode}, dataType=${response.data.runtimeType}');
@@ -87,7 +70,7 @@ class ManagerApi {
       debugPrint(
           '[ManagerApi] Login manager: hostel=$hostelName url=${AuthEndpoints.managerLogin}');
     }
-    final response = await _dio.post(
+    final response = await ManagerDio.dio.post(
       AuthEndpoints.managerLogin,
       data: {
         'hostelName': hostelName,
@@ -104,15 +87,29 @@ class ManagerApi {
   static Future<Map<String, dynamic>> fetchTodayMessSummary(
     String token,
   ) async {
-    final response = await _dio.get(
+    final response = await ManagerDio.dio.get(
       MessManagerEndpoints.todaySummary,
       options: Options(headers: _authHeaders(token)),
     );
     return response.data as Map<String, dynamic>;
   }
 
+  /// HABit HQ: manually add a scan log for the ongoing meal (backend decides meal by time window).
+  static Future<Map<String, dynamic>> addOngoingMealScan({
+    required String token,
+    required String rollNumber,
+  }) async {
+    final response = await ManagerDio.dio.post(
+      MessManagerEndpoints.addOngoingScan,
+      data: {'rollNumber': rollNumber},
+      options: Options(headers: _authHeaders(token)),
+    );
+    final data = response.data;
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
+
   static Future<Map<String, dynamic>> fetchGalaSummary(String token) async {
-    final response = await _dio.get(
+    final response = await ManagerDio.dio.get(
       GalaManagerEndpoints.summary,
       options: Options(headers: _authHeaders(token)),
     );
@@ -135,7 +132,7 @@ class ManagerApi {
     if (year != null) query['year'] = year;
     if (status != null && status.trim().isNotEmpty) query['status'] = status;
 
-    final response = await _dio.get(
+    final response = await ManagerDio.dio.get(
       MessRebateManagerEndpoints.messApplications,
       queryParameters: query.isEmpty ? null : query,
       options: Options(headers: _authHeaders(token)),
@@ -155,7 +152,7 @@ class ManagerApi {
     required String token,
     required String applicationId,
   }) async {
-    final response = await _dio.post(
+    final response = await ManagerDio.dio.post(
       MessRebateManagerEndpoints.acknowledge(applicationId),
       options: Options(headers: _authHeaders(token)),
     );
@@ -169,7 +166,7 @@ class ManagerApi {
     required String token,
     required String documentUrl,
   }) async {
-    final response = await _dio.post<List<int>>(
+    final response = await ManagerDio.dio.post<List<int>>(
       MessRebateManagerEndpoints.download,
       data: {'proofDocumentUrl': documentUrl},
       options: Options(
@@ -192,7 +189,7 @@ class ManagerApi {
     required String token,
     required String userId,
   }) async {
-    final response = await _dio.get(
+    final response = await ManagerDio.dio.get(
       MessManagerEndpoints.userProfile(userId),
       options: Options(headers: _authHeaders(token)),
     );
@@ -203,7 +200,7 @@ class ManagerApi {
     required String token,
     required String userId,
   }) async {
-    final response = await _dio.get<List<int>>(
+    final response = await ManagerDio.dio.get<List<int>>(
       MessManagerEndpoints.userProfilePicture(userId),
       options: Options(
         headers: _authHeaders(token),
@@ -225,6 +222,56 @@ class ManagerApi {
 
     // 404 or 403 etc. → treat as no picture.
     return null;
+  }
+
+  static Future<Map<String, dynamic>> fetchManagerSubscribers({
+    required String token,
+    String? query,
+    int page = 1,
+    int limit = 200,
+  }) async {
+    final response = await ManagerDio.dio.get(
+      ManagerUserEndpoints.subscribers,
+      queryParameters: <String, dynamic>{
+        if (query != null && query.trim().isNotEmpty) 'q': query.trim(),
+        'page': page,
+        'limit': limit,
+      },
+      options: Options(headers: _authHeaders(token)),
+    );
+    final data = response.data;
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
+
+  static Future<Map<String, dynamic>> fetchSubscriberTodayStatus({
+    required String token,
+    required String userId,
+  }) async {
+    final response = await ManagerDio.dio.get(
+      ManagerUserEndpoints.subscriberTodayStatus(userId),
+      options: Options(headers: _authHeaders(token)),
+    );
+    final data = response.data;
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
+
+  static Future<Map<String, dynamic>> createScanEntry({
+    required String token,
+    required String userId,
+    required String mealType,
+    String? date,
+  }) async {
+    final response = await ManagerDio.dio.post(
+      MessManagerEndpoints.createScanEntry,
+      data: <String, dynamic>{
+        'userId': userId,
+        'mealType': mealType,
+        if (date != null && date.trim().isNotEmpty) 'date': date.trim(),
+      },
+      options: Options(headers: _authHeaders(token)),
+    );
+    final data = response.data;
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
   }
 }
 

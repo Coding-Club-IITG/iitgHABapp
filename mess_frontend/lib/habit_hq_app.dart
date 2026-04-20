@@ -16,20 +16,20 @@ class HabitHqApp extends StatelessWidget {
       theme: Themes.theme.copyWith(
         inputDecorationTheme: const InputDecorationTheme(
           filled: true,
-          fillColor: Color(0xFFF9FAFB),
+          fillColor: Themes.shimmerHighlight,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(12)),
-            borderSide: BorderSide(color: Color(0xFFE5E7EB)),
+            borderSide: BorderSide(color: Themes.shimmerBase),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(12)),
-            borderSide: BorderSide(color: Color(0xFFE5E7EB)),
+            borderSide: BorderSide(color: Themes.shimmerBase),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.all(Radius.circular(12)),
-            borderSide: BorderSide(color: Color(0xFF4C4EDB), width: 1.5),
+            borderSide: BorderSide(color: Themes.kAccent, width: 1.5),
           ),
-          hintStyle: TextStyle(color: Color(0xFF6B7280), fontSize: 14),
+          hintStyle: TextStyle(color: Colors.black54, fontSize: 14),
         ),
       ),
       routerConfig: router,

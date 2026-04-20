@@ -12,6 +12,7 @@ import '../widgets/recent_scan_card.dart';
 import '../widgets/total_pill.dart';
 import 'manager_user_profile_screen.dart';
 import 'mess_meal_scan_logs_screen.dart';
+import 'mess_subscribers_screen.dart';
 
 class TodayMessScreen extends StatefulWidget {
   const TodayMessScreen({super.key, required this.hostelName});
@@ -113,6 +114,17 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
     }
   }
 
+  Future<void> _addManualScan() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => const MessSubscribersScreen(),
+      ),
+    );
+    if (mounted) {
+      _fetch();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) {
@@ -145,21 +157,41 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Today\'s Mess',
-                style: TextStyle(
-                  color: Color(0xFF2E2F31),
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                widget.hostelName,
-                style: const TextStyle(
-                  color: Color(0xFF6B7280),
-                  fontSize: 13,
-                ),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Today\'s Mess',
+                          style: TextStyle(
+                            color: Color(0xFF2E2F31),
+                            fontSize: 20,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          widget.hostelName,
+                          style: const TextStyle(
+                            color: Color(0xFF6B7280),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Refresh',
+                    onPressed: _fetch,
+                    icon: const Icon(
+                      Icons.refresh,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               const Text(
@@ -205,15 +237,33 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
                 ],
               ),
               const SizedBox(height: 16),
-              const Text(
-                'Recent Scans',
-                style: TextStyle(
-                  color: Color(0xFF6B7280),
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                ),
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Recent Scans',
+                      style: TextStyle(
+                        color: Color(0xFF6B7280),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: _addManualScan,
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Add scan'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: const Color(0xFF6149CD),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 4),
             ],
           ),
         ),
@@ -234,7 +284,7 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
                   ),
                 )
               : ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   itemCount: visibleEntries.length,
                   itemBuilder: (context, index) {
                     final entry = visibleEntries[index];

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'apis/manager_dio.dart';
 import 'habit_hq_app.dart';
 import 'navigation/app_router.dart';
 import 'providers/auth_controller.dart';
@@ -14,6 +15,7 @@ Future<void> main() async {
 
   final auth = AuthController();
   await auth.hydrate();
+  ManagerDio.configure(auth);
 
   final router = createAppRouter(updateRequired: updateRequired, auth: auth);
 

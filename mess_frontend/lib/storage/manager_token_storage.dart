@@ -6,6 +6,7 @@ class ManagerTokenStorage {
   ManagerTokenStorage._();
 
   static const _storageKey = 'mm_manager_jwt';
+  static const _refreshKey = 'mm_manager_refresh';
   static const _legacyPrefsKey = 'mm_token';
 
   static const FlutterSecureStorage _secure = FlutterSecureStorage(
@@ -18,6 +19,13 @@ class ManagerTokenStorage {
       _secure.write(key: _storageKey, value: token);
 
   static Future<void> deleteToken() => _secure.delete(key: _storageKey);
+
+  static Future<String?> readRefreshToken() => _secure.read(key: _refreshKey);
+
+  static Future<void> writeRefreshToken(String token) =>
+      _secure.write(key: _refreshKey, value: token);
+
+  static Future<void> deleteRefreshToken() => _secure.delete(key: _refreshKey);
 
   /// One-time migration from plain SharedPreferences to secure storage.
   static Future<void> migrateLegacyFromPrefs(SharedPreferences prefs) async {

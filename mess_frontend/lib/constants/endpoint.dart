@@ -1,45 +1,63 @@
 // Base API URL for the mess manager app.
 // Point this at the same gateway the main app uses.
-const String baseUrl = 'https://hab.codingclub.in/api';
+// REST API is served via the gateway on :3000.
+const String baseUrl = 'http://10.0.2.2:3000/api';
+
+// WebSockets are hosted by the v1 server (default :3001). Local gateway often doesn't proxy WS.
+const String baseWsUrl = 'ws://10.0.2.2:3001/api';
 
 class AuthEndpoints {
-  static const String managerLogin = '$baseUrl/auth/manager/login';
+  static String get managerLogin => '$baseUrl/auth/manager/login';
+
+  /// HABit HQ caterer Google sign-in (separate from RC manager password login).
+  static String get catererGoogle => '$baseUrl/auth/caterer/google';
+  static String get catererRefresh => '$baseUrl/auth/caterer/refresh';
+  static String get catererLogout => '$baseUrl/auth/caterer/logout';
 }
 
 class HostelEndpoints {
-  static const String allHostels = '$baseUrl/hostel/all';
+  static String get allHostels => '$baseUrl/hostel/all';
 }
 
 class GalaManagerEndpoints {
-  static const String summary = '$baseUrl/gala/manager/summary';
+  static String get summary => '$baseUrl/gala/manager/summary';
 
   // WebSocket endpoint for live Gala scan logs (to be implemented server-side).
   static String wsUrl(String token) =>
-      'wss://hab.codingclub.in/api/gala/manager/scan-logs?token=$token';
+      '$baseWsUrl/gala/manager/scan-logs?token=$token';
 }
 
 class MessManagerEndpoints {
-  static const String todaySummary = '$baseUrl/logs/manager/today';
+  static String get todaySummary => '$baseUrl/logs/manager/today';
+  static String get addOngoingScan => '$baseUrl/logs/manager/scan';
+  static String get createScanEntry => '$baseUrl/logs/manager/entry';
   static String userProfile(String userId) => '$baseUrl/users/manager/$userId';
   static String userProfilePicture(String userId) =>
       '$baseUrl/profile/picture/manager/$userId';
   static String mealScanLogsWs(String meal, String token) =>
-      'wss://hab.codingclub.in/api/mess/manager/scan-logs?meal=$meal&token=$token';
+      '$baseWsUrl/mess/manager/scan-logs?meal=$meal&token=$token';
+}
+
+class ManagerUserEndpoints {
+  static String get subscribers => '$baseUrl/users/manager/subscribers';
+  static String subscriberTodayStatus(String userId) =>
+      '$baseUrl/users/manager/subscribers/$userId/status';
 }
 
 class MessRebateManagerEndpoints {
   /// Mess manager view of mess-rebate leave applications (server/v1: /leave/hostel/mess-applications).
-  static const String messApplications = '$baseUrl/leave/hostel/mess-applications';
+  static String get messApplications =>
+      '$baseUrl/leave/hostel/mess-applications';
 
   /// Acknowledge a single rebate application as mess manager.
   static String acknowledge(String id) =>
       '$baseUrl/leave/hostel/applications/$id/acknowledge';
 
   /// Streams the file bytes via server-side OneDrive download (auth required).
-  static const String download = '$baseUrl/leave/download';
+  static String get download => '$baseUrl/leave/download';
 }
 
 class HqAppVersionEndpoints {
   // HABit HQ (manager app) Android version info
-  static const String getAndroidVersion = '$baseUrl/hq-app-version/android';
+  static String get getAndroidVersion => '$baseUrl/hq-app-version/android';
 }

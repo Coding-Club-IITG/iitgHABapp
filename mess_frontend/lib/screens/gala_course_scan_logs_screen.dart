@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../apis/manager_api.dart';
@@ -145,7 +146,10 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
     );
 
     try {
-      final channel = WebSocketChannel.connect(uri);
+      final channel = IOWebSocketChannel.connect(
+        uri,
+        pingInterval: const Duration(minutes: 1),
+      );
       _channel = channel;
 
       setState(() {

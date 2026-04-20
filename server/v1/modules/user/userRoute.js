@@ -14,6 +14,8 @@ import {
   getUserCount,
   deleteUserAccount,
   getUserForManager,
+  listManagerSubscribers,
+  getManagerSubscriberTodayStatus,
 } from "./userController.js";
 
 const userRouter = express.Router();
@@ -119,7 +121,22 @@ userRouter.delete("/account", authenticateJWT, deleteUserAccount);
  */
 userRouter.get("/all/hab", authenticateHabJWT, getAllUsers);
 
+// Mess-manager (HABit HQ): list subscribers + today's status
+userRouter.get(
+  "/manager/subscribers",
+  authenticateMessManagerJWT,
+  listManagerSubscribers,
+);
+
+// Mess-manager (HABit HQ): today's status for one subscriber
+userRouter.get(
+  "/manager/subscribers/:userId/status",
+  authenticateMessManagerJWT,
+  getManagerSubscriberTodayStatus,
+);
+
 // Mess-manager (HABit HQ): fetch user profile by ID
+// IMPORTANT: keep this AFTER the /manager/subscribers routes (otherwise "subscribers" is treated as userId).
 userRouter.get(
   "/manager/:userId",
   authenticateMessManagerJWT,

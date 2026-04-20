@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../models/recent_entry.dart';
+import '../utils/name_case.dart';
 import '../utils/scan_time.dart';
 
 class RecentScanCard extends StatelessWidget {
@@ -18,10 +19,10 @@ class RecentScanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayName =
-        entry.name.isEmpty ? 'Unknown' : entry.name.trim();
+        entry.name.isEmpty ? 'Unknown' : toTitleCase(entry.name);
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 10),
+      margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,

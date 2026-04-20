@@ -3,12 +3,14 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../constants/endpoint.dart';
 import '../models/gala_scan_log.dart';
 import '../providers/auth_controller.dart';
 import '../util/ws_uri_log.dart';
+import '../utils/name_case.dart';
 
 /// Full-screen live Gala scan log viewer (tabs per course). Currently unused by navigation.
 class GalaScanLogsScreen extends StatefulWidget {
@@ -69,7 +71,10 @@ class _GalaScanLogsScreenState extends State<GalaScanLogsScreen>
     final uri = Uri.parse(GalaManagerEndpoints.wsUrl(token));
     debugPrintWsConnect('GalaScanLogs', uri);
 
-    final channel = WebSocketChannel.connect(uri);
+    final channel = IOWebSocketChannel.connect(
+      uri,
+      pingInterval: const Duration(minutes: 1),
+    );
     _channel = channel;
 
     _subscription = channel.stream.listen(
@@ -346,7 +351,7 @@ class _GalaScanLogsScreenState extends State<GalaScanLogsScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      log.userName.isEmpty ? 'Unknown' : log.userName,
+                      log.userName.isEmpty ? 'Unknown' : toTitleCase(log.userName),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,

@@ -38,3 +38,13 @@ export const stationLeave = {
   latexImage: process.env.STATION_LEAVE_LATEX_IMAGE,
   dockerBin: process.env.STATION_LEAVE_DOCKER_BIN || "docker",
 };
+
+/**
+ * Comma-separated Google OAuth 2.0 client IDs allowed as `aud` when verifying
+ * HABit HQ caterer ID tokens (Android, iOS, Web clients from the same GCP project).
+ * Example: abc.apps.googleusercontent.com,xyz.apps.googleusercontent.com
+ */
+export const googleHqClientIds = (process.env.GOOGLE_HQ_CLIENT_IDS || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);

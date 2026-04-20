@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../apis/manager_api.dart';
 import '../providers/auth_controller.dart';
+import '../utils/name_case.dart';
 
 class ManagerUserProfileScreen extends StatefulWidget {
   const ManagerUserProfileScreen({super.key, required this.userId});
@@ -62,17 +63,21 @@ class _ManagerUserProfileScreenState extends State<ManagerUserProfileScreen> {
     return Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
+        elevation: 0,
+        backgroundColor: Colors.white,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.black, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: const Text(
           'Profile',
           style: TextStyle(
-            color: Color(0xFF111827),
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.w600,
+            color: Colors.black,
           ),
         ),
-        backgroundColor: Colors.white,
-        foregroundColor: const Color(0xFF111827),
-        elevation: 0,
+        centerTitle: false,
       ),
       body: FutureBuilder<_ManagerProfileData>(
         future: _future,
@@ -111,7 +116,8 @@ class _ManagerUserProfileScreenState extends State<ManagerUserProfileScreen> {
           final profile = data.profile;
           final bytes = data.pictureBytes;
 
-          final name = (profile['name'] ?? 'Unknown') as String;
+          final rawName = (profile['name'] ?? 'Unknown') as String;
+          final name = toTitleCase(rawName);
           final roll = (profile['rollNumber'] ?? '') as String;
           final hostel = (profile['hostelName'] ?? '') as String;
           final mess = (profile['messName'] ?? '') as String;
@@ -120,49 +126,63 @@ class _ManagerUserProfileScreenState extends State<ManagerUserProfileScreen> {
           final hasImage = bytes != null && bytes.isNotEmpty;
 
           return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 CircleAvatar(
-                  radius: 100,
-                  backgroundColor: const Color(0xFFE5E7EB),
+                  radius: 68,
+                  backgroundColor: Colors.grey.shade200,
                   backgroundImage: hasImage ? MemoryImage(bytes) : null,
                   child: !hasImage
                       ? Text(
                           initial,
                           style: const TextStyle(
-                            color: Color(0xFF111827),
-                            fontSize: 32,
+                            color: Colors.black,
+                            fontSize: 28,
                             fontWeight: FontWeight.w600,
                           ),
                         )
                       : null,
                 ),
-                const SizedBox(height: 12),
-                Text(
-                  name,
-                  style: const TextStyle(
-                    color: Color(0xFF111827),
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
+                const SizedBox(height: 32),
+                _ProfileField(
+                  icon: Icons.person_outline,
+                  label: 'Name',
+                  value: name.isEmpty ? '—' : name,
                 ),
-                const SizedBox(height: 24),
-                _ProfileFieldRow(
-                  icon: Icons.badge_outlined,
-                  label: 'Roll Number',
-                  value: roll,
-                ),
-                _ProfileFieldRow(
+                const Divider(height: 16, color: Color(0xFFE2E2E2)),
+                _ProfileField(
                   icon: Icons.restaurant_outlined,
                   label: 'Current Mess',
-                  value: mess,
+                  value: mess.isEmpty ? '—' : mess,
                 ),
-                _ProfileFieldRow(
-                  icon: Icons.home_outlined,
-                  label: 'Hostel',
-                  value: hostel,
+                const Divider(height: 16, color: Color(0xFFE2E2E2)),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: _ProfileField(
+                        icon: Icons.home_outlined,
+                        label: 'Hostel',
+                        value: hostel.isEmpty ? '—' : hostel,
+                      ),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 48,
+                      color: const Color(0xFFE2E2E2),
+                    ),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.only(left: 16),
+                        child: _ProfileField(
+                          icon: null,
+                          label: 'Roll No.',
+                          value: roll.isEmpty ? '—' : roll,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -173,12 +193,12 @@ class _ManagerUserProfileScreenState extends State<ManagerUserProfileScreen> {
   }
 }
 
-class _ProfileFieldRow extends StatelessWidget {
-  final IconData icon;
+class _ProfileField extends StatelessWidget {
+  final IconData? icon;
   final String label;
   final String value;
 
-  const _ProfileFieldRow({
+  const _ProfileField({
     required this.icon,
     required this.label,
     required this.value,
@@ -189,31 +209,31 @@ class _ProfileFieldRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(
-            icon,
-            size: 20,
-            color: const Color(0xFF6B7280),
-          ),
-          const SizedBox(width: 12),
+          if (icon != null) ...[
+            Icon(icon, size: 24, color: const Color(0xFF111827)),
+            const SizedBox(width: 12),
+          ],
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   label,
-                  style: const TextStyle(
-                    color: Color(0xFF9CA3AF),
-                    fontSize: 12,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey[800],
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 3),
                 Text(
-                  value.isEmpty ? '-' : value,
+                  value,
                   style: const TextStyle(
-                    color: Color(0xFF111827),
-                    fontSize: 14,
+                    fontSize: 20,
+                    color: Colors.black,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

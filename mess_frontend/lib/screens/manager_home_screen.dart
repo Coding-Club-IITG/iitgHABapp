@@ -98,24 +98,31 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           children: screens,
         ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        items: items,
-        onTap: (index) {
-          setState(() {
-            if (_hasGalaToday && index == 1) {
-              _galaInitialized = true;
-            }
-            if (index == rebateIndex) {
-              _rebateInitialized = true;
-            }
-            _currentIndex = index;
-          });
-        },
-        selectedItemColor: const Color(0xFF111827),
-        unselectedItemColor: const Color(0xFF9CA3AF),
-        backgroundColor: Colors.white,
-        type: BottomNavigationBarType.fixed,
+      bottomNavigationBar: Theme(
+        data: Theme.of(context).copyWith(
+          splashFactory: NoSplash.splashFactory,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
+        ),
+        child: BottomNavigationBar(
+          currentIndex: _currentIndex,
+          items: items,
+          onTap: (index) {
+            setState(() {
+              if (_hasGalaToday && index == 1) {
+                _galaInitialized = true;
+              }
+              if (index == rebateIndex) {
+                _rebateInitialized = true;
+              }
+              _currentIndex = index;
+            });
+          },
+          selectedItemColor: const Color(0xFF111827),
+          unselectedItemColor: const Color(0xFF9CA3AF),
+          backgroundColor: Colors.white,
+          type: BottomNavigationBarType.fixed,
+        ),
       ),
     );
   }

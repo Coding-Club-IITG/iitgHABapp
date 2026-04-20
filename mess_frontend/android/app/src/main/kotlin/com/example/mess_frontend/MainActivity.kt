@@ -1,4 +1,4 @@
-package com.example.mess_frontend
+package `in`.ac.iitg.habit.hq
 
 import io.flutter.embedding.android.FlutterActivity
 

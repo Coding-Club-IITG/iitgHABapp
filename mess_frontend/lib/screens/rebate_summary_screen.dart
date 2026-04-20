@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../apis/manager_api.dart';
 import '../providers/auth_controller.dart';
 import '../utils/rebate_formatting.dart';
+import '../utils/name_case.dart';
 import 'rebate_application_detail_screen.dart';
 
 class RebateSummaryScreen extends StatefulWidget {
@@ -93,7 +94,7 @@ class _RebateSummaryScreenState extends State<RebateSummaryScreen> {
     }
   }
 
-  Future<void> _loadApplicationsForSelected() async {
+  Future<void> _loadApplicationsForSelected({bool forceRefresh = false}) async {
     final token = context.read<AuthController>().token;
     if (token == null) return;
 
@@ -105,7 +106,10 @@ class _RebateSummaryScreenState extends State<RebateSummaryScreen> {
     });
 
     try {
-      final cached = _monthCache[sel];
+      if (forceRefresh) {
+        _monthCache.remove(sel);
+      }
+      final cached = forceRefresh ? null : _monthCache[sel];
       final apps = cached ??
           await ManagerApi.fetchMessRebateApplications(
             token: token,
@@ -139,7 +143,7 @@ class _RebateSummaryScreenState extends State<RebateSummaryScreen> {
     final user = a['user'] is Map
         ? Map<String, dynamic>.from(a['user'] as Map)
         : const <String, dynamic>{};
-    final name = (user['name'] ?? '').toString().trim();
+    final name = toTitleCase((user['name'] ?? '').toString());
     final roll = (user['rollNumber'] ?? '').toString().trim();
     final type = (a['leaveType'] ?? 'Leave').toString().trim();
     final start = safeParseIsoDate(a['startDate']);
@@ -161,7 +165,7 @@ class _RebateSummaryScreenState extends State<RebateSummaryScreen> {
                 ),
               );
               if (didUpdate == true && mounted) {
-                await _loadApplicationsForSelected();
+                await _loadApplicationsForSelected(forceRefresh: true);
               }
             },
       borderRadius: BorderRadius.circular(12),
