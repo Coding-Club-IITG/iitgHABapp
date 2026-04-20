@@ -124,9 +124,6 @@ export const createMenu = async (req, res) => {
       LendTime,
       DstartTime,
       DendTime,
-      BisGala,
-      LisGala,
-      DisGala,
     } = req.body;
     const typeOptions = ["Breakfast", "Lunch", "Dinner"];
     const newMenuB = new Menu({
@@ -134,7 +131,6 @@ export const createMenu = async (req, res) => {
       day,
       startTime: BstartTime,
       endTime: BendTime,
-      isGala: BisGala,
       type: typeOptions[0],
     });
     await newMenuB.save();
@@ -143,7 +139,6 @@ export const createMenu = async (req, res) => {
       day,
       startTime: LstartTime,
       endTime: LendTime,
-      isGala: LisGala,
       type: typeOptions[1],
     });
     await newMenuL.save();
@@ -152,7 +147,6 @@ export const createMenu = async (req, res) => {
       day,
       startTime: DstartTime,
       endTime: DendTime,
-      isGala: DisGala,
       type: typeOptions[2],
     });
 

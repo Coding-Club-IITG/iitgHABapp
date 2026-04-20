@@ -43,6 +43,11 @@ dependencies:
   path_provider: ^2.1.5
   share_plus: ^10.1.4
   open_filex: ^4.6.0
+  provider: ^6.1.5
+  go_router: ^14.8.1
+  flutter_secure_storage: ^9.2.4
+  google_sign_in: ^6.2.2
+  flutter_svg: ^2.0.17
 
 dev_dependencies:
   flutter_test:
@@ -68,8 +73,48 @@ flutter:
   uses-material-design: true
 
   assets:
+    - assets/fonts/
     - assets/sounds/scan.wav
     - assets/icon/Handlogo.png
+    - assets/images/Phone.png
+    - assets/images/Habit_logo_Purple_colored.svg
+    - assets/icon/LoginIcon1.png
+    - assets/icon/LoginIcon2.png
+    - assets/icon/LoginIcon3.png
+    - assets/icon/LoginIcon4.png
+    - assets/icon/LoginIcon5.png
+
+  fonts:
+    - family: GeneralSans
+      fonts:
+        - asset: assets/fonts/GeneralSans-Regular.otf
+        - asset: assets/fonts/GeneralSans-Italic.otf
+          style: italic
+        - asset: assets/fonts/GeneralSans-Extralight.otf
+          weight: 200
+        - asset: assets/fonts/GeneralSans-ExtralightItalic.otf
+          weight: 200
+          style: italic
+        - asset: assets/fonts/GeneralSans-Light.otf
+          weight: 300
+        - asset: assets/fonts/GeneralSans-LightItalic.otf
+          weight: 300
+          style: italic
+        - asset: assets/fonts/GeneralSans-Medium.otf
+          weight: 500
+        - asset: assets/fonts/GeneralSans-MediumItalic.otf
+          weight: 500
+          style: italic
+        - asset: assets/fonts/GeneralSans-Semibold.otf
+          weight: 600
+        - asset: assets/fonts/GeneralSans-SemiboldItalic.otf
+          weight: 600
+          style: italic
+        - asset: assets/fonts/GeneralSans-Bold.otf
+          weight: 700
+        - asset: assets/fonts/GeneralSans-BoldItalic.otf
+          weight: 700
+          style: italic
 
 flutter_launcher_icons:
   android: true
