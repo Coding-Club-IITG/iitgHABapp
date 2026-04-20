@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import { User } from "./userModel.js";
 import Feedback from "../feedback/feedbackModel.js";
 import { ScanLogs } from "../mess/ScanLogsModel.js";
+import Leave from "../leave/leaveModel.js";
 import FCMToken from "../notification/FCMToken.js";
 import { MenuItem } from "../mess/menuItemModel.js";
 import { MessChange } from "../mess_change/messChangeModel.js";
@@ -15,6 +16,7 @@ import {
 import AppError from "../../utils/appError.js";
 import redisClient from "../../utils/redisClient.js";
 import { clearCacheByPattern } from "../../utils/redisUtils.js";
+import { getCurrentDate } from "../../utils/date.js";
 
 export const getUserData = async (req, res, next) => {
   if (req.user) {
@@ -404,6 +406,230 @@ export const getUsersByHostelForMess = async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: "Error fetching users by hostel" });
+  }
+};
+
+function kolkataNow() {
+  return new Date(
+    new Date().toLocaleString("en-US", { timeZone: "Asia/Kolkata" }),
+  );
+}
+
+function getTodayWindowKolkata() {
+  const now = kolkataNow();
+  const todayStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    0,
+    0,
+    0,
+    0,
+  );
+  const tomorrowStart = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate() + 1,
+    0,
+    0,
+    0,
+    0,
+  );
+  return { todayStart, tomorrowStart };
+}
+
+/**
+ * Mess-manager (HABit HQ): list subscribers for manager's hostel (curr_subscribed_mess),
+ * with today's scan status + whether they're on leave today.
+ *
+ * GET /api/users/manager/subscribers?q=&page=&limit=
+ */
+export const listManagerSubscribers = async (req, res) => {
+  try {
+    const managerHostel = req.managerHostel;
+    if (!managerHostel || !managerHostel._id || !managerHostel.messId) {
+      return res.status(400).json({ message: "Manager hostel not found" });
+    }
+
+    const hostelId = managerHostel._id.toString();
+    const messId =
+      managerHostel.messId._id?.toString() || managerHostel.messId.toString();
+
+    const q = (req.query?.q || "").toString().trim();
+    const pageNum = Math.max(1, parseInt(req.query?.page || "1", 10) || 1);
+    // Allow fetching full subscriber set via pagination; keep a high server-side cap to avoid accidental huge responses.
+    const limitNum = Math.min(
+      1000,
+      Math.max(10, parseInt(req.query?.limit || "50", 10) || 50),
+    );
+    const skip = (pageNum - 1) * limitNum;
+
+    const query = { curr_subscribed_mess: hostelId };
+    if (q) {
+      const safe = q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(safe, "i");
+      query.$or = [{ name: regex }, { rollNumber: regex }];
+    }
+
+    const [totalCount, users] = await Promise.all([
+      User.countDocuments(query),
+      User.find(query)
+        .select("name rollNumber")
+        .sort({ name: 1 })
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+    ]);
+
+    const today = getCurrentDate(); // YYYY-MM-DD (Kolkata)
+    const userIds = users.map((u) => u._id);
+
+    const { todayStart, tomorrowStart } = getTodayWindowKolkata();
+
+    const [scanLogs, leaves] = await Promise.all([
+      ScanLogs.find({
+        date: today,
+        messId,
+        userId: { $in: userIds },
+      })
+        .select("userId breakfast lunch dinner")
+        .lean(),
+      Leave.find({
+        messHostel: hostelId,
+        user: { $in: userIds },
+        status: { $in: ["Pending", "Acknowledged", "Processed"] },
+        startDate: { $lt: tomorrowStart },
+        endDate: { $gte: todayStart },
+      })
+        .select("user status leaveType startDate endDate")
+        .lean(),
+    ]);
+
+    const scanByUser = new Map();
+    for (const l of scanLogs) {
+      scanByUser.set(String(l.userId), {
+        breakfast: l.breakfast === true,
+        lunch: l.lunch === true,
+        dinner: l.dinner === true,
+      });
+    }
+
+    const leaveByUser = new Map();
+    for (const l of leaves) {
+      const key = String(l.user);
+      if (!leaveByUser.has(key)) {
+        leaveByUser.set(key, {
+          status: l.status,
+          leaveType: l.leaveType,
+          startDate: l.startDate,
+          endDate: l.endDate,
+        });
+      }
+    }
+
+    const result = users.map((u) => {
+      const id = String(u._id);
+      const scanned = scanByUser.get(id) || {
+        breakfast: false,
+        lunch: false,
+        dinner: false,
+      };
+      const leave = leaveByUser.get(id) || null;
+      return {
+        _id: u._id,
+        name: u.name,
+        rollNumber: u.rollNumber,
+        scanned,
+        onLeaveToday: Boolean(leave),
+        leave,
+      };
+    });
+
+    return res.status(200).json({
+      count: totalCount,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.ceil(totalCount / limitNum),
+      today,
+      users: result,
+    });
+  } catch (err) {
+    console.error("listManagerSubscribers:", err);
+    return res.status(500).json({ message: "Error fetching subscribers" });
+  }
+};
+
+/**
+ * Mess-manager (HABit HQ): today's status for one subscriber.
+ * GET /api/users/manager/subscribers/:userId/status
+ */
+export const getManagerSubscriberTodayStatus = async (req, res) => {
+  try {
+    const managerHostel = req.managerHostel;
+    const { userId } = req.params;
+    if (!managerHostel || !managerHostel._id || !managerHostel.messId) {
+      return res.status(400).json({ message: "Manager hostel not found" });
+    }
+    if (!mongoose.Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid userId" });
+    }
+
+    const hostelId = managerHostel._id.toString();
+    const messId =
+      managerHostel.messId._id?.toString() || managerHostel.messId.toString();
+    const today = getCurrentDate();
+
+    const user = await User.findById(userId)
+      .select("name rollNumber curr_subscribed_mess")
+      .lean();
+    if (!user) return res.status(404).json({ message: "User not found" });
+    if (
+      !user.curr_subscribed_mess ||
+      String(user.curr_subscribed_mess) !== hostelId
+    ) {
+      return res.status(403).json({ message: "User not in manager hostel" });
+    }
+
+    const scan = await ScanLogs.findOne({
+      userId,
+      messId,
+      date: today,
+    })
+      .select("breakfast lunch dinner breakfastTime lunchTime dinnerTime")
+      .lean();
+
+    const scanned = {
+      breakfast: scan?.breakfast === true,
+      lunch: scan?.lunch === true,
+      dinner: scan?.dinner === true,
+    };
+
+    const { todayStart, tomorrowStart } = getTodayWindowKolkata();
+    const leave = await Leave.findOne({
+      messHostel: hostelId,
+      user: userId,
+      status: { $in: ["Pending", "Acknowledged", "Processed"] },
+      startDate: { $lt: tomorrowStart },
+      endDate: { $gte: todayStart },
+    })
+      .select("status leaveType startDate endDate")
+      .lean();
+
+    return res.status(200).json({
+      today,
+      user: { _id: user._id, name: user.name, rollNumber: user.rollNumber },
+      scanned,
+      scanTimes: {
+        breakfastTime: scan?.breakfastTime || null,
+        lunchTime: scan?.lunchTime || null,
+        dinnerTime: scan?.dinnerTime || null,
+      },
+      onLeaveToday: Boolean(leave),
+      leave: leave || null,
+    });
+  } catch (err) {
+    console.error("getManagerSubscriberTodayStatus:", err);
+    return res.status(500).json({ message: "Error fetching status" });
   }
 };
 
