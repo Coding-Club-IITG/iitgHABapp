@@ -20,6 +20,8 @@ const FestivalModeAdmin = () => {
     const [isEnabled, setIsEnabled] = useState(false);
     const [loading, setLoading] = useState(true);
     const [uploading, setUploading] = useState(false);
+    const [_imageWithAlerts, _setImageWithAlerts] = useState(null); // legacy
+    const [_imageWithoutAlerts, _setImageWithoutAlerts] = useState(null); // legacy
     const [previewAlerts, setPreviewAlerts] = useState(null); // primary preview
     const [previewNoAlerts, setPreviewNoAlerts] = useState(null); // primary preview
     const [textWithAlerts, setTextWithAlerts] = useState("Happy Diwali");
@@ -31,6 +33,7 @@ const FestivalModeAdmin = () => {
     const [notificationHexInput, setNotificationHexInput] = useState("");
     const [textColorHexError, setTextColorHexError] = useState("");
     const [lastUpdated, setLastUpdated] = useState(null);
+    const [_cacheUntil, setCacheUntil] = useState(null);
     const [expiresAt, setExpiresAt] = useState("");
     const [token, setToken] = useState("");
 
@@ -82,6 +85,7 @@ const FestivalModeAdmin = () => {
     useEffect(() => {
         loadToken();
         loadFestivalConfig();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const loadToken = async () => {
@@ -143,9 +147,8 @@ const FestivalModeAdmin = () => {
                     : ""
             );
             setLastUpdated(data.lastUpdatedAt);
-            if (data.expiresAt) {
-                setExpiresAt(data.expiresAt.split("T")[0]);
-            }
+            setCacheUntil(data.cacheUntil);
+            setExpiresAt(data.expiresAt ? data.expiresAt.split("T")[0] : "");
 
             // Set previews (prefer multi-image list; fall back to legacy)
             const primaryWith = (data.imagesWithAlerts?.[0]?.url || data.imageWithAlerts?.url);
@@ -202,9 +205,10 @@ const FestivalModeAdmin = () => {
                                     : ""
                             );
                             setLastUpdated(cachedData.lastUpdatedAt);
-                            if (cachedData.expiresAt) {
-                                setExpiresAt(cachedData.expiresAt.split("T")[0]);
-                            }
+                            setCacheUntil(cachedData.cacheUntil);
+                            setExpiresAt(
+                                cachedData.expiresAt ? cachedData.expiresAt.split("T")[0] : ""
+                            );
                             const primaryWith = (cachedData.imagesWithAlerts?.[0]?.url || cachedData.imageWithAlerts?.url);
                             const primaryWithout = (cachedData.imagesWithoutAlerts?.[0]?.url || cachedData.imageWithoutAlerts?.url);
                             if (primaryWith) setPreviewAlerts(getFullUrl(primaryWith));
@@ -368,6 +372,7 @@ const FestivalModeAdmin = () => {
                     themeColor: n,
                     greetingTextColor: greetingOut,
                     notificationSubtitleColor: notificationOut,
+                    expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
                 },
                 {
                     headers: {
@@ -462,11 +467,10 @@ const FestivalModeAdmin = () => {
                                 key={hex}
                                 type="button"
                                 onClick={() => setThemeFromPalette(hex)}
-                                className={`w-10 h-10 rounded-full border-2 transition-all ${
-                                    themeColor.toUpperCase() === hex.toUpperCase()
-                                        ? "border-gray-900 scale-105"
-                                        : "border-gray-200"
-                                }`}
+                                className={`w-10 h-10 rounded-full border-2 transition-all ${themeColor.toUpperCase() === hex.toUpperCase()
+                                    ? "border-gray-900 scale-105"
+                                    : "border-gray-200"
+                                    }`}
                                 style={{ backgroundColor: hex }}
                                 title={hex}
                             />
@@ -730,7 +734,7 @@ const FestivalModeAdmin = () => {
                                     className="absolute bottom-3 right-3 px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-colors disabled:opacity-50"
                                     disabled={uploading}
                                 >
-                                    Delete 
+                                    Delete
                                 </button>
                             </>
                         ) : (
@@ -771,10 +775,6 @@ const FestivalModeAdmin = () => {
                     </li>
                     <li className="text-gray-700 pl-6 relative">
                         <span className="absolute left-0 text-green-600 font-bold">✓</span>
-                        Enable festival mode to activate
-                    </li>
-                    <li className="text-gray-700 pl-6 relative">
-                        <span className="absolute left-0 text-green-600 font-bold">✓</span>
                         Images will automatically update in the app (no Play Store update needed)
                     </li>
                     <li className="text-gray-700 pl-6 relative">
@@ -793,6 +793,11 @@ const FestivalModeAdmin = () => {
                         <span className="absolute left-0 text-green-600 font-bold">✓</span>
                         Theme + texts are saved via config (cached up to 6 hours)
                     </li>
+                    <li className="text-gray-700 pl-6 relative">
+                        <span className="absolute left-0 text-green-600 font-bold">✓</span>
+                        Enable festival mode at the end after updating all fields
+                    </li>
+
                 </ul>
             </div>
         </div>

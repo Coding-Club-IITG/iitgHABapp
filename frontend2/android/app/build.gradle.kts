@@ -1,6 +1,9 @@
 import java.util.Properties
 import java.io.FileInputStream
 
+// Note: keep app-specific custom fields in app/build.gradle, which is the
+// authoritative module script currently evaluated by Gradle for :app.
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
