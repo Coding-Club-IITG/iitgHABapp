@@ -24,6 +24,6 @@ router.post("/welcome", authenticateJWT, sendWelcomeNotification);
 
 // Alert endpoints
 router.post("/alerts/create", authenticateHabOrSMCJWT, createAlert);
-router.get("/alerts/", authenticateJWT, getAlerts);
+router.get("/alerts", authenticateJWT, getAlerts);
 
 export default router;
