@@ -283,7 +283,7 @@ async function getTodayMenuForUser({ userId, subscribedHostelId, day }) {
     messId,
     isMessClosed: !!isClosed,
     message: isClosed
-      ? "The mess is closed today as per the monthly schedule."
+      ? "The mess is shut down for the selected date range."
       : null,
     menus: populatedMenus,
   };
