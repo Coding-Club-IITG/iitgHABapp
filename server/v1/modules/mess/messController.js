@@ -23,6 +23,12 @@ import { publishMessScan } from "../../utils/scanBroadcast.js";
 import redisClient from "../../utils/redisClient.js";
 import { sortMenuItemsByMenuOrder } from "../../utils/sortMenuItemsByMenuOrder.js";
 
+import {
+  getAllMessInfo as getAllMessInfoService,
+  getUserMessInfoBySubscribedHostel,
+} from "./services/messInfoService.js";
+import { getMessMenuByDayForAdmin, getMessMenuByDayForUser } from "./services/menuService.js";
+
 const QR_CODE_DATA_URL_OPTIONS = {
   width: 1024,
   margin: 2,
@@ -241,27 +247,12 @@ export const getUserMessInfo = async (req, res) => {
       // User doesn't have a mess subscription yet (e.g., Apple-only user)
       return res.status(404).json({ message: "No mess subscription found" });
     }
-    const messHostel = await Hostel.findById(messHostelId);
-    if (!messHostel) {
-      return res.status(404).json({ message: "Hostel not found" });
-    }
-    const messId = messHostel.messId;
-    if (!messId) {
-      return res.status(404).json({ message: "Mess ID not found" });
-    }
-    const messInfo = await Mess.findById(messId);
-    if (!messInfo) {
+
+    const data = await getUserMessInfoBySubscribedHostel(messHostelId);
+    if (!data) {
       return res.status(404).json({ message: "Mess not found" });
     }
-    const messObj = messInfo.toObject();
-    messObj.rating =
-      messObj.rating != null ? roundToTwoDecimals(messObj.rating) : 0;
-    messObj.ranking = messObj.ranking != null ? Math.round(messObj.ranking) : 0;
-    messObj.feedbackPercentage =
-      messObj.feedbackPercentage != null
-        ? roundToTwoDecimals(messObj.feedbackPercentage)
-        : 0;
-    return res.status(200).json(messObj);
+    return res.status(200).json(data);
   } catch (error) {
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
@@ -270,69 +261,11 @@ export const getUserMessInfo = async (req, res) => {
 
 export const getAllMessInfo = async (req, res) => {
   try {
-    const cachedData = await redisClient.get("all_mess_info");
-    if (cachedData) {
-      return res.status(200).json(JSON.parse(cachedData));
-    }
-
-    const messesWithHostelName = await Mess.aggregate([
-      {
-        $lookup: {
-          from: "hostels",
-          localField: "hostelId",
-          foreignField: "_id",
-          as: "hostelInfo",
-        },
-      },
-      {
-        $lookup: {
-          from: "users",
-          let: { hId: "$hostelId" },
-          pipeline: [
-            { $match: { $expr: { $eq: ["$curr_subscribed_mess", "$$hId"] } } },
-            { $count: "count" },
-          ],
-          as: "subscribers",
-        },
-      },
-      {
-        $addFields: {
-          hostelName: {
-            $ifNull: [{ $arrayElemAt: ["$hostelInfo.hostel_name", 0] }, null],
-          },
-          user_count: {
-            $ifNull: [{ $arrayElemAt: ["$subscribers.count", 0] }, 0],
-          },
-          rating: {
-            $round: [{ $ifNull: ["$rating", 0] }, 2],
-          },
-          ranking: {
-            $round: [{ $ifNull: ["$ranking", 0] }, 0],
-          },
-          feedbackPercentage: {
-            $round: [{ $ifNull: ["$feedbackPercentage", 0] }, 2],
-          },
-        },
-      },
-      {
-        $project: {
-          hostelInfo: 0,
-          subscribers: 0,
-        },
-      },
-    ]);
-
-    if (!messesWithHostelName || messesWithHostelName.length === 0) {
+    const data = await getAllMessInfoService({ useCache: true });
+    if (!data || data.length === 0) {
       return res.status(404).json({ message: "No mess found" });
     }
-
-    await redisClient.set(
-      "all_mess_info",
-      JSON.stringify(messesWithHostelName),
-      "EX",
-      300,
-    );
-    return res.status(200).json(messesWithHostelName);
+    return res.status(200).json(data);
   } catch (error) {
     console.error("Error in getAllMessInfo:", error);
     return res.status(500).json({ message: "Internal server error" });
@@ -368,79 +301,18 @@ export const getMessMenuByDay = async (req, res) => {
     const day = req.body.day;
     const userId = req.user.id;
 
-    if (!messId || !day) {
-      return res.status(400).json({ message: "Mess ID and day are required" });
-    }
-
-    const cacheKey = `menu_${messId}_${day}`;
-    let populatedMenus = await redisClient.get(cacheKey);
-    if (populatedMenus) populatedMenus = JSON.parse(populatedMenus);
-
-    if (!populatedMenus) {
-      const menu = await Menu.find({ messId, day }).sort({ startTime: 1 });
-      if (!menu || menu.length === 0) {
-        return res.status(404).json({ message: "Menu not found" });
-      }
-
-      populatedMenus = await Promise.all(
-        menu.map(async (m) => {
-          const menuObj = m.toObject();
-          const menuItems = menuObj.items;
-          const menuItemDetails = await MenuItem.find({
-            _id: { $in: menuItems },
-          }).lean();
-
-          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
-          return menuObj;
-        }),
-      );
-
-      await redisClient.set(
-        cacheKey,
-        JSON.stringify(populatedMenus),
-        "EX",
-        86400,
-      );
-    }
-
-    // Apply user-specific logic (likes) to cached data
-    const userSpecificMenus = populatedMenus.map((m) => {
-      const mClone = { ...m };
-      mClone.items = m.items.map((item) => {
-        return {
-          ...item,
-          isLiked:
-            item.likes &&
-            item.likes.some((id) => id.toString() === userId.toString()),
-          likesCount: item.likes ? item.likes.length : 0,
-          likes: undefined, // Hide massive array
-        };
-      });
-      return mClone;
-    });
-
-    // Check if the mess is shut down today
-    const mess = await Mess.findById(messId);
-    const currentDate = getCurrentDate();
-    const todayDate = new Date(currentDate);
-    let shutdown = null;
-    if (mess && mess.hostelId) {
-      shutdown = await MessShutdown.findOne({
-        hostelId: mess.hostelId,
-        startDate: { $lte: todayDate },
-        endDate: { $gte: todayDate },
-      }).lean();
-    }
-
-    if (shutdown) {
+    const result = await getMessMenuByDayForUser({ messId, day, userId });
+    if (result.isMessClosed) {
       return res.status(200).json({
         isMessClosed: true,
-        message: "The mess is shut down for the selected date range.",
+        message: result.message,
       });
     }
-
-    return res.status(200).json(userSpecificMenus);
+    return res.status(200).json(result.menus);
   } catch (error) {
+    if (error?.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
   }
@@ -451,56 +323,12 @@ export const getMessMenuByDayForAdminHAB = async (req, res) => {
     const messId = req.params.messId;
     const day = req.body.day;
 
-    if (!messId || !day) {
-      return res.status(400).json({ message: "Mess ID and day are required" });
-    }
-
-    const cacheKey = `menu_${messId}_${day}`;
-    let populatedMenus = await redisClient.get(cacheKey);
-    if (populatedMenus) populatedMenus = JSON.parse(populatedMenus);
-
-    if (!populatedMenus) {
-      const menu = await Menu.find({ messId, day }).sort({ startTime: 1 });
-      if (!menu || menu.length === 0) {
-        return res.status(404).json({ message: "Menu not found" });
-      }
-
-      populatedMenus = await Promise.all(
-        menu.map(async (m) => {
-          const menuObj = m.toObject();
-          const menuItems = menuObj.items;
-          const menuItemDetails = await MenuItem.find({
-            _id: { $in: menuItems },
-          }).lean();
-
-          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
-          return menuObj;
-        }),
-      );
-
-      await redisClient.set(
-        cacheKey,
-        JSON.stringify(populatedMenus),
-        "EX",
-        86400,
-      );
-    }
-
-    // Apply formatting to cached data
-    const specificMenus = populatedMenus.map((m) => {
-      const mClone = { ...m };
-      mClone.items = m.items.map((item) => {
-        return {
-          ...item,
-          likesCount: item.likes ? item.likes.length : 0,
-          likes: undefined, // Hide massive array
-        };
-      });
-      return mClone;
-    });
-
-    return res.status(200).json(specificMenus);
+    const menus = await getMessMenuByDayForAdmin({ messId, day });
+    return res.status(200).json(menus);
   } catch (error) {
+    if (error?.statusCode) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
     console.error(error);
     return res.status(500).json({ message: "Internal server error" });
   }

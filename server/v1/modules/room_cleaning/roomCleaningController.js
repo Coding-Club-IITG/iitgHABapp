@@ -3,6 +3,7 @@ import { RcFeedback } from "./roomCleaningFeedbackModel.js";
 import { RcCleaner } from "./rcCleanerModel.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import { User } from "../user/userModel.js";
+import { getRoomCleaningBookingsForUser } from "./myBookingsService.js";
 
 // In-memory cache for per-hostel slot capacities.
 // Shape: { [hostelId]: { value, expiresAt } }
@@ -754,25 +755,7 @@ export const getMyBookings = async (req, res) => {
     if (!req.user?._id) {
       return res.status(401).json({ message: "User not authenticated" });
     }
-
-    const bookings = await RoomCleaningBooking.find({
-      userId: req.user._id,
-    })
-      .sort({ bookingDate: -1, createdAt: -1 })
-      .select("_id bookingDate slot status hostelId feedbackId reason")
-      .lean();
-
-    const today = startOfDayIST(getISTNow());
-    const list = bookings.map((b) => {
-      const bookingDate = startOfDayIST(b.bookingDate);
-      const future = bookingDate > today;
-      const cancellableStatus =
-        b.status === "Booked" || b.status === "Buffered";
-      const windowOpen = future && isBookingWindowOpen(b.bookingDate);
-      const canCancel = cancellableStatus && future && windowOpen;
-      return { ...b, canCancel };
-    });
-
+    const list = await getRoomCleaningBookingsForUser(req.user._id);
     return res.status(200).json({ bookings: list });
   } catch (error) {
     console.error("getMyBookings error:", error);
