@@ -1,25 +1,25 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
+import 'package:frontend2/apis/app_bootstrap.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/mess/user_mess_info.dart';
 import 'package:frontend2/apis/users/user.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/providers/hostels.dart';
+import 'package:frontend2/providers/room_cleaning_provider.dart';
 import 'package:frontend2/screens/gala_dinner_screen.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/mess_preference.dart';
 import 'package:frontend2/screens/account_screen.dart';
-import 'package:frontend2/utilities/notifications.dart';
+import 'package:frontend2/providers/notification_provider.dart';
 import 'package:frontend2/widgets/common/bottom_nav_bar.dart';
 import 'package:frontend2/widgets/common/shimmer_host.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:frontend2/utilities/startupitem.dart';
+import 'package:frontend2/providers/mess_info_provider.dart';
 import 'home_screen.dart';
 import 'mess_screen.dart';
-
-final _dio = DioClient().dio;
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -32,6 +32,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
   bool _showGalaTab = false;
   bool _homeDataReady = false;
+  dynamic _upcomingGalaFromBootstrap;
 
   void _handleNavTap(int index) {
     setState(() {
@@ -42,19 +43,47 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   @override
   void initState() {
     super.initState();
-    _resolveGalaTabVisibility();
-    tabNavigationNotifier.addListener(_onTabNavigationRequested);
-    deepNavigationNotifier.addListener(_onDeepNavigationRequested);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<NotificationProvider>().addListener(_onProviderChanged);
+      }
+    });
     _runPhase2AndPhase3();
   }
 
   /// Phase 2: fetch user details, mess info, profile picture (loader until done).
   /// Phase 3: FCM, hostels, analytics, mess list (background).
   Future<void> _runPhase2AndPhase3() async {
-    // Phase 3 (background) – start immediately, don't block
-    _runPhase3Background();
+    final messInfoProvider = context.read<MessInfoProvider>();
+    final roomCleaningProvider = context.read<RoomCleaningProvider>();
 
-    // Phase 2 – must complete before hiding home loader
+    bool bootstrapApplied = false;
+    final bootstrapPayload = await fetchAppBootstrapData();
+    final hasBootstrapPayload = bootstrapPayload != null;
+    if (bootstrapPayload != null) {
+      bootstrapApplied = await applyAppBootstrapData(
+        bootstrapPayload,
+        messInfoProvider: messInfoProvider,
+        roomCleaningProvider: roomCleaningProvider,
+      );
+      _upcomingGalaFromBootstrap = bootstrapPayload['upcomingGala'];
+    }
+
+    if (bootstrapApplied) {
+      _runPhase3Background(fromBootstrap: true);
+      try {
+        await fetchUserProfilePicture();
+      } catch (_) {}
+      await _resolveGalaTabVisibility(
+        preloadedUpcoming: _upcomingGalaFromBootstrap,
+        hasPreloadedUpcoming: true,
+      );
+      if (mounted) setState(() => _homeDataReady = true);
+      return;
+    }
+
+    // Fallback: keep old behavior when bootstrap endpoint fails/unavailable.
+    _runPhase3Background(fromBootstrap: false);
     try {
       await fetchUserDetails();
     } catch (_) {}
@@ -64,22 +93,34 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     try {
       await getUserMessInfo();
     } catch (_) {}
+    try {
+      await globalNotificationProvider.syncAlerts();
+    } catch (_) {}
+    await _resolveGalaTabVisibility(
+      preloadedUpcoming: _upcomingGalaFromBootstrap,
+      hasPreloadedUpcoming: hasBootstrapPayload,
+    );
     if (mounted) setState(() => _homeDataReady = true);
   }
 
-  void _runPhase3Background() {
-    registerFcmToken();
+  void _runPhase3Background({required bool fromBootstrap}) {
+    globalNotificationProvider.registerFcmToken();
     FirebaseAnalytics.instance.setAnalyticsCollectionEnabled(true);
-    HostelsNotifier.init();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      context.read<MessInfoProvider>().fetchMessID();
-    });
+    if (!fromBootstrap) {
+      HostelsNotifier.init();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        context.read<MessInfoProvider>().fetchMessID();
+      });
+    }
   }
 
   /// Gala tab: for SMC show when any upcoming gala; for non-SMC show only when
   /// gala date is within 3 days (visible from galaDate-2 days through gala date).
-  Future<void> _resolveGalaTabVisibility() async {
+  Future<void> _resolveGalaTabVisibility({
+    dynamic preloadedUpcoming,
+    bool hasPreloadedUpcoming = false,
+  }) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final isSMC = prefs.getBool('isSMC') ?? false;
@@ -94,8 +135,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         return;
       }
 
-      final response = await _dio.get(GalaEndpoints.upcoming);
-      final galaData = response.data;
+      // Trust bootstrap data (including null) when available; only fetch when
+      // bootstrap payload is unavailable.
+      final galaData = hasPreloadedUpcoming
+          ? preloadedUpcoming
+          : (await DioClient().dio.get(GalaEndpoints.upcoming)).data;
       final galaDateRaw = galaData is Map ? galaData['date'] : null;
       if (galaDateRaw == null) {
         if (mounted) setState(() => _showGalaTab = false);
@@ -129,19 +173,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     }
   }
 
-  void _onTabNavigationRequested() {
-    final targetTab = tabNavigationNotifier.value;
+  void _onProviderChanged() {
+    if (!mounted) return;
+    final provider = globalNotificationProvider;
+    final targetTab = provider.tabNavigation;
     if (targetTab != null && targetTab != _selectedIndex) {
       setState(() {
         _selectedIndex = targetTab;
       });
-      // Clear the navigation request
-      tabNavigationNotifier.value = null;
+      provider.clearTabNavigation();
     }
-  }
 
-  void _onDeepNavigationRequested() {
-    final screenName = deepNavigationNotifier.value;
+    final screenName = provider.deepNavigation;
     if (screenName != null && mounted) {
       // Capture navigator before creating an async gap and wait briefly
       final navigator = Navigator.of(context);
@@ -182,15 +225,15 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         }
 
         // Clear the navigation request
-        deepNavigationNotifier.value = null;
+        provider.clearDeepNavigation();
       });
     }
   }
 
   @override
+  @override
   void dispose() {
-    tabNavigationNotifier.removeListener(_onTabNavigationRequested);
-    deepNavigationNotifier.removeListener(_onDeepNavigationRequested);
+    globalNotificationProvider.removeListener(_onProviderChanged);
     super.dispose();
   }
 
@@ -497,16 +540,18 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
           valueListenable: ProfilePictureProvider.isSetupDone,
           builder: (context, setupDone, child) => Scaffold(
             body: (setupDone == true)
-                ? IndexedStack(
-                    index: _selectedIndex,
-                    children: [
-                      HomeScreen(onNavigateToTab: _handleNavTap),
-                      MessScreen(active: _selectedIndex == 1),
-                      GalaDinnerScreen(active: _selectedIndex == 2),
-                    ],
-                  )
+                ? (_homeDataReady
+                    ? IndexedStack(
+                        index: _selectedIndex,
+                        children: [
+                          HomeScreen(onNavigateToTab: _handleNavTap),
+                          MessScreen(active: _selectedIndex == 1),
+                          GalaDinnerScreen(active: _selectedIndex == 2),
+                        ],
+                      )
+                    : const SizedBox.shrink())
                 : const InitialSetupScreen(),
-            bottomNavigationBar: (setupDone == true)
+            bottomNavigationBar: (setupDone == true && _homeDataReady)
                 ? BottomNavBar(
                     currentIndex: _selectedIndex,
                     onTap: _handleNavTap,

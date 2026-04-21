@@ -27,10 +27,6 @@ const menuSchema = new mongoose.Schema({
     type: String,
     required: true,
   },
-  isGala: {
-    type: Boolean,
-    default: false,
-  },
   type: {
     type: String,
     enum: ["Breakfast", "Lunch", "Dinner"],

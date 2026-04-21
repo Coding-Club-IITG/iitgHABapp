@@ -37,11 +37,11 @@ import logsRoute from "./modules/mess/ScanLogsRoute.js";
 import bugReportRoute from "./modules/bug_report/bugReportRoute.js";
 import roomCleaningRoute from "./modules/room_cleaning/roomCleaningRoute.js";
 import laundryRoute from "./modules/laundry/laundryRoute.js";
-import alertRoutes from "./modules/alert/alertRoute.js";
 import galaRoute from "./modules/gala/galaRoute.js";
 import messChangeRoute from "./modules/mess_change/messchangeRoute.js";
 import profileRoute from "./modules/profile/profileRoute.js";
 import festivalModeRoute from "./modules/festival_mode/festivalModeRoute.js";
+import appRoute from "./modules/app/appRoute.js";
 
 import agenda from "./utils/agenda.js";
 import { initializeFeedbackAutoScheduler } from "./modules/feedback/autoFeedbackScheduler.js";
@@ -51,6 +51,7 @@ import { initializeAnonymizedUser } from "./modules/user/anonymizedUserInit.js";
 import { initializeGuestCleanupScheduler } from "./modules/auth/autoGuestCleanupScheduler.js";
 import { initializeMessRebateAutoScheduler } from "./modules/leave/autoMessRebateScheduler.js";
 import { initializeRoomCleaningAutoResolveScheduler } from "./modules/room_cleaning/autoRoomCleaningResolveScheduler.js";
+import { initializeFestivalModeAutoDisableScheduler } from "./modules/festival_mode/autoFestivalModeDisableScheduler.js";
 
 import { initMessManagerWs } from "./modules/mess/messManagerWs.js";
 import { initGalaManagerWs } from "./modules/gala/galaManagerWs.js";
@@ -278,9 +279,6 @@ app.use("/api/leave", leaveRoute);
 // Mess Change route
 app.use("/api/mess-change", messChangeRoute);
 
-// Alert route
-app.use("/api/alerts", alertRoutes);
-
 // Profile route
 app.use("/api/profile", profileRoute);
 
@@ -298,6 +296,9 @@ app.use("/api/laundry", laundryRoute);
 
 // Festival mode route
 app.use("/api/festival-mode", festivalModeRoute);
+
+// App bootstrap route
+app.use("/api/app", appRoute);
 
 // Debug route: accept delegated tokens and save to disk for server use
 // WARNING: Protect this route in production
@@ -410,6 +411,7 @@ async function bootstrap() {
       initializeMessRebateAutoScheduler();
       initializeRoomCleaningAutoResolveScheduler();
       initializeGuestCleanupScheduler();
+      initializeFestivalModeAutoDisableScheduler();
     }
   } else {
     console.log("Schedulers are Disabled!");

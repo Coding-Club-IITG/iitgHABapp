@@ -7,6 +7,108 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 import 'package:frontend2/apis/dio_client.dart';
 
+String _extractObjectId(dynamic field) {
+  if (field == null) return "";
+  if (field is String) return field;
+  if (field is Map) {
+    return field['_id']?.toString() ?? field['id']?.toString() ?? "";
+  }
+  return field.toString();
+}
+
+String _extractHostelName(dynamic field) {
+  if (field == null) return "";
+  if (field is String) return field;
+  if (field is Map) {
+    return field['hostel_name']?.toString() ?? field['name']?.toString() ?? "";
+  }
+  return "";
+}
+
+Future<Map<String, String>?> persistUserDetailsFromPayload(
+  Map<String, dynamic> userData, {
+  bool fetchProfilePictureIfMissing = true,
+}) async {
+  final prefs = await SharedPreferences.getInstance();
+
+  // Extract user details
+  final String name = userData['name'] ?? "User";
+  final String userId = userData['_id'] ?? "";
+  final String? mail = userData['email']; // Can be null for Apple-only users
+  final String roll = userData['rollNumber'] ?? "Not provided";
+  // Handle null/undefined hostel and mess - use empty string for guest users
+  final String currSubscribedMess = _extractObjectId(userData['curr_subscribed_mess']);
+  final String currSubscribedMessName = userData['curr_subscribed_mess_name'] != null
+      ? userData['curr_subscribed_mess_name'].toString()
+      : _extractHostelName(userData['curr_subscribed_mess']);
+  final String appliedMess = userData['applied_hostel_string'] ?? "Not provided";
+  final String hostel = _extractObjectId(userData['hostel']);
+  final String hostelName = userData['hostel_name'] != null
+      ? userData['hostel_name'].toString()
+      : _extractHostelName(userData['hostel']);
+  final bool gotHostel = userData['got_mess_changed'] == true;
+  final bool isSMC = userData['isSMC'] == true;
+  final bool isSetupDone = userData['isSetupDone'] == true;
+  final bool hasMicrosoftLinked = userData['hasMicrosoftLinked'] == true;
+  final String? guestIdentifier =
+      userData['guestIdentifier']; // Can be null for non-guest users
+  final String roomNumber = (userData['roomNumber'] ?? '').toString();
+  final String phoneNumber = (userData['phoneNumber'] ?? '').toString();
+
+  prefs.setBool('isSMC', isSMC);
+  prefs.setBool('gotMess', gotHostel);
+  prefs.setBool('hasMicrosoftLinked', hasMicrosoftLinked);
+  prefs.setString('hostelName', hostelName);
+  prefs.setString('currMessName', currSubscribedMessName);
+  // Store guestIdentifier if it exists (for identifying guest users)
+  if (guestIdentifier != null) {
+    prefs.setString('guestIdentifier', guestIdentifier);
+  } else {
+    prefs.remove('guestIdentifier');
+  }
+
+  // Check if user is a guest user (has guestIdentifier and Microsoft not linked)
+  final bool isGuest = guestIdentifier != null && !hasMicrosoftLinked;
+
+  // Guest users skip the setup screen - automatically mark setup as done
+  if (isGuest) {
+    prefs.setBool("isSetupDone", true);
+    ProfilePictureProvider.isSetupDone.value = true;
+  } else {
+    // For non-guest users, store the isSetupDone value from server
+    prefs.setBool("isSetupDone", isSetupDone);
+    ProfilePictureProvider.isSetupDone.value = isSetupDone;
+  }
+
+  if (fetchProfilePictureIfMissing) {
+    await fetchUserProfilePicture();
+  }
+
+  // Only store email if it exists (null for Apple-only users without Microsoft linked)
+  if (mail != null) {
+    prefs.setString('email', mail);
+  } else {
+    prefs.remove('email'); // Remove if it was previously set
+  }
+  prefs.setString('rollNumber', roll);
+  prefs.setString('appliedMess', appliedMess);
+  prefs.setString('rollNo', roll);
+  prefs.setString('hostel', hostel);
+  prefs.setString('currMess', currSubscribedMess);
+  prefs.setString('hostelName', hostelName);
+  prefs.setString('currMessName', currSubscribedMessName);
+  prefs.setString('name', name);
+  prefs.setString('userId', userId);
+  await prefs.setString('roomNumber', roomNumber);
+  await prefs.setString('phoneNumber', phoneNumber);
+
+  return {
+    'name': name,
+    'email': mail ?? '', // Provide empty string if null
+    'roll': roll,
+  };
+}
+
 /// Update the authenticated user's roomNumber and phoneNumber via server
 /// Returns true on success, false otherwise.
 Future<bool> saveUserProfileFields(
@@ -62,105 +164,8 @@ Future<Map<String, String>?> fetchUserDetails() async {
       ),
     );
     if (resp.statusCode == 200) {
-      final prefs = await SharedPreferences.getInstance();
       final Map<String, dynamic> userData = resp.data;
-
-      // Extract user details
-      final String name = userData['name'] ?? "User";
-      final String userId = userData['_id'] ?? "";
-      final String? mail =
-          userData['email']; // Can be null for Apple-only users
-      final String roll = userData['rollNumber'] ?? "Not provided";
-      // Handle null/undefined hostel and mess - use empty string for guest users
-      String extractObjectId(dynamic field) {
-        if (field == null) return "";
-        if (field is String) return field;
-        if (field is Map) {
-          return field['_id']?.toString() ?? field['id']?.toString() ?? "";
-        }
-        return field.toString();
-      }
-
-      String extractHostelName(dynamic field) {
-        if (field == null) return "";
-        if (field is String) return field;
-        if (field is Map) {
-          return field['hostel_name']?.toString() ?? field['name']?.toString() ?? "";
-        }
-        return "";
-      }
-
-      final String currSubscribedMess = extractObjectId(userData['curr_subscribed_mess']);
-      final String currSubscribedMessName =
-          userData['curr_subscribed_mess_name'] != null
-              ? userData['curr_subscribed_mess_name'].toString()
-              : extractHostelName(userData['curr_subscribed_mess']);
-      final String appliedMess =
-          userData['applied_hostel_string'] ?? "Not provided";
-      final String hostel = extractObjectId(userData['hostel']);
-      final String hostelName =
-          userData['hostel_name'] != null
-              ? userData['hostel_name'].toString()
-              : extractHostelName(userData['hostel']);
-      final bool gotHostel = userData['got_mess_changed'];
-      final bool isSMC = userData['isSMC'] ?? false;
-      final bool isSetupDone = userData['isSetupDone'] == true;
-      final bool hasMicrosoftLinked = userData['hasMicrosoftLinked'] ?? false;
-      final String? guestIdentifier =
-          userData['guestIdentifier']; // Can be null for non-guest users
-      final String roomNumber = (userData['roomNumber'] ?? '') as String;
-      final String phoneNumber = (userData['phoneNumber'] ?? '') as String;
-
-      prefs.setBool('isSMC', isSMC);
-      prefs.setBool('gotMess', gotHostel);
-      prefs.setBool('hasMicrosoftLinked', hasMicrosoftLinked);
-      prefs.setString('hostelName', hostelName);
-      prefs.setString('currMessName', currSubscribedMessName);
-      // Store guestIdentifier if it exists (for identifying guest users)
-      if (guestIdentifier != null) {
-        prefs.setString('guestIdentifier', guestIdentifier);
-      } else {
-        prefs.remove('guestIdentifier');
-      }
-      // Check if user is a guest user (has guestIdentifier and Microsoft not linked)
-      final bool isGuest = guestIdentifier != null && !hasMicrosoftLinked;
-
-      // Guest users skip the setup screen - automatically mark setup as done
-      if (isGuest) {
-        prefs.setBool("isSetupDone", true);
-        ProfilePictureProvider.isSetupDone.value = true;
-      } else {
-        // For non-guest users, store the isSetupDone value from server
-        prefs.setBool("isSetupDone", isSetupDone);
-        ProfilePictureProvider.isSetupDone.value = isSetupDone;
-      }
-      await fetchUserProfilePicture();
-
-      // Only store email if it exists (null for Apple-only users without Microsoft linked)
-      if (mail != null) {
-        prefs.setString('email', mail);
-      } else {
-        prefs.remove('email'); // Remove if it was previously set
-      }
-      prefs.setString('rollNumber', roll);
-      prefs.setString('appliedMess', appliedMess);
-      prefs.setString('rollNo', roll);
-      prefs.setString('hostel', hostel);
-      prefs.setString('currMess', currSubscribedMess);
-      prefs.setString('hostelName', hostelName);
-      prefs.setString('currMessName', currSubscribedMessName);
-      prefs.setString('name', name);
-      prefs.setString('userId', userId);
-      await prefs.setString('roomNumber', roomNumber);
-      await prefs.setString('phoneNumber', phoneNumber);
-      // isSetupDone is already set above based on guest user check
-
-      // Return the data as a map
-      return {
-        'name': name,
-        'email': mail ?? '', // Provide empty string if null
-        'roll': roll,
-      };
+      return persistUserDetailsFromPayload(userData);
     } else if (resp.statusCode == 401) {
       throw Exception('Unauthorized: Please log in again.');
     } else {

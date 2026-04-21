@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
@@ -39,14 +40,16 @@ class WeatherBackgroundData {
   }
 
   /// Clear-sky hero from local clock + weekend rules only (no sunrise/sunset API).
-  factory WeatherBackgroundData.localTimeDefault() => WeatherBackgroundData.fallback();
+  factory WeatherBackgroundData.localTimeDefault() =>
+      WeatherBackgroundData.fallback();
 
   factory WeatherBackgroundData.testing({
     required String group,
     required bool isDay,
     String? backgroundVariant,
   }) {
-    final resolvedVariant = backgroundVariant ?? (isDay ? 'afternoon' : 'evening');
+    final resolvedVariant =
+        backgroundVariant ?? (isDay ? 'afternoon' : 'evening');
     return WeatherBackgroundData(
       assetPath: WeatherBackgroundService._assetFor(
         group: group,
@@ -67,13 +70,40 @@ class WeatherBackgroundData {
 }
 
 class WeatherBackgroundService {
-  /// Provided at build time via:
-  /// `--dart-define=OPENWEATHER_API_KEY=...`
-  static const String _apiKey = String.fromEnvironment('OPENWEATHER_API_KEY');
+  static const MethodChannel _configChannel =
+      MethodChannel('in.codingclub.hab/config');
+  static String? _cachedApiKey;
+
+  Future<String> _resolveApiKey() async {
+    if (_cachedApiKey != null) {
+      return _cachedApiKey!;
+    }
+
+    var key = '';
+    try {
+      key = (await _configChannel.invokeMethod<String>('getOpenWeatherApiKey'))
+              ?.trim() ??
+          '';
+    } catch (_) {
+      key = '';
+    }
+
+    // Keep support for non-Android/testing builds via dart-define.
+    if (key.isEmpty) {
+      key = const String.fromEnvironment(
+        'OPENWEATHER_API_KEY',
+        defaultValue: '',
+      ).trim();
+    }
+
+    _cachedApiKey = key;
+    return key;
+  }
 
   Future<WeatherBackgroundData> fetchBackground() async {
     try {
-      if (_apiKey.isEmpty) {
+      final apiKey = await _resolveApiKey();
+      if (apiKey.isEmpty) {
         return WeatherBackgroundData.fallback();
       }
 
@@ -101,7 +131,7 @@ class WeatherBackgroundService {
       final uri = Uri.https('api.openweathermap.org', '/data/2.5/weather', {
         'lat': position.latitude.toString(),
         'lon': position.longitude.toString(),
-        'appid': _apiKey,
+        'appid': apiKey,
       });
 
       final response = await http.get(uri).timeout(const Duration(seconds: 12));
@@ -192,7 +222,7 @@ class WeatherBackgroundService {
   static bool _isWeekendPeriod() {
     final now = DateTime.now();
     final hour = now.hour;
-    
+
     // Friday (5): 7PM (19:00) onwards
     if (now.weekday == DateTime.friday && hour >= 19) {
       return true;
@@ -225,7 +255,7 @@ class WeatherBackgroundService {
       // morning: sunrise to 12PM (solar noon)
       // afternoon: 12PM to sunset
       // evening: sunset to sunrise (next day)
-      
+
       final noonUnix = sunriseUnix + ((sunsetUnix - sunriseUnix) ~/ 2);
 
       if (nowUnix >= sunriseUnix && nowUnix < noonUnix) {

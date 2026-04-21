@@ -5,8 +5,7 @@ import {
   enableFeedbackAutomatic,
   disableFeedbackAutomatic,
 } from "./feedbackController.js";
-import admin from "../notification/firebase.js";
-import FCMToken from "../notification/FCMToken.js";
+import { sendNotificationToMultipleUsers } from "../notification/notificationController.js";
 
 import { getFeedbackWindowDates } from "../../utils/windowDates.js";
 import agenda from "../../utils/agenda.js";
@@ -22,7 +21,7 @@ const JOB_REMIND_2H = "feedback-reminder-2h";
  */
 const sendFeedbackReminder = async (hoursLeft) => {
   try {
-    // 1. Find all users who have NOT filled out the current active feedback
+    // Find all users who have NOT filled out the current active feedback
     const slackers = await User.find({
       isFeedbackSubmitted: false,
     }).select("_id");
@@ -34,27 +33,12 @@ const sendFeedbackReminder = async (hoursLeft) => {
 
     const userIds = slackers.map((u) => u._id);
 
-    // 2. Fetch their device tokens
-    const tokens = await FCMToken.find({ user: { $in: userIds } }).select(
-      "token",
+    const response = await sendNotificationToMultipleUsers(
+      userIds,
+      "Feedback Closing Soon! ⚠️",
+      `You only have ${hoursLeft} hours left to submit your mess feedback.`,
+      "hab_feedback_reminders",
     );
-    const tokenArray = tokens.map((t) => t.token);
-
-    if (tokenArray.length === 0) return;
-
-    // 3. Blast the Multicast using the Feedback Native Channel ID
-    const response = await admin.messaging().sendMulticast({
-      tokens: tokenArray,
-      notification: {
-        title: "Feedback Closing Soon! ⚠️",
-        body: `You only have ${hoursLeft} hours left to submit your mess feedback.`,
-      },
-      android: {
-        notification: {
-          channelId: "hab_feedback_reminders",
-        },
-      },
-    });
 
     console.log(
       `[FEEDBACK] Sent ${hoursLeft}hr reminder to ${response.successCount} users`,
