@@ -55,15 +55,34 @@ const getCurrentSubscribedMess = async (rollno) => {
 
 // Mobile redirect (used by app deep link)
 export const mobileRedirectHandler = async (req, res, next) => {
+  const rid =
+    req.headers["x-request-id"] ||
+    req.headers["x-correlation-id"] ||
+    req.headers["x-amzn-trace-id"] ||
+    "no-rid";
   try {
     const { code, state } = req.query;
+    console.log("[Auth][MobileRedirect][start]", {
+      rid,
+      hasCode: Boolean(code),
+      state: state ? String(state) : undefined,
+      redirectUriHost: (() => {
+        try {
+          return new URL(onedrive.redirectUri).host;
+        } catch {
+          return "invalid";
+        }
+      })(),
+    });
     if (!code) throw new AppError(400, "Authorization code is missing");
 
     // If state is "link", this is for account linking - just pass code through
     if (state === "link") {
+      console.log("[Auth][MobileRedirect][link-state]", { rid });
       return res.redirect(`iitghab://link?code=${code}`);
     }
 
+    console.log("[Auth][MobileRedirect][token-exchange][request]", { rid });
     const data = qs.stringify({
       client_secret: onedrive.clientSecret,
       client_id: onedrive.clientId,
@@ -78,29 +97,57 @@ export const mobileRedirectHandler = async (req, res, next) => {
       data,
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
     );
+    console.log("[Auth][MobileRedirect][token-exchange][ok]", {
+      rid,
+      hasAccessToken: Boolean(tokenResp?.data?.access_token),
+      expiresIn: tokenResp?.data?.expires_in,
+    });
 
     const microsoftAccessToken = tokenResp.data.access_token;
+    console.log("[Auth][MobileRedirect][graph-me][request]", { rid });
     const userFromToken = await getUserFromToken(microsoftAccessToken);
     if (!userFromToken?.data) throw new AppError(401, "Access denied");
+    console.log("[Auth][MobileRedirect][graph-me][ok]", {
+      rid,
+      hasMail: Boolean(userFromToken?.data?.mail),
+      hasSurname: Boolean(userFromToken?.data?.surname),
+      tenant: userFromToken?.data?.tenantId,
+    });
 
     const roll = userFromToken.data.surname;
     if (!roll) throw new AppError(401, "Sign in using Institute Account");
 
+    console.log("[Auth][MobileRedirect][hostel-alloc][request]", { rid, roll });
     const allocatedHostel = await getHostelAlloc(roll);
     if (!allocatedHostel)
       throw new AppError(
         401,
         "Hostel allocation not found for this roll number",
       );
+    console.log("[Auth][MobileRedirect][hostel-alloc][ok]", {
+      rid,
+      roll,
+      hostelId: String(allocatedHostel?._id),
+    });
 
     const currentSubscribedMess = await getCurrentSubscribedMess(roll);
     // currentSubscribedMess is optional - if not found, User model will default to hostel
 
     let existingUser = await findUserWithEmail(userFromToken.data.mail);
     let isFirstLogin = false;
-    console.log("Existing user: ", existingUser);
+    console.log("[Auth][MobileRedirect][user-lookup]", {
+      rid,
+      roll,
+      email: userFromToken?.data?.mail,
+      found: Boolean(existingUser),
+    });
 
     if (!existingUser) {
+      console.log("[Auth][MobileRedirect][user-create][start]", {
+        rid,
+        roll,
+        email: userFromToken?.data?.mail,
+      });
       const userData = {
         name: userFromToken.data.displayName,
         degree: userFromToken.data.jobTitle,
@@ -119,7 +166,17 @@ export const mobileRedirectHandler = async (req, res, next) => {
       const user = new User(userData);
       existingUser = await user.save();
       isFirstLogin = true;
+      console.log("[Auth][MobileRedirect][user-create][ok]", {
+        rid,
+        userId: String(existingUser?._id),
+        isFirstLogin,
+      });
     } else {
+      console.log("[Auth][MobileRedirect][user-update][start]", {
+        rid,
+        userId: String(existingUser?._id),
+        roll,
+      });
       // Microsoft login always means student account (surname exists), so always set hasMicrosoftLinked
       existingUser.email = userFromToken.data.mail; // Update email to Microsoft email
       existingUser.rollNumber = roll; // Update roll number
@@ -134,6 +191,10 @@ export const mobileRedirectHandler = async (req, res, next) => {
       }
 
       await existingUser.save();
+      console.log("[Auth][MobileRedirect][user-update][ok]", {
+        rid,
+        userId: String(existingUser?._id),
+      });
     }
 
     if (existingUser.isBanned) {
@@ -142,6 +203,10 @@ export const mobileRedirectHandler = async (req, res, next) => {
 
     const accessToken = existingUser.generateAccessToken();
     const refreshToken = existingUser.generateRefreshToken();
+    console.log("[Auth][MobileRedirect][jwt][ok]", {
+      rid,
+      userId: String(existingUser?._id),
+    });
 
     await Session.create({
       user: existingUser._id,
@@ -150,22 +215,43 @@ export const mobileRedirectHandler = async (req, res, next) => {
       ipAddress: req.ip,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
+    console.log("[Auth][MobileRedirect][session][created]", {
+      rid,
+      userId: String(existingUser?._id),
+    });
 
     // Welcome notification is now sent from frontend after FCM token registration
     // This ensures the FCM token exists before sending the notification
 
+    const redirectUrl = `iitghab://success?accessToken=${accessToken}&refreshToken=${refreshToken}&user=${encodeURIComponent(
+      existingUser.email,
+    )}`;
+    console.log("[Auth][MobileRedirect][redirect]", {
+      rid,
+      userId: String(existingUser?._id),
+      isFirstLogin,
+    });
     return res.redirect(
-      `iitghab://success?accessToken=${accessToken}&refreshToken=${refreshToken}&user=${encodeURIComponent(
-        existingUser.email,
-      )}`,
+      redirectUrl,
     );
   } catch (error) {
     const status = error?.response?.status;
     const data = error?.response?.data;
     console.error("Error in mobileRedirectHandler:", {
+      rid,
       message: error?.message,
       status,
-      data,
+      data: data
+        ? {
+            error: data.error,
+            error_description: data.error_description,
+            error_codes: data.error_codes,
+            suberror: data.suberror,
+            trace_id: data.trace_id,
+            correlation_id: data.correlation_id,
+            timestamp: data.timestamp,
+          }
+        : undefined,
     });
     next(error);
   }

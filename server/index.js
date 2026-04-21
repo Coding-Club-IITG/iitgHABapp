@@ -21,6 +21,10 @@ const targets = {
   v2: `http://localhost:${process.env.PORT_V2 || 3002}`,
 };
 
+const isAuthRedirectPath = (url = "") =>
+  url.startsWith("/api/auth/login/redirect/mobile") ||
+  url.startsWith("/api/auth/login/redirect/web");
+
 // CORS middleware - must be before proxy
 app.use(
   cors({
@@ -54,7 +58,29 @@ app.use(
 
 // 1. Logging Middleware (Optional: Helps debugging)
 app.use((req, res, next) => {
-  console.log(`[Gateway] Request: ${req.method} ${req.url}`);
+  const rid =
+    req.headers["x-request-id"] ||
+    req.headers["x-correlation-id"] ||
+    req.headers["x-amzn-trace-id"] ||
+    "no-rid";
+
+  // Keep logs high-signal: always log auth redirect callbacks (they're critical to debug),
+  // otherwise keep the existing concise one-liner.
+  if (isAuthRedirectPath(req.url)) {
+    console.log("[Gateway][AuthRedirect][request]", {
+      rid,
+      method: req.method,
+      url: req.url,
+      hasCode: typeof req.query?.code === "string" && req.query.code.length > 0,
+      state:
+        typeof req.query?.state === "string" ? String(req.query.state) : undefined,
+      xApiVersion: req.headers["x-api-version"],
+      userAgent: req.headers["user-agent"],
+      ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress,
+    });
+  } else {
+    console.log(`[Gateway] Request: ${req.method} ${req.url}`);
+  }
   next();
 });
 
@@ -82,6 +108,58 @@ const apiProxy = createProxyMiddleware({
   router: selectProxyTarget,
   ws: true, // Support websockets if needed
   logLevel: "debug", // detailed logs in console
+  onProxyReq: (proxyReq, req, res) => {
+    if (!isAuthRedirectPath(req.url)) return;
+    const rid =
+      req.headers["x-request-id"] ||
+      req.headers["x-correlation-id"] ||
+      req.headers["x-amzn-trace-id"] ||
+      "no-rid";
+    const target = selectProxyTarget(req);
+    console.log("[Gateway][AuthRedirect][proxyReq]", {
+      rid,
+      target,
+      method: req.method,
+      url: req.url,
+    });
+  },
+  onProxyRes: (proxyRes, req, res) => {
+    if (!isAuthRedirectPath(req.url)) return;
+    const rid =
+      req.headers["x-request-id"] ||
+      req.headers["x-correlation-id"] ||
+      req.headers["x-amzn-trace-id"] ||
+      "no-rid";
+    const target = selectProxyTarget(req);
+    console.log("[Gateway][AuthRedirect][proxyRes]", {
+      rid,
+      target,
+      statusCode: proxyRes.statusCode,
+      location: proxyRes.headers?.location,
+    });
+  },
+  onError: (err, req, res) => {
+    const rid =
+      req.headers?.["x-request-id"] ||
+      req.headers?.["x-correlation-id"] ||
+      req.headers?.["x-amzn-trace-id"] ||
+      "no-rid";
+    const target = (() => {
+      try {
+        return selectProxyTarget(req);
+      } catch {
+        return "unknown";
+      }
+    })();
+    console.error("[Gateway][proxyError]", {
+      rid,
+      target,
+      method: req.method,
+      url: req.url,
+      message: err?.message,
+      code: err?.code,
+    });
+  },
   // All headers (including Authorization and Content-Type) are automatically preserved
   // Multipart/form-data is automatically streamed without buffering
 });
