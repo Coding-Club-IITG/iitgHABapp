@@ -3,7 +3,7 @@ import { Hostel } from "../hostel/hostelModel.js";
 import { Mess } from "../mess/messModel.js";
 import { Menu } from "../mess/menuModel.js";
 import { MenuItem } from "../mess/menuItemModel.js";
-import { MessClosure } from "../hostel/messClosureModel.js";
+import { MessShutdown } from "../mess/messShutdownModel.js";
 import Alert from "../notification/notificationModel.js";
 import { GalaDinner } from "../gala/galaDinnerModel.js";
 import { RoomCleaningBooking } from "../room_cleaning/roomCleaningBookingModel.js";
@@ -272,9 +272,10 @@ async function getTodayMenuForUser({ userId, subscribedHostelId, day }) {
 
   const currentDate = getCurrentDate();
   const todayDate = new Date(currentDate);
-  const isClosed = await MessClosure.findOne({
+  const isClosed = await MessShutdown.findOne({
     hostelId: subscribedHostelId,
-    closureDate: todayDate,
+    startDate: { $lte: todayDate },
+    endDate: { $gte: todayDate },
   }).lean();
 
   return {
