@@ -127,8 +127,8 @@ Future<bool> refreshAccessToken() async {
       return false;
     }
 
-    final dio = Dio();
-
+    // Use the shared Dio client so gateway routing headers are consistent.
+    final dio = DioClient().dio;
     final response = await dio.post(
       '$baseUrl/auth/refresh',
       data: {
