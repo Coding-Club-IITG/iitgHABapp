@@ -3,6 +3,7 @@ import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
 
 /// Default palette (web admin quick-picks). Server may send any valid hex; we use it as-is.
@@ -318,7 +319,7 @@ class FestivalModeService {
     }
 
     try {
-      final response = await Dio().get(
+      final response = await DioClient().dio.get(
         '$baseUrl/festival-mode/active-summary',
         options: Options(
           connectTimeout: const Duration(seconds: 10),
@@ -453,7 +454,7 @@ class FestivalModeService {
 
       // Fetch fresh data from server
       debugPrint('[FestivalMode] Fetching fresh data from server');
-      final response = await Dio().get(
+      final response = await DioClient().dio.get(
         '$baseUrl/festival-mode/status',
         options: Options(
           connectTimeout: Duration(seconds: 10),

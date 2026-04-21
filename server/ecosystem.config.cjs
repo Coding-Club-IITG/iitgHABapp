@@ -16,8 +16,8 @@ module.exports = {
       instance_var: "NODE_APP_INSTANCE",
 
       // Performance
-      instances: "8",
-      exec_mode: "cluster",
+      instances: "1",
+      exec_mode: "fork",
 
       // Stability
       autorestart: true,
@@ -41,8 +41,8 @@ module.exports = {
       name: "api-v2",
       script: "./index.js",
       cwd: "./v2",
-      instances: "8",
-      exec_mode: "cluster",
+      instances: "1",
+      exec_mode: "fork",
       watch: false,
       env: { PORT: 3002 },
       max_memory_restart: "1G",
