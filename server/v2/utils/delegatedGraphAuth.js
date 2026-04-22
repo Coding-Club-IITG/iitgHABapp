@@ -1,16 +1,18 @@
-const fs = require("fs");
-const fsp = require("fs").promises;
-const path = require("path");
-const axios = require("axios");
-const onedrive = require("../config/onedrive.js");
-const redisClient = require("./redisClient.js");
+import fs_737 from "fs";
+const fsp = fs_737.promises;
+import path from "path";
+const __dirname = import.meta.dirname;
 
-const tokenFilePath =
-  process.env.GRAPH_DELEGATED_TOKEN_PATH ||
+import axios from "axios";
+import redisClient from "./redisClient.js";
+import onedrive from "../config/onedrive.js";
+
+export const tokenFilePath =
+  onedrive.graphTokenPath ||
   path.resolve(__dirname, "..", ".secrets", "graph_delegated_token.json");
 
-const REDIS_KEY_TOKEN = "hab:graph:delegated_token";
-const REDIS_KEY_LOCK = "hab:graph:delegated_refresh_lock";
+const REDIS_KEY_TOKEN = "graph:delegated_token";
+const REDIS_KEY_LOCK = "graph:delegated_refresh_lock";
 const LOCK_TTL_SEC = 25;
 const VALIDITY_BUFFER_MS = 60_000; // consider valid until expires_at - 1 min
 
@@ -32,8 +34,7 @@ function getRedisClient() {
 }
 
 function tokenEndpoint() {
-  const tenant = onedrive.authTenant || onedrive.tenantId || "common";
-  return `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`;
+  return `https://login.microsoftonline.com/${onedrive.authTenant}/oauth2/v2.0/token`;
 }
 
 async function ensureDir() {
@@ -75,7 +76,10 @@ async function saveToRedis() {
   const redis = getRedisClient();
   if (!redis) return;
   try {
-    const ttl = Math.max(1, Math.floor((inMemory.expires_at - Date.now()) / 1000));
+    const ttl = Math.max(
+      1,
+      Math.floor((inMemory.expires_at - Date.now()) / 1000),
+    );
     await redis.set(
       REDIS_KEY_TOKEN,
       JSON.stringify({
@@ -84,7 +88,7 @@ async function saveToRedis() {
         expires_at: inMemory.expires_at,
       }),
       "EX",
-      ttl
+      ttl,
     );
   } catch (e) {
     console.warn("[Graph Delegated] Redis write failed:", e?.message);
@@ -225,11 +229,15 @@ async function refreshIfNeeded() {
   return doRefresh();
 }
 
-async function getDelegatedAccessToken() {
+export async function getDelegatedAccessToken() {
   return refreshIfNeeded();
 }
 
-async function setDelegatedTokens({ access_token, refresh_token, expires_at }) {
+export async function setDelegatedTokens({
+  access_token,
+  refresh_token,
+  expires_at,
+}) {
   if (!access_token || !refresh_token || !expires_at) {
     throw new Error(
       "setDelegatedTokens requires access_token, refresh_token, expires_at (epoch ms).",
@@ -245,15 +253,8 @@ async function setDelegatedTokens({ access_token, refresh_token, expires_at }) {
 }
 
 /** Call at worker startup so Redis client connects and backfills from disk early. */
-function initDelegatedGraphRedis() {
+export function initDelegatedGraphRedis() {
   loadFromDisk().then(() => {
     if (hasValidToken()) saveToRedis();
   });
 }
-
-module.exports = {
-  getDelegatedAccessToken,
-  setDelegatedTokens,
-  tokenFilePath,
-  initDelegatedGraphRedis,
-};

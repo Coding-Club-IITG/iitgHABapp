@@ -1,8 +1,8 @@
-const { RoomCleaningBooking } = require("./roomCleaningBookingModel");
-const { RcFeedback } = require("./roomCleaningFeedbackModel");
-const { RcCleaner } = require("./rcCleanerModel");
-const { Hostel } = require("../hostel/hostelModel");
-const { User } = require("../user/userModel");
+import { RoomCleaningBooking } from "./roomCleaningBookingModel.js";
+import { RcFeedback } from "./roomCleaningFeedbackModel.js";
+import { RcCleaner } from "./rcCleanerModel.js";
+import { Hostel } from "../hostel/hostelModel.js";
+import { User } from "../user/userModel.js";
 
 // In-memory cache for per-hostel slot capacities.
 // Shape: { [hostelId]: { value, expiresAt } }
@@ -109,9 +109,7 @@ async function resolveContext({ req, dateParam, allowWindowBypass = false }) {
     }
   }
 
-  const hostel = await Hostel.findById(hostelId)
-    .select("hostel_name")
-    .lean();
+  const hostel = await Hostel.findById(hostelId).select("hostel_name").lean();
   if (!hostel) {
     const err = new Error("Hostel not found");
     err.statusCode = 404;
@@ -156,9 +154,7 @@ async function resolveContext({ req, dateParam, allowWindowBypass = false }) {
 // Compute per-slot capacity based on RcCleaner configuration for a hostel.
 // Returns an object: { A: { primaryCapacity, bufferCapacity }, ... }.
 async function getSlotCapacitiesForHostel(hostelId) {
-  const cleaners = await RcCleaner.find({ hostelId })
-    .select("slots")
-    .lean();
+  const cleaners = await RcCleaner.find({ hostelId }).select("slots").lean();
 
   const counts = { A: 0, B: 0, C: 0, D: 0 };
   for (const c of cleaners) {
@@ -208,7 +204,7 @@ function invalidateSlotCapacityCache(hostelId) {
  *   (according to the D+2 / D+3 rules).
  * - For each such day, computes slot availability (primary + buffer).
  */
-const getAvailability = async (req, res) => {
+export const getAvailability = async (req, res) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ message: "User not authenticated" });
@@ -226,9 +222,7 @@ const getAvailability = async (req, res) => {
     }
 
     const hostelId = user.hostel;
-    const hostel = await Hostel.findById(hostelId)
-      .select("hostel_name")
-      .lean();
+    const hostel = await Hostel.findById(hostelId).select("hostel_name").lean();
     if (!hostel) {
       return res.status(404).json({ message: "Hostel not found" });
     }
@@ -298,9 +292,7 @@ const getAvailability = async (req, res) => {
         const slotId = slotMeta.id;
         const forSlot = bookings.filter((b) => b.slot === slotId);
 
-        const primaryUsed = forSlot.filter(
-          (b) => b.status === "Booked",
-        ).length;
+        const primaryUsed = forSlot.filter((b) => b.status === "Booked").length;
         const bufferUsed = forSlot.filter(
           (b) => b.status === "Buffered",
         ).length;
@@ -308,9 +300,7 @@ const getAvailability = async (req, res) => {
           slotCapacities[slotId] || {};
         const slotsLeft = Math.max((primaryCapacity || 0) - primaryUsed, 0);
         const bufferSlotsLeft =
-          slotsLeft > 0
-            ? 0
-            : Math.max((bufferCapacity || 0) - bufferUsed, 0);
+          slotsLeft > 0 ? 0 : Math.max((bufferCapacity || 0) - bufferUsed, 0);
 
         return {
           slot: slotId,
@@ -320,10 +310,7 @@ const getAvailability = async (req, res) => {
           slotsLeft,
           bufferSlotsLeft,
         };
-      }).filter(
-        (s) =>
-          (s.primaryCapacity || 0) + (s.bufferCapacity || 0) > 0,
-      );
+      }).filter((s) => (s.primaryCapacity || 0) + (s.bufferCapacity || 0) > 0);
 
       const dateIst = startOfDayIST(targetDate);
       const yyyy = dateIst.getFullYear();
@@ -361,7 +348,7 @@ const getAvailability = async (req, res) => {
  * All handlers assume authenticateMessManagerJWT has set req.managerHostel.
  */
 
-const getRcCleaners = async (req, res) => {
+export const getRcCleaners = async (req, res) => {
   try {
     const hostel = req.managerHostel;
     if (!hostel) {
@@ -388,7 +375,7 @@ const getRcCleaners = async (req, res) => {
   }
 };
 
-const postRcCleaner = async (req, res) => {
+export const postRcCleaner = async (req, res) => {
   try {
     const hostel = req.managerHostel;
     if (!hostel) {
@@ -426,7 +413,7 @@ const postRcCleaner = async (req, res) => {
   }
 };
 
-const putRcCleaner = async (req, res) => {
+export const putRcCleaner = async (req, res) => {
   try {
     const hostel = req.managerHostel;
     if (!hostel) {
@@ -472,7 +459,7 @@ const putRcCleaner = async (req, res) => {
   }
 };
 
-const deleteRcCleaner = async (req, res) => {
+export const deleteRcCleaner = async (req, res) => {
   try {
     const hostel = req.managerHostel;
     if (!hostel) {
@@ -524,7 +511,7 @@ const deleteRcCleaner = async (req, res) => {
  *  - Creates booking with status "Booked" if primary slots left,
  *    otherwise "Buffered" if buffer slots left; otherwise rejects.
  */
-const createBooking = async (req, res) => {
+export const createBooking = async (req, res) => {
   const session = await RoomCleaningBooking.startSession();
   session.startTransaction();
 
@@ -618,11 +605,11 @@ const createBooking = async (req, res) => {
             status,
             // store snapshots if provided (frontend popup)
             ...(roomNumber != null && String(roomNumber).trim().length > 0
-                ? { roomNumber: String(roomNumber).trim() }
-                : {}),
+              ? { roomNumber: String(roomNumber).trim() }
+              : {}),
             ...(phoneNumber != null && String(phoneNumber).trim().length > 0
-                ? { phoneNumber: String(phoneNumber).trim() }
-                : {}),
+              ? { phoneNumber: String(phoneNumber).trim() }
+              : {}),
           },
         ],
         { session },
@@ -695,13 +682,11 @@ const createBooking = async (req, res) => {
  *  - Only statuses Booked or Buffered can be cancelled.
  *  - Cancellation allowed only when the booking window for that date is open.
  */
-const cancelBooking = async (req, res) => {
+export const cancelBooking = async (req, res) => {
   try {
     const { bookingId } = req.body || {};
     if (!bookingId) {
-      return res
-        .status(400)
-        .json({ message: "Field 'bookingId' is required" });
+      return res.status(400).json({ message: "Field 'bookingId' is required" });
     }
 
     if (!req.user?._id) {
@@ -764,7 +749,7 @@ const cancelBooking = async (req, res) => {
  * Each booking includes canCancel: true only when status is Booked/Buffered,
  * bookingDate is in the future, and the booking window for that date is open.
  */
-const getMyBookings = async (req, res) => {
+export const getMyBookings = async (req, res) => {
   try {
     if (!req.user?._id) {
       return res.status(401).json({ message: "User not authenticated" });
@@ -808,15 +793,13 @@ const getMyBookings = async (req, res) => {
  *  - satisfaction: 1–5
  *  - remarks?: string
  */
-const submitFeedback = async (req, res) => {
+export const submitFeedback = async (req, res) => {
   try {
     const { bookingId, reachedInSlot, staffPoliteness, satisfaction, remarks } =
       req.body || {};
 
     if (!bookingId) {
-      return res
-        .status(400)
-        .json({ message: "Field 'bookingId' is required" });
+      return res.status(400).json({ message: "Field 'bookingId' is required" });
     }
 
     if (!req.user?._id) {
@@ -849,14 +832,12 @@ const submitFeedback = async (req, res) => {
     const allowedBinary = ["Yes", "No", "NotSure"];
     if (!allowedBinary.includes(reachedInSlot)) {
       return res.status(400).json({
-        message:
-          "Field 'reachedInSlot' must be one of Yes, No, NotSure",
+        message: "Field 'reachedInSlot' must be one of Yes, No, NotSure",
       });
     }
     if (!allowedBinary.includes(staffPoliteness)) {
       return res.status(400).json({
-        message:
-          "Field 'staffPoliteness' must be one of Yes, No, NotSure",
+        message: "Field 'staffPoliteness' must be one of Yes, No, NotSure",
       });
     }
 
@@ -927,7 +908,7 @@ const submitFeedback = async (req, res) => {
  * Query: date (optional) YYYY-MM-DD; default is tomorrow in IST.
  * Returns: { bookings: [ { _id, roomNumber, slot, timeRange, assignedTo } ], totalCleaners }
  */
-const getRcTomorrow = async (req, res) => {
+export const getRcTomorrow = async (req, res) => {
   try {
     const hostel = req.managerHostel;
     if (!hostel) {
@@ -969,8 +950,8 @@ const getRcTomorrow = async (req, res) => {
       for (const u of users) {
         const key = u._id.toString();
         userMap[key] = {
-          roomNumber: u.roomNumber != null ? String(u.roomNumber) : "—",
-          phoneNumber: u.phoneNumber != null ? String(u.phoneNumber) : "—",
+          roomNumber: u.roomNumber != null ? String(u.roomNumber) : "-",
+          phoneNumber: u.phoneNumber != null ? String(u.phoneNumber) : "-",
         };
       }
     }
@@ -992,8 +973,8 @@ const getRcTomorrow = async (req, res) => {
 
       return {
         _id: b._id,
-        roomNumber: roomFromBooking ?? u?.roomNumber ?? "—",
-        phoneNumber: phoneFromBooking ?? u?.phoneNumber ?? "—",
+        roomNumber: roomFromBooking ?? u?.roomNumber ?? "-",
+        phoneNumber: phoneFromBooking ?? u?.phoneNumber ?? "-",
         slot: b.slot,
         timeRange: slotMap[b.slot] || "",
         assignedTo: b.assignedTo ?? null,
@@ -1026,7 +1007,7 @@ const getRcTomorrow = async (req, res) => {
  * Body: { date? (YYYY-MM-DD), assignments: [ { bookingId, assignedTo } ] }
  * assignedTo: cleanerId (RcCleaner._id) or null/omit for unassigned.
  */
-const postRcTomorrowAssign = async (req, res) => {
+export const postRcTomorrowAssign = async (req, res) => {
   try {
     const hostel = req.managerHostel;
     if (!hostel) {
@@ -1068,7 +1049,9 @@ const postRcTomorrowAssign = async (req, res) => {
       };
 
       if (assignedTo == null || assignedTo === "" || assignedTo === 0) {
-        await RoomCleaningBooking.updateOne(filter, { $unset: { assignedTo: 1 } });
+        await RoomCleaningBooking.updateOne(filter, {
+          $unset: { assignedTo: 1 },
+        });
       } else {
         const cleanerId = String(assignedTo);
         if (!cleanerIdSet.has(cleanerId)) {
@@ -1108,7 +1091,7 @@ const postRcTomorrowAssign = async (req, res) => {
  *
  * Only updates bookings that belong to the manager hostel and match bookingDate.
  */
-const postRcFinalizeStatuses = async (req, res) => {
+export const postRcFinalizeStatuses = async (req, res) => {
   try {
     const hostel = req.managerHostel;
     if (!hostel) {
@@ -1198,19 +1181,3 @@ const postRcFinalizeStatuses = async (req, res) => {
     });
   }
 };
-
-module.exports = {
-  getAvailability,
-  createBooking,
-  cancelBooking,
-  getMyBookings,
-  submitFeedback,
-  getRcTomorrow,
-  postRcTomorrowAssign,
-  postRcFinalizeStatuses,
-   getRcCleaners,
-   postRcCleaner,
-   putRcCleaner,
-   deleteRcCleaner,
-};
-

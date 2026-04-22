@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 // Room cleaner configuration per hostel.
 // Each cleaner can work in one or more fixed slots (A–D).
@@ -29,7 +29,4 @@ const rcCleanerSchema = new mongoose.Schema(
   { timestamps: true },
 );
 
-const RcCleaner = mongoose.model("RcCleaner", rcCleanerSchema);
-
-module.exports = { RcCleaner };
-
+export const RcCleaner = mongoose.model("RcCleaner", rcCleanerSchema);

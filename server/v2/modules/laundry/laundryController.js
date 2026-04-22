@@ -1,6 +1,6 @@
-const { User } = require("../user/userModel.js");
-const { Hostel } = require("../hostel/hostelModel.js");
-const { LaundryBooking } = require("./laundryBookingModel.js");
+import { User } from "../user/userModel.js";
+import { Hostel } from "../hostel/hostelModel.js";
+import { LaundryBooking } from "./laundryBookingModel.js";
 
 const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
 
@@ -9,7 +9,7 @@ const TWO_WEEKS_MS = 14 * 24 * 60 * 60 * 1000;
  * Returns laundry eligibility, last used, next available, and recent bookings.
  * Single call for the laundry page to minimize API usage.
  */
-const getStatus = async (req, res) => {
+export const getStatus = async (req, res) => {
   try {
     const user = req.user;
     if (!user || !user.hostel) {
@@ -67,7 +67,7 @@ const getStatus = async (req, res) => {
  * Body: { hostelId: string } or { scannedPayload: string } (hostelId preferred).
  * Validates 1 free laundry every 2 weeks, creates booking, updates user.lastLaundryUsed.
  */
-const scan = async (req, res) => {
+export const scan = async (req, res) => {
   try {
     const user = req.user;
     const { hostelId, scannedPayload } = req.body || {};
@@ -79,11 +79,13 @@ const scan = async (req, res) => {
     }
 
     const userHostelId = user.hostel.toString();
-    const targetHostelId = hostelId || (scannedPayload && scannedPayload.trim()) || userHostelId;
+    const targetHostelId =
+      hostelId || (scannedPayload && scannedPayload.trim()) || userHostelId;
     // If scanned payload is an object ID, use it; else use user's hostel
-    const hostelIdToUse = targetHostelId.length === 24 && /^[a-f0-9]{24}$/i.test(targetHostelId)
-      ? targetHostelId
-      : userHostelId;
+    const hostelIdToUse =
+      targetHostelId.length === 24 && /^[a-f0-9]{24}$/i.test(targetHostelId)
+        ? targetHostelId
+        : userHostelId;
 
     if (hostelIdToUse !== userHostelId) {
       return res.status(403).json({
@@ -107,7 +109,8 @@ const scan = async (req, res) => {
     if (lastUsed && lastUsed.getTime() > twoWeeksAgo.getTime()) {
       const nextAvailable = new Date(lastUsed.getTime() + TWO_WEEKS_MS);
       return res.status(400).json({
-        message: "You can use 1 free laundry every 2 weeks. Next available after 2 weeks from last use.",
+        message:
+          "You can use 1 free laundry every 2 weeks. Next available after 2 weeks from last use.",
         nextAvailable: nextAvailable.toISOString(),
       });
     }
@@ -143,17 +146,21 @@ const scan = async (req, res) => {
  * For hostel office portal. Requires hostel JWT (authenticateAdminJWT).
  * Returns QR payload, isLaundryAvailable, stats (total + by date), and recent logs.
  */
-const getHostelDashboard = async (req, res) => {
+export const getHostelDashboard = async (req, res) => {
   try {
     const hostel = req.hostel;
     if (!hostel) {
-      return res.status(403).json({ message: "Hostel authentication required" });
+      return res
+        .status(403)
+        .json({ message: "Hostel authentication required" });
     }
 
     const hostelId = hostel._id.toString();
     const isLaundryAvailable = hostel.isLaundryAvailable === true;
 
-    const userIds = await User.find({ hostel: hostel._id }).select("_id").lean();
+    const userIds = await User.find({ hostel: hostel._id })
+      .select("_id")
+      .lean();
     const ids = userIds.map((u) => u._id);
 
     const byMonth = await LaundryBooking.aggregate([
@@ -188,18 +195,14 @@ const getHostelDashboard = async (req, res) => {
       logs: logs.map((b) => ({
         _id: b._id,
         usedAt: b.usedAt,
-        userName: b.userId?.name ?? "—",
-        rollNumber: b.userId?.rollNumber ?? "—",
+        userName: b.userId?.name ?? "-",
+        rollNumber: b.userId?.rollNumber ?? "-",
       })),
     });
   } catch (err) {
     console.error("laundry getHostelDashboard error:", err);
-    return res.status(500).json({ message: "Error fetching laundry dashboard" });
+    return res
+      .status(500)
+      .json({ message: "Error fetching laundry dashboard" });
   }
-};
-
-module.exports = {
-  getStatus,
-  scan,
-  getHostelDashboard,
 };

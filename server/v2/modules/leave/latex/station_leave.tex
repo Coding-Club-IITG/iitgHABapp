@@ -1,0 +1,221 @@
+%% IITG Hostel/05 – Station Leave Form (XeLaTeX). Data placeholders filled by Node (do not use @@ in comments).
+\documentclass[a4paper,9pt]{article}
+\usepackage[a4paper, top=7mm, bottom=6mm, left=10mm, right=10mm]{geometry}
+\usepackage{fontspec}
+\usepackage{polyglossia}
+\setmainlanguage{english}
+\setotherlanguage{hindi}
+\newfontfamily\hindifont{FreeSerif}[Script=Devanagari]
+\usepackage{graphicx}
+\usepackage{array}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{dashrule}
+\usepackage{marvosym}
+\usepackage{amssymb}
+\usepackage{setspace}
+% TeX Gyre Termes is often not visible to fontspec on Debian unless fonts-texgyre is
+% installed and registered with fontconfig; the template already uses FreeSerif for
+% Devanagari (fonts-freefont-ttf / Docker image), so use the same family for Latin body.
+\defaultfontfeatures{Ligatures=TeX}
+\setmainfont{FreeSerif}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0pt}
+\setlength{\arrayrulewidth}{0.4pt}
+\renewcommand{\arraystretch}{1.3}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+\newlength{\numw}\setlength{\numw}{0.55cm}
+\newlength{\lblw}\setlength{\lblw}{4.0cm}
+\newcommand{\tablejoin}{\vspace{-\arrayrulewidth}\noindent}
+
+\begin{document}
+\pagestyle{empty}
+
+\noindent
+\begin{minipage}[c]{0.13\textwidth}
+  \IfFileExists{iitg_logo.png}{\includegraphics[width=\linewidth]{iitg_logo.png}}{\rule{\linewidth}{1.8cm}}
+\end{minipage}%
+\hfill
+\begin{minipage}[c]{0.85\textwidth}
+  \centering
+  {\fontsize{14}{17}\selectfont\bfseries\hindifont
+    भारतीय प्रौद्योगिकी संस्थान गुवाहाटी}\\[2pt]
+  {\fontsize{14}{13}\selectfont\bfseries
+    Indian Institute of Technology Guwahati, Guwahati - 781 039}
+\end{minipage}
+
+\vspace{1mm}
+\noindent{\bfseries Form No.:\enspace Hostel/05}
+
+\noindent\rule{\linewidth}{0.7pt}
+
+\vspace{1mm}
+
+\begin{center}
+  {\normalsize\bfseries\underline{STATION LEAVE FORM FOR HOSTELLERS}}\\[1pt]
+  {\small
+  (This form needs to be compulsorily filled up while taking
+  \underline{\bfseries STATION LEAVE} exceeding
+  \underline{\bfseries 1 day (24 hours/also overnight stay for less than 24 hrs)} and also, for availing \underline{\bfseries MESS REFUND} when the duration of
+  the station leave is \underline{\bfseries 4 days or more})}
+\end{center}
+
+\vspace{1mm}
+
+\noindent
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|X|}
+\hline
+1 & Name of Student & Mr./Ms. @@STUDENT_NAME@@ \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|L{2.2cm}|X|L{2.2cm}|X|}
+\hline
+\multirow{5}{\numw}{\centering 2}
+  & \multirow{5}{\lblw}{Details of Student}
+  & Roll No   & @@ROLL_NO@@ & Dept.    & @@DEPT@@ \\
+\cline{3-6}
+& & Program   & @@PROGRAMME@@ & Semester & @@SEMESTER@@ \\
+\cline{3-6}
+& & \parbox[t]{2.2cm}{\strut Resident Hostel Name\strut} & @@RESIDENT_HOSTEL@@ & Room No. & @@ROOM_NO@@ \\
+\cline{3-6}
+& & IITG Email ID & @@EMAIL@@ & Mob. No. & @@MOBILE@@ \\
+\cline{3-6}
+& & \multicolumn{2}{l|}{Registered in Current Semester} & \multicolumn{2}{l|}{@@REG_SEM_CELL@@} \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|X|}
+\hline
+2 & Home/Permanent Address & \parbox[t]{\linewidth}{\strut @@HOME_ADDRESS@@\strut\vspace{4mm}} \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|X|}
+\hline
+\multirow{3}{\numw}{\centering 3}
+  & \multirow{3}{\lblw}{\parbox[t]{\lblw}{\strut Contact address and phone\\
+    number during leave period\\
+    (For emergency purpose)\strut}}
+  & @@CONTACT_LINE1@@ \\
+& & @@CONTACT_LINE2@@ \\
+\cline{3-3}
+& & Phone No.: @@CONTACT_PHONE@@ \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|L{2.2cm}|X|L{2.2cm}|X|}
+\hline
+\multirow{2}{\numw}{\centering 4}
+  & \multirow{2}{\lblw}{Bank Account Details}
+  & A/c Name: & @@BANK_AC_NAME@@ & Bank Name: & @@BANK_NAME@@ \\
+\cline{3-6}
+& & A/c No:   & @@BANK_AC_NO@@ & IFSC:      & @@BANK_IFSC@@ \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|X|}
+\hline
+5 & \parbox[t]{\lblw}{\strut Purpose of Station Leave\\(Please specify)\strut}
+  & \parbox[t]{\linewidth}{\strut @@PURPOSE@@\strut\vspace{4mm}} \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|X|C{0.7cm}|X|L{2.6cm}|L{1.2cm}|}
+\hline
+\multirow{2}{\numw}{\centering 7}
+  & \multirow{2}{\lblw}{\parbox[t]{\lblw}{\strut Duration of Station Leave from\strut}}
+  & Date: @@DATE_FROM@@       & To & Date: @@DATE_TO@@    &
+    \multirow{2}{2.5cm}{\centering Total Number of\\Days of Leave\vspace{3mm}} & @@TOTAL_DAYS@@ \\
+\cline{3-5}
+& & Leave Time: @@LEAVE_TIME@@ &   & In Time: @@IN_TIME@@ & & \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|X|}
+\hline
+8 & \parbox[t]{\lblw}{\strut Subscribed Hostel\\Mess:\strut}
+  & \parbox[t]{\linewidth}{\strut @@SUBSCRIBED_MESS@@\strut\vspace{3mm}} \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{\numw}|L{\lblw}|X|L{1.0cm}|X|L{1.0cm}|X|}
+\hline
+9 & \parbox[t]{\lblw}{\strut Name and Signature of\\Mess Manager\strut}
+  & \parbox[t]{\linewidth}{\strut \textbf{@@MESS_MANAGER@@}\strut\vspace{3mm}} & Date & \textbf{@@MESS_DATE@@} & Time & \textbf{@@MESS_TIME@@} \\
+\hline
+\end{tabularx}
+
+\vspace{2mm}
+
+{\small\setstretch{1.1}
+I confirm that my parents/guardians/spouse know and gave consent for this leave.
+I will ensure my own safety and will not hold the Institute authorities responsible
+for it during my absence. I accept full responsibility for any of my action(s) that
+might tarnish the reputation of the Institute during this time. Also, I am confirming
+that I have submitted the leave application on the Academic ERP portal. I understand
+that if submitted after office hours, a scanned copy of the same will be sent by me
+to hostel office/warden/associate warden through email, failing which the leave
+intimation will \textbf{NOT} be accepted.}
+
+\vspace{2mm}
+\noindent\textbf{\underline{Date:}}\enspace @@APPLIED_DATE@@\hfill\textbf{\underline{Signature of the Applicant:}}\hspace{3.5cm}
+
+\vspace{3mm}
+
+\noindent
+\begin{tabularx}{\linewidth}{|X|}
+\hline
+\textbf{FOR OFFICIAL USE:} \\
+\hline
+We hereby confirm that the student has informed us that she/he is going out of station
+for the above-mentioned period before leaving the campus: \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|C{0.65cm}|L{6.8cm}|X|}
+\hline
+\textbf{1.} & Signature of Hostel Officials    & \vspace{7mm} \\
+\hline
+\textbf{2.} & Signature of Warden/Asso. Warden & \vspace{7mm} \\
+\hline
+\end{tabularx}
+
+\vspace{3mm}
+
+\noindent{\large\Cutright}\hspace{1mm}%
+{\hdashrule[0.5ex]{\dimexpr\linewidth-14pt\relax}{0.6pt}{5pt 3pt}}
+
+\vspace{2mm}
+
+\noindent
+\begin{tabularx}{\linewidth}{|X|}
+\hline
+\textbf{STUDENT COPY} \\
+\hline
+\end{tabularx}
+
+\tablejoin
+\begin{tabularx}{\linewidth}{|L{8.2cm}|X|}
+\hline
+\textbf{Name of Student and Room No.}                   & @@STUDENT_NAME@@, @@ROOM_NO@@ \\
+\hline
+\textbf{Duration of Station Leave (Start and End Date)} & @@DATE_FROM@@ to @@DATE_TO@@ \\
+\hline
+\textbf{Name of the Security (who locked the room)}     & \\
+\hline
+\textbf{Signature of the Security (with Date and Time)} & \vspace{6mm} \\
+\hline
+\end{tabularx}
+
+\end{document}

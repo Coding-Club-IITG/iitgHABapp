@@ -1,15 +1,27 @@
-const { Mess } = require("./messModel");
-const { Menu } = require("./menuModel");
-const { MenuItem } = require("./menuItemModel");
-const { User } = require("../user/userModel");
-const { Hostel } = require("../hostel/hostelModel");
-const { ScanLogs } = require("./ScanLogsModel.js");
-const mongoose = require("mongoose");
-const { QR } = require("../qr/qrModel.js");
-const qrcode = require("qrcode");
-const { MessClosure } = require("../hostel/messClosureModel");
+import qrcode from "qrcode";
+import mongoose from "mongoose";
 
-const redisClient = require("../../utils/redisClient.js");
+import { Mess } from "./messModel.js";
+import { MessWorker } from "./messWorkerModel.js";
+import { Menu } from "./menuModel.js";
+import { MenuItem } from "./menuItemModel.js";
+import { User } from "../user/userModel.js";
+import { Hostel } from "../hostel/hostelModel.js";
+import { ScanLogs } from "./ScanLogsModel.js";
+import MessBill from "./messBillModel.js";
+import Leave from "../leave/leaveModel.js";
+import { QR } from "../qr/qrModel.js";
+import ExcelJS from "exceljs";
+import {
+  uploadReportToOnedrive,
+  downloadFromOnedrive,
+} from "../../utils/onedriveController.js";
+import { buildMessBillExcelWorkbook } from "./messBillExcelGenerator.js";
+import { MessShutdown } from "./messShutdownModel.js";
+
+import { publishMessScan } from "../../utils/scanBroadcast.js";
+import redisClient from "../../utils/redisClient.js";
+import { sortMenuItemsByMenuOrder } from "../../utils/sortMenuItemsByMenuOrder.js";
 
 const QR_CODE_DATA_URL_OPTIONS = {
   width: 1024,
@@ -17,13 +29,21 @@ const QR_CODE_DATA_URL_OPTIONS = {
   type: "image/png",
 };
 
-const {
+import {
   getCurrentDate,
   getCurrentTime,
   getCurrentDay,
-} = require("../../utils/date.js");
+} from "../../utils/date.js";
 
-const createMess = async (req, res) => {
+/** Round half-up to 2 decimal places (matches OPI job + getAllMessInfo $round). */
+function roundToTwoDecimals(n) {
+  if (n == null || n === "") return 0;
+  const v = Number(n);
+  if (Number.isNaN(v)) return 0;
+  return Math.round(v * 100) / 100;
+}
+
+export const createMess = async (req, res) => {
   try {
     const { name, hostelId } = req.body;
 
@@ -63,7 +83,7 @@ const createMess = async (req, res) => {
   }
 };
 
-const createMessWithoutHostel = async (req, res) => {
+export const createMessWithoutHostel = async (req, res) => {
   try {
     const { name } = req.body;
 
@@ -93,7 +113,7 @@ const createMessWithoutHostel = async (req, res) => {
 
 // Deletion of mess/caterer has been disabled. The delete endpoint and controller were removed.
 
-const createMenu = async (req, res) => {
+export const createMenu = async (req, res) => {
   try {
     const {
       messId,
@@ -144,7 +164,7 @@ const createMenu = async (req, res) => {
   }
 };
 
-const deleteMenu = async (req, res) => {
+export const deleteMenu = async (req, res) => {
   try {
     const menuId = req.params.menuId;
     const deletedMenu = await Menu.findByIdAndDelete(menuId);
@@ -158,7 +178,7 @@ const deleteMenu = async (req, res) => {
   }
 };
 
-const createMenuItem = async (req, res) => {
+export const createMenuItem = async (req, res) => {
   try {
     var { name, type, meal, day, messId } = req.body;
     const menuId = new mongoose.Types.ObjectId();
@@ -189,7 +209,7 @@ const createMenuItem = async (req, res) => {
   }
 };
 
-const deleteMenuItem = async (req, res) => {
+export const deleteMenuItem = async (req, res) => {
   try {
     const _Id = req.body._Id;
     const menuToInvalidate = await Menu.findOne({ items: _Id });
@@ -215,7 +235,7 @@ const deleteMenuItem = async (req, res) => {
   }
 };
 
-const getUserMessInfo = async (req, res) => {
+export const getUserMessInfo = async (req, res) => {
   try {
     const userId = req.user.id;
     const user = await User.findById(userId);
@@ -239,10 +259,14 @@ const getUserMessInfo = async (req, res) => {
     if (!messInfo) {
       return res.status(404).json({ message: "Mess not found" });
     }
-    // Ensure rating and ranking are always integers
     const messObj = messInfo.toObject();
-    messObj.rating = messObj.rating ? Math.round(messObj.rating) : 0;
-    messObj.ranking = messObj.ranking ? Math.round(messObj.ranking) : 0;
+    messObj.rating =
+      messObj.rating != null ? roundToTwoDecimals(messObj.rating) : 0;
+    messObj.ranking = messObj.ranking != null ? Math.round(messObj.ranking) : 0;
+    messObj.feedbackPercentage =
+      messObj.feedbackPercentage != null
+        ? roundToTwoDecimals(messObj.feedbackPercentage)
+        : 0;
     return res.status(200).json(messObj);
   } catch (error) {
     console.error(error);
@@ -250,7 +274,7 @@ const getUserMessInfo = async (req, res) => {
   }
 };
 
-const getAllMessInfo = async (req, res) => {
+export const getAllMessInfo = async (req, res) => {
   try {
     const cachedData = await redisClient.get("all_mess_info");
     if (cachedData) {
@@ -286,10 +310,13 @@ const getAllMessInfo = async (req, res) => {
             $ifNull: [{ $arrayElemAt: ["$subscribers.count", 0] }, 0],
           },
           rating: {
-            $round: [{ $ifNull: ["$rating", 0] }, 0],
+            $round: [{ $ifNull: ["$rating", 0] }, 2],
           },
           ranking: {
             $round: [{ $ifNull: ["$ranking", 0] }, 0],
+          },
+          feedbackPercentage: {
+            $round: [{ $ifNull: ["$feedbackPercentage", 0] }, 2],
           },
         },
       },
@@ -318,7 +345,7 @@ const getAllMessInfo = async (req, res) => {
   }
 };
 
-const getMessInfo = async (req, res) => {
+export const getMessInfo = async (req, res) => {
   try {
     const { id } = req.params;
     const mess = await Mess.findById(id);
@@ -341,7 +368,7 @@ const getMessInfo = async (req, res) => {
   }
 };
 
-const getMessMenuByDay = async (req, res) => {
+export const getMessMenuByDay = async (req, res) => {
   try {
     const messId = req.params.messId;
     const day = req.body.day;
@@ -369,7 +396,7 @@ const getMessMenuByDay = async (req, res) => {
             _id: { $in: menuItems },
           }).lean();
 
-          menuObj.items = menuItemDetails;
+          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
           return menuObj;
         }),
       );
@@ -398,22 +425,23 @@ const getMessMenuByDay = async (req, res) => {
       return mClone;
     });
 
-    // Check if the mess is closed today
+    // Check if the mess is shut down today
     const mess = await Mess.findById(messId);
     const currentDate = getCurrentDate();
     const todayDate = new Date(currentDate);
-    let isClosed = null;
+    let shutdown = null;
     if (mess && mess.hostelId) {
-      isClosed = await MessClosure.findOne({
+      shutdown = await MessShutdown.findOne({
         hostelId: mess.hostelId,
-        closureDate: todayDate,
+        startDate: { $lte: todayDate },
+        endDate: { $gte: todayDate },
       }).lean();
     }
 
-    if (isClosed) {
+    if (shutdown) {
       return res.status(200).json({
         isMessClosed: true,
-        message: "The mess is closed today as per the monthly schedule.",
+        message: "The mess is shut down for the selected date range.",
       });
     }
 
@@ -424,7 +452,7 @@ const getMessMenuByDay = async (req, res) => {
   }
 };
 
-const getMessMenuByDayForAdminHAB = async (req, res) => {
+export const getMessMenuByDayForAdminHAB = async (req, res) => {
   try {
     const messId = req.params.messId;
     const day = req.body.day;
@@ -451,7 +479,7 @@ const getMessMenuByDayForAdminHAB = async (req, res) => {
             _id: { $in: menuItems },
           }).lean();
 
-          menuObj.items = menuItemDetails;
+          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
           return menuObj;
         }),
       );
@@ -484,7 +512,7 @@ const getMessMenuByDayForAdminHAB = async (req, res) => {
   }
 };
 
-const getMessMenuItemById = async (req, res) => {
+export const getMessMenuItemById = async (req, res) => {
   try {
     const menuItemId = req.params.menuItemId;
     const userId = req.user.id;
@@ -506,7 +534,7 @@ const getMessMenuItemById = async (req, res) => {
   }
 };
 
-const toggleLikeMenuItem = async (req, res) => {
+export const toggleLikeMenuItem = async (req, res) => {
   try {
     const menuItemId = req.params.menuItemId;
     const userId = req.user.id;
@@ -621,7 +649,7 @@ const toggleLikeMenuItem = async (req, res) => {
 //   }
 // };
 
-const ScanMess = async (req, res) => {
+export const ScanMess = async (req, res) => {
   try {
     const { userId } = req.body;
     const messInfoId = req.params.messId;
@@ -637,14 +665,15 @@ const ScanMess = async (req, res) => {
     const currentTime = getCurrentTime();
     const currentDay = getCurrentDay();
 
-    // Check for closure BEFORE scanning
-    const closureRecord = await MessClosure.findOne({
+    const shutdownRecord = await MessShutdown.findOne({
       hostelId: messInfo.hostelId,
-      closureDate: new Date(currentDate),
+      startDate: { $lte: new Date(currentDate) },
+      endDate: { $gte: new Date(currentDate) },
     }).lean();
-    if (closureRecord) {
+
+    if (shutdownRecord) {
       return res.status(400).json({
-        message: "Scan failed: Mess is closed today.",
+        message: "Scan failed: Mess is shut down for the selected dates.",
         success: false,
       });
     }
@@ -654,6 +683,14 @@ const ScanMess = async (req, res) => {
       return res
         .status(404)
         .json({ message: "User not found", success: false });
+    }
+
+    const scanner_perms = user.scannerPermission;
+
+    if (scanner_perms === false) {
+      return res
+        .status(403)
+        .json({ message: "Mess Rebate Active", success: false });
     }
 
     const hostel = await Hostel.findById(user.curr_subscribed_mess).lean();
@@ -777,7 +814,6 @@ const ScanMess = async (req, res) => {
 
     // Broadcast to connected mess-manager WebSocket clients (cluster-safe via Redis pub/sub when REDIS_URL is set)
     try {
-      const { publishMessScan } = require("../../utils/scanBroadcast.js");
       publishMessScan({
         hostelId: hostel._id.toString(),
         messId: messId.toString(),
@@ -840,7 +876,7 @@ const formatDate = (date) => {
   } ${dateObj.getFullYear()}`;
 };
 
-const getUnassignedMess = async (req, res) => {
+export const getUnassignedMess = async (req, res) => {
   try {
     const unassignedMesses = await Mess.find({ hostelId: null });
     res.status(200).json(unassignedMesses);
@@ -850,7 +886,7 @@ const getUnassignedMess = async (req, res) => {
   }
 };
 
-const assignMessToHostel = async (req, res) => {
+export const assignMessToHostel = async (req, res) => {
   try {
     const messId = req.params.messId;
     const hostelId = req.body.hostelId;
@@ -899,7 +935,7 @@ const assignMessToHostel = async (req, res) => {
   }
 };
 
-const changeHostel = async (req, res) => {
+export const changeHostel = async (req, res) => {
   try {
     const messId = req.params.messId;
     const hostelId = req.body.hostelId;
@@ -944,7 +980,7 @@ const changeHostel = async (req, res) => {
   }
 };
 
-const unassignMess = async (req, res) => {
+export const unassignMess = async (req, res) => {
   try {
     const messId = req.params.messId;
     console.log("Unassigning mess with ID:", messId);
@@ -1006,23 +1042,334 @@ const formatTime2 = (time) => {
     .padStart(2, "0")}`;
 };
 
-module.exports = {
-  createMess,
-  createMessWithoutHostel,
-  createMenu,
-  deleteMenu,
-  createMenuItem,
-  deleteMenuItem,
-  getUserMessInfo,
-  getAllMessInfo,
-  getMessInfo,
-  getMessMenuByDay,
-  getMessMenuByDayForAdminHAB,
-  getMessMenuItemById,
-  toggleLikeMenuItem,
-  ScanMess,
-  getUnassignedMess,
-  assignMessToHostel,
-  unassignMess,
-  changeHostel,
+export const getMessWorkers = async (req, res) => {
+  try {
+    let query = {};
+    if (req.hostel && req.hostel.messId) {
+      query.messId = req.hostel.messId;
+    }
+    const workers = await MessWorker.find(query);
+    return res.status(200).json({ workers });
+  } catch (error) {
+    console.error("Error fetching mess workers:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const createMessWorker = async (req, res) => {
+  try {
+    const { name, designation, rate } = req.body;
+
+    let messId = null;
+    if (req.hostel && req.hostel.messId) {
+      messId = req.hostel.messId;
+    }
+
+    if (!messId) {
+      return res
+        .status(400)
+        .json({ message: "Hostel does not have an active mess assigned." });
+    }
+
+    if (!name || !rate) {
+      return res
+        .status(400)
+        .json({ message: "Name and daily wage rate are required" });
+    }
+
+    const newWorker = new MessWorker({
+      name,
+      designation: designation || "Unskilled",
+      rate,
+      messId,
+    });
+
+    await newWorker.save();
+    return res.status(201).json(newWorker);
+  } catch (error) {
+    console.error("Error creating mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const deleteMessWorker = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const worker = await MessWorker.findByIdAndDelete(id);
+    if (!worker) {
+      return res.status(404).json({ message: "Mess worker not found" });
+    }
+    return res
+      .status(200)
+      .json({ message: "Mess worker deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const updateMessWorker = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, designation, rate } = req.body || {};
+
+    if (!name || !designation || rate === undefined) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+    const parsedRate = Number(rate);
+    if (Number.isNaN(parsedRate) || parsedRate < 0) {
+      return res.status(400).json({ message: "Invalid rate" });
+    }
+
+    const updated = await MessWorker.findByIdAndUpdate(
+      id,
+      { name: String(name).trim(), designation, rate: parsedRate },
+      { new: true, runValidators: true },
+    );
+
+    if (!updated) {
+      return res.status(404).json({ message: "Mess worker not found" });
+    }
+
+    return res.status(200).json({ message: "Mess worker updated successfully", worker: updated });
+  } catch (error) {
+    console.error("Error updating mess worker:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const generateMessBill = async (req, res) => {
+  try {
+    const { hostelId, billData } = req.body;
+    if (!hostelId || !billData || !billData.month || !billData.year) {
+      return res.status(400).json({ message: "Missing required fields" });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to generate bill for another hostel" });
+    }
+
+    // Generate an Excel report and upload it to OneDrive.
+    // Persist the bill metadata + report URL in MessBill collection.
+
+    const existingBill = await MessBill.findOne({
+      hostel: hostelId,
+      month: billData.month,
+      year: billData.year,
+    });
+    if (existingBill) {
+      return res
+        .status(400)
+        .json({ message: "Bill for this month already exists" });
+    }
+
+    const {
+      hostelName,
+      month,
+      year,
+      accountNumber,
+      catererName,
+      operatingDays,
+      shutdownDate, // kept for backward compatibility
+      totalSubscribers,
+      totalSubscribersOffset,
+      messDays,
+      rebateDays,
+      rebateDaysOffset,
+      consumingDays,
+      foodCost,
+      totalWage,
+      messBillClaimed,
+      messBill,
+      gstAmount,
+      tdsAmount,
+      firstInstallment,
+      secondInstallment,
+      rebateReimbursement,
+      miscDeduction,
+      habTransfer,
+      totalExpenditure,
+      workerAttendances,
+    } = billData;
+
+    const rebateIds = (billData.rebateApplicationIds || [])
+      .filter((id) => id && mongoose.isValidObjectId(String(id)))
+      .map((id) => new mongoose.Types.ObjectId(String(id)));
+
+    if (rebateIds.length) {
+      await Leave.updateMany(
+        {
+          _id: { $in: rebateIds },
+          messHostel: hostelId,
+          status: "Acknowledged",
+        },
+        { $set: { status: "Processed", processedAt: new Date() } },
+      );
+    }
+
+    const safeMonth = String(month).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const filename = `mess-bill_${hostelId}_${safeMonth}_${year}.xlsx`;
+
+    const messIdForWorkers = req.hostel?.messId || null;
+    const fileBuffer = await buildMessBillExcelWorkbook({
+      hostelId,
+      billData,
+      workerAttendances,
+      messId: messIdForWorkers,
+    });
+    const url = await uploadReportToOnedrive(fileBuffer, filename);
+    if (!url) {
+      return res.status(500).json({
+        message: "OneDrive upload failed",
+      });
+    }
+
+    const newBill = new MessBill({
+      hostel: hostelId,
+      hostelName,
+      month,
+      year,
+      accountNumber,
+      catererName: catererName ?? "",
+      operatingDays,
+      shutdownDate,
+      totalSubscribers,
+      totalSubscribersOffset,
+      messDays,
+      rebateDays,
+      rebateDaysOffset,
+      consumingDays,
+      foodCost,
+      totalWage,
+      messBillClaimed,
+      messBill,
+      gstAmount,
+      tdsAmount,
+      firstInstallment,
+      secondInstallment,
+      rebateReimbursement,
+      miscDeduction,
+      habTransfer,
+      totalExpenditure,
+      workerAttendances,
+      billLink: url,
+      generatedBy: req.hostel ? req.hostel._id : req.user ? req.user.id : null,
+    });
+
+    await newBill.save();
+
+    return res.status(201).json({
+      message: "Mess bill report generated and uploaded to OneDrive",
+      filename,
+      url,
+      billId: newBill._id,
+    });
+  } catch (error) {
+    console.error("Error generating mess bill:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+export const getMessBill = async (req, res) => {
+  try {
+    const { hostelId, month, year } = req.query;
+    if (!hostelId || !month || !year) {
+      return res
+        .status(400)
+        .json({ message: "HostelId, month, and year are required" });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res
+        .status(403)
+        .json({ message: "Unauthorized to fetch bill for another hostel" });
+    }
+    const bill = await MessBill.findOne({ hostel: hostelId, month, year });
+    if (!bill) {
+      return res.status(200).json(null);
+    }
+    return res.status(200).json(bill);
+  } catch (error) {
+    console.error("Error fetching mess bill:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/** Stream bill .xlsx with Content-Disposition: attachment (browser saves file, not OneDrive preview). */
+export const downloadMessBillFile = async (req, res) => {
+  try {
+    const { hostelId, month, year } = req.query;
+    if (!hostelId || !month || year === undefined || year === "") {
+      return res.status(400).json({
+        message: "hostelId, month, and year are required",
+      });
+    }
+
+    if (req.hostel && req.hostel._id.toString() !== hostelId) {
+      return res.status(403).json({
+        message: "Unauthorized to download bill for another hostel",
+      });
+    }
+
+    const yearNum = parseInt(String(year), 10);
+    const bill = await MessBill.findOne({
+      hostel: hostelId,
+      month: String(month),
+      year: Number.isFinite(yearNum) ? yearNum : year,
+    });
+
+    if (!bill) {
+      return res.status(404).json({ message: "Bill not found" });
+    }
+
+    const url = bill.billLink?.trim();
+    if (!url) {
+      return res.status(404).json({ message: "No file link on this bill" });
+    }
+
+    const safeMonth = String(month).replace(/[^a-zA-Z0-9_-]/g, "_");
+    const y = Number.isFinite(yearNum) ? yearNum : year;
+    const filename = `mess-bill_${safeMonth}_${y}.xlsx`;
+
+    return downloadFromOnedrive(url, res, { inline: false, filename });
+  } catch (error) {
+    console.error("Error downloading mess bill file:", error);
+    if (!res.headersSent) {
+      return res.status(500).json({ message: "Internal server error" });
+    }
+  }
+};
+
+export const getAllMessBillsByMonth = async (req, res) => {
+  try {
+    const { month, year } = req.query;
+
+    if (!month || !year) {
+      return res.status(400).json({ message: "Month and year are required" });
+    }
+
+    const allHostels = await Hostel.find().lean();
+    const bills = await MessBill.find({ month, year }).lean();
+
+    const responseData = allHostels.map((hostel) => {
+      const bill = bills.find(
+        (b) => b.hostel.toString() === hostel._id.toString(),
+      );
+      return {
+        hostelId: hostel._id,
+        hostel_name: hostel.hostel_name,
+        isGenerated: !!bill,
+        messBillClaimed: bill ? bill.messBillClaimed : 0,
+        totalExpenditure: bill ? bill.totalExpenditure : 0,
+        billDetails: bill || null,
+      };
+    });
+
+    return res.status(200).json(responseData);
+  } catch (error) {
+    console.error("Error fetching all mess bills by month:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 };

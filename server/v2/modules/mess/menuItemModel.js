@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const menuItemSchema = new mongoose.Schema({
   menuId: {
@@ -28,16 +28,12 @@ const menuItemSchema = new mongoose.Schema({
 });
 
 // Exactly one of menuId or galaMenuId must be set
-menuItemSchema.pre("validate", function (next) {
+menuItemSchema.pre("validate", function () {
   const hasMenu = !!this.menuId;
   const hasGala = !!this.galaMenuId;
   if (hasMenu === hasGala) {
-    next(new Error("MenuItem must have exactly one of menuId or galaMenuId"));
-  } else {
-    next();
+    throw new Error("MenuItem must have exactly one of menuId or galaMenuId");
   }
 });
 
-const MenuItem = mongoose.model("MenuItem", menuItemSchema);
-
-module.exports = { MenuItem };
+export const MenuItem = mongoose.model("MenuItem", menuItemSchema);

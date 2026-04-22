@@ -1,9 +1,8 @@
-const express = require("express");
+import express from "express";
 const feedbackRouter = express.Router();
-const {
+
+import {
   submitFeedback,
-  enableFeedback,
-  disableFeedback,
   getFeedbackSettings,
   getFeedbackLeaderboardByWindow,
   getAvailableWindows,
@@ -11,14 +10,14 @@ const {
   getFeedbackWindowTimeLeft,
   getFeedbacksByCaterer,
   getDetailedFeedbackByWindow,
-} = require("./feedbackController");
-const {
+  getFeedbackScheduleInfo,
+} from "./feedbackController.js";
+
+import {
   authenticateJWT,
   authenticateHabJWT,
-} = require("../../middleware/authenticateJWT");
-const {
-  requireMicrosoftAuth,
-} = require("../../middleware/requireMicrosoftAuth");
+} from "../../middleware/authenticateJWT.js";
+import { requireMicrosoftAuth } from "../../middleware/requireMicrosoftAuth.js";
 
 // Student routes - require Microsoft account linking
 feedbackRouter.post(
@@ -38,8 +37,7 @@ feedbackRouter.get(
 feedbackRouter.get("/settings", getFeedbackSettings);
 
 // HAB routes
-feedbackRouter.post("/enable", authenticateHabJWT, enableFeedback);
-feedbackRouter.post("/disable", authenticateHabJWT, disableFeedback);
+feedbackRouter.get("/schedule", authenticateHabJWT, getFeedbackScheduleInfo);
 feedbackRouter.get(
   "/leaderboard-by-window",
   authenticateHabJWT,
@@ -54,4 +52,4 @@ feedbackRouter.get(
   getDetailedFeedbackByWindow,
 );
 
-module.exports = feedbackRouter;
+export default feedbackRouter;
