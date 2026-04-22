@@ -17,6 +17,13 @@ class AppBootstrapCache {
   static Map<String, dynamic>? _data;
   static DateTime? _fetchedAt;
 
+  /// Latest bootstrap payload from the server (same backing store as [set]).
+  ///
+  /// Unlike [getFresh], this is not TTL-gated: use it for read-only UI hints
+  /// (e.g. upcoming gala on the home screen) when a stale snapshot is fine.
+  /// Null until the first successful [set]. Cleared by [clear].
+  static Map<String, dynamic>? get lastSnapshot => _data;
+
   static void set(Map<String, dynamic> data) {
     _data = data;
     _fetchedAt = DateTime.now();

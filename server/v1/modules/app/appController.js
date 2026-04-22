@@ -39,7 +39,7 @@ export const getAppBootstrap = async (req, res) => {
       getUserMessInfoBySubscribedHostel(subscribedHostelId),
       Hostel.find().select("-managerPasswordHash").lean(),
       getAllMessInfo({ useCache: true }),
-      getUpcomingGalaData(),
+      getUpcomingGalaData(subscribedHostelId),
       getActiveAlertsForUser(userPayload),
       getRoomCleaningBookingsForUser(req.user._id),
       getTodayMenuForUser({ userId: req.user._id, subscribedHostelId, day: todayDay }),

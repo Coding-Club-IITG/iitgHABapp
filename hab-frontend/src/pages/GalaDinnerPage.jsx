@@ -14,6 +14,7 @@ import {
   Row,
   Col,
   Input,
+  Select,
 } from "antd";
 import { PlusOutlined, DeleteOutlined, EyeOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
@@ -40,6 +41,9 @@ export default function GalaDinnerPage() {
   const [deletingId, setDeletingId] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const schedulingRef = useRef(false);
+  const [hostels, setHostels] = useState([]);
+  const [hostelsLoading, setHostelsLoading] = useState(true);
+  const [selectedHostelIds, setSelectedHostelIds] = useState([]);
 
   const fetchList = useCallback(
     async (silent = false) => {
@@ -68,6 +72,29 @@ export default function GalaDinnerPage() {
     fetchList();
   }, [fetchList]);
 
+  useEffect(() => {
+    const loadHostels = async () => {
+      try {
+        setHostelsLoading(true);
+        const response = await fetch(`${BACKEND_URL}/hostel/all`, {
+          headers: { ...authHeaders },
+        });
+        if (!response.ok) throw new Error("Fetch failed");
+        const data = await response.json();
+        const list = Array.isArray(data)
+          ? data
+          : data?.hostels || data?.data || [];
+        setHostels(list);
+      } catch (err) {
+        console.error("Failed to fetch hostels:", err);
+        setHostels([]);
+      } finally {
+        setHostelsLoading(false);
+      }
+    };
+    loadHostels();
+  }, [authHeaders]);
+
   const handleSchedule = async () => {
     if (schedulingRef.current) return;
     if (!scheduleDate) {
@@ -80,6 +107,10 @@ export default function GalaDinnerPage() {
     }
     if (!dinnerServingStartTime) {
       message.warning("Please select Dinner serving start time");
+      return;
+    }
+    if (!selectedHostelIds.length) {
+      message.warning("Please select at least one hostel");
       return;
     }
     schedulingRef.current = true;
@@ -95,6 +126,7 @@ export default function GalaDinnerPage() {
           date: scheduleDate.toISOString(),
           startersServingStartTime: startersServingStartTime.format("HH:mm"),
           dinnerServingStartTime: dinnerServingStartTime.format("HH:mm"),
+          hostelIds: selectedHostelIds.map(String),
         }),
       });
       const data = await response.json().catch(() => ({}));
@@ -107,6 +139,7 @@ export default function GalaDinnerPage() {
       setScheduleDate(null);
       setStartersServingStartTime(null);
       setDinnerServingStartTime(null);
+      setSelectedHostelIds([]);
       // Optimistic update: add new gala to list immediately so table refreshes
       if (data.galaDinner && data.galaDinner._id) {
         setList((prev) => [
@@ -153,6 +186,15 @@ export default function GalaDinnerPage() {
       },
     });
   };
+
+  const hostelSelectOptions = useMemo(
+    () =>
+      hostels.map((h) => ({
+        value: h._id,
+        label: h.hostel_name || String(h._id),
+      })),
+    [hostels],
+  );
 
   const filteredList = useMemo(() => {
     if (!searchQuery.trim()) return list;
@@ -280,6 +322,26 @@ export default function GalaDinnerPage() {
 
                 <div>
                   <Text strong style={{ display: "block", marginBottom: 8 }}>
+                    Hostels (gala on this date)
+                  </Text>
+                  <Select
+                    mode="multiple"
+                    allowClear
+                    placeholder="Select hostels"
+                    value={selectedHostelIds}
+                    onChange={setSelectedHostelIds}
+                    options={hostelSelectOptions}
+                    loading={hostelsLoading}
+                    disabled={scheduling}
+                    style={{ width: "100%" }}
+                    size="large"
+                    optionFilterProp="label"
+                    showSearch
+                  />
+                </div>
+
+                <div>
+                  <Text strong style={{ display: "block", marginBottom: 8 }}>
                     Starters Start Time
                   </Text>
                   <TimePicker
@@ -319,7 +381,8 @@ export default function GalaDinnerPage() {
                     scheduling ||
                     !scheduleDate ||
                     !startersServingStartTime ||
-                    !dinnerServingStartTime
+                    !dinnerServingStartTime ||
+                    selectedHostelIds.length === 0
                   }
                   style={{ width: "100%" }}
                   size="large"

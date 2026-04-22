@@ -6,7 +6,7 @@ import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:frontend2/screens/main_navigation_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Shows success or failure after a Gala QR scan. "Go Back" pops twice to return to Gala Dinner tab.
+/// Shows success or failure after a Gala QR scan.
 class GalaScanStatusPage extends StatefulWidget {
   final Response response;
 

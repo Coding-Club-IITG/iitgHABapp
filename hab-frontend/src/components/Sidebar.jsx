@@ -12,8 +12,6 @@ import {
   BookOutlined,
   NotificationOutlined,
   GiftOutlined,
-  FileImageOutlined,
-  ContainerOutlined,
 } from "@ant-design/icons";
 
 const Sidebar = ({ collapsed = false, onToggle }) => {
@@ -42,25 +40,14 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       path: "/notifications",
       icon: <NotificationOutlined />,
     },
-    {
-      key: "8",
-      name: "Mess Bills",
-      path: "/bills",
-      icon: <ContainerOutlined />,
-    },
-    {
-      key: "9",
-      name: "Festival Mode",
-      path: "/festival-mode",
-      icon: <FileImageOutlined />,
-    },
   ];
 
   return (
     <div className="flex flex-col h-full">
       <div
-        className={`px-3 py-4 border-b border-gray-100 flex items-center ${collapsed ? "justify-center" : "justify-between"
-          }`}
+        className={`px-3 py-4 border-b border-gray-100 flex items-center ${
+          collapsed ? "justify-center" : "justify-between"
+        }`}
       >
         <button
           onClick={onToggle}
@@ -96,10 +83,12 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
             to={item.path}
             end
             className={({ isActive }) =>
-              `flex items-center ${collapsed ? "justify-center px-0" : "gap-3 px-3"
-              } w-full py-2 rounded-md ${collapsed ? "mx-0" : "mx-1"} text-sm ${isActive
-                ? "bg-blue-50 text-blue-600"
-                : "text-gray-700 hover:bg-gray-50"
+              `flex items-center ${
+                collapsed ? "justify-center px-0" : "gap-3 px-3"
+              } w-full py-2 rounded-md ${collapsed ? "mx-0" : "mx-1"} text-sm ${
+                isActive
+                  ? "bg-blue-50 text-blue-600"
+                  : "text-gray-700 hover:bg-gray-50"
               }`
             }
           >
@@ -110,17 +99,19 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       </nav>
 
       <div
-        className={`mt-auto ${collapsed
-          ? "flex justify-center py-4 border-t border-gray-100"
-          : "px-3 py-3 border-t border-gray-100"
-          }`}
+        className={`mt-auto ${
+          collapsed
+            ? "flex justify-center py-4 border-t border-gray-100"
+            : "px-3 py-3 border-t border-gray-100"
+        }`}
       >
         <button
           onClick={logout}
-          className={`${collapsed
-            ? "w-10 h-10 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
-            : "w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-100 rounded-md py-2 text-sm transition-colors"
-            }`}
+          className={`${
+            collapsed
+              ? "w-10 h-10 flex items-center justify-center text-red-600 hover:text-red-700 hover:bg-red-50 rounded-full transition-colors"
+              : "w-full flex items-center justify-center gap-2 text-red-600 hover:text-red-700 hover:bg-red-50 border border-red-100 rounded-md py-2 text-sm transition-colors"
+          }`}
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"

@@ -4,14 +4,11 @@ import 'package:flutter_svg/flutter_svg.dart';
 class BottomNavBar extends StatelessWidget {
   final int currentIndex;
   final Function(int) onTap;
-  /// When false, only Home and Mess are shown; Gala Dinner tab is hidden.
-  final bool showGalaTab;
 
   const BottomNavBar({
     super.key,
     required this.currentIndex,
     required this.onTap,
-    this.showGalaTab = true,
   });
 
   @override
@@ -109,35 +106,6 @@ class BottomNavBar extends StatelessWidget {
                   ),
                 ),
               ),
-              if (showGalaTab)
-                Expanded(
-                  child: InkWell(
-                    onTap: () {
-                      onTap(2);
-                    },
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.celebration,
-                          size: 22,
-                          color: currentIndex == 2
-                              ? const Color(0xFF4C4EDB)
-                              : const Color(0xFF676767),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          "Gala Dinner",
-                          style: TextStyle(
-                              fontSize: 12,
-                              color: currentIndex == 2
-                                  ? const Color(0xFF4C4EDB)
-                                  : const Color(0xFF676767)),
-                        )
-                      ],
-                    ),
-                  ),
-                ),
             ],
           ),
         ),

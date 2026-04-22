@@ -1,13 +1,10 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:frontend2/apis/app_bootstrap.dart';
-import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/mess/user_mess_info.dart';
 import 'package:frontend2/apis/users/user.dart';
-import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/providers/room_cleaning_provider.dart';
-import 'package:frontend2/screens/gala_dinner_screen.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/screens/mess_preference.dart';
 import 'package:frontend2/screens/account_screen.dart';
@@ -30,9 +27,7 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
-  bool _showGalaTab = false;
   bool _homeDataReady = false;
-  dynamic _upcomingGalaFromBootstrap;
 
   void _handleNavTap(int index) {
     setState(() {
@@ -59,14 +54,12 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
     bool bootstrapApplied = false;
     final bootstrapPayload = await fetchAppBootstrapData();
-    final hasBootstrapPayload = bootstrapPayload != null;
     if (bootstrapPayload != null) {
       bootstrapApplied = await applyAppBootstrapData(
         bootstrapPayload,
         messInfoProvider: messInfoProvider,
         roomCleaningProvider: roomCleaningProvider,
       );
-      _upcomingGalaFromBootstrap = bootstrapPayload['upcomingGala'];
     }
 
     if (bootstrapApplied) {
@@ -74,10 +67,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       try {
         await fetchUserProfilePicture();
       } catch (_) {}
-      await _resolveGalaTabVisibility(
-        preloadedUpcoming: _upcomingGalaFromBootstrap,
-        hasPreloadedUpcoming: true,
-      );
       if (mounted) setState(() => _homeDataReady = true);
       return;
     }
@@ -96,10 +85,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     try {
       await globalNotificationProvider.syncAlerts();
     } catch (_) {}
-    await _resolveGalaTabVisibility(
-      preloadedUpcoming: _upcomingGalaFromBootstrap,
-      hasPreloadedUpcoming: hasBootstrapPayload,
-    );
     if (mounted) setState(() => _homeDataReady = true);
   }
 
@@ -112,64 +97,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         if (!mounted) return;
         context.read<MessInfoProvider>().fetchMessID();
       });
-    }
-  }
-
-  /// Gala tab: for SMC show when any upcoming gala; for non-SMC show only when
-  /// gala date is within 3 days (visible from galaDate-2 days through gala date).
-  Future<void> _resolveGalaTabVisibility({
-    dynamic preloadedUpcoming,
-    bool hasPreloadedUpcoming = false,
-  }) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final isSMC = prefs.getBool('isSMC') ?? false;
-      final hasMicrosoftLinked = prefs.getBool('hasMicrosoftLinked') ?? false;
-
-      // Only users who have linked their Microsoft (student) account
-      // should see the Gala tab at all.
-      if (!hasMicrosoftLinked) {
-        if (mounted) {
-          setState(() => _showGalaTab = false);
-        }
-        return;
-      }
-
-      // Trust bootstrap data (including null) when available; only fetch when
-      // bootstrap payload is unavailable.
-      final galaData = hasPreloadedUpcoming
-          ? preloadedUpcoming
-          : (await DioClient().dio.get(GalaEndpoints.upcoming)).data;
-      final galaDateRaw = galaData is Map ? galaData['date'] : null;
-      if (galaDateRaw == null) {
-        if (mounted) setState(() => _showGalaTab = false);
-        return;
-      }
-      DateTime? galaDate;
-      if (galaDateRaw is String) {
-        galaDate = DateTime.tryParse(galaDateRaw)?.toLocal();
-      } else if (galaDateRaw is DateTime) {
-        galaDate = galaDateRaw.toLocal();
-      }
-      if (galaDate == null) {
-        if (mounted) setState(() => _showGalaTab = false);
-        return;
-      }
-      final galaDay = DateTime(galaDate.year, galaDate.month, galaDate.day);
-      final now = DateTime.now();
-      final today = DateTime(now.year, now.month, now.day);
-      final daysUntil = galaDay.difference(today).inDays;
-      // Non-SMC: show only when 0 <= daysUntil <= 2 (i.e. within 3 days: today, tomorrow, day after)
-      final show =
-          isSMC ? (daysUntil >= 0) : (daysUntil >= 0 && daysUntil <= 2);
-      if (mounted) {
-        setState(() {
-          _showGalaTab = show;
-          if (!show && _selectedIndex == 2) _selectedIndex = 0;
-        });
-      }
-    } catch (_) {
-      if (mounted) setState(() => _showGalaTab = false);
     }
   }
 
@@ -546,7 +473,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                         children: [
                           HomeScreen(onNavigateToTab: _handleNavTap),
                           MessScreen(active: _selectedIndex == 1),
-                          GalaDinnerScreen(active: _selectedIndex == 2),
                         ],
                       )
                     : const SizedBox.shrink())
@@ -555,7 +481,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 ? BottomNavBar(
                     currentIndex: _selectedIndex,
                     onTap: _handleNavTap,
-                    showGalaTab: _showGalaTab,
                   )
                 : const SizedBox(),
           ),
