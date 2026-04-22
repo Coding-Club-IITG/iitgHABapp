@@ -1,18 +1,25 @@
-// Middleware for logging HTTP requests and responses using Winston and Express-Winston
-import redis from "redis";
-import { redisUrl, REDIS_KEY_PREFIX } from "../config/default.js";
+import { createClient } from "redis";
 
-export const LOGS_QUEUE_KEY = `${REDIS_KEY_PREFIX}logs_queue`;
+const client = createClient({ url: process.env.REDIS_URL });
 
-const client = redis.createClient({ url: redisUrl });
-client.on("error", (err) => console.error("[Logger Redis] Error:", err));
-client.connect();
+client.on("error", (err) => console.error("Redis Socket Error:", err));
+
+// 1. CATCH THE SILENT STARTUP CRASH
+client.connect().catch((err) => {
+  console.error("FATAL REDIS CONNECTION ERROR ON STARTUP:", err.message);
+});
 
 const storeLogs = async (logInfo) => {
+  // 2. PREVENT THE INFINITE MEMORY TRAP
+  if (!client.isReady) {
+    console.error("Skipping Log: Redis Client is not connected!");
+    return;
+  }
+
   try {
-    await client.lPush(LOGS_QUEUE_KEY, JSON.stringify(logInfo));
+    await client.lPush("logs_queue", JSON.stringify(logInfo));
   } catch (err) {
-    console.error("[Logger Redis] Error storing log:", err);
+    console.error("Error storing logs in Redis:", err);
   }
 };
 

@@ -48,5 +48,14 @@ module.exports = {
       max_memory_restart: "1G",
       instance_var: "NODE_APP_INSTANCE",
     },
+    {
+      name: "logger-worker",
+      script: "./loggerworker.js",
+      cwd: "./v2/workers",
+      instances: 1,
+      exec_mode: "fork",
+      watch: false,
+      autorestart: true,
+    }
   ],
 };
