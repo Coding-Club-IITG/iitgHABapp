@@ -297,9 +297,23 @@ export const getMessInfo = async (req, res) => {
 
 export const getMessMenuByDay = async (req, res) => {
   try {
-    const messId = req.params.messId;
+    let messId = req.params.messId;
     const day = req.body.day;
     const userId = req.user.id;
+
+    // Fix for non-ObjectId messId (e.g., when mess name is passed instead of ID)
+    if (!mongoose.Types.ObjectId.isValid(messId)) {
+      const mess = await Mess.findOne({
+        name: { $in: [messId, `${messId} Mess`] },
+      })
+        .select("_id")
+        .lean();
+
+      if (!mess) {
+        return res.status(404).json({ message: "Mess not found" });
+      }
+      messId = mess._id.toString();
+    }
 
     const result = await getMessMenuByDayForUser({ messId, day, userId });
     if (result.isMessClosed) {
@@ -320,8 +334,22 @@ export const getMessMenuByDay = async (req, res) => {
 
 export const getMessMenuByDayForAdminHAB = async (req, res) => {
   try {
-    const messId = req.params.messId;
+    let messId = req.params.messId;
     const day = req.body.day;
+
+    // Fix for non-ObjectId messId (e.g., when mess name is passed instead of ID)
+    if (!mongoose.Types.ObjectId.isValid(messId)) {
+      const mess = await Mess.findOne({
+        name: { $in: [messId, `${messId} Mess`] },
+      })
+        .select("_id")
+        .lean();
+
+      if (!mess) {
+        return res.status(404).json({ message: "Mess not found" });
+      }
+      messId = mess._id.toString();
+    }
 
     const menus = await getMessMenuByDayForAdmin({ messId, day });
     return res.status(200).json(menus);
