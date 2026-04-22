@@ -40,6 +40,8 @@ export default function GalaDinnerDetailPage() {
 
   const [hostels, setHostels] = useState([]);
   const [hostelsLoading, setHostelsLoading] = useState(true);
+  const [participatingHostelIds, setParticipatingHostelIds] = useState(null);
+  const [galaMetaLoading, setGalaMetaLoading] = useState(true);
   const [selectedHostelId, setSelectedHostelId] = useState(null);
   const [detail, setDetail] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -57,9 +59,6 @@ export default function GalaDinnerDetailPage() {
           ? data
           : data?.hostels || data?.data || [];
         setHostels(list);
-        if (list?.length > 0 && !selectedHostelId) {
-          setSelectedHostelId(list[0]._id);
-        }
       } catch (err) {
         console.error("Failed to fetch hostels:", err);
         setHostels([]);
@@ -68,7 +67,53 @@ export default function GalaDinnerDetailPage() {
       }
     };
     fetchHostels();
-  }, [authHeaders, selectedHostelId]);
+  }, [authHeaders]);
+
+  useEffect(() => {
+    if (!galaDinnerId) {
+      setParticipatingHostelIds([]);
+      setGalaMetaLoading(false);
+      return;
+    }
+    const fetchGalaMeta = async () => {
+      try {
+        setGalaMetaLoading(true);
+        const response = await fetch(`${BACKEND_URL}/gala/list`, {
+          headers: { ...authHeaders },
+        });
+        if (!response.ok) throw new Error("Fetch failed");
+        const data = await response.json();
+        const row = Array.isArray(data)
+          ? data.find((g) => String(g._id) === String(galaDinnerId))
+          : null;
+        const ids = Array.isArray(row?.participatingHostelIds)
+          ? row.participatingHostelIds.map(String)
+          : [];
+        setParticipatingHostelIds(ids);
+      } catch (err) {
+        console.error("Failed to fetch gala list:", err);
+        setParticipatingHostelIds([]);
+      } finally {
+        setGalaMetaLoading(false);
+      }
+    };
+    fetchGalaMeta();
+  }, [galaDinnerId, authHeaders]);
+
+  useEffect(() => {
+    if (participatingHostelIds === null) return;
+    if (participatingHostelIds.length === 0) {
+      setSelectedHostelId(null);
+      return;
+    }
+    const first = participatingHostelIds[0];
+    setSelectedHostelId((prev) => {
+      if (prev && participatingHostelIds.includes(String(prev))) {
+        return prev;
+      }
+      return first;
+    });
+  }, [participatingHostelIds]);
 
   useEffect(() => {
     if (!galaDinnerId || !selectedHostelId) {
@@ -95,7 +140,13 @@ export default function GalaDinnerDetailPage() {
     fetchDetail();
   }, [galaDinnerId, selectedHostelId, authHeaders]);
 
-  const hostelOptions = hostels.map((h) => ({
+  const participatingHostels = useMemo(() => {
+    if (!participatingHostelIds?.length) return [];
+    const idSet = new Set(participatingHostelIds.map(String));
+    return hostels.filter((h) => idSet.has(String(h._id)));
+  }, [hostels, participatingHostelIds]);
+
+  const hostelOptions = participatingHostels.map((h) => ({
     value: h._id,
     label: h.hostel_name || h._id,
   }));
@@ -134,7 +185,7 @@ export default function GalaDinnerDetailPage() {
               Gala Dinner Details
             </Title>
             <Text type="secondary">
-              View scan counts and menus for specific hostels
+              View scan counts and menus for hostels in this gala
             </Text>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -147,7 +198,13 @@ export default function GalaDinnerDetailPage() {
               value={selectedHostelId}
               onChange={setSelectedHostelId}
               options={hostelOptions}
-              loading={hostelsLoading}
+              loading={hostelsLoading || galaMetaLoading}
+              notFoundContent={
+                !galaMetaLoading &&
+                participatingHostelIds?.length === 0 ? (
+                  <Text type="secondary">No hostels in this gala</Text>
+                ) : undefined
+              }
               size="large"
             />
           </div>
@@ -274,6 +331,20 @@ export default function GalaDinnerDetailPage() {
                 ))}
               </Row>
             </>
+          ) : participatingHostelIds?.length === 0 &&
+            !galaMetaLoading &&
+            !hostelsLoading ? (
+            <Card
+              style={{
+                borderRadius: 8,
+                boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+                textAlign: "center",
+              }}
+            >
+              <Text type="secondary">
+                This gala has no participating hostels (legacy or empty schedule).
+              </Text>
+            </Card>
           ) : selectedHostelId && !detailLoading ? (
             <Card
               style={{

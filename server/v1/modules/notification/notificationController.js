@@ -3,6 +3,7 @@ import Alert from "./notificationModel.js";
 import redisClient from "../../utils/redisClient.js";
 import admin from "./firebase.js";
 import FCMToken from "./FCMToken.js";
+import { getActiveAlertsForUser } from "./alertsService.js";
 
 // Helper to determine Redis Key based on target type and ID
 const getRedisKey = (type, id) => `alerts:${type}${id ? ":" + id : ":all"}`;
@@ -333,63 +334,8 @@ export const createAlert = async (req, res) => {
 // Fetches relevant active alerts for the logged-in user
 export const getAlerts = async (req, res) => {
   try {
-    const now = Date.now();
-    const user = req.user;
-
-    // Determine relevant targets for this user
-    const targetKeys = [
-      getRedisKey("global"),
-      getRedisKey("hostel", user.hostel?.toString()),
-      getRedisKey("mess", user.curr_subscribed_mess?.toString()),
-    ].filter(Boolean);
-
-    let allAlerts = [];
-
-    // Fetch from Redis
-    for (const key of targetKeys) {
-      // O(log N) fetch of non-expired alerts
-      const cachedAlerts = await redisClient.zrangebyscore(key, now, "+inf");
-
-      if (cachedAlerts && cachedAlerts.length > 0) {
-        allAlerts.push(...cachedAlerts.map((a) => JSON.parse(a)));
-      } else {
-        // Cache Miss or Empty: Fallback to DB (Architecture PDF Requirement 4.2.8)
-        const targetType = key.split(":")[1];
-        const targetId = key.split(":")[2];
-
-        const query = { expiresAt: { $gt: new Date(now) }, targetType };
-        if (targetType !== "global" && targetId) {
-          query.targetIds = targetId;
-        }
-
-        const dbAlerts = await Alert.find(query).lean();
-        if (dbAlerts.length > 0) {
-          const parsedAlerts = dbAlerts.map((alert) => ({
-            id: alert._id.toString(),
-            title: alert.title,
-            body: alert.body,
-            hasCountdown: alert.hasCountdown ? "true" : "false",
-            expiresAt: new Date(alert.expiresAt).getTime().toString(),
-            targetType: alert.targetType,
-          }));
-          allAlerts.push(...parsedAlerts);
-
-          // Re-hydrate cache
-          for (const parsed of parsedAlerts) {
-            await redisClient.zadd(
-              key,
-              Number(parsed.expiresAt),
-              JSON.stringify(parsed),
-            );
-          }
-        }
-      }
-    }
-
-    // Sort by expiresAt (ascending - ending soonest first)
-    allAlerts.sort((a, b) => Number(a.expiresAt) - Number(b.expiresAt));
-
-    res.status(200).json({ alerts: allAlerts });
+    const alerts = await getActiveAlertsForUser(req.user);
+    res.status(200).json({ alerts });
   } catch (err) {
     console.error("Error fetching alerts:", err);
     res.status(500).json({ error: "Internal Server Error" });

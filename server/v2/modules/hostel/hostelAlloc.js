@@ -1,13 +1,10 @@
-// upload.js
-const fs = require("fs");
-const path = require("path");
-const csv = require("csv-parser");
+import fs from "fs";
+import csv from "csv-parser";
 
-// Import Mongoose Models
-const UserAllocHostel = require("./hostelAllocModel");
-const { Hostel } = require("./hostelModel");
+import UserAllocHostel from "./hostelAllocModel.js";
+import { Hostel } from "./hostelModel.js";
 
-async function uploadData(req, res) {
+export async function uploadData(req, res) {
   try {
     if (!req.file || !req.file.path) {
       return res.status(400).json({ message: "CSV file is required" });
@@ -76,7 +73,7 @@ async function uploadData(req, res) {
             await UserAllocHostel.findOneAndUpdate(
               { rollno: rollno },
               updateData,
-              { upsert: true, new: true, runValidators: true }
+              { upsert: true, new: true, runValidators: true },
             );
 
             processed++;
@@ -102,5 +99,3 @@ async function uploadData(req, res) {
     return res.status(500).json({ message: "Failed to upload allocation CSV" });
   }
 }
-
-module.exports = { uploadData };

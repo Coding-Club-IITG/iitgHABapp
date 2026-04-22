@@ -1,12 +1,12 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+import 'package:frontend2/apis/dio_client.dart';
+import 'package:dio/dio.dart';
 
 import '../apis/mess/menu_like.dart';
 import '../apis/mess/mess_menu.dart';
@@ -242,8 +242,14 @@ class _MenuSectionState extends State<_MenuSection> {
 
   Future<void> _loadMessSettings() async {
     try {
-      final uri = Uri.parse(MessSettingsEndpoints.settings);
-      final res = await http.get(uri).timeout(const Duration(seconds: 8));
+      final dio = DioClient().dio;
+      final res = await dio.get(
+        MessSettingsEndpoints.settings,
+        options: Options(
+          connectTimeout: const Duration(seconds: 8),
+          receiveTimeout: const Duration(seconds: 8),
+        ),
+      );
       if (res.statusCode != 200) {
         if (!mounted) return;
         setState(() {
@@ -253,8 +259,9 @@ class _MenuSectionState extends State<_MenuSection> {
         return;
       }
 
-      final decoded = jsonDecode(res.body) as Map<String, dynamic>;
-      final enabled = decoded['messRebateEnabled'] == true;
+      final payload =
+          (res.data is Map) ? Map<String, dynamic>.from(res.data as Map) : const <String, dynamic>{};
+      final enabled = payload['messRebateEnabled'] == true;
       if (!mounted) return;
       setState(() {
         _messRebateEnabled = enabled;

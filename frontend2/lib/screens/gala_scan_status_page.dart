@@ -2,11 +2,9 @@ import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:frontend2/services/festival_mode_service.dart';
-import 'package:frontend2/screens/main_navigation_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-/// Shows success or failure after a Gala QR scan. "Go Back" pops twice to return to Gala Dinner tab.
+/// Shows success or failure after a Gala QR scan.
 class GalaScanStatusPage extends StatefulWidget {
   final Response response;
 
@@ -18,6 +16,16 @@ class GalaScanStatusPage extends StatefulWidget {
 
 class _GalaScanStatusPageState extends State<GalaScanStatusPage> {
   String profilePicture = '';
+
+  Map<String, dynamic> _goToGalaResult(Map<String, dynamic> data) {
+    return {
+      'action': 'goToGala',
+      'success': data['success'] == true,
+      'mealType': data['mealType']?.toString(),
+      'galaDinnerId': data['galaDinnerId']?.toString(),
+      'time': data['time']?.toString(),
+    };
+  }
 
   @override
   void initState() {
@@ -158,14 +166,8 @@ Container(
     width: double.infinity,
     height: 55,
     child: ElevatedButton(
-      onPressed: () async {
-        await FestivalModeService().bootstrapBeforeHome();
-        if (!context.mounted) return;
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-              builder: (context) => const MainNavigationScreen()),
-          (Route<dynamic> route) => false,
-        );
+      onPressed: () {
+        Navigator.of(context).pop(_goToGalaResult(data));
       },
       style: ElevatedButton.styleFrom(
         backgroundColor: const Color(0xFF5B5FEF),
@@ -264,14 +266,8 @@ Container(
         child: SizedBox(
           height: 50,
           child: ElevatedButton(
-            onPressed: () async {
-              await FestivalModeService().bootstrapBeforeHome();
-              if (!context.mounted) return;
-              Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                    builder: (context) => const MainNavigationScreen()),
-                (Route<dynamic> route) => false,
-              );
+            onPressed: () {
+              Navigator.of(context).pop(_goToGalaResult(data));
             },
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.white,

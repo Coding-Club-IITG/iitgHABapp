@@ -1,31 +1,20 @@
-const express = require("express");
+import express from "express";
 
-// Import from modular controllers
-const {
+import {
   messChangeRequest,
   messChangeStatus,
-} = require("./controllers/requestController.js");
-
-const {
-  processAllMessChangeRequests,
-  rejectAllMessChangeRequests,
-} = require("./controllers/processingController.js");
-
-const {
+} from "./controllers/requestController.js";
+import {
   getAllMessChangeRequestsForAllHostels,
   messChangeStatusForAdmin,
-  enableMessChange,
-  disableMessChange,
   getMessChangeScheduleInfo,
-} = require("./controllers/adminController.js");
+} from "./controllers/adminController.js";
 
-const {
+import {
   authenticateJWT,
   authenticateHabJWT,
-} = require("../../middleware/authenticateJWT.js");
-const {
-  requireMicrosoftAuth,
-} = require("../../middleware/requireMicrosoftAuth.js");
+} from "../../middleware/authenticateJWT.js";
+import { requireMicrosoftAuth } from "../../middleware/requireMicrosoftAuth.js";
 
 const messChangeRouter = express.Router();
 
@@ -49,23 +38,11 @@ messChangeRouter.get(
   authenticateHabJWT,
   getAllMessChangeRequestsForAllHostels,
 );
-messChangeRouter.post(
-  "/process-all",
-  authenticateHabJWT,
-  processAllMessChangeRequests,
-);
-messChangeRouter.post(
-  "/reject-all",
-  authenticateHabJWT,
-  rejectAllMessChangeRequests,
-);
 messChangeRouter.get("/settings", authenticateHabJWT, messChangeStatusForAdmin);
 messChangeRouter.get(
   "/schedule",
   authenticateHabJWT,
   getMessChangeScheduleInfo,
 );
-messChangeRouter.post("/enable", authenticateHabJWT, enableMessChange);
-messChangeRouter.post("/disable", authenticateHabJWT, disableMessChange);
 
-module.exports = messChangeRouter;
+export default messChangeRouter;

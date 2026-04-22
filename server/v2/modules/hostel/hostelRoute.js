@@ -1,12 +1,15 @@
-const express = require("express");
-const {
-  authenticateJWT,
+import fs from "fs";
+import path from "path";
+import express from "express";
+import multer from "multer";
+
+import {
   authenticateUserOrAdminJWT,
   authenticateHabJWT,
   authenticateAdminJWT,
-} = require("../../middleware/authenticateJWT.js");
+} from "../../middleware/authenticateJWT.js";
 
-const {
+import {
   createHostel,
   getHostel,
   getHostelbyId,
@@ -16,15 +19,18 @@ const {
   getCatererInfo,
   getBoarders,
   getMessSubscribers,
+  getMessSubscribersSnapshotMonths,
+  getMessSubscribersCountByMonth,
   getMessSubscribersByHostelId,
   markAsSMC,
   unmarkAsSMC,
   getSMCMembers,
-} = require("./hostelController.js");
-const { uploadData } = require("./hostelAlloc.js");
-const multer = require("multer");
-const fs = require("fs");
-const path = require("path");
+  getHMCMembers,
+  setHMCMembers,
+  setHostelPassword,
+} from "./hostelController.js";
+import { uploadData } from "./hostelAlloc.js";
+
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir, { recursive: true });
@@ -140,7 +146,11 @@ hostelRouter.post("/", authenticateHabJWT, createHostel);
  *                   type: string
  *                   example: "Error occurred"
  */
-hostelRouter.get("/all/smc/:hostelId", authenticateUserOrAdminJWT, getHostelbyId);
+hostelRouter.get(
+  "/all/smc/:hostelId",
+  authenticateUserOrAdminJWT,
+  getHostelbyId,
+);
 hostelRouter.get("/all/hab/:hostelId", authenticateHabJWT, getHostelbyId);
 hostelRouter.get("/get", authenticateAdminJWT, getHostel);
 
@@ -201,6 +211,16 @@ hostelRouter.post(
 hostelRouter.get("/caterer-info", authenticateAdminJWT, getCatererInfo);
 hostelRouter.get("/boarders", authenticateAdminJWT, getBoarders);
 hostelRouter.get("/mess-subscribers", authenticateAdminJWT, getMessSubscribers);
+hostelRouter.get(
+  "/mess-subscribers/snapshot-months",
+  authenticateAdminJWT,
+  getMessSubscribersSnapshotMonths,
+);
+hostelRouter.get(
+  "/mess-subscribers/count",
+  authenticateAdminJWT,
+  getMessSubscribersCountByMonth,
+);
 // HAB endpoint to get mess subscribers for a given hostel ID
 hostelRouter.get(
   "/mess-subscribers/:hostelId",
@@ -210,12 +230,9 @@ hostelRouter.get(
 hostelRouter.get("/smc-members", authenticateAdminJWT, getSMCMembers);
 hostelRouter.post("/mark-smc", authenticateAdminJWT, markAsSMC);
 hostelRouter.post("/unmark-smc", authenticateAdminJWT, unmarkAsSMC);
+hostelRouter.get("/hmc-members", authenticateUserOrAdminJWT, getHMCMembers);
+hostelRouter.post("/hmc-members", authenticateAdminJWT, setHMCMembers);
 
 // HAB-only: set or update encrypted hostel password
-const { setHostelPassword } = require("./hostelController.js");
-hostelRouter.post(
-  "/set-password",
-  authenticateHabJWT,
-  setHostelPassword,
-);
-module.exports = hostelRouter;
+hostelRouter.post("/set-password", authenticateHabJWT, setHostelPassword);
+export default hostelRouter;

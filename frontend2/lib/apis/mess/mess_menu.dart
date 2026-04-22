@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -7,6 +9,10 @@ import '../../models/mess_menu_model.dart';
 
 //cache so that it doesnt do api calls when state persists (only does it when app reopens)
 final Map<String, List<MenuModel>> _menuCache = {};
+
+const Duration kMenuCacheTtl = Duration(hours: 6);
+String _menuCachePayloadKey(String key) => 'menu_cache_payload:$key';
+String _menuCacheFetchedAtKey(String key) => 'menu_cache_fetched_at_ms:$key';
 
 void seedMenuCache({
   required String messId,
@@ -28,6 +34,30 @@ void seedMenuCacheWithModels({
   _menuCache[key] = menus;
 }
 
+Future<List<MenuModel>?> _loadPersistedMenuIfFresh(
+  SharedPreferences prefs, {
+  required String key,
+}) async {
+  try {
+    final fetchedAtMs = prefs.getInt(_menuCacheFetchedAtKey(key));
+    if (fetchedAtMs == null) return null;
+    final age = DateTime.now()
+        .difference(DateTime.fromMillisecondsSinceEpoch(fetchedAtMs));
+    if (age > kMenuCacheTtl) return null;
+
+    final raw = prefs.getString(_menuCachePayloadKey(key));
+    if (raw == null || raw.isEmpty) return null;
+    final decoded = jsonDecode(raw);
+    if (decoded is! List) return null;
+    final menus = decoded
+        .map((e) => MenuModel.fromJson(Map<String, dynamic>.from(e as Map)))
+        .toList();
+    return menus;
+  } catch (_) {
+    return null;
+  }
+}
+
 Future<List<MenuModel>> fetchMenu(String messId, String day) async {
   final startTime = DateTime.now();
   final key = '$messId-$day';
@@ -47,6 +77,14 @@ Future<List<MenuModel>> fetchMenu(String messId, String day) async {
   try {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('access_token') ?? '';
+
+    // Try persisted menu cache before hitting network (speeds up app reopen).
+    final persisted = await _loadPersistedMenuIfFresh(prefs, key: key);
+    if (persisted != null) {
+      _menuCache[key] = persisted;
+      if (kDebugMode) debugPrint('✅ Returning persisted cached menu for $key');
+      return persisted;
+    }
 
     if (token.isEmpty) {
       throw Exception('⚠️ Access token not found');
@@ -80,6 +118,11 @@ Future<List<MenuModel>> fetchMenu(String messId, String day) async {
       final menu =
           data.map<MenuModel>((json) => MenuModel.fromJson(json)).toList();
       _menuCache[key] = menu;
+      try {
+        await prefs.setString(_menuCachePayloadKey(key), jsonEncode(data));
+        await prefs.setInt(
+            _menuCacheFetchedAtKey(key), DateTime.now().millisecondsSinceEpoch);
+      } catch (_) {}
       if (kDebugMode) debugPrint(response.data.toString());
       if (kDebugMode) debugPrint('✅ Menu fetched and cached for $key');
 

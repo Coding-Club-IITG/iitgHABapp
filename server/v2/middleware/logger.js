@@ -1,17 +1,19 @@
 // Middleware for logging HTTP requests and responses using Winston and Express-Winston
-const redis = require("redis");
+import redis from "redis";
+import { redisUrl, REDIS_KEY_PREFIX } from "../config/default.js";
 
-const client = redis.createClient({ url: process.env.REDIS_URL });
-client.on("error", (err) => console.error("Redis Client Error", err));
+export const LOGS_QUEUE_KEY = `${REDIS_KEY_PREFIX}logs_queue`;
+
+const client = redis.createClient({ url: redisUrl });
+client.on("error", (err) => console.error("[Logger Redis] Error:", err));
 client.connect();
 
-const storeLogs = async(logInfo) => {
+const storeLogs = async (logInfo) => {
   try {
-    // node-redis v4 uses camelCase for commands (lPush)
-    await client.lPush("logs_queue", JSON.stringify(logInfo));
+    await client.lPush(LOGS_QUEUE_KEY, JSON.stringify(logInfo));
   } catch (err) {
-    console.error("Error storing logs in Redis:", err);
+    console.error("[Logger Redis] Error storing log:", err);
   }
-}
+};
 
-module.exports = storeLogs;
+export default storeLogs;

@@ -1,106 +1,135 @@
-const schedule = require("node-schedule");
-const { User } = require("../user/userModel.js");
-const UserAllocHostel = require("../hostel/hostelAllocModel.js");
-const { MessChangeSettings } = require("./messChangeSettingsModel");
-const {
-  resetAllUsersToHostel,
-} = require("./controllers/processingController.js");
+import { User } from "../user/userModel.js";
+import UserAllocHostel from "../hostel/hostelAllocModel.js";
+import { MessChangeSettings } from "./messChangeSettingsModel.js";
+
+import { withTransaction } from "../../utils/withTransaction.js";
+import agenda from "../../utils/agenda.js";
+
+const JOB_NAME = "mess-allotment-rotate";
 
 /**
  * Core rotation logic
  */
 const rotateMessAllotments = async () => {
-  console.log("📅 [MESS ALLOTMENT] Starting monthly mess rotation...");
-  try {
-    // Safety Check: Ensure mess change processing has occurred
-    const settings = await MessChangeSettings.findOne();
-    const now = new Date();
+  console.log("[MESS ALLOTMENT] Starting monthly mess rotation...");
 
-    if (
-      settings?.currentWindowClosingTime &&
-      now > settings.currentWindowClosingTime
-    ) {
-      const closingTime = new Date(settings.currentWindowClosingTime);
-      const lastProcessed = settings.lastProcessedAt
-        ? new Date(settings.lastProcessedAt)
-        : null;
+  // Safety check: ensure mess change processing has occurred
+  const settings = await MessChangeSettings.findOne();
+  const now = new Date();
 
-      if (!lastProcessed || lastProcessed < closingTime) {
-        console.error(
-          `❌ [MESS ALLOTMENT] CRITICAL: Mess change rotation aborted! ` +
-            `Processing for the window closing at ${closingTime.toLocaleString()} has not occurred. ` +
-            `Last processed at: ${lastProcessed ? lastProcessed.toLocaleString() : "Never"}`,
-        );
-        return 0; // Abort rotation
-      }
-    }
+  if (
+    settings?.currentWindowClosingTime &&
+    now > settings.currentWindowClosingTime
+  ) {
+    const closingTime = new Date(settings.currentWindowClosingTime);
+    const lastProcessed = settings.lastProcessedAt
+      ? new Date(settings.lastProcessedAt)
+      : null;
 
-    // Reset everyone to their own hostel
-    console.log("🔄 [MESS ALLOTMENT] Resetting all users to hostel first...");
-    await User.updateMany({}, { got_mess_changed: false });
-    await resetAllUsersToHostel();
-
-    // Find all users who have a staged next_mess
-    const usersToRotate = await User.find({ next_mess: { $ne: null } });
-
-    if (usersToRotate.length === 0) {
-      console.log(
-        "ℹ️ [MESS ALLOTMENT] No users found for rotation this month.",
+    if (!lastProcessed || lastProcessed < closingTime) {
+      console.error(
+        `[MESS ALLOTMENT] CRITICAL: Rotation aborted! ` +
+          `Processing for the window closing at ${closingTime.toLocaleString()} has not occurred. ` +
+          `Last processed at: ${lastProcessed ? lastProcessed.toLocaleString() : "Never"}`,
       );
       return 0;
     }
-
-    console.log(
-      `🔄 [MESS ALLOTMENT] Rotating ${usersToRotate.length} users...`,
-    );
-
-    let count = 0;
-    for (const user of usersToRotate) {
-      const allottedMessId = user.next_mess;
-
-      // 1. Update User model
-      user.curr_subscribed_mess = allottedMessId;
-      user.got_mess_changed = true;
-      user.next_mess = null; // Clear staged mess
-      await user.save();
-
-      // 2. Update Hostel Allocation model to keep in sync
-      if (user.rollNumber) {
-        await UserAllocHostel.updateOne(
-          { rollno: user.rollNumber },
-          { $set: { current_subscribed_mess: allottedMessId } },
-        );
-      }
-      count++;
-    }
-
-    console.log(
-      `✅ [MESS ALLOTMENT] Monthly mess rotation completed successfully. (${count} users rotated)`,
-    );
-    return count;
-  } catch (error) {
-    console.error("❌ [MESS ALLOTMENT] Error during mess rotation:", error);
-    throw error;
   }
+
+  // Find all users who have a staged next_mess
+  const allocations = await UserAllocHostel.find({}).lean();
+  const usersToRotate = await User.find({ next_mess: { $ne: null } }).lean();
+
+  if (usersToRotate.length === 0) {
+    console.log("[MESS ALLOTMENT] No users to rotate this month.");
+    return 0;
+  }
+
+  console.log(`[MESS ALLOTMENT] Rotating ${usersToRotate.length} users...`);
+
+  // Build all bulk-write operations in memory
+  const allocBulkOps = [];
+  const userBulkOps = [];
+
+  // 1. Reset everyone back to their boarding hostel
+  for (const alloc of allocations) {
+    allocBulkOps.push({
+      updateOne: {
+        filter: { _id: alloc._id },
+        update: { $set: { current_subscribed_mess: alloc.hostel } },
+      },
+    });
+    userBulkOps.push({
+      updateOne: {
+        filter: { rollNumber: alloc.rollno },
+        update: {
+          $set: { curr_subscribed_mess: alloc.hostel, got_mess_changed: false },
+        },
+      },
+    });
+  }
+
+  // 2. Apply the staged next_mess for each approved user
+  for (const user of usersToRotate) {
+    userBulkOps.push({
+      updateOne: {
+        filter: { _id: user._id },
+        update: {
+          $set: {
+            curr_subscribed_mess: user.next_mess,
+            got_mess_changed: true,
+            next_mess: null,
+          },
+        },
+      },
+    });
+    if (user.rollNumber) {
+      allocBulkOps.push({
+        updateOne: {
+          filter: { rollno: user.rollNumber },
+          update: { $set: { current_subscribed_mess: user.next_mess } },
+        },
+      });
+    }
+  }
+
+  // ATOMIC TRANSACTION
+  await withTransaction(async (session) => {
+    if (allocBulkOps.length > 0) {
+      await UserAllocHostel.bulkWrite(allocBulkOps, { session });
+    }
+    if (userBulkOps.length > 0) {
+      await User.bulkWrite(userBulkOps, { session });
+    }
+  });
+
+  console.log(
+    `[MESS ALLOTMENT] Rotation complete. ${usersToRotate.length} users rotated.`,
+  );
+  return usersToRotate.length;
 };
 
 /**
  * Initialize mess allotment scheduler
- * This scheduler runs at the beginning of the 1st of every month (00:00:00)
+ * This scheduler runs at the beginning of the 1st of every month
  * to move the 'next_mess' (allotted) to 'curr_subscribed_mess' (active).
  */
-const initializeMessAllotmentScheduler = () => {
-  console.log("🚀 Initializing mess allotment rotation scheduler...");
+export const initializeMessAllotmentScheduler = () => {
+  agenda.define(
+    JOB_NAME,
+    async (job) => {
+      try {
+        console.log("[MESS ALLOTMENT] Agenda job fired");
+        await rotateMessAllotments();
+      } catch (err) {
+        console.error("[MESS ALLOTMENT] Job failed:", err);
+        throw err; // Rethrow so Agenda marks the job as failed and records the error
+      }
+    },
+    { priority: "high", concurrency: 1 },
+  );
 
-  // Runs on the 1st of every month at 00:05 AM IST
-  schedule.scheduleJob("5 0 1 * *", async () => {
-    await rotateMessAllotments();
-  });
-
-  console.log("✅ Mess allotment rotation scheduler initialized");
-};
-
-module.exports = {
-  initializeMessAllotmentScheduler,
-  rotateMessAllotments,
+  // Schedule: 1st of every month at 00:05 IST
+  agenda.every("5 0 1 * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
+  console.log("[MESS ALLOTMENT] Scheduled: 1st of every month at 00:05 IST");
 };

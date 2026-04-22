@@ -15,6 +15,7 @@ import 'package:frontend2/providers/room_cleaning_provider.dart';
 import 'package:frontend2/screens/laundry/laundry_screen.dart';
 import 'package:frontend2/screens/notification.dart';
 import 'package:frontend2/screens/account_screen.dart';
+import 'package:frontend2/screens/gala_dinner_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
 import 'package:frontend2/services/weather_background_service.dart';
@@ -23,7 +24,6 @@ import 'package:frontend2/widgets/common/alert_expirer.dart';
 import 'package:frontend2/providers/notification_provider.dart';
 import 'package:frontend2/widgets/alert_countdown_text.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
-import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:frontend2/widgets/festival_background_widget.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
@@ -31,6 +31,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend2/apis/protected.dart';
+import 'package:frontend2/apis/app_bootstrap.dart';
 
 import '../providers/mess_info_provider.dart';
 import 'initial_setup_screen.dart';
@@ -38,8 +39,14 @@ import 'initial_setup_screen.dart';
 class HomeScreen extends StatefulWidget {
   final void Function(int)? onNavigateToTab;
   final VoidCallback? onRefresh;
+  final VoidCallback? onInitialDataReady;
 
-  const HomeScreen({super.key, this.onNavigateToTab, this.onRefresh});
+  const HomeScreen({
+    super.key,
+    this.onNavigateToTab,
+    this.onRefresh,
+    this.onInitialDataReady,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -66,6 +73,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   static const blueSoft = Color(0xFFE0F1FF);
   static const blue = Color(0xFF3182CE);
   static const shadow = Color(0x14000000);
+
+  /// Gala Dinner home card (same shell as [_buildQuickActionCard] via [_cardDecoration])
+  static const galaCardIconBg = Color(0xFFFdedd3);
+  static const galaCardTitle = Color(0xFF2E2F31);
+  static const galaCardDate = Color(0xFF676767);
+  static const galaChevron = Color(0xFFB87402);
   String name = '';
   String currSubscribedMess = '';
   String? token;
@@ -77,6 +90,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _weatherBackgroundTimer;
   Timer? _deferredHomeNetworkTimer;
   int _debugTitleTapCount = 0;
+  bool _hasMicrosoftLinked = false;
+  bool _hasReportedInitialDataReady = false;
 
   /// First weather + optional deferred festival hit server after this delay (not on Home mount).
   static const Duration _kDeferredHomeNetworkDelay = Duration(seconds: 60);
@@ -157,8 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    fetchUserData();
-    fetchMessIdAndToken();
+    _prepareInitialPageData();
     _startScanQrStatusTicker();
     _deferredHomeNetworkTimer =
         Timer(_kDeferredHomeNetworkDelay, _runDeferredHomeNetworkWork);
@@ -207,6 +221,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Room-cleaning bookings are hydrated by bootstrap when available.
       // Do not auto-fetch here; explicit user actions should drive refresh.
     });
+  }
+
+  Future<void> _prepareInitialPageData() async {
+    try {
+      await Future.wait([
+        fetchUserData(),
+        fetchMessIdAndToken(),
+      ]);
+    } finally {
+      if (!_hasReportedInitialDataReady) {
+        _hasReportedInitialDataReady = true;
+        widget.onInitialDataReady?.call();
+      }
+    }
   }
 
   /// Admin changes (theme/text) update `lastUpdatedAt` — [bootstrapBeforeHome] sets a deferred
@@ -316,6 +344,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       currSubscribedMess = messId;
       token = accessToken;
       userHostelId = hostelId;
+      _hasMicrosoftLinked = prefs.getBool('hasMicrosoftLinked') ?? false;
     });
     await _loadScanQrStatus(messId);
   }
@@ -1107,7 +1136,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required int unreadCount,
     required bool hasImportantMessages,
   }) {
-    final displayName = name.isNotEmpty ? name : 'User';
+    final displayName = name.trim();
     final greeting = _weatherHeroGreeting(hasImportantMessages);
     final subtitleText = unreadCount == 1
         ? '1 notification today'
@@ -1168,11 +1197,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         color: _heroGreetingPrefixColor(),
                       ),
                       children: [
-                        TextSpan(text: '$greeting, '),
-                        TextSpan(
-                          text: displayName,
-                          style: TextStyle(color: _heroUserNameColor()),
-                        ),
+                        if (displayName.isEmpty) ...[
+                          TextSpan(text: greeting),
+                        ] else ...[
+                          TextSpan(text: '$greeting, '),
+                          TextSpan(
+                            text: displayName,
+                            style: TextStyle(color: _heroUserNameColor()),
+                          ),
+                        ]
                       ],
                     ),
                   ),
@@ -1486,6 +1519,171 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  DateTime? _upcomingGalaDayLocal() {
+    final raw = AppBootstrapCache.lastSnapshot?['upcomingGala'];
+    if (raw is! Map) return null;
+    final dateRaw = raw['date'];
+    DateTime? dt;
+    if (dateRaw is String) {
+      dt = DateTime.tryParse(dateRaw)?.toLocal();
+    } else if (dateRaw is DateTime) {
+      dt = dateRaw.toLocal();
+    }
+    if (dt == null) return null;
+    final galaDay = DateTime(dt.year, dt.month, dt.day);
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    if (galaDay.isBefore(today)) return null;
+    return galaDay;
+  }
+
+  String _galaBannerTitle(DateTime day) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDay = DateTime(day.year, day.month, day.day);
+    final daysDiff = targetDay.difference(today).inDays;
+    if (daysDiff == 0) return 'Gala Dinner !';
+    return 'Gala Dinner Coming Soon!';
+  }
+
+  String _ordinalDay(int d) {
+    if (d >= 11 && d <= 13) return '${d}th';
+    switch (d % 10) {
+      case 1:
+        return '${d}st';
+      case 2:
+        return '${d}nd';
+      case 3:
+        return '${d}rd';
+      default:
+        return '${d}th';
+    }
+  }
+
+  String _formatGalaBannerDate(DateTime day) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final targetDay = DateTime(day.year, day.month, day.day);
+    final daysDiff = targetDay.difference(today).inDays;
+    if (daysDiff == 0) return 'Today';
+    if (daysDiff == 1) return 'Tomorrow';
+
+    const months = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    return '${_ordinalDay(day.day)} ${months[day.month - 1]}';
+  }
+
+  Future<void> _onGalaDinnerQuickTap() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    final linked = prefs.getBool('hasMicrosoftLinked') ?? false;
+    if (!linked) {
+      if (!mounted) return;
+      showDialog<void>(
+        context: context,
+        builder: (context) => const MicrosoftRequiredDialog(
+          featureName: 'Gala Dinner',
+        ),
+      );
+      return;
+    }
+    if (!mounted) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => const GalaDinnerScreen(active: true),
+      ),
+    );
+  }
+
+  Widget _buildGalaDinnerFeaturedCard() {
+    if (!_hasMicrosoftLinked) return const SizedBox.shrink();
+    final galaDay = _upcomingGalaDayLocal();
+    if (galaDay == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: _onGalaDinnerQuickTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: _cardDecoration(radius: 16),
+            child: Row(
+              children: [
+                DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: galaCardIconBg,
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(8),
+                    child: SvgPicture.asset(
+                      'assets/icon/gala_chef_hat.svg',
+                      width: 20,
+                      height: 20,
+                      fit: BoxFit.contain,
+                      // Avoid parent clipping / compositing edge cases with vector strokes
+                      allowDrawingOutsideViewBox: true,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        _galaBannerTitle(galaDay),
+                        style: const TextStyle(
+                          fontFamily: 'GeneralSans',
+                          fontSize: 16,
+                          height: 24 / 16,
+                          fontWeight: FontWeight.w500,
+                          color: galaCardTitle,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _formatGalaBannerDate(galaDay),
+                        style: const TextStyle(
+                          fontFamily: 'GeneralSans',
+                          fontSize: 12,
+                          height: 18 / 12,
+                          fontWeight: FontWeight.w400,
+                          color: galaCardDate,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: galaChevron,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildQuickActionsSection() {
     final actions = _buildQuickActions();
     final featured = actions.take(2).toList();
@@ -1496,6 +1694,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       children: [
         Text('Quick Actions', style: _sectionTitleStyle()),
         const SizedBox(height: 24),
+        _buildGalaDinnerFeaturedCard(),
         Row(
           children: [
             _buildQuickActionCard(featured[0]),
@@ -1654,16 +1853,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     )
                   : Consumer<MessInfoProvider>(
                       builder: (context, messProvider, __) {
-                        if (messProvider.isLoading) {
-                          return buildHomeScreenLoadingShimmer();
-                        }
                         return FutureBuilder<List<MenuModel>>(
                           future: fetchMenu(currSubscribedMess, getTodayDay()),
                           builder: (context, menuSnap) {
-                            if (menuSnap.connectionState ==
-                                ConnectionState.waiting) {
-                              return buildHomeScreenLoadingShimmer();
-                            }
                             final messName =
                                 _subscribedMessDisplayName(context);
                             return SingleChildScrollView(

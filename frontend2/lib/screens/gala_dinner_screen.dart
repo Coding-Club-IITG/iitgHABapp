@@ -1,16 +1,37 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/apis/users/user.dart';
 import 'package:frontend2/screens/gala_qr_scanner_screen.dart';
-import 'package:frontend2/widgets/common/hostel_name.dart';
 import 'package:frontend2/widgets/common/shimmer_host.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final _dio = DioClient().dio;
+
+/// Gala Dinner screen — visual tokens from Figma (node 134:221).
+abstract final class _GalaTokens {
+  static const headerBg = Color(0xFFFAFAFA);
+  static const headerBorder = Color(0xFFE6E6E6);
+  static const grey1 = Color(0xFF676767);
+  static const grey1b = Color(0xFF535353);
+  static const grey2 = Color(0xFF2E2F31);
+  static const orange = Color(0xFFB87402);
+  static const scanWell = Color(0xFFFEF7EA);
+  static const scannedWell = Color(0xFFEDF7F2);
+  static const scannedTickAsset = 'assets/icon/gala_scan_tick.svg';
+  static const border = Color(0xFFE6E6E6);
+  static const dividerBar = Color(0xFFF0F0F0);
+  static const shadow = Color(0x14000000);
+  static BoxShadow get cardShadow => const BoxShadow(
+        color: shadow,
+        blurRadius: 16,
+        offset: Offset(0, 0),
+      );
+}
 
 class GalaDinnerScreen extends StatefulWidget {
   final bool active;
@@ -25,7 +46,6 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
   Map<String, dynamic>? _menuData;
   Map<String, dynamic>? _scanStatusData;
   String? _error;
-  String? _hostelDisplayName;
   bool started_loading = false;
 
   @override
@@ -54,10 +74,12 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
     final prefs = await SharedPreferences.getInstance();
     final hostelID = prefs.getString('hostelID');
     final currMess = prefs.getString('currMess');
-    final hostelId =
-        _isValidObjectId(hostelID) ? hostelID : (_isValidObjectId(currMess) ? currMess : null);
+    final hostelId = _isValidObjectId(hostelID)
+        ? hostelID
+        : (_isValidObjectId(currMess) ? currMess : null);
     if (kDebugMode) {
-      debugPrint('Gala: _getHostelId hostelID=$hostelID currMess=$currMess => hostelId=$hostelId');
+      debugPrint(
+          'Gala: _getHostelId hostelID=$hostelID currMess=$currMess => hostelId=$hostelId');
     }
     return hostelId;
   }
@@ -80,16 +102,20 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
       }
       var hostelId = await _getHostelId();
       if (hostelId == null || hostelId.isEmpty) {
-        if (kDebugMode) debugPrint('Gala: no hostelId, fetching user details to populate currMess');
+        if (kDebugMode)
+          debugPrint(
+              'Gala: no hostelId, fetching user details to populate currMess');
         try {
           await fetchUserDetails();
           if (!mounted) return;
           hostelId = await _getHostelId();
         } catch (_) {}
         if (hostelId == null || hostelId.isEmpty) {
-          if (kDebugMode) debugPrint('Gala: no hostelId after fetch, showing error');
+          if (kDebugMode)
+            debugPrint('Gala: no hostelId after fetch, showing error');
           setState(() {
-            _error = 'No hostel selected. Open Mess or Profile first to set your hostel.';
+            _error =
+                'No hostel selected. Open Mess or Profile first to set your hostel.';
             _loading = false;
           });
           return;
@@ -100,19 +126,19 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
         _fetchScanStatus(token),
       ]);
       if (!mounted) return;
-      final name = await calculateHostelAsync(hostelId);
-      if (!mounted) return;
-      if (kDebugMode) debugPrint('Gala: _fetchAll done menus=${_menuData != null} scanStatus=${_scanStatusData != null}');
+      if (kDebugMode)
+        debugPrint(
+            'Gala: _fetchAll done menus=${_menuData != null} scanStatus=${_scanStatusData != null}');
       setState(() {
         _loading = false;
-        _hostelDisplayName = name;
       });
     } catch (e, st) {
       if (kDebugMode) {
         debugPrint('Gala: _fetchAll error=$e');
         debugPrint('Gala: stack=$st');
         if (e is DioException) {
-          debugPrint('Gala: DioException response=${e.response?.data} statusCode=${e.response?.statusCode}');
+          debugPrint(
+              'Gala: DioException response=${e.response?.data} statusCode=${e.response?.statusCode}');
         }
       }
       if (!mounted) return;
@@ -134,59 +160,92 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
       url,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
-    if (kDebugMode) debugPrint('Gala: upcoming-with-menus status=${response.statusCode} hasGala=${response.data is Map && (response.data as Map)['galaDinner'] != null} menusCount=${response.data is Map ? ((response.data as Map)['menus'] as List?)?.length : 0}');
+    if (kDebugMode)
+      debugPrint('Gala: upcoming-with-menus status=${response.statusCode}');
     if (mounted) {
       setState(() {
-        _menuData = response.data is Map ? Map<String, dynamic>.from(response.data) : null;
+        _menuData = response.data is Map
+            ? Map<String, dynamic>.from(response.data)
+            : null;
       });
     }
   }
 
-  Future<void> _fetchScanStatus(String token) async {
-    if (kDebugMode) debugPrint('Gala: GET scan-status url=${GalaEndpoints.scanStatus}');
+  Future<void> _fetchScanStatus(String token, {String? galaDinnerId}) async {
+    if (kDebugMode)
+      debugPrint('Gala: GET scan-status url=${GalaEndpoints.scanStatus}');
     final response = await _dio.get(
       GalaEndpoints.scanStatus,
+      queryParameters: (galaDinnerId != null && galaDinnerId.isNotEmpty)
+          ? {'galaDinnerId': galaDinnerId}
+          : null,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
-    if (kDebugMode) debugPrint('Gala: scan-status status=${response.statusCode} hasScanLog=${response.data is Map && (response.data as Map)['scanLog'] != null}');
+    if (kDebugMode)
+      debugPrint('Gala: scan-status status=${response.statusCode}');
     if (mounted) {
       setState(() {
-        _scanStatusData = response.data is Map ? Map<String, dynamic>.from(response.data) : null;
+        _scanStatusData = response.data is Map
+            ? Map<String, dynamic>.from(response.data)
+            : null;
       });
     }
   }
 
-  void _refetchScanStatus() async {
+  void _refetchScanStatus({String? galaDinnerId}) async {
     final token = await getAccessToken();
     if (token == 'error' || !mounted) return;
-    await _fetchScanStatus(token);
+    await _fetchScanStatus(token, galaDinnerId: galaDinnerId);
   }
 
-  /// Format gala date for display. Use local time so "7 Mar" picked in admin shows as 7 Mar
-  /// (backend may store as 6 Mar 18:30 UTC = 7 Mar 00:00 IST).
-  static String _formatDate(dynamic date) {
-    if (date == null) return '';
-    final d = date is String ? DateTime.tryParse(date) : null;
-    if (d == null) return date.toString();
-    final local = d.toLocal();
-    return '${local.day} ${_month(local.month)} ${local.year}';
+  void _applyLocalScanResult(Map<dynamic, dynamic> result) {
+    if (result['success'] != true) return;
+    final mealType = result['mealType']?.toString();
+    final time = result['time']?.toString();
+    if (mealType == null || mealType.isEmpty || time == null || time.isEmpty) {
+      return;
+    }
+
+    final next = Map<String, dynamic>.from(
+      (_scanStatusData ?? <String, dynamic>{}),
+    );
+    final scanLog = Map<String, dynamic>.from(
+      (next['scanLog'] as Map?) ?? <String, dynamic>{},
+    );
+
+    if (mealType == 'Starters') {
+      scanLog['startersScanned'] = true;
+      scanLog['startersTime'] = time;
+    } else if (mealType == 'Main Course') {
+      scanLog['mainCourseScanned'] = true;
+      scanLog['mainCourseTime'] = time;
+    } else if (mealType == 'Desserts') {
+      scanLog['dessertsScanned'] = true;
+      scanLog['dessertsTime'] = time;
+    } else {
+      return;
+    }
+
+    next['scanLog'] = scanLog;
+    if (mounted) {
+      setState(() {
+        _scanStatusData = next;
+      });
+    }
   }
 
-  /// Formats "HH:mm" (e.g. "18:30") to "6:30 PM". Returns null if invalid or missing.
-  static String? _formatTimeDisplay(String? str) {
+  /// Keep scan time in 24h HH:mm (e.g. "18:30").
+  static String? _formatScanTimeHHmm(String? str) {
     if (str == null || str.isEmpty) return null;
     final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(str.trim());
-    if (match == null) return str;
-    final h = int.tryParse(match.group(1)!) ?? 0;
-    final m = match.group(2)!;
-    final h12 = h % 12;
-    final hDisplay = h12 == 0 ? 12 : h12;
-    final ampm = h < 12 ? 'AM' : 'PM';
-    return '$hDisplay:$m $ampm';
+    if (match == null) return null;
+    final h = int.tryParse(match.group(1)!);
+    final m = int.tryParse(match.group(2)!);
+    if (h == null || m == null || h < 0 || h > 23 || m < 0 || m > 59) {
+      return null;
+    }
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
-
-  static const List<String> _months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  static String _month(int m) => m >= 1 && m <= 12 ? _months[m - 1] : '';
 
   bool _isScanned(String category) {
     final log = _scanStatusData?['scanLog'] as Map<String, dynamic>?;
@@ -218,100 +277,189 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
     }
   }
 
+  Widget _buildGalaHeader(BuildContext context) {
+    return SafeArea(
+      bottom: false,
+      child: Container(
+        width: double.infinity,
+        decoration: const BoxDecoration(
+          color: _GalaTokens.headerBg,
+          border: Border(
+            bottom: BorderSide(color: _GalaTokens.headerBorder, width: 1),
+          ),
+        ),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        child: Row(
+          children: [
+            InkWell(
+              onTap: () => Navigator.of(context).maybePop(),
+              borderRadius: BorderRadius.circular(20),
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(
+                  Icons.arrow_back,
+                  size: 24,
+                  color: _GalaTokens.grey2,
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            const Text(
+              'Gala Dinner',
+              style: TextStyle(
+                fontFamily: 'GeneralSans',
+                fontSize: 20,
+                fontWeight: FontWeight.w500,
+                height: 28 / 20,
+                color: _GalaTokens.grey2,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     if (__isloading()) {
       return Scaffold(
         backgroundColor: Colors.white,
-        body: SafeArea(
-          child: ShimmerHost(
-            builder: (context, box) => SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  box(height: 36, width: 200, borderRadius: BorderRadius.circular(8)),
-                  const SizedBox(height: 20),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF7F7FB),
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        box(height: 14, width: 120),
-                        const SizedBox(height: 12),
-                        box(height: 22, width: 260),
-                        const SizedBox(height: 10),
-                        SizedBox(
-                          width: double.infinity,
-                          child: box(
-                            height: 14,
-                            width: double.infinity,
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        box(height: 14, width: 220),
-                        const SizedBox(height: 10),
-                        box(height: 16, width: 300),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  for (int i = 0; i < 3; i++) ...[
-                    Container(
-                      width: double.infinity,
-                      margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        border: Border.all(color: const Color(0xFFE6E6E6)),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          box(height: 18, width: 140),
-                          const SizedBox(height: 10),
-                          SizedBox(
-                            width: double.infinity,
-                            child: box(
-                              height: 14,
-                              width: double.infinity,
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildGalaHeader(context),
+            Expanded(
+              child: ShimmerHost(
+                builder: (context, box) => SingleChildScrollView(
+                  padding: const EdgeInsets.only(top: 24, bottom: 28),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            box(
+                              height: 24,
+                              width: 120,
                               borderRadius: BorderRadius.circular(6),
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          box(height: 14, width: 180),
-                        ],
+                            const SizedBox(height: 24),
+                            Row(
+                              children: [
+                                for (int i = 0; i < 3; i++) ...[
+                                  if (i > 0) const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Container(
+                                      height: 148,
+                                      padding: const EdgeInsets.all(16),
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        border: Border.all(
+                                            color: _GalaTokens.border),
+                                        borderRadius: BorderRadius.circular(16),
+                                        boxShadow: [_GalaTokens.cardShadow],
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          SizedBox(
+                                            width: double.infinity,
+                                            child: box(
+                                              height: 56,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                          ),
+                                          box(
+                                            height: 14,
+                                            width: 72,
+                                            borderRadius:
+                                                BorderRadius.circular(6),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                            const SizedBox(height: 32),
+                          ],
+                        ),
                       ),
-                    ),
-                  ],
-                ],
+                      const SizedBox(
+                        height: 8,
+                        child: ColoredBox(color: _GalaTokens.dividerBar),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            box(height: 24, width: 100),
+                            const SizedBox(height: 16),
+                            for (int i = 0; i < 3; i++) ...[
+                              if (i > 0) const SizedBox(height: 16),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  border: Border.all(color: _GalaTokens.border),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [_GalaTokens.cardShadow],
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    box(height: 24, width: 180),
+                                    const SizedBox(height: 12),
+                                    box(height: 20, width: 140),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
-          ),
+          ],
         ),
       );
     }
+
     if (_error != null) {
       return Scaffold(
         backgroundColor: Colors.white,
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(_error!, textAlign: TextAlign.center),
-                const SizedBox(height: 16),
-                TextButton(onPressed: _fetchAll, child: const Text('Retry')),
-              ],
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildGalaHeader(context),
+            Expanded(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24.0),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(_error!, textAlign: TextAlign.center),
+                      const SizedBox(height: 16),
+                      TextButton(
+                          onPressed: _fetchAll, child: const Text('Retry')),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
+          ],
         ),
       );
     }
@@ -319,142 +467,94 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
     final galaDinner = _menuData?['galaDinner'] as Map<String, dynamic>?;
     final menus = _menuData?['menus'] as List<dynamic>? ?? [];
     final hasGala = galaDinner != null && menus.isNotEmpty;
-    final dateStr = hasGala ? _formatDate(galaDinner['date']) : null;
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _fetchAll,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Gala Dinner',
-                  style: TextStyle(
-                    fontSize: 32,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF2E2F31),
-                  ),
-                ),
-                if (hasGala) ...[
-                  const SizedBox(height: 12),
-                  Card(
-                    elevation: 1,
-                    color: const Color(0xFFF7F7FB),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildGalaHeader(context),
+          Expanded(
+            child: RefreshIndicator(
+              onRefresh: _fetchAll,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.only(top: 24, bottom: 28),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          if (dateStr != null)
-                            Text(
-                              dateStr,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                color: Color(0xFF676767),
-                              ),
-                            ),
-                          const SizedBox(height: 10),
-                          Text(
-                            _hostelDisplayName != null && _hostelDisplayName != 'Unknown'
-                                ? "${_hostelDisplayName!} Gala Dinner"
-                                : 'Gala Dinner',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF2E2F31),
+                          const Text(
+                            'Quick Scans',
+                            style: TextStyle(
+                              fontFamily: 'GeneralSans',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              height: 24 / 16,
+                              color: _GalaTokens.grey1,
                             ),
                           ),
-                          const SizedBox(height: 6),
-                          Text(
-                            _hostelDisplayName != null && _hostelDisplayName != 'Unknown'
-                                ? 'You are warmly invited to a special gala dinner at $_hostelDisplayName.'
-                                : 'You are warmly invited to a special gala dinner.',
-                            style: const TextStyle(
-                              fontSize: 14,
-                              color: Color(0xFF676767),
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          Builder(
-                            builder: (context) {
-                              final starters = _formatTimeDisplay(
-                                  galaDinner['startersServingStartTime'] as String?);
-                              final dinner = _formatTimeDisplay(
-                                  galaDinner['dinnerServingStartTime'] as String?);
-
-                              String line;
-                              if (starters != null && dinner != null) {
-                                line = 'Starters • $starters   ·   Dinner • $dinner';
-                              } else if (starters != null) {
-                                line = 'Starters • $starters';
-                              } else if (dinner != null) {
-                                line = 'Dinner • $dinner';
-                              } else {
-                                line = 'Serving times will be announced soon.';
-                              }
-
-                              return Text(
-                                line,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w500,
-                                  color: Color(0xFF4C4EDB),
-                                ),
-                              );
-                            },
-                          ),
+                          const SizedBox(height: 24),
+                          _buildCourseBlocks(hasGala),
+                          const SizedBox(height: 32),
                         ],
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 18),
-                ],
-                _buildCourseBlocks(hasGala),
-                if (hasGala) ...[
-                  const SizedBox(height: 8),
-                  const Text(
-                    '*Please scan only while collecting your plate. Once scanned, it cannot be scanned again.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Color(0xFF929292),
+                    const SizedBox(
+                      height: 8,
+                      child: ColoredBox(color: _GalaTokens.dividerBar),
                     ),
-                  ),
-                ],
-                const SizedBox(height: 24),
-                if (hasGala)
-                  _buildMenuCards(menus)
-                else
-                  Card(
-                    elevation: 0.5,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      side: BorderSide(color: Colors.grey.shade200),
-                    ),
-                    child: const Padding(
-                      padding: EdgeInsets.all(20.0),
-                      child: Center(
-                        child: Text(
-                          'No upcoming Gala Dinner scheduled.',
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Color(0xFF676767),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'Gala Menu',
+                            style: TextStyle(
+                              fontFamily: 'GeneralSans',
+                              fontSize: 16,
+                              fontWeight: FontWeight.w500,
+                              height: 24 / 16,
+                              color: _GalaTokens.grey1,
+                            ),
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          if (hasGala)
+                            _buildMenuCards(menus, galaDinner)
+                          else
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(20),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(color: _GalaTokens.border),
+                                boxShadow: [_GalaTokens.cardShadow],
+                              ),
+                              child: const Text(
+                                'No upcoming Gala Dinner scheduled.',
+                                style: TextStyle(
+                                  fontFamily: 'GeneralSans',
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w500,
+                                  color: _GalaTokens.grey1,
+                                ),
+                              ),
+                            ),
+                        ],
                       ),
                     ),
-                  ),
-              ],
+                  ],
+                ),
+              ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -462,223 +562,205 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
   Widget _buildCourseBlocks(bool hasGala) {
     const categories = ['Starters', 'Main Course', 'Desserts'];
     return Row(
-      children: categories.map((category) {
-        return Expanded(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 4),
-            child: _buildCourseCard(category, hasGala),
-          ),
-        );
-      }).toList(),
+      children: [
+        for (int i = 0; i < categories.length; i++) ...[
+          if (i > 0) const SizedBox(width: 12),
+          Expanded(child: _buildCourseCard(categories[i], hasGala)),
+        ],
+      ],
     );
   }
 
-  static IconData _iconForCategory(String category) {
-    switch (category) {
-      case 'Starters':
-        return Icons.soup_kitchen;
-      case 'Main Course':
-        return Icons.restaurant;
-      case 'Desserts':
-        return Icons.cake;
-      default:
-        return Icons.qr_code_scanner;
-    }
-  }
-
-  static Color _iconBgForCategory(String category, bool hasGala) {
-    if (!hasGala) return Colors.grey.shade200;
-    switch (category) {
-      case 'Starters':
-        return const Color(0xFFE8F0FE);
-      case 'Main Course':
-      case 'Desserts':
-        return const Color(0xFFEDEDFB);
-      default:
-        return const Color(0xFFEDEDFB);
-    }
-  }
+  static IconData _iconForCategory(String category) => Icons.crop_free_rounded;
 
   Widget _buildCourseCard(String category, bool hasGala) {
     final scanned = _isScanned(category);
     final time = _getScannedTime(category);
-    const primaryBlue = Color(0xFF4C4EDB);
-    const textGrey = Color(0xFF676767);
 
-    Widget content;
-    if (scanned) {
-      content = Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: Colors.green.shade500,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.green.withValues(alpha: 0.18),
-                  blurRadius: 10,
-                  offset: const Offset(0, 3),
-                ),
-              ],
-            ),
-            child: Icon(
-              _iconForCategory(category),
-              color: Colors.white,
-              size: 18,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            category,
-            style: const TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: textGrey,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (time != null && time.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              time,
-              style: TextStyle(
-                fontSize: 11,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ],
-      );
-    } else {
-      content = Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 32,
-            height: 32,
-            decoration: BoxDecoration(
-              color: _iconBgForCategory(category, hasGala),
-              shape: BoxShape.circle,
-              boxShadow: hasGala
-                  ? [
-                      BoxShadow(
-                        color: primaryBlue.withValues(alpha: 0.08),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Icon(
-              _iconForCategory(category),
-              color: hasGala ? primaryBlue : Colors.grey,
-              size: 18,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            category,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: hasGala ? const Color(0xFF2E2F31) : Colors.grey,
-            ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          if (hasGala) ...[
-            const SizedBox(height: 4),
-            const Text(
-              'Tap to scan',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w500,
-                color: primaryBlue,
-              ),
-            ),
-          ],
-        ],
-      );
-    }
+    final label = category;
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: (!scanned && hasGala)
             ? () async {
-                await Navigator.of(context).push(
+                final result = await Navigator.of(context).push<dynamic>(
                   MaterialPageRoute(
-                    builder: (context) => GalaQRScannerScreen(expectedCategory: category),
+                    builder: (context) =>
+                        GalaQRScannerScreen(expectedCategory: category),
                   ),
                 );
-                _refetchScanStatus();
+                if (result is Map) {
+                  _applyLocalScanResult(result);
+                }
+                _refetchScanStatus(
+                  galaDinnerId: result is Map
+                      ? (result['galaDinnerId']?.toString())
+                      : (_menuData?['galaDinner']?['_id']?.toString()),
+                );
               }
             : null,
         borderRadius: BorderRadius.circular(16),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 10),
+          height: 148,
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             color: Colors.white,
-            border: Border.all(
-              color: scanned ? Colors.green.shade100 : const Color(0xFFE6E6E6),
-              width: 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+            border: Border.all(color: _GalaTokens.border, width: 1),
+            boxShadow: [_GalaTokens.cardShadow],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: scanned ? _GalaTokens.scannedWell : _GalaTokens.scanWell,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: scanned
+                      ? SvgPicture.asset(
+                          _GalaTokens.scannedTickAsset,
+                          width: 24,
+                          height: 24,
+                        )
+                      : Icon(
+                          _iconForCategory(category),
+                          color: _GalaTokens.orange,
+                          size: 24,
+                        ),
+                ),
+              ),
+              Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontFamily: 'GeneralSans',
+                      fontSize: 14,
+                      fontWeight: FontWeight.w500,
+                      height: 20 / 14,
+                      color: _GalaTokens.grey2,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  if (scanned && time != null && time.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatScanTimeHHmm(time) ?? '',
+                      style: const TextStyle(
+                        fontFamily: 'GeneralSans',
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: _GalaTokens.grey1,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ],
               ),
             ],
           ),
-          child: content,
         ),
       ),
     );
   }
 
-  /// Layout: Main Course full width, then Starters (half) | Desserts (half).
-  Widget _buildMenuCards(List<dynamic> menus) {
-    dynamic mainMenu;
+  String _timeRangeForGala(Map<String, dynamic> galaDinner, String category) {
+    final startersRaw = galaDinner['startersServingStartTime'] as String?;
+    final dinnerRaw = galaDinner['dinnerServingStartTime'] as String?;
+
+    DateTime? _parse(String? t) {
+      if (t == null) return null;
+      final parts = t.split(':');
+      if (parts.length != 2) return null;
+      final now = DateTime.now();
+      return DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+      );
+    }
+
+    String _format(DateTime dt) {
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      final ampm = dt.hour < 12 ? 'AM' : 'PM';
+      return '$h:$m $ampm';
+    }
+
+    final startersTime = _parse(startersRaw);
+    final dinnerTime = _parse(dinnerRaw);
+
+    if (category == 'Starters' && startersTime != null) {
+      final end = startersTime.add(const Duration(minutes: 90)); // 1.5 hrs
+      return '${_format(startersTime)} - ${_format(end)}';
+    }
+
+    if ((category == 'Main Course' || category == 'Desserts') &&
+        dinnerTime != null) {
+      final end = dinnerTime.add(const Duration(hours: 2));
+      return '${_format(dinnerTime)} - ${_format(end)}';
+    }
+
+    return '--';
+  }
+
+  Widget _buildMenuCards(List<dynamic> menus, Map<String, dynamic> galaDinner) {
     dynamic startersMenu;
+    dynamic mainMenu;
     dynamic dessertsMenu;
+
     for (final m in menus) {
       final cat = m['category'] as String? ?? '';
-      if (cat == 'Main Course') {
-        mainMenu = m;
-      } else if (cat == 'Starters') {
-        startersMenu = m;
-      } else if (cat == 'Desserts') {
-        dessertsMenu = m;
-      }
+      if (cat == 'Starters') startersMenu = m;
+      if (cat == 'Main Course') mainMenu = m;
+      if (cat == 'Desserts') dessertsMenu = m;
     }
+
+    final ordered = <dynamic>[
+      if (startersMenu != null) startersMenu,
+      if (mainMenu != null) mainMenu,
+      if (dessertsMenu != null) dessertsMenu,
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (mainMenu != null) _buildMenuCard(mainMenu),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: startersMenu != null ? _buildMenuCard(startersMenu) : const SizedBox.shrink()),
-            const SizedBox(width: 8),
-            Expanded(child: dessertsMenu != null ? _buildMenuCard(dessertsMenu) : const SizedBox.shrink()),
-          ],
-        ),
+        for (int i = 0; i < ordered.length; i++) ...[
+          if (i > 0) const SizedBox(height: 16),
+          _buildMenuCard(
+            ordered[i],
+            initiallyExpanded: i == 0,
+            galaDinner: galaDinner, // ✅ pass this
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildMenuCard(dynamic menu) {
+  Widget _buildMenuCard(
+    dynamic menu, {
+    required bool initiallyExpanded,
+    required Map<String, dynamic> galaDinner, // ✅ new
+  }) {
     final category = menu['category'] as String? ?? '';
     final items = menu['items'] as List<dynamic>? ?? [];
-    return _GalaMenuCard(category: category, items: items);
+
+    return _GalaMenuCard(
+      category: category,
+      items: items,
+      initiallyExpanded: initiallyExpanded,
+      timeRangeText: _timeRangeForGala(galaDinner, category), // ✅ correct
+    );
   }
 }
 
@@ -686,8 +768,15 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
 class _GalaMenuCard extends StatefulWidget {
   final String category;
   final List<dynamic> items;
+  final bool initiallyExpanded;
+  final String timeRangeText;
 
-  const _GalaMenuCard({required this.category, required this.items});
+  const _GalaMenuCard({
+    required this.category,
+    required this.items,
+    required this.initiallyExpanded,
+    required this.timeRangeText,
+  });
 
   @override
   State<_GalaMenuCard> createState() => _GalaMenuCardState();
@@ -696,15 +785,23 @@ class _GalaMenuCard extends StatefulWidget {
 class _GalaMenuCardState extends State<_GalaMenuCard> {
   bool _expanded = false;
 
+  @override
+  void initState() {
+    super.initState();
+    _expanded = widget.initiallyExpanded;
+  }
+
   static const _sectionLabelStyle = TextStyle(
+    fontFamily: 'GeneralSans',
     fontSize: 12,
-    fontWeight: FontWeight.w600,
-    color: Color(0xFF676767),
+    fontWeight: FontWeight.w500,
+    height: 16 / 12,
+    color: _GalaTokens.grey1,
   );
 
-  Widget _buildItem(String name, [String? type]) {
+  Widget _buildItem(String name, {String? type, double top = 0}) {
     return Padding(
-      padding: const EdgeInsets.only(top: 8),
+      padding: EdgeInsets.only(top: top),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -712,16 +809,23 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
             child: Text(
               name,
               style: const TextStyle(
+                fontFamily: 'GeneralSans',
                 fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2E2F31),
+                fontWeight: FontWeight.w500,
+                height: 20 / 14,
+                color: _GalaTokens.grey2,
               ),
             ),
           ),
           if (type != null && type.isNotEmpty)
             Text(
               ' ($type)',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(
+                fontFamily: 'GeneralSans',
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.grey.shade600,
+              ),
             ),
         ],
       ),
@@ -730,34 +834,41 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
 
   @override
   Widget build(BuildContext context) {
+    final displayCategory =
+        widget.category == 'Starters' ? 'Starter' : widget.category;
     final isMainCourse = widget.category == 'Main Course';
     final dishItems = isMainCourse
-        ? widget.items.where((i) => (i['type'] as String? ?? '').toLowerCase() == 'dish').toList()
+        ? widget.items
+            .where((i) => (i['type'] as String? ?? '').toLowerCase() == 'dish')
+            .toList()
         : <dynamic>[];
     final breadsItems = isMainCourse
-        ? widget.items.where((i) => (i['type'] as String? ?? '').toLowerCase() == 'breads and rice').toList()
+        ? widget.items
+            .where((i) =>
+                (i['type'] as String? ?? '').toLowerCase() == 'breads and rice')
+            .toList()
         : <dynamic>[];
     final othersItems = isMainCourse
-        ? widget.items.where((i) => (i['type'] as String? ?? '').toLowerCase() == 'others').toList()
+        ? widget.items
+            .where(
+                (i) => (i['type'] as String? ?? '').toLowerCase() == 'others')
+            .toList()
         : <dynamic>[];
+
+    final categoryColor = _expanded ? _GalaTokens.grey2 : _GalaTokens.grey1;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),
       curve: Curves.easeInOut,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: const Color(0xFFFFFFFF),
-          border: Border.all(color: const Color(0xFFC5C5D1)),
+          borderRadius: BorderRadius.circular(12),
+          color: Colors.white,
+          border: Border.all(color: _GalaTokens.border),
+          boxShadow: [_GalaTokens.cardShadow],
         ),
         child: InkWell(
-          customBorder: Border.all(color: const Color(0xFFC5C5D1), width: 1),
-          borderRadius: BorderRadius.circular(16),
-          highlightColor: Colors.transparent,
-          hoverColor: Colors.transparent,
-          focusColor: Colors.transparent,
-          splashColor: Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
           onTap: () => setState(() => _expanded = !_expanded),
           child: Padding(
             padding: const EdgeInsets.all(16),
@@ -766,36 +877,63 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
               children: [
                 Row(
                   children: [
-                    Expanded(
-                      child: Text(
-                        widget.category,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                          color: Color(0xFF676767),
-                        ),
+                    Text(
+                      displayCategory,
+                      style: TextStyle(
+                        fontFamily: 'GeneralSans',
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        height: 24 / 16,
+                        color: categoryColor,
                       ),
                     ),
+                    const Spacer(),
                     Icon(
-                      _expanded ? Icons.expand_less : Icons.expand_more,
+                      _expanded
+                          ? Icons.keyboard_arrow_up_rounded
+                          : Icons.keyboard_arrow_down_rounded,
                       size: 20,
-                      color: const Color(0xFF4C4EDB),
+                      color: _GalaTokens.grey1,
                     ),
                   ],
                 ),
                 if (_expanded) ...[
                   const SizedBox(height: 12),
-                  if (isMainCourse) _buildMainCourseContent(dishItems, breadsItems, othersItems)
+                  Row(
+                    children: [
+                      const Icon(
+                        Icons.access_time_rounded,
+                        size: 16,
+                        color: _GalaTokens.grey1,
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        widget.timeRangeText,
+                        style: const TextStyle(
+                          fontFamily: 'GeneralSans',
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          height: 20 / 14,
+                          color: _GalaTokens.grey1b,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (isMainCourse)
+                    _buildMainCourseContent(dishItems, breadsItems, othersItems)
                   else if (widget.items.isEmpty)
                     Text(
                       'No items',
-                      style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontFamily: 'GeneralSans',
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey.shade600,
+                      ),
                     )
                   else
-                    ...widget.items.map<Widget>((item) {
-                      final name = item['name'] as String? ?? '';
-                      return _buildItem(name);
-                    }),
+                    ..._buildDishItemList(),
                 ],
               ],
             ),
@@ -805,30 +943,52 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
     );
   }
 
-  Widget _buildMainCourseContent(List<dynamic> dish, List<dynamic> breads, List<dynamic> others) {
+  List<Widget> _buildDishItemList() {
+    return [
+      const Text('DISH', style: _sectionLabelStyle),
+      ...widget.items.asMap().entries.map((e) {
+        final name = e.value['name'] as String? ?? '';
+        return _buildItem(name, top: e.key == 0 ? 8 : 4);
+      }),
+    ];
+  }
+
+  Widget _buildMainCourseContent(
+      List<dynamic> dish, List<dynamic> breads, List<dynamic> others) {
     final hasAny = dish.isNotEmpty || breads.isNotEmpty || others.isNotEmpty;
     if (!hasAny) {
       return Text(
         'No items',
-        style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+        style: TextStyle(
+          fontFamily: 'GeneralSans',
+          fontSize: 14,
+          fontWeight: FontWeight.w500,
+          color: Colors.grey.shade600,
+        ),
       );
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("DISH", style: _sectionLabelStyle),
-        ...dish.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
+        const Text('DISH', style: _sectionLabelStyle),
+        ...dish.asMap().entries.map((e) => _buildItem(
+              e.value['name'] as String? ?? '',
+              top: e.key == 0 ? 8 : 4,
+            )),
         const Divider(
-          color: Color(0xFFE6E6E6),
-          thickness: 1.8,
-          height: 32,
+          color: _GalaTokens.border,
+          thickness: 1,
+          height: 24,
         ),
         if (breads.isEmpty)
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text("OTHERS", style: _sectionLabelStyle),
-              ...others.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
+              const Text('OTHERS', style: _sectionLabelStyle),
+              ...others.asMap().entries.map((e) => _buildItem(
+                    e.value['name'] as String? ?? '',
+                    top: e.key == 0 ? 8 : 4,
+                  )),
             ],
           )
         else
@@ -840,14 +1000,17 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text("BREADS & RICE", style: _sectionLabelStyle),
-                      ...breads.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
+                      const Text('BREADS & RICE', style: _sectionLabelStyle),
+                      ...breads.asMap().entries.map((e) => _buildItem(
+                            e.value['name'] as String? ?? '',
+                            top: e.key == 0 ? 8 : 4,
+                          )),
                     ],
                   ),
                 ),
                 const VerticalDivider(
-                  color: Color(0xFFE6E6E6),
-                  thickness: 1.8,
+                  color: _GalaTokens.border,
+                  thickness: 1,
                 ),
                 Expanded(
                   child: Padding(
@@ -855,8 +1018,11 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text("OTHERS", style: _sectionLabelStyle),
-                        ...others.map<Widget>((item) => _buildItem(item['name'] as String? ?? '')),
+                        const Text('OTHERS', style: _sectionLabelStyle),
+                        ...others.asMap().entries.map((e) => _buildItem(
+                              e.value['name'] as String? ?? '',
+                              top: e.key == 0 ? 8 : 4,
+                            )),
                       ],
                     ),
                   ),

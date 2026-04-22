@@ -1,46 +1,42 @@
-const path = require("path");
-require("dotenv").config({ path: path.join(__dirname, "../../.env") });
+import { Pool } from "pg";
+import Redis from "ioredis";
+import { redisUrl, postgresUrl, REDIS_KEY_PREFIX } from "../config/default.js";
 
-// Ensure worker can find modules in the parent's node_modules directory
-module.paths.push(path.resolve(__dirname, "../node_modules"));
-const pg = require("pg");
-const { Pool } = pg;
+const LOGS_QUEUE_KEY = `${REDIS_KEY_PREFIX}logs_queue`;
 
 /* Redis */
-const { createClient } = require("redis");
-const redis = createClient({
-  url: process.env.REDIS_URL || "redis://127.0.0.1:6379",
+
+const redis = new Redis(redisUrl, {
+  maxRetriesPerRequest: null,
+  enableOfflineQueue: true,
+  retryStrategy: (times) => Math.min(times * 100, 3000),
+  lazyConnect: true,
 });
 
-(async () => {
-  try {
-    await redis.connect();
-    console.log("[Worker] Redis Connected");
-    /* Worker loop - start only after connection */
-    setInterval(flush, 1000);
-  } catch (err) {
-    console.error("[Worker] Redis Connection Error:", err);
-  }
-})();
+redis.on("error", (err) => console.error("[Worker] Redis error:", err.message));
+redis.on("ready", () => console.log("[Worker] Redis connected"));
+
+await redis.connect().catch((err) => {
+  console.error("[Worker] Redis connection failed:", err.message);
+});
 
 /* Postgres */
+
 const pool = new Pool({
-  connectionString:
-    process.env.POSTGRES_URL ||
-    "postgresql://postgres:postgres@localhost:5433/postgres",
+  connectionString: postgresUrl,
 });
 
 const BATCH = 20;
 
 async function flush() {
   try {
-    const len = await redis.lLen("logs_queue");
+    const len = await redis.lLen(LOGS_QUEUE_KEY);
     if (len < BATCH) return;
 
     /* Atomic read + remove */
     const tx = redis.multi();
-    tx.lRange("logs_queue", -BATCH, -1);
-    tx.lTrim("logs_queue", 0, -BATCH - 1);
+    tx.lRange(LOGS_QUEUE_KEY, -BATCH, -1);
+    tx.lTrim(LOGS_QUEUE_KEY, 0, -BATCH - 1);
 
     const [logs] = await tx.exec();
     if (!logs.length) return;

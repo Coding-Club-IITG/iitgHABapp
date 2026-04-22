@@ -1,6 +1,7 @@
 import { User } from "../../user/userModel.js";
 import { Hostel } from "../../hostel/hostelModel.js";
 import { MessChangeSettings } from "../messChangeSettingsModel.js";
+import { ENABLE_MESS_CHANGE_FLOW } from "../../../config/default.js";
 
 /**
  * User submits a mess change request with preferences
@@ -14,7 +15,7 @@ export const messChangeRequest = async (req, res) => {
     }
 
     const settings = await MessChangeSettings.findOne();
-    if (!settings || !settings.isEnabled) {
+    if (!ENABLE_MESS_CHANGE_FLOW || !settings || !settings.isEnabled) {
       return res.status(403).json({
         message: "Mess change is currently disabled. Please contact HAB admin.",
       });
@@ -99,7 +100,11 @@ export const messChangeStatus = async (req, res) => {
       return res.status(404).json({ message: "User not found" });
     }
     const settings = await MessChangeSettings.findOne();
-    const isMessChangeEnabled = settings ? settings.isEnabled : false;
+    const isMessChangeEnabled = ENABLE_MESS_CHANGE_FLOW
+      ? settings
+        ? settings.isEnabled
+        : false
+      : false;
 
     // Resolve preference names
     const [h1, h2, h3] = await Promise.all([

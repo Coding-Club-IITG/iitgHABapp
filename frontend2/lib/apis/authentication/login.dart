@@ -12,6 +12,7 @@ import 'package:frontend2/apis/users/user.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/main.dart';
 import 'package:frontend2/providers/hostels.dart';
+import 'package:frontend2/services/festival_mode_service.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
 import 'package:frontend2/providers/notification_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -127,8 +128,8 @@ Future<bool> refreshAccessToken() async {
       return false;
     }
 
-    final dio = Dio();
-
+    // Use the shared Dio client so gateway routing headers are consistent.
+    final dio = DioClient().dio;
     final response = await dio.post(
       '$baseUrl/auth/refresh',
       data: {
@@ -166,8 +167,10 @@ Future<void> logoutHandler(context) async {
 
   final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
-  AppBootstrapCache.clear();
-  AppBootstrapCache.clear();
+  await AppBootstrapCache.clear();
+  try {
+    await FestivalModeService().clearActiveSummaryCache();
+  } catch (_) {}
   // Instantly wipe the local alerts cache and UI
   await globalNotificationProvider.clearAlerts();
   // Use the global navigator if available; the dialog's build context may be

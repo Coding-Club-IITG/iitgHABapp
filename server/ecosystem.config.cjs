@@ -16,7 +16,7 @@ module.exports = {
       instance_var: "NODE_APP_INSTANCE",
 
       // Performance
-      instances: "8",
+      instances: "18",
       exec_mode: "cluster",
 
       // Stability
@@ -41,7 +41,7 @@ module.exports = {
       name: "api-v2",
       script: "./index.js",
       cwd: "./v2",
-      instances: "8",
+      instances: "6",
       exec_mode: "cluster",
       watch: false,
       env: { PORT: 3002 },

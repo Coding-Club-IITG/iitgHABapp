@@ -1,9 +1,12 @@
-const { Menu } = require("./menuModel");
-const { MenuItem } = require("./menuItemModel");
+import mongoose from "mongoose";
 
-const redisClient = require("../../utils/redisClient.js");
+import { Menu } from "./menuModel.js";
+import { MenuItem } from "./menuItemModel.js";
 
-const getMessMenuByDayForAdmin = async (req, res) => {
+import redisClient from "../../utils/redisClient.js";
+import { sortMenuItemsByMenuOrder } from "../../utils/sortMenuItemsByMenuOrder.js";
+
+export const getMessMenuByDayForAdmin = async (req, res) => {
   try {
     const messId = req.params.messId;
     const day = req.body.day;
@@ -31,7 +34,7 @@ const getMessMenuByDayForAdmin = async (req, res) => {
             _id: { $in: menuItems },
           }).lean();
 
-          menuObj.items = menuItemDetails;
+          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
           return menuObj;
         }),
       );
@@ -62,8 +65,8 @@ const getMessMenuByDayForAdmin = async (req, res) => {
   }
 };
 
-//modify menu item
-const modifyMenuItem = async (req, res) => {
+// modify menu item
+export const modifyMenuItem = async (req, res) => {
   try {
     const _Id = req.body._Id;
     const name = req.body.name;
@@ -91,7 +94,7 @@ const modifyMenuItem = async (req, res) => {
   }
 };
 
-const updateTime = async (req, res) => {
+export const updateTime = async (req, res) => {
   try {
     // Accept messId either in body or as a URL param (for SMC variant)
     const messId = req.body.messId || req.params?.messId;
@@ -144,7 +147,7 @@ const updateTime = async (req, res) => {
 };
 
 // SMC-specific time update: allow authenticated SMC users to update timings
-const updateTimeSMC = async (req, res) => {
+export const updateTimeSMC = async (req, res) => {
   try {
     const user = req.user;
     const isAuthorized = (user && user.isSMC) || !!req.hostel;
@@ -204,7 +207,7 @@ const updateTimeSMC = async (req, res) => {
 };
 
 // SMC-specific version that uses user authentication
-const getMessMenuByDayForSMC = async (req, res) => {
+export const getMessMenuByDayForSMC = async (req, res) => {
   try {
     const messId = req.params.messId;
     const day = req.body.day;
@@ -242,7 +245,7 @@ const getMessMenuByDayForSMC = async (req, res) => {
             _id: { $in: menuItems },
           }).lean();
 
-          menuObj.items = menuItemDetails;
+          menuObj.items = sortMenuItemsByMenuOrder(menuItems, menuItemDetails);
           return menuObj;
         }),
       );
@@ -274,7 +277,7 @@ const getMessMenuByDayForSMC = async (req, res) => {
 };
 
 // SMC version of modifyMenuItem
-const modifyMenuItemSMC = async (req, res) => {
+export const modifyMenuItemSMC = async (req, res) => {
   try {
     const _Id = req.body._Id;
     const name = req.body.name;
@@ -309,11 +312,81 @@ const modifyMenuItemSMC = async (req, res) => {
   }
 };
 
-module.exports = {
-  modifyMenuItem, //to modify menu item (hostel admin)
-  modifyMenuItemSMC, //to modify menu item (SMC)
-  getMessMenuByDayForAdmin,
-  getMessMenuByDayForSMC,
-  updateTime,
-  updateTimeSMC,
+/** SMC: persist `Menu.items` order (same sequence the mobile app lists). */
+export const reorderMenuItemsSMC = async (req, res) => {
+  try {
+    const messId = req.params.messId;
+    const { day, type, itemIds } = req.body;
+    const user = req.user;
+    const isAuthorized = (user && user.isSMC) || !!req.hostel;
+    if (!isAuthorized) {
+      return res.status(403).json({
+        message: "Unauthorized: User is not an SMC member",
+      });
+    }
+
+    if (!messId || !day || !type || !Array.isArray(itemIds)) {
+      return res.status(400).json({
+        message: "messId, day, type, and itemIds[] are required",
+      });
+    }
+    if (!["Breakfast", "Lunch", "Dinner"].includes(type)) {
+      return res.status(400).json({ message: "Invalid meal type" });
+    }
+
+    for (const id of itemIds) {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: "Invalid item id" });
+      }
+    }
+
+    const menu = await Menu.findOne({ messId, day, type });
+    if (!menu) {
+      return res
+        .status(404)
+        .json({ message: "Menu not found for this meal/day" });
+    }
+
+    // Same multiset + order semantics as GET menu: hydrate by `menu.items` refs,
+    // not `MenuItem.menuId`. Items can appear in the list while `menuId` points
+    // elsewhere; the old `menuId` check caused 400 even when the UI matched DB.
+    const menuItemsOrder = menu.items;
+    const menuItemDetails = await MenuItem.find({
+      _id: { $in: menuItemsOrder },
+    }).lean();
+    const sortedVisible = sortMenuItemsByMenuOrder(
+      menuItemsOrder,
+      menuItemDetails,
+    );
+    const canonicalIds = sortedVisible.map((d) => d._id.toString());
+
+    if (itemIds.length !== canonicalIds.length) {
+      return res.status(400).json({
+        message: "itemIds must list each menu item exactly once",
+      });
+    }
+    if (new Set(itemIds.map(String)).size !== itemIds.length) {
+      return res.status(400).json({ message: "Duplicate item id in itemIds" });
+    }
+
+    const sortedIncoming = [...itemIds].map(String).sort();
+    const sortedCanon = [...canonicalIds].map(String).sort();
+    if (
+      sortedIncoming.length !== sortedCanon.length ||
+      !sortedIncoming.every((v, i) => v === sortedCanon[i])
+    ) {
+      return res.status(400).json({
+        message: "itemIds must match the current menu items",
+      });
+    }
+
+    menu.items = itemIds.map((id) => new mongoose.Types.ObjectId(id));
+    await menu.save();
+    await redisClient.del(`menu_${messId}_${day}`);
+
+    return res.status(200).json({ message: "Menu order updated", menu });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
 };

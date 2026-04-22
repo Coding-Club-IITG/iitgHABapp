@@ -1,4 +1,5 @@
 import qrcode from "qrcode";
+import mongoose from "mongoose";
 
 import { GalaDinner } from "./galaDinnerModel.js";
 import { GalaDinnerMenu, GALA_CATEGORIES } from "./galaDinnerMenuModel.js";
@@ -9,7 +10,7 @@ import { MenuItem } from "../mess/menuItemModel.js";
 import { QR } from "../qr/qrModel.js";
 
 import { publishGalaScan } from "../../utils/scanBroadcast.js";
-import { getCurrentTime } from "../../utils/date.js";
+import { getCurrentTime, getIstDayBounds, getIstStartOfToday } from "../../utils/date.js";
 
 const QR_CODE_DATA_URL_OPTIONS = {
   width: 1024,
@@ -18,12 +19,18 @@ const QR_CODE_DATA_URL_OPTIONS = {
 };
 
 /**
- * HAB: Schedule a new Gala Dinner. Creates one GalaDinner and for each hostel
- * 3 GalaDinnerMenus (Starters, Main Course, Desserts) each with a QR code.
+ * HAB: Schedule a new Gala Dinner. Creates one GalaDinner and for each selected
+ * hostel 3 GalaDinnerMenus (Starters, Main Course, Desserts) each with a QR code.
+ * Body: { date, startersServingStartTime, dinnerServingStartTime, hostelIds: string[] }.
  */
 export const scheduleGalaDinner = async (req, res) => {
   try {
-    const { date, startersServingStartTime, dinnerServingStartTime } = req.body;
+    const {
+      date,
+      startersServingStartTime,
+      dinnerServingStartTime,
+      hostelIds: hostelIdsRaw,
+    } = req.body;
     if (!date) {
       return res.status(400).json({ message: "Date is required" });
     }
@@ -38,11 +45,7 @@ export const scheduleGalaDinner = async (req, res) => {
       return res.status(400).json({ message: "Invalid date" });
     }
 
-    const y = galaDate.getUTCFullYear();
-    const m = galaDate.getUTCMonth();
-    const d = galaDate.getUTCDate();
-    const startOfDay = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
-    const endOfDay = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+    const { start: startOfDay, end: endOfDay } = getIstDayBounds(galaDate);
     const existing = await GalaDinner.findOne({
       date: { $gte: startOfDay, $lte: endOfDay },
     });
@@ -52,14 +55,40 @@ export const scheduleGalaDinner = async (req, res) => {
       });
     }
 
+    const rawIds = Array.isArray(hostelIdsRaw) ? hostelIdsRaw : [];
+    const selectedIds = [
+      ...new Set(
+        rawIds
+          .map((id) => (id != null ? String(id).trim() : ""))
+          .filter(Boolean),
+      ),
+    ];
+    if (selectedIds.length === 0) {
+      return res.status(400).json({
+        message: "At least one hostel must be selected (hostelIds).",
+      });
+    }
+    for (const id of selectedIds) {
+      if (!mongoose.Types.ObjectId.isValid(id)) {
+        return res.status(400).json({ message: `Invalid hostel id: ${id}` });
+      }
+    }
+
+    const hostels = await Hostel.find({ _id: { $in: selectedIds } }).lean();
+    if (hostels.length !== selectedIds.length) {
+      return res.status(400).json({
+        message: "One or more hostel ids were not found.",
+      });
+    }
+
     const galaDinner = new GalaDinner({
-      date: galaDate,
+      // Persist day at IST midnight (represented as UTC timestamp).
+      date: startOfDay,
       startersServingStartTime: String(startersServingStartTime).trim(),
       dinnerServingStartTime: String(dinnerServingStartTime).trim(),
     });
     await galaDinner.save();
 
-    const hostels = await Hostel.find();
     for (const hostel of hostels) {
       for (const category of GALA_CATEGORIES) {
         const menuDoc = new GalaDinnerMenu({
@@ -93,6 +122,7 @@ export const scheduleGalaDinner = async (req, res) => {
         startersServingStartTime: galaDinner.startersServingStartTime,
         dinnerServingStartTime: galaDinner.dinnerServingStartTime,
         hostelsCount: hostels.length,
+        participatingHostelIds: hostels.map((h) => h._id.toString()),
       },
     });
   } catch (error) {
@@ -221,11 +251,36 @@ export const getGalaDinnerDetailForHostel = async (req, res) => {
 
 /**
  * HAB: List all Gala Dinners (scheduled and completed), sorted by date desc.
+ * Each item includes participatingHostelIds derived from GalaDinnerMenu rows.
  */
 export const listGalaDinners = async (req, res) => {
   try {
     const list = await GalaDinner.find().sort({ date: -1 }).lean();
-    return res.status(200).json(list);
+    if (list.length === 0) {
+      return res.status(200).json([]);
+    }
+    const galaIds = list.map((g) => g._id);
+    const menuRows = await GalaDinnerMenu.find({
+      galaDinnerId: { $in: galaIds },
+    })
+      .select("galaDinnerId hostelId")
+      .lean();
+    const hostelIdsByGala = new Map();
+    for (const row of menuRows) {
+      const gid = row.galaDinnerId.toString();
+      if (!hostelIdsByGala.has(gid)) {
+        hostelIdsByGala.set(gid, new Set());
+      }
+      hostelIdsByGala.get(gid).add(row.hostelId.toString());
+    }
+    const enriched = list.map((g) => {
+      const set = hostelIdsByGala.get(g._id.toString());
+      return {
+        ...g,
+        participatingHostelIds: set ? Array.from(set) : [],
+      };
+    });
+    return res.status(200).json(enriched);
   } catch (error) {
     console.error("listGalaDinners:", error);
     return res
@@ -239,12 +294,7 @@ export const listGalaDinners = async (req, res) => {
  */
 export const getUpcomingGalaDinner = async (req, res) => {
   try {
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
+    const startOfToday = getIstStartOfToday();
 
     const upcoming = await GalaDinner.findOne({
       date: { $gte: startOfToday },
@@ -280,12 +330,7 @@ export const getUpcomingGalaWithMenusForHostel = async (req, res) => {
       return res.status(400).json({ message: "Hostel ID is required" });
     }
 
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
+    const startOfToday = getIstStartOfToday();
 
     const gala = await GalaDinner.findOne({
       date: { $gte: startOfToday },
@@ -310,6 +355,10 @@ export const getUpcomingGalaWithMenusForHostel = async (req, res) => {
         return { ...m, items };
       }),
     );
+
+    if (!menusWithItems.length) {
+      return res.status(200).json({ galaDinner: null, menus: [] });
+    }
 
     return res.status(200).json({
       galaDinner: gala,
@@ -427,6 +476,7 @@ export const galaScan = async (req, res) => {
         message: `Already scanned for ${expectedCategory}`,
         success: false,
         mealType: expectedCategory,
+        galaDinnerId: galaDinnerId.toString(),
         time: existingTime,
         alreadyScanned: true,
       });
@@ -455,6 +505,7 @@ export const galaScan = async (req, res) => {
       message: "Scan successful",
       success: true,
       mealType: expectedCategory,
+      galaDinnerId: galaDinnerId.toString(),
       time: timeStr,
       alreadyScanned: false,
       user: {
@@ -485,20 +536,37 @@ export const getGalaScanStatus = async (req, res) => {
       return res.status(400).json({ message: "UserId is required" });
     }
 
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
-
-    const gala = await GalaDinner.findOne({
-      date: { $gte: startOfToday },
-    })
-      .sort({ date: 1 })
+    const user = await User.findById(userId)
+      .select("curr_subscribed_mess")
       .lean();
+    const subscribedHostelId = user?.curr_subscribed_mess?.toString();
+    if (!subscribedHostelId) {
+      return res.status(200).json({ galaDinner: null, scanLog: null });
+    }
+
+    const requestedGalaDinnerId = req.query?.galaDinnerId?.toString().trim();
+    const startOfToday = getIstStartOfToday();
+    let gala;
+    if (requestedGalaDinnerId && mongoose.Types.ObjectId.isValid(requestedGalaDinnerId)) {
+      gala = await GalaDinner.findById(requestedGalaDinnerId).lean();
+    }
+    if (!gala) {
+      gala = await GalaDinner.findOne({
+        date: { $gte: startOfToday },
+      })
+        .sort({ date: 1 })
+        .lean();
+    }
 
     if (!gala) {
+      return res.status(200).json({ galaDinner: null, scanLog: null });
+    }
+
+    const participates = await GalaDinnerMenu.exists({
+      galaDinnerId: gala._id,
+      hostelId: subscribedHostelId,
+    });
+    if (!participates) {
       return res.status(200).json({ galaDinner: null, scanLog: null });
     }
 
@@ -535,26 +603,29 @@ export const getManagerGalaSummary = async (req, res) => {
 
     const hostelId = managerHostel._id.toString();
 
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
-    const startOfTomorrow = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 1,
-    );
+    const { start: startOfToday, end: endOfToday } = getIstDayBounds(new Date());
 
     // Only consider Gala Dinner scheduled for "today" (manager app requirement)
     const gala = await GalaDinner.findOne({
-      date: { $gte: startOfToday, $lt: startOfTomorrow },
+      date: { $gte: startOfToday, $lte: endOfToday },
     })
       .sort({ date: 1 })
       .lean();
 
     if (!gala) {
+      return res.status(200).json({
+        galaDinner: null,
+        hostelId,
+        totals: { starters: 0, mainCourse: 0, desserts: 0 },
+        recent: { starters: [], mainCourse: [], desserts: [] },
+      });
+    }
+
+    const hostelParticipates = await GalaDinnerMenu.exists({
+      galaDinnerId: gala._id,
+      hostelId,
+    });
+    if (!hostelParticipates) {
       return res.status(200).json({
         galaDinner: null,
         hostelId,

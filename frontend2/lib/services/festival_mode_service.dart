@@ -3,7 +3,10 @@ import 'package:dio/dio.dart';
 import 'package:hive/hive.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
+
+const Duration kFestivalActiveSummaryTtl = Duration(hours: 6);
 
 /// Default palette (web admin quick-picks). Server may send any valid hex; we use it as-is.
 class FestivalThemePalette {
@@ -222,6 +225,32 @@ class FestivalModeData {
   bool isCacheExpired() => DateTime.now().isAfter(cacheUntil);
 }
 
+class _FestivalActiveSummaryCache {
+  static const String _kFetchedAtMs = 'active_summary_fetched_at_ms';
+  static const String _kPayload = 'active_summary_payload';
+
+  static Future<Map<String, dynamic>?> getFresh(Box box) async {
+    final fetchedAtMs = box.get(_kFetchedAtMs);
+    final payload = box.get(_kPayload);
+    if (fetchedAtMs is! int) return null;
+    if (payload is! Map) return null;
+    final age = DateTime.now()
+        .difference(DateTime.fromMillisecondsSinceEpoch(fetchedAtMs));
+    if (age > kFestivalActiveSummaryTtl) return null;
+    return Map<String, dynamic>.from(payload);
+  }
+
+  static Future<void> set(Box box, Map<String, dynamic> payload) async {
+    await box.put(_kPayload, payload);
+    await box.put(_kFetchedAtMs, DateTime.now().millisecondsSinceEpoch);
+  }
+
+  static Future<void> clear(Box box) async {
+    await box.delete(_kPayload);
+    await box.delete(_kFetchedAtMs);
+  }
+}
+
 class FestivalModeService {
   static final FestivalModeService _instance = FestivalModeService._internal();
 
@@ -303,9 +332,42 @@ class FestivalModeService {
     }
   }
 
+  Future<void> clearActiveSummaryCache() async {
+    if (!_isInitialized) await initialize();
+    try {
+      await _FestivalActiveSummaryCache.clear(_festivalBox);
+    } catch (_) {}
+  }
+
   /// Call once before [MainNavigationScreen] / Home: GET active-summary, hydrate from Hive on id match.
   Future<void> bootstrapBeforeHome() async {
     if (!_isInitialized) await initialize();
+
+    // Fast-path: skip network when active-summary is fresh.
+    try {
+      final cached = await _FestivalActiveSummaryCache.getFresh(_festivalBox);
+      if (cached != null) {
+        final remoteId = cached['festivalId']?.toString();
+        final remoteEnabled = cached['isEnabled'] == true;
+        // We intentionally don't use lastUpdatedAt here: cached active-summary
+        // is considered authoritative for the TTL window.
+
+        if (!remoteEnabled) {
+          _needsDeferredFullFestivalFetch = false;
+          _currentData = FestivalModeData.disabled();
+          if (remoteId != null) _lastKnownFestivalId = remoteId;
+          _publishFestivalVisual();
+          return;
+        }
+
+        // Keep whatever we have locally; if cache says enabled, we may still need full fetch.
+        if (remoteId != null) _lastKnownFestivalId = remoteId;
+        // If we don't have a currentData or images, defer full fetch as usual.
+        _needsDeferredFullFestivalFetch = true;
+        _publishFestivalVisual();
+        return;
+      }
+    } catch (_) {}
 
     FestivalModeData? hiveCurrent;
     try {
@@ -318,7 +380,7 @@ class FestivalModeService {
     }
 
     try {
-      final response = await Dio().get(
+      final response = await DioClient().dio.get(
         '$baseUrl/festival-mode/active-summary',
         options: Options(
           connectTimeout: const Duration(seconds: 10),
@@ -331,6 +393,9 @@ class FestivalModeService {
       }
 
       final data = Map<String, dynamic>.from(response.data as Map);
+      try {
+        await _FestivalActiveSummaryCache.set(_festivalBox, data);
+      } catch (_) {}
       final remoteId = data['festivalId']?.toString();
       final remoteEnabled = data['isEnabled'] == true;
       final remoteLastUpdated = _parseIso(data['lastUpdatedAt']);
@@ -453,7 +518,7 @@ class FestivalModeService {
 
       // Fetch fresh data from server
       debugPrint('[FestivalMode] Fetching fresh data from server');
-      final response = await Dio().get(
+      final response = await DioClient().dio.get(
         '$baseUrl/festival-mode/status',
         options: Options(
           connectTimeout: Duration(seconds: 10),
