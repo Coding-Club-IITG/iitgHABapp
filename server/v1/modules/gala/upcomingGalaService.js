@@ -1,17 +1,13 @@
 import { GalaDinner } from "./galaDinnerModel.js";
 import { GalaDinnerMenu } from "./galaDinnerMenuModel.js";
+import { getIstStartOfToday } from "../../utils/date.js";
 
 /**
  * Next upcoming gala for app bootstrap. When subscribedHostelId is set, returns
  * null if that hostel has no menus for the upcoming gala (not participating).
  */
 export async function getUpcomingGalaData(subscribedHostelId) {
-  const now = new Date();
-  const startOfToday = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate(),
-  );
+  const startOfToday = getIstStartOfToday();
 
   const upcoming = await GalaDinner.findOne({
     date: { $gte: startOfToday },

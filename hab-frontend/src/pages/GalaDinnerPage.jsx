@@ -123,7 +123,8 @@ export default function GalaDinnerPage() {
           ...authHeaders,
         },
         body: JSON.stringify({
-          date: scheduleDate.toISOString(),
+          // Send calendar date (not ISO datetime) to avoid timezone day-shift.
+          date: scheduleDate.format("YYYY-MM-DD"),
           startersServingStartTime: startersServingStartTime.format("HH:mm"),
           dinnerServingStartTime: dinnerServingStartTime.format("HH:mm"),
           hostelIds: selectedHostelIds.map(String),

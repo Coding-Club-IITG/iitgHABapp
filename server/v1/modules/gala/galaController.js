@@ -10,7 +10,7 @@ import { MenuItem } from "../mess/menuItemModel.js";
 import { QR } from "../qr/qrModel.js";
 
 import { publishGalaScan } from "../../utils/scanBroadcast.js";
-import { getCurrentTime } from "../../utils/date.js";
+import { getCurrentTime, getIstDayBounds, getIstStartOfToday } from "../../utils/date.js";
 
 const QR_CODE_DATA_URL_OPTIONS = {
   width: 1024,
@@ -45,11 +45,7 @@ export const scheduleGalaDinner = async (req, res) => {
       return res.status(400).json({ message: "Invalid date" });
     }
 
-    const y = galaDate.getUTCFullYear();
-    const m = galaDate.getUTCMonth();
-    const d = galaDate.getUTCDate();
-    const startOfDay = new Date(Date.UTC(y, m, d, 0, 0, 0, 0));
-    const endOfDay = new Date(Date.UTC(y, m, d, 23, 59, 59, 999));
+    const { start: startOfDay, end: endOfDay } = getIstDayBounds(galaDate);
     const existing = await GalaDinner.findOne({
       date: { $gte: startOfDay, $lte: endOfDay },
     });
@@ -86,7 +82,8 @@ export const scheduleGalaDinner = async (req, res) => {
     }
 
     const galaDinner = new GalaDinner({
-      date: galaDate,
+      // Persist day at IST midnight (represented as UTC timestamp).
+      date: startOfDay,
       startersServingStartTime: String(startersServingStartTime).trim(),
       dinnerServingStartTime: String(dinnerServingStartTime).trim(),
     });
@@ -297,12 +294,7 @@ export const listGalaDinners = async (req, res) => {
  */
 export const getUpcomingGalaDinner = async (req, res) => {
   try {
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
+    const startOfToday = getIstStartOfToday();
 
     const upcoming = await GalaDinner.findOne({
       date: { $gte: startOfToday },
@@ -338,12 +330,7 @@ export const getUpcomingGalaWithMenusForHostel = async (req, res) => {
       return res.status(400).json({ message: "Hostel ID is required" });
     }
 
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
+    const startOfToday = getIstStartOfToday();
 
     const gala = await GalaDinner.findOne({
       date: { $gte: startOfToday },
@@ -547,12 +534,7 @@ export const getGalaScanStatus = async (req, res) => {
       return res.status(400).json({ message: "UserId is required" });
     }
 
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
+    const startOfToday = getIstStartOfToday();
 
     const gala = await GalaDinner.findOne({
       date: { $gte: startOfToday },
@@ -612,21 +594,11 @@ export const getManagerGalaSummary = async (req, res) => {
 
     const hostelId = managerHostel._id.toString();
 
-    const now = new Date();
-    const startOfToday = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate(),
-    );
-    const startOfTomorrow = new Date(
-      now.getFullYear(),
-      now.getMonth(),
-      now.getDate() + 1,
-    );
+    const { start: startOfToday, end: endOfToday } = getIstDayBounds(new Date());
 
     // Only consider Gala Dinner scheduled for "today" (manager app requirement)
     const gala = await GalaDinner.findOne({
-      date: { $gte: startOfToday, $lt: startOfTomorrow },
+      date: { $gte: startOfToday, $lte: endOfToday },
     })
       .sort({ date: 1 })
       .lean();
