@@ -315,8 +315,8 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
                                       padding: const EdgeInsets.all(16),
                                       decoration: BoxDecoration(
                                         color: Colors.white,
-                                        border:
-                                            Border.all(color: _GalaTokens.border),
+                                        border: Border.all(
+                                            color: _GalaTokens.border),
                                         borderRadius: BorderRadius.circular(16),
                                         boxShadow: [_GalaTokens.cardShadow],
                                       ),
@@ -410,7 +410,8 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
                     children: [
                       Text(_error!, textAlign: TextAlign.center),
                       const SizedBox(height: 16),
-                      TextButton(onPressed: _fetchAll, child: const Text('Retry')),
+                      TextButton(
+                          onPressed: _fetchAll, child: const Text('Retry')),
                     ],
                   ),
                 ),
@@ -616,14 +617,45 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
     );
   }
 
-  String _timeRangeForGala(Map<String, dynamic> galaDinner) {
-    final starters =
-        _formatTimeDisplay(galaDinner['startersServingStartTime'] as String?);
-    final dinner =
-        _formatTimeDisplay(galaDinner['dinnerServingStartTime'] as String?);
-    if (starters != null && dinner != null) return '$starters - $dinner';
-    if (starters != null) return starters;
-    if (dinner != null) return dinner;
+  String _timeRangeForGala(Map<String, dynamic> galaDinner, String category) {
+    final startersRaw = galaDinner['startersServingStartTime'] as String?;
+    final dinnerRaw = galaDinner['dinnerServingStartTime'] as String?;
+
+    DateTime? _parse(String? t) {
+      if (t == null) return null;
+      final parts = t.split(':');
+      if (parts.length != 2) return null;
+      final now = DateTime.now();
+      return DateTime(
+        now.year,
+        now.month,
+        now.day,
+        int.parse(parts[0]),
+        int.parse(parts[1]),
+      );
+    }
+
+    String _format(DateTime dt) {
+      final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+      final m = dt.minute.toString().padLeft(2, '0');
+      final ampm = dt.hour < 12 ? 'AM' : 'PM';
+      return '$h:$m $ampm';
+    }
+
+    final startersTime = _parse(startersRaw);
+    final dinnerTime = _parse(dinnerRaw);
+
+    if (category == 'Starters' && startersTime != null) {
+      final end = startersTime.add(const Duration(minutes: 90)); // 1.5 hrs
+      return '${_format(startersTime)} - ${_format(end)}';
+    }
+
+    if ((category == 'Main Course' || category == 'Desserts') &&
+        dinnerTime != null) {
+      final end = dinnerTime.add(const Duration(hours: 2));
+      return '${_format(dinnerTime)} - ${_format(end)}';
+    }
+
     return '--';
   }
 
@@ -631,6 +663,7 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
     dynamic startersMenu;
     dynamic mainMenu;
     dynamic dessertsMenu;
+
     for (final m in menus) {
       final cat = m['category'] as String? ?? '';
       if (cat == 'Starters') startersMenu = m;
@@ -652,7 +685,7 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
           _buildMenuCard(
             ordered[i],
             initiallyExpanded: i == 0,
-            timeRangeText: _timeRangeForGala(galaDinner),
+            galaDinner: galaDinner, // ✅ pass this
           ),
         ],
       ],
@@ -662,15 +695,16 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
   Widget _buildMenuCard(
     dynamic menu, {
     required bool initiallyExpanded,
-    required String timeRangeText,
+    required Map<String, dynamic> galaDinner, // ✅ new
   }) {
     final category = menu['category'] as String? ?? '';
     final items = menu['items'] as List<dynamic>? ?? [];
+
     return _GalaMenuCard(
       category: category,
       items: items,
       initiallyExpanded: initiallyExpanded,
-      timeRangeText: timeRangeText,
+      timeRangeText: _timeRangeForGala(galaDinner, category), // ✅ correct
     );
   }
 }
@@ -766,8 +800,7 @@ class _GalaMenuCardState extends State<_GalaMenuCard> {
             .toList()
         : <dynamic>[];
 
-    final categoryColor =
-        _expanded ? _GalaTokens.grey2 : _GalaTokens.grey1;
+    final categoryColor = _expanded ? _GalaTokens.grey2 : _GalaTokens.grey1;
 
     return AnimatedSize(
       duration: const Duration(milliseconds: 250),

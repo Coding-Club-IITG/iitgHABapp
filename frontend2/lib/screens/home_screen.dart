@@ -24,7 +24,6 @@ import 'package:frontend2/widgets/common/alert_expirer.dart';
 import 'package:frontend2/providers/notification_provider.dart';
 import 'package:frontend2/widgets/alert_countdown_text.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
-import 'package:frontend2/widgets/common/page_loading_shimmer.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:frontend2/widgets/festival_background_widget.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
@@ -40,8 +39,14 @@ import 'initial_setup_screen.dart';
 class HomeScreen extends StatefulWidget {
   final void Function(int)? onNavigateToTab;
   final VoidCallback? onRefresh;
+  final VoidCallback? onInitialDataReady;
 
-  const HomeScreen({super.key, this.onNavigateToTab, this.onRefresh});
+  const HomeScreen({
+    super.key,
+    this.onNavigateToTab,
+    this.onRefresh,
+    this.onInitialDataReady,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -86,6 +91,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _deferredHomeNetworkTimer;
   int _debugTitleTapCount = 0;
   bool _hasMicrosoftLinked = false;
+  bool _hasReportedInitialDataReady = false;
 
   /// First weather + optional deferred festival hit server after this delay (not on Home mount).
   static const Duration _kDeferredHomeNetworkDelay = Duration(seconds: 60);
@@ -166,8 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    fetchUserData();
-    fetchMessIdAndToken();
+    _prepareInitialPageData();
     _startScanQrStatusTicker();
     _deferredHomeNetworkTimer =
         Timer(_kDeferredHomeNetworkDelay, _runDeferredHomeNetworkWork);
@@ -216,6 +221,20 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Room-cleaning bookings are hydrated by bootstrap when available.
       // Do not auto-fetch here; explicit user actions should drive refresh.
     });
+  }
+
+  Future<void> _prepareInitialPageData() async {
+    try {
+      await Future.wait([
+        fetchUserData(),
+        fetchMessIdAndToken(),
+      ]);
+    } finally {
+      if (!_hasReportedInitialDataReady) {
+        _hasReportedInitialDataReady = true;
+        widget.onInitialDataReady?.call();
+      }
+    }
   }
 
   /// Admin changes (theme/text) update `lastUpdatedAt` — [bootstrapBeforeHome] sets a deferred
@@ -1117,7 +1136,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     required int unreadCount,
     required bool hasImportantMessages,
   }) {
-    final displayName = name.isNotEmpty ? name : 'User';
+    final displayName = name.trim();
     final greeting = _weatherHeroGreeting(hasImportantMessages);
     final subtitleText = unreadCount == 1
         ? '1 notification today'
@@ -1178,11 +1197,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                         color: _heroGreetingPrefixColor(),
                       ),
                       children: [
-                        TextSpan(text: '$greeting, '),
-                        TextSpan(
-                          text: displayName,
-                          style: TextStyle(color: _heroUserNameColor()),
-                        ),
+                        if (displayName.isEmpty) ...[
+                          TextSpan(text: greeting),
+                        ] else ...[
+                          TextSpan(text: '$greeting, '),
+                          TextSpan(
+                            text: displayName,
+                            style: TextStyle(color: _heroUserNameColor()),
+                          ),
+                        ]
                       ],
                     ),
                   ),
@@ -1830,16 +1853,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     )
                   : Consumer<MessInfoProvider>(
                       builder: (context, messProvider, __) {
-                        if (messProvider.isLoading) {
-                          return buildHomeScreenLoadingShimmer();
-                        }
                         return FutureBuilder<List<MenuModel>>(
                           future: fetchMenu(currSubscribedMess, getTodayDay()),
                           builder: (context, menuSnap) {
-                            if (menuSnap.connectionState ==
-                                ConnectionState.waiting) {
-                              return buildHomeScreenLoadingShimmer();
-                            }
                             final messName =
                                 _subscribedMessDisplayName(context);
                             return SingleChildScrollView(

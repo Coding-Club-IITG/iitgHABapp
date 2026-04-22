@@ -27,7 +27,8 @@ class MainNavigationScreen extends StatefulWidget {
 
 class _MainNavigationScreenState extends State<MainNavigationScreen> {
   int _selectedIndex = 0;
-  bool _homeDataReady = false;
+  bool _navigationReady = false;
+  bool _homeInitialDataReady = false;
 
   void _handleNavTap(int index) {
     setState(() {
@@ -67,7 +68,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       try {
         await fetchUserProfilePicture();
       } catch (_) {}
-      if (mounted) setState(() => _homeDataReady = true);
+      if (mounted) setState(() => _navigationReady = true);
       return;
     }
 
@@ -85,7 +86,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     try {
       await globalNotificationProvider.syncAlerts();
     } catch (_) {}
-    if (mounted) setState(() => _homeDataReady = true);
+    if (mounted) setState(() => _navigationReady = true);
   }
 
   void _runPhase3Background({required bool fromBootstrap}) {
@@ -461,23 +462,31 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final loadingOverlayVisible = !_navigationReady || !_homeInitialDataReady;
     return Stack(
       children: [
         ValueListenableBuilder(
           valueListenable: ProfilePictureProvider.isSetupDone,
           builder: (context, setupDone, child) => Scaffold(
             body: (setupDone == true)
-                ? (_homeDataReady
+                ? (_navigationReady
                     ? IndexedStack(
                         index: _selectedIndex,
                         children: [
-                          HomeScreen(onNavigateToTab: _handleNavTap),
+                          HomeScreen(
+                            onNavigateToTab: _handleNavTap,
+                            onInitialDataReady: () {
+                              if (!_homeInitialDataReady && mounted) {
+                                setState(() => _homeInitialDataReady = true);
+                              }
+                            },
+                          ),
                           MessScreen(active: _selectedIndex == 1),
                         ],
                       )
                     : const SizedBox.shrink())
                 : const InitialSetupScreen(),
-            bottomNavigationBar: (setupDone == true && _homeDataReady)
+            bottomNavigationBar: (setupDone == true && _navigationReady)
                 ? BottomNavBar(
                     currentIndex: _selectedIndex,
                     onTap: _handleNavTap,
@@ -485,7 +494,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                 : const SizedBox(),
           ),
         ),
-        if (!_homeDataReady) _buildHomeLoadingOverlay(),
+        if (loadingOverlayVisible) _buildHomeLoadingOverlay(),
       ],
     );
   }

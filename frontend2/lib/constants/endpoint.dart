@@ -1,4 +1,4 @@
-const String baseUrl = "http://10.0.2.2:3000/api";
+const String baseUrl = "https://hab.codingclub.in/api";
 const String authUrl = "https://hab.codingclub.in/api";
 
 class MessRebateEndpoints {
