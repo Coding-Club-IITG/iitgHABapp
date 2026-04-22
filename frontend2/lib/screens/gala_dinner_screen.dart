@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/apis/protected.dart';
@@ -20,6 +21,8 @@ abstract final class _GalaTokens {
   static const grey2 = Color(0xFF2E2F31);
   static const orange = Color(0xFFB87402);
   static const scanWell = Color(0xFFFEF7EA);
+  static const scannedWell = Color(0xFFEDF7F2);
+  static const scannedTickAsset = 'assets/icon/gala_scan_tick.svg';
   static const border = Color(0xFFE6E6E6);
   static const dividerBar = Color(0xFFF0F0F0);
   static const shadow = Color(0x14000000);
@@ -614,15 +617,21 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: _GalaTokens.scanWell,
+                  color: scanned ? _GalaTokens.scannedWell : _GalaTokens.scanWell,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Center(
-                  child: Icon(
-                    scanned ? Icons.check_circle_rounded : _iconForCategory(category),
-                    color: scanned ? const Color(0xFF1B8B3B) : _GalaTokens.orange,
-                    size: scanned ? 26 : 24,
-                  ),
+                  child: scanned
+                      ? SvgPicture.asset(
+                          _GalaTokens.scannedTickAsset,
+                          width: 24,
+                          height: 24,
+                        )
+                      : Icon(
+                          _iconForCategory(category),
+                          color: _GalaTokens.orange,
+                          size: 24,
+                        ),
                 ),
               ),
               Column(
