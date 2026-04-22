@@ -38,3 +38,5 @@ Flutter/Flutter.framework
 Flutter/App.framework
 Flutter/engine/
 build/ios/XCBuildData
+Flutter/Debug.xcconfig
+Flutter/Release.xcconfig
