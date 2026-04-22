@@ -12,12 +12,12 @@ export const getFeedbackWindowDates = (
 
   if (month === 1) {
     // February
-    startDay = 23;
-    endDay = 25;
-  } else {
-    // All other months
     startDay = 25;
     endDay = 27;
+  } else {
+    // All other months
+    startDay = 27;
+    endDay = 29;
   }
 
   // Create dates in local time (IST)
