@@ -393,11 +393,19 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
 
       if (!mounted) return;
       navigator
-          .push(MaterialPageRoute<void>(
+          .push<dynamic>(MaterialPageRoute(
         builder: (context) => GalaScanStatusPage(response: response),
       ))
-          .then((_) {
+          .then((action) {
         if (mounted) {
+          if (action is Map && action['action'] == 'goToGala') {
+            navigator.pop(action);
+            return;
+          }
+          if (action == 'goToGala') {
+            navigator.pop({'action': 'goToGala'});
+            return;
+          }
           setState(() {
             _hasScanned = false;
             _isProcessing = false;
@@ -430,7 +438,7 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
         }
       }
       navigator
-          .push(MaterialPageRoute<void>(
+          .push<dynamic>(MaterialPageRoute(
         builder: (context) => GalaScanStatusPage(
           response: Response(
             requestOptions: RequestOptions(path: ''),
@@ -439,8 +447,16 @@ class _GalaQRScannerScreenState extends State<GalaQRScannerScreen> {
           ),
         ),
       ))
-          .then((_) {
+          .then((action) {
         if (mounted) {
+          if (action is Map && action['action'] == 'goToGala') {
+            navigator.pop(action);
+            return;
+          }
+          if (action == 'goToGala') {
+            navigator.pop({'action': 'goToGala'});
+            return;
+          }
           setState(() {
             _hasScanned = false;
             _isProcessing = false;

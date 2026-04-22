@@ -168,11 +168,14 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
     }
   }
 
-  Future<void> _fetchScanStatus(String token) async {
+  Future<void> _fetchScanStatus(String token, {String? galaDinnerId}) async {
     if (kDebugMode)
       debugPrint('Gala: GET scan-status url=${GalaEndpoints.scanStatus}');
     final response = await _dio.get(
       GalaEndpoints.scanStatus,
+      queryParameters: (galaDinnerId != null && galaDinnerId.isNotEmpty)
+          ? {'galaDinnerId': galaDinnerId}
+          : null,
       options: Options(headers: {'Authorization': 'Bearer $token'}),
     );
     if (kDebugMode)
@@ -186,23 +189,59 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
     }
   }
 
-  void _refetchScanStatus() async {
+  void _refetchScanStatus({String? galaDinnerId}) async {
     final token = await getAccessToken();
     if (token == 'error' || !mounted) return;
-    await _fetchScanStatus(token);
+    await _fetchScanStatus(token, galaDinnerId: galaDinnerId);
   }
 
-  /// Formats "HH:mm" (e.g. "18:30") to "6:30 PM". Returns null if invalid or missing.
-  static String? _formatTimeDisplay(String? str) {
+  void _applyLocalScanResult(Map<dynamic, dynamic> result) {
+    if (result['success'] != true) return;
+    final mealType = result['mealType']?.toString();
+    final time = result['time']?.toString();
+    if (mealType == null || mealType.isEmpty || time == null || time.isEmpty) {
+      return;
+    }
+
+    final next = Map<String, dynamic>.from(
+      (_scanStatusData ?? <String, dynamic>{}),
+    );
+    final scanLog = Map<String, dynamic>.from(
+      (next['scanLog'] as Map?) ?? <String, dynamic>{},
+    );
+
+    if (mealType == 'Starters') {
+      scanLog['startersScanned'] = true;
+      scanLog['startersTime'] = time;
+    } else if (mealType == 'Main Course') {
+      scanLog['mainCourseScanned'] = true;
+      scanLog['mainCourseTime'] = time;
+    } else if (mealType == 'Desserts') {
+      scanLog['dessertsScanned'] = true;
+      scanLog['dessertsTime'] = time;
+    } else {
+      return;
+    }
+
+    next['scanLog'] = scanLog;
+    if (mounted) {
+      setState(() {
+        _scanStatusData = next;
+      });
+    }
+  }
+
+  /// Keep scan time in 24h HH:mm (e.g. "18:30").
+  static String? _formatScanTimeHHmm(String? str) {
     if (str == null || str.isEmpty) return null;
     final match = RegExp(r'^(\d{1,2}):(\d{2})$').firstMatch(str.trim());
-    if (match == null) return str;
-    final h = int.tryParse(match.group(1)!) ?? 0;
-    final m = match.group(2)!;
-    final h12 = h % 12;
-    final hDisplay = h12 == 0 ? 12 : h12;
-    final ampm = h < 12 ? 'AM' : 'PM';
-    return '$hDisplay:$m $ampm';
+    if (match == null) return null;
+    final h = int.tryParse(match.group(1)!);
+    final m = int.tryParse(match.group(2)!);
+    if (h == null || m == null || h < 0 || h > 23 || m < 0 || m > 59) {
+      return null;
+    }
+    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}';
   }
 
   bool _isScanned(String category) {
@@ -542,13 +581,20 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
       child: InkWell(
         onTap: (!scanned && hasGala)
             ? () async {
-                await Navigator.of(context).push(
+                final result = await Navigator.of(context).push<dynamic>(
                   MaterialPageRoute(
                     builder: (context) =>
                         GalaQRScannerScreen(expectedCategory: category),
                   ),
                 );
-                _refetchScanStatus();
+                if (result is Map) {
+                  _applyLocalScanResult(result);
+                }
+                _refetchScanStatus(
+                  galaDinnerId: result is Map
+                      ? (result['galaDinnerId']?.toString())
+                      : (_menuData?['galaDinner']?['_id']?.toString()),
+                );
               }
             : null,
         borderRadius: BorderRadius.circular(16),
@@ -573,9 +619,9 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
                 ),
                 child: Center(
                   child: Icon(
-                    _iconForCategory(category),
-                    color: _GalaTokens.orange,
-                    size: 24,
+                    scanned ? Icons.check_circle_rounded : _iconForCategory(category),
+                    color: scanned ? const Color(0xFF1B8B3B) : _GalaTokens.orange,
+                    size: scanned ? 26 : 24,
                   ),
                 ),
               ),
@@ -598,7 +644,7 @@ class _GalaDinnerScreenState extends State<GalaDinnerScreen> {
                   if (scanned && time != null && time.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     Text(
-                      _formatTimeDisplay(time) ?? time,
+                      _formatScanTimeHHmm(time) ?? '',
                       style: const TextStyle(
                         fontFamily: 'GeneralSans',
                         fontSize: 12,

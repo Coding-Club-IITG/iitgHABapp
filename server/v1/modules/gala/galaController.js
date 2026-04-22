@@ -476,6 +476,7 @@ export const galaScan = async (req, res) => {
         message: `Already scanned for ${expectedCategory}`,
         success: false,
         mealType: expectedCategory,
+        galaDinnerId: galaDinnerId.toString(),
         time: existingTime,
         alreadyScanned: true,
       });
@@ -504,6 +505,7 @@ export const galaScan = async (req, res) => {
       message: "Scan successful",
       success: true,
       mealType: expectedCategory,
+      galaDinnerId: galaDinnerId.toString(),
       time: timeStr,
       alreadyScanned: false,
       user: {
@@ -534,18 +536,6 @@ export const getGalaScanStatus = async (req, res) => {
       return res.status(400).json({ message: "UserId is required" });
     }
 
-    const startOfToday = getIstStartOfToday();
-
-    const gala = await GalaDinner.findOne({
-      date: { $gte: startOfToday },
-    })
-      .sort({ date: 1 })
-      .lean();
-
-    if (!gala) {
-      return res.status(200).json({ galaDinner: null, scanLog: null });
-    }
-
     const user = await User.findById(userId)
       .select("curr_subscribed_mess")
       .lean();
@@ -553,6 +543,25 @@ export const getGalaScanStatus = async (req, res) => {
     if (!subscribedHostelId) {
       return res.status(200).json({ galaDinner: null, scanLog: null });
     }
+
+    const requestedGalaDinnerId = req.query?.galaDinnerId?.toString().trim();
+    const startOfToday = getIstStartOfToday();
+    let gala;
+    if (requestedGalaDinnerId && mongoose.Types.ObjectId.isValid(requestedGalaDinnerId)) {
+      gala = await GalaDinner.findById(requestedGalaDinnerId).lean();
+    }
+    if (!gala) {
+      gala = await GalaDinner.findOne({
+        date: { $gte: startOfToday },
+      })
+        .sort({ date: 1 })
+        .lean();
+    }
+
+    if (!gala) {
+      return res.status(200).json({ galaDinner: null, scanLog: null });
+    }
+
     const participates = await GalaDinnerMenu.exists({
       galaDinnerId: gala._id,
       hostelId: subscribedHostelId,
