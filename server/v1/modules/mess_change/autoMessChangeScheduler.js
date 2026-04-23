@@ -1,5 +1,6 @@
 import { MessChangeSettings } from "./messChangeSettingsModel.js";
 import { User } from "../user/userModel.js";
+import { ENABLE_MESS_CHANGE_FLOW } from "../../config/default.js";
 
 import {
   enableMessChangeAutomatic,
@@ -95,6 +96,11 @@ export const initializeMessChangeAutoScheduler = () => {
         const year = now.getFullYear();
         const month = now.getMonth();
         const day = now.getDate();
+
+        if (!ENABLE_MESS_CHANGE_FLOW) {
+          console.log("[MESS CHANGE] Flow is disabled via config this month.");
+          return;
+        }
 
         const { startDate, endDate } = getMessChangeWindowDates(month, year);
 

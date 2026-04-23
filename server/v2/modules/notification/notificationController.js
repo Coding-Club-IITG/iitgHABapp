@@ -1,10 +1,9 @@
-const admin = require("./firebase.js");
-const FCMToken = require("./FCMToken.js");
-const User = require("../user/userModel.js");
-const { Hostel } = require("../hostel/hostelModel.js");
+import { Hostel } from "../hostel/hostelModel.js";
+import admin from "./firebase.js";
+import FCMToken from "./FCMToken.js";
 
 // Register (or update) FCM token for a user
-const registerToken = async (req, res) => {
+export const registerToken = async (req, res) => {
   try {
     if (!req.user)
       return res.status(403).json({ error: "Only users can register tokens" });
@@ -70,54 +69,81 @@ const registerToken = async (req, res) => {
     res.sendStatus(500);
   }
 };
-async function sendNotificationMessage(
+
+// Generalized broadcast function (Updated for Mixed Payloads & Native Channels)
+export async function sendNotificationMessage(
   title,
   body,
   topic,
   data = {},
   isAlert = false,
+  channelId = "hab_general_alerts", // Added Native Channel support
 ) {
-  // If it's an alert, don't include notification object (only data)
-  // Otherwise, include notification object
-  const message = isAlert
-    ? {
-        data: {
-          ...data,
-          title: title,
-          body: body,
-          alert: "true",
-        },
-        topic: topic,
-      }
-    : {
-        notification: { title, body },
-        data: data,
-        topic: topic,
-      };
-  console.log(message);
+  const payloadData = { ...data };
+
+  if (isAlert) {
+    payloadData.alert = "true";
+    payloadData.title = title;
+    payloadData.body = body;
+  }
+
+  // Use Mixed Payload: 'notification' makes the phone buzz, 'data' drives the Flutter UI
+  const message = {
+    notification: { title, body },
+    data: payloadData,
+    topic: topic,
+    android: {
+      notification: {
+        channelId: channelId, // Connects to OS settings
+      },
+    },
+  };
+
+  console.log("Broadcasting message:", message);
   await admin.messaging().send(message);
 }
 
 // Send a notification directly to a specific user's FCM token
-const sendNotificationToUser = async (userId, title, body) => {
+// Added channelId parameter for granular control
+export const sendNotificationToUser = async (
+  userId,
+  title,
+  body,
+  channelId = "hab_general_alerts",
+) => {
   try {
     const tokenDoc = await FCMToken.findOne({ user: userId });
     if (!tokenDoc || !tokenDoc.token) return;
+
     const message = {
       token: tokenDoc.token,
       notification: { title, body },
+      android: {
+        notification: {
+          channelId: channelId, // Connects to OS settings
+        },
+      },
     };
+
     await admin.messaging().send(message);
   } catch (e) {
     console.error("Error sending user notification:", e);
   }
 };
 
-// Send notification to all users of this hostel
-const sendNotification = async (req, res) => {
+// REST API Endpoint: Send notification to all users of a topic
+export const sendNotification = async (req, res) => {
   try {
-    const { title, body, topic, isAlert } = req.body;
-    await sendNotificationMessage(title, body, topic, {}, isAlert || false);
+    // Admin can specify channelId via portal, or it defaults to general
+    const { title, body, topic, isAlert, channelId } = req.body;
+    await sendNotificationMessage(
+      title,
+      body,
+      topic,
+      {},
+      isAlert || false,
+      channelId || "hab_general_alerts",
+    );
     res.status(200).json({ message: "Notification sent" });
   } catch (err) {
     console.error(err);
@@ -127,7 +153,7 @@ const sendNotification = async (req, res) => {
 
 // Send welcome notification to the authenticated user
 // Called from frontend after FCM token registration
-const sendWelcomeNotification = async (req, res) => {
+export const sendWelcomeNotification = async (req, res) => {
   try {
     if (!req.user) {
       return res.status(403).json({ error: "Authentication required" });
@@ -141,11 +167,12 @@ const sendWelcomeNotification = async (req, res) => {
       });
     }
 
-    // Send welcome notification
+    // Send welcome notification (defaults to general channel)
     await sendNotificationToUser(
       req.user._id,
       "Welcome to HABit IITG",
-      "Thanks for signing in to your go to app for all your hostel and mess related updates.",
+      "Thanks for signing in to your go-to app for all your hostel and mess related updates.",
+      "hab_general_alerts",
     );
 
     res.status(200).json({ message: "Welcome notification sent" });
@@ -153,12 +180,4 @@ const sendWelcomeNotification = async (req, res) => {
     console.error("Error sending welcome notification:", err);
     res.status(500).json({ error: "Failed to send welcome notification" });
   }
-};
-
-module.exports = {
-  registerToken,
-  sendNotification,
-  sendNotificationMessage,
-  sendNotificationToUser,
-  sendWelcomeNotification,
 };

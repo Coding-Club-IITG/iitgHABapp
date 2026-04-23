@@ -6,6 +6,8 @@ dotenv.config({ path: path.join(__dirname, "../../.env") });
 export const API_VERSION = "v1";
 export const REDIS_KEY_PREFIX = `hab:${API_VERSION}:`;
 export const ENABLE_SCHEDULERS = API_VERSION === "v1";
+export const ENABLE_MESS_CHANGE_FLOW =
+  process.env.ENABLE_MESS_CHANGE_FLOW === "true" || false;
 
 export const nodeENV = process.env.NODE_ENV || "development";
 export const port =

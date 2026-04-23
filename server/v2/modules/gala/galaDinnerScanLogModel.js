@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const galaDinnerScanLogSchema = new mongoose.Schema({
   userId: {
@@ -21,6 +21,7 @@ const galaDinnerScanLogSchema = new mongoose.Schema({
 
 galaDinnerScanLogSchema.index({ userId: 1, galaDinnerId: 1 }, { unique: true });
 
-const GalaDinnerScanLog = mongoose.model("GalaDinnerScanLog", galaDinnerScanLogSchema);
-
-module.exports = { GalaDinnerScanLog };
+export const GalaDinnerScanLog = mongoose.model(
+  "GalaDinnerScanLog",
+  galaDinnerScanLogSchema,
+);

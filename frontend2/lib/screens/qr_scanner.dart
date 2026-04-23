@@ -372,7 +372,7 @@ class _QrScanState extends State<QrScan> {
   Future<void> _refreshMealSessionCountdown() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final messId = prefs.getString('curr_subscribed_mess') ?? '';
+      final messId = prefs.getString('messID') ?? '';
       if (messId.isEmpty) {
         return;
       }

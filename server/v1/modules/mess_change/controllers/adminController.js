@@ -1,5 +1,6 @@
 import { User } from "../../user/userModel.js";
 import { MessChangeSettings } from "../messChangeSettingsModel.js";
+import { ENABLE_MESS_CHANGE_FLOW } from "../../../config/default.js";
 import {
   getMessChangeWindowDates,
   getOrdinalSuffix,
@@ -44,9 +45,14 @@ export const messChangeStatusForAdmin = async (req, res) => {
       await settings.save();
     }
 
+    const returnSettings = settings.toObject ? settings.toObject() : settings;
+    if (!ENABLE_MESS_CHANGE_FLOW) {
+      returnSettings.isEnabled = false;
+    }
+
     return res.status(200).json({
       message: "Mess change status fetched successfully",
-      data: settings,
+      data: returnSettings,
     });
   } catch (error) {
     console.error("Error fetching mess change status:", error);

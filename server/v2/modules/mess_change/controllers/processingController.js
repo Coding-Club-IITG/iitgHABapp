@@ -1,24 +1,41 @@
-const { User } = require("../../user/userModel.js");
-const { Hostel } = require("../../hostel/hostelModel.js");
-const UserAllocHostel = require("../../hostel/hostelAllocModel.js");
-const { MessChange } = require("../messChangeModel.js");
-const { MessChangeSettings } = require("../messChangeSettingsModel.js");
-const {
+import xlsx from "xlsx";
+import fs from "fs";
+import path from "path";
+const __dirname = import.meta.dirname;
+const backupDir = path.join(__dirname, "../../../../backup");
+
+import { User } from "../../user/userModel.js";
+import { Hostel } from "../../hostel/hostelModel.js";
+import UserAllocHostel from "../../hostel/hostelAllocModel.js";
+import { MessChange } from "../messChangeModel.js";
+import { MessChangeSettings } from "../messChangeSettingsModel.js";
+
+import {
   sendNotificationMessage,
   sendNotificationToUser,
-} = require("../../notification/notificationController.js");
-const {
+} from "../../notification/notificationController.js";
+import {
   initializeCapacityTracker,
   processUsersInIterations,
-} = require("../utils/messChangeLogic.js");
+} from "../utils/messChangeLogic.js";
+import { generateMessChangeReport } from "../utils/messChangeReportGenerator.js";
+import {
+  uploadReportToOnedrive,
+} from "../../../utils/onedriveController.js";
+import { withTransaction } from "../../../utils/withTransaction.js";
+import { getNowIST, saveReportEntry } from "../../reports/reportUtils.js";
 
 // Helper Functions
 
 /**
  * Reset all users back to hostel
  */
-const resetAllUsersToHostel = async () => {
-  const allocations = await UserAllocHostel.find({}).lean();
+export const resetAllUsersToHostel = async (session = null) => {
+  const opts = session ? { session } : {};
+
+  const allocations = await UserAllocHostel.find({})
+    .lean()
+    .session(session || undefined);
   if (!allocations.length) return;
 
   const bulkAllocOps = allocations.map((alloc) => ({
@@ -27,9 +44,7 @@ const resetAllUsersToHostel = async () => {
       update: { $set: { current_subscribed_mess: alloc.hostel } },
     },
   }));
-  if (bulkAllocOps.length > 0) {
-    await UserAllocHostel.bulkWrite(bulkAllocOps);
-  }
+  await UserAllocHostel.bulkWrite(bulkAllocOps, opts);
 
   const bulkUserOps = allocations.map((alloc) => ({
     updateOne: {
@@ -42,155 +57,242 @@ const resetAllUsersToHostel = async () => {
       },
     },
   }));
-  if (bulkUserOps.length > 0) {
-    await User.bulkWrite(bulkUserOps);
-  }
+  await User.bulkWrite(bulkUserOps, opts);
 };
 
 /**
  * Update accepted users
  */
-const updateAcceptedUsers = async (acceptedUsers) => {
+export const updateAcceptedUsers = async (
+  acceptedUsers,
+  users,
+  hostels,
+  session,
+) => {
+  if (!acceptedUsers.length) return;
+
+  const hostelMap = hostels.reduce((acc, h) => {
+    acc[h._id.toString()] = h.hostel_name;
+    return acc;
+  }, {});
+
+  const userOps = [];
+  const messChangeOps = [];
+
   for (const a of acceptedUsers) {
-    const user = await User.findById(a.id);
+    const user = users.find((u) => u._id.toString() === a.id);
     if (!user) continue;
 
-    const [fromHostel, toHostel] = await Promise.all([
-      Hostel.findById(a.fromHostelId),
-      Hostel.findById(a.toHostelId),
-    ]);
-
-    user.next_mess = a.toHostelId; // Staged for 1st of next month
-    user.applied_for_mess_changed = false;
-    user.applied_hostel_string = "";
-    user.next_mess1 = null;
-    user.next_mess2 = null;
-    user.next_mess3 = null;
-    user.applied_hostel_timestamp = null;
-    await user.save();
-
-    await MessChange.findOneAndUpdate(
-      { rollNumber: user.rollNumber },
-      {
-        userName: user.name,
-        rollNumber: user.rollNumber,
-        fromHostel: fromHostel?.hostel_name || "Unknown",
-        toHostel: toHostel?.hostel_name || "Unknown",
-        toHostel1: toHostel?.hostel_name || "Unknown",
+    userOps.push({
+      updateOne: {
+        filter: { _id: user._id },
+        update: {
+          $set: {
+            next_mess: a.toHostelId,
+            applied_for_mess_changed: false,
+            applied_hostel_string: "",
+            next_mess1: null,
+            next_mess2: null,
+            next_mess3: null,
+            applied_hostel_timestamp: null,
+          },
+        },
       },
-      { upsert: true },
-    );
+    });
 
-    try {
-      await sendNotificationToUser(
-        user._id,
-        "Mess Change Accepted",
-        `Mess changed to ${toHostel?.hostel_name}. Applicable from next month.`,
-      );
-    } catch {}
+    const fromHostelName = hostelMap[a.fromHostelId?.toString()] || "Unknown";
+    const toHostelName = hostelMap[a.toHostelId?.toString()] || "Unknown";
+
+    messChangeOps.push({
+      updateOne: {
+        filter: { rollNumber: user.rollNumber },
+        update: {
+          $set: {
+            userName: user.name,
+            rollNumber: user.rollNumber,
+            fromHostel: fromHostelName,
+            toHostel: toHostelName,
+            toHostel1: toHostelName,
+          },
+        },
+        upsert: true,
+      },
+    });
   }
+
+  const opts = { session };
+  if (userOps.length > 0) await User.bulkWrite(userOps, opts);
+  if (messChangeOps.length > 0) await MessChange.bulkWrite(messChangeOps, opts);
 };
 
 /**
  * Update rejected users
  */
-const updateRejectedUsers = async (rejectedUsers) => {
-  for (const r of rejectedUsers) {
-    const user = await User.findById(r.id);
-    if (!user) continue;
+export const updateRejectedUsers = async (rejectedUsers, users, session) => {
+  if (!rejectedUsers.length) return;
 
-    user.applied_for_mess_changed = false;
-    user.applied_hostel_string = "";
-    user.next_mess = null;
-    user.next_mess1 = null;
-    user.next_mess2 = null;
-    user.next_mess3 = null;
-    await user.save();
+  const userOps = rejectedUsers
+    .map((r) => {
+      const user = users.find((u) => u._id.toString() === r.id);
+      if (!user) return null;
+      return {
+        updateOne: {
+          filter: { _id: user._id },
+          update: {
+            $set: {
+              applied_for_mess_changed: false,
+              applied_hostel_string: "",
+              next_mess: null,
+              next_mess1: null,
+              next_mess2: null,
+              next_mess3: null,
+              applied_hostel_timestamp: null,
+            },
+          },
+        },
+      };
+    })
+    .filter(Boolean);
 
-    try {
-      await sendNotificationToUser(
-        user._id,
-        "Mess Change Rejected",
-        "Your mess change request was not approved this cycle.",
-      );
-    } catch {}
-  }
+  if (userOps.length > 0) await User.bulkWrite(userOps, { session });
 };
 
 /**
  * Update last processed timestamp
  */
-const updateLastProcessedTimestamp = async () => {
-  let settings = await MessChangeSettings.findOne();
+export const updateLastProcessedTimestamp = async (session) => {
+  let settings = await MessChangeSettings.findOne().session(session);
   if (!settings) settings = new MessChangeSettings();
-
   settings.isEnabled = false;
   settings.lastProcessedAt = new Date();
   settings.disabledAt = new Date();
-  await settings.save();
+  await settings.save({ session });
+};
+
+/**
+ * Mess change flow
+ */
+export const createBackup = (users, hostels) => {
+  try {
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    const hostelMap = hostels.reduce((acc, h) => {
+      acc[h._id.toString()] = h.hostel_name;
+      return acc;
+    }, {});
+
+    const data = users.map((u) => ({
+      "Roll Number": u.rollNumber || "",
+      Name: u.name || "",
+      "Boarding Hostel": hostelMap[u.hostel?.toString()] || "",
+      "Curr Subscribed Mess":
+        hostelMap[u.curr_subscribed_mess?.toString()] || "",
+      "Next Mess 1": hostelMap[u.next_mess1?.toString()] || "",
+      "Next Mess 2": hostelMap[u.next_mess2?.toString()] || "",
+      "Next Mess 3": hostelMap[u.next_mess3?.toString()] || "",
+      Timestamp: u.applied_hostel_timestamp
+        ? new Date(u.applied_hostel_timestamp).toISOString()
+        : "",
+    }));
+
+    const sheet = xlsx.utils.json_to_sheet(data);
+    const wb = xlsx.utils.book_new();
+    xlsx.utils.book_append_sheet(wb, sheet, "Backup");
+
+    const filename = `applications_backup_${Date.now()}.csv`;
+    const filePath = path.join(backupDir, filename);
+    xlsx.writeFile(wb, filePath, { bookType: "csv" });
+    console.log(`[MESS CHANGE] Created applications CSV backup: ${filename}`);
+  } catch (err) {
+    console.error("[MESS CHANGE] Error creating backup CSV:", err);
+  }
+};
+
+export const generateAndUploadReport = async (
+  users,
+  acceptedUsers,
+  rejectedUsers,
+  capacityTracker,
+  hostels,
+) => {
+  try {
+    const buffer = await generateMessChangeReport({
+      users,
+      acceptedUsers,
+      rejectedUsers,
+      capacityTracker,
+      hostels,
+    });
+
+    const filename = `Mess_Change_Report_${Date.now()}.xlsx`;
+
+    // Save locally
+    if (!fs.existsSync(backupDir)) {
+      fs.mkdirSync(backupDir, { recursive: true });
+    }
+    const filePath = path.join(backupDir, filename);
+    fs.writeFileSync(filePath, buffer);
+    console.log(`[MESS CHANGE] Saved report locally: ${filename}`);
+
+    const url = await uploadReportToOnedrive(buffer, filename);
+    if (url) {
+      console.log("[MESS CHANGE] Report uploaded to OneDrive:", url);
+    }
+
+    // Save to reports table (OneDrive link only)
+    if (!url) return;
+    const now = new Date();
+    const nowIST = getNowIST();
+    await saveReportEntry({
+      fileType: "MessChangeReport",
+      month: nowIST.getMonth() + 1,
+      year: nowIST.getFullYear(),
+      link: url,
+    });
+  } catch (err) {
+    console.error("[MESS CHANGE] Error generating/uploading report:", err);
+  }
 };
 
 // Controllers
 
-const processAllMessChangeRequests = async (req, res) => {
+export const processAllMessChangeRequests = async (req, res) => {
   try {
     const users = await User.find({ applied_for_mess_changed: true });
+
     if (!users.length) {
-      return res.status(400).json({ message: "No mess change requests found" });
+      return res
+        ?.status(400)
+        .json({ message: "No mess change requests found" });
     }
 
     const hostels = await Hostel.find({});
-    const capacityTracker = await initializeCapacityTracker(hostels);
 
+    createBackup(users, hostels);
+
+    const capacityTracker = await initializeCapacityTracker(hostels);
     const { acceptedUsers, rejectedUsers } = await processUsersInIterations(
       users,
       capacityTracker,
     );
 
-    await updateAcceptedUsers(acceptedUsers);
-    await updateRejectedUsers(rejectedUsers);
-    await updateLastProcessedTimestamp();
+    // ATOMIC TRANSACTION
+    await withTransaction(async (session) => {
+      await updateAcceptedUsers(acceptedUsers, users, hostels, session);
+      await updateRejectedUsers(rejectedUsers, users, session);
+      await updateLastProcessedTimestamp(session);
+    });
 
-    sendNotificationMessage(
-      "MESS CHANGE",
-      "Mess Change is Disabled",
-      "All_Hostels",
-      { redirectType: "mess_change", isAlert: "true" },
-    ).catch((err) =>
-      console.error("Mess change disabled notification failed:", err),
-    );
-
-    res.status(200).json({
-      message: `${acceptedUsers.length} accepted, ${rejectedUsers.length} rejected`,
+    generateAndUploadReport(
+      users,
       acceptedUsers,
       rejectedUsers,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
-
-const rejectAllMessChangeRequests = async (req, res) => {
-  try {
-    const users = await User.find({ applied_for_mess_changed: true });
-    if (!users.length) {
-      return res
-        .status(400)
-        .json({ message: "No pending mess change requests found" });
-    }
-
-    for (const user of users) {
-      user.applied_for_mess_changed = false;
-      user.applied_hostel_string = "";
-      user.next_mess = null;
-      user.next_mess1 = null;
-      user.next_mess2 = null;
-      user.next_mess3 = null;
-      await user.save();
-    }
-
-    await updateLastProcessedTimestamp();
+      capacityTracker,
+      hostels,
+    ).catch((err) =>
+      console.error("[MESS CHANGE] Report generation failed:", err),
+    );
 
     sendNotificationMessage(
       "MESS CHANGE",
@@ -198,21 +300,42 @@ const rejectAllMessChangeRequests = async (req, res) => {
       "All_Hostels",
       { redirectType: "mess_change", isAlert: "true" },
     ).catch((err) =>
-      console.error("Mess change disabled notification failed:", err),
+      console.error("[MESS CHANGE] Disabled notification failed:", err),
     );
 
-    res.status(200).json({
-      message: `Rejected ${users.length} pending requests. Mess change has been automatically disabled.`,
-    });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Internal server error" });
-  }
-};
+    // Per-user notifications after commit
+    const hostelMap = hostels.reduce((acc, h) => {
+      acc[h._id.toString()] = h.hostel_name;
+      return acc;
+    }, {});
 
-module.exports = {
-  processAllMessChangeRequests,
-  rejectAllMessChangeRequests,
-  resetAllUsersToHostel,
-  updateLastProcessedTimestamp,
+    for (const a of acceptedUsers) {
+      const toName = hostelMap[a.toHostelId?.toString()] || "new mess";
+      sendNotificationToUser(
+        a.id,
+        "Mess Change Accepted",
+        `Mess changed to ${toName}. Applicable from next month.`,
+        "hab_mess_updates",
+      ).catch(() => {});
+    }
+    for (const r of rejectedUsers) {
+      sendNotificationToUser(
+        r.id,
+        "Mess Change Rejected",
+        "Your mess change request was not approved this cycle.",
+        "hab_mess_updates",
+      ).catch(() => {});
+    }
+
+    if (res) {
+      res.status(200).json({
+        message: `${acceptedUsers.length} accepted, ${rejectedUsers.length} rejected`,
+        acceptedUsers,
+        rejectedUsers,
+      });
+    }
+  } catch (err) {
+    console.error("[MESS CHANGE] processAllMessChangeRequests failed:", err);
+    if (res) res.status(500).json({ message: "Internal server error" });
+  }
 };

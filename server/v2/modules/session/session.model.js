@@ -1,5 +1,5 @@
-const mongoose = require("mongoose");
-const crypto = require("crypto");
+import mongoose from "mongoose";
+import crypto from "crypto";
 
 const sessionSchema = new mongoose.Schema({
   user: {
@@ -38,15 +38,13 @@ const sessionSchema = new mongoose.Schema({
   },
 });
 
-sessionSchema.pre("save", function (next) {
-  if (!this.isModified("refreshToken")) return next();
+sessionSchema.pre("save", function () {
+  if (!this.isModified("refreshToken")) return;
 
   this.refreshToken = crypto
     .createHash("sha256")
     .update(this.refreshToken)
     .digest("hex");
-
-  next();
 });
 
-module.exports = mongoose.model("Session", sessionSchema);
+export default mongoose.model("Session", sessionSchema);
