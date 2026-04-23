@@ -172,14 +172,6 @@ class _TodayMessScreenState extends State<TodayMessScreen> {
                             fontWeight: FontWeight.w700,
                           ),
                         ),
-                        const SizedBox(height: 4),
-                        Text(
-                          widget.hostelName,
-                          style: const TextStyle(
-                            color: Color(0xFF6B7280),
-                            fontSize: 13,
-                          ),
-                        ),
                       ],
                     ),
                   ),

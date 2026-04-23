@@ -249,37 +249,7 @@ class _RebateSummaryScreenState extends State<RebateSummaryScreen> {
                 child: Center(child: CircularProgressIndicator()),
               )
             else if (_availableMonths.isEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: const Color(0xFFE5E7EB)),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _monthsError ??
-                          'No mess rebate applications found.',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF111827),
-                      ),
-                    ),
-                    if (_monthsError != null) ...[
-                      const SizedBox(height: 12),
-                      TextButton.icon(
-                        onPressed: _loadAvailableMonths,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
-                      ),
-                    ],
-                  ],
-                ),
-              )
+              const SizedBox.shrink()
             else ...[
               const Text(
                 'Month',

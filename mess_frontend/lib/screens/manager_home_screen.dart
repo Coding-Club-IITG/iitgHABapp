@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:go_router/go_router.dart';
 
 import '../apis/manager_api.dart';
 import '../providers/auth_controller.dart';
@@ -20,6 +23,43 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   bool _galaInitialized = false;
   bool _hasGalaToday = false;
   bool _rebateInitialized = false;
+
+  Future<void> _logout() async {
+    final auth = context.read<AuthController>();
+    final navigator = Navigator.of(context);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('You will need to sign in again to continue.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    // Best-effort: sign out of Firebase & Google to avoid cached broken sessions.
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+
+    await auth.signOut();
+
+    if (!mounted) return;
+    navigator.popUntil((r) => r.isFirst);
+    context.go('/login');
+  }
 
   @override
   void initState() {
@@ -92,6 +132,36 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
 
     return Scaffold(
       backgroundColor: Colors.white,
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        title: Text(
+          hostelName.isEmpty ? 'HABit HQ' : hostelName,
+          style: const TextStyle(
+            color: Color(0xFF111827),
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        actions: [
+          PopupMenuButton<String>(
+            onSelected: (v) {
+              if (v == 'logout') _logout();
+            },
+            itemBuilder: (context) => const [
+              PopupMenuItem(
+                value: 'logout',
+                child: Row(
+                  children: [
+                    Icon(Icons.logout, size: 18),
+                    SizedBox(width: 10),
+                    Text('Log out'),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
       body: SafeArea(
         child: IndexedStack(
           index: _currentIndex,

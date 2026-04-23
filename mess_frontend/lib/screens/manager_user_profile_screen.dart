@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 
 import '../apis/manager_api.dart';
@@ -29,6 +32,39 @@ class _ManagerProfileData {
 
 class _ManagerUserProfileScreenState extends State<ManagerUserProfileScreen> {
   late Future<_ManagerProfileData> _future;
+
+  Future<void> _logout() async {
+    final auth = context.read<AuthController>();
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('You will need to sign in again to continue.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Log out'),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (_) {}
+    try {
+      await GoogleSignIn().signOut();
+    } catch (_) {}
+
+    await auth.signOut();
+    if (!mounted) return;
+    context.go('/login');
+  }
 
   @override
   void initState() {
@@ -69,6 +105,13 @@ class _ManagerUserProfileScreenState extends State<ManagerUserProfileScreen> {
           icon: const Icon(Icons.arrow_back, color: Colors.black, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: [
+          IconButton(
+            tooltip: 'Log out',
+            icon: const Icon(Icons.logout, color: Colors.black, size: 20),
+            onPressed: _logout,
+          ),
+        ],
         title: const Text(
           'Profile',
           style: TextStyle(

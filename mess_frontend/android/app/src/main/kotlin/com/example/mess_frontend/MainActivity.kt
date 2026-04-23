@@ -1,4 +1,4 @@
-package `in`.ac.iitg.habit.hq
+package com.codingclub.hqbithq
 
 import io.flutter.embedding.android.FlutterActivity
 

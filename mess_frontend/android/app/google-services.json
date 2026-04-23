@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "752694887862",
+    "project_id": "habit-hq-86018",
+    "storage_bucket": "habit-hq-86018.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:752694887862:android:8fa7ab4f1b6d7402472d17",
+        "android_client_info": {
+          "package_name": "com.codingclub.hqbithq"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "752694887862-uugo6utruml98v04fevvh86g8ipvb466.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.codingclub.hqbithq",
+            "certificate_hash": "76e795d260f4bba0621208a364b86f0e6bdc2300"
+          }
+        },
+        {
+          "client_id": "752694887862-41vl167dthjqeptqdss3deveo1tdg6n8.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDXjh0RHnSOecDSAIVyiAu70b98APWpTMY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "752694887862-41vl167dthjqeptqdss3deveo1tdg6n8.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

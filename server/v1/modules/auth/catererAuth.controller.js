@@ -1,14 +1,15 @@
 import crypto from "crypto";
-import { OAuth2Client } from "google-auth-library";
+import { getHqAuth } from "./hqFirebaseAdmin.js";
 
 import { Hostel } from "../hostel/hostelModel.js";
 import { Mess } from "../mess/messModel.js";
 import CatererSession from "./catererSession.model.js";
-import { googleHqClientIds } from "../../config/default.js";
+import {
+  hqCatererAllowAnyGoogleEmail,
+  hqCatererFallbackHostelName,
+} from "../../config/default.js";
 
 const REFRESH_DAYS = Number(process.env.CATERER_REFRESH_DAYS || 30);
-
-const oauthClient = new OAuth2Client();
 
 function hashRefreshToken(raw) {
   return crypto.createHash("sha256").update(raw).digest("hex");
@@ -22,19 +23,44 @@ async function resolveHostelForMess(mess) {
   return Hostel.findOne({ messId: mess._id });
 }
 
+function escapeRegex(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function resolveFallbackHostel() {
+  const configuredName = String(hqCatererFallbackHostelName || "").trim();
+  if (!configuredName) return null;
+
+  let hostel = await Hostel.findOne({ hostel_name: configuredName });
+  if (hostel) return hostel;
+
+  hostel = await Hostel.findOne({
+    hostel_name: { $regex: `^${escapeRegex(configuredName)}$`, $options: "i" },
+  });
+  if (hostel) return hostel;
+
+  if (configuredName.toLowerCase().startsWith("lohit")) {
+    hostel = await Hostel.findOne({
+      hostel_name: { $regex: "^lohit( hostel)?$", $options: "i" },
+    });
+  }
+  return hostel;
+}
+
+async function resolveMessForHostel(hostel) {
+  if (hostel?.messId) {
+    const linkedMess = await Mess.findById(hostel.messId);
+    if (linkedMess) return linkedMess;
+  }
+  return Mess.findOne({ hostelId: hostel._id });
+}
+
 /**
  * POST /api/auth/caterer/google
  * Body: { idToken: string }
  */
 export const catererGoogleLoginHandler = async (req, res, next) => {
   try {
-    if (!googleHqClientIds.length) {
-      return res.status(503).json({
-        success: false,
-        message: "Caterer Google login is not configured (GOOGLE_HQ_CLIENT_IDS)",
-      });
-    }
-
     const { idToken } = req.body || {};
     if (!idToken || typeof idToken !== "string") {
       return res.status(400).json({
@@ -43,55 +69,65 @@ export const catererGoogleLoginHandler = async (req, res, next) => {
       });
     }
 
-    let payload;
+    let decoded;
     try {
-      const ticket = await oauthClient.verifyIdToken({
-        idToken,
-        audience: googleHqClientIds,
-      });
-      payload = ticket.getPayload();
+      decoded = await getHqAuth().verifyIdToken(idToken);
     } catch (err) {
       console.error("catererGoogleLogin verifyIdToken:", err?.message || err);
       return res.status(401).json({
         success: false,
-        message: "Invalid Google token",
+        message: "Invalid Firebase token",
       });
     }
 
-    const email = (payload.email || "").trim().toLowerCase();
+    const email = (decoded?.email || "").trim().toLowerCase();
     if (!email) {
       return res.status(401).json({
         success: false,
-        message: "Google account has no email",
+        message: "Signed-in account has no email",
       });
     }
-    if (payload.email_verified === false) {
+    if (decoded?.email_verified === false) {
       return res.status(401).json({
         success: false,
         message: "Google email is not verified",
       });
     }
 
-    const mess = await Mess.findOne({ managerGoogleEmail: email });
-    if (!mess) {
-      return res.status(403).json({
-        success: false,
-        message: "This Google account is not registered for any caterer (mess)",
-      });
-    }
+    let mess = await Mess.findOne({ managerGoogleEmail: email });
+    let hostel = mess ? await resolveHostelForMess(mess) : null;
+    let authType = "caterer_google";
 
-    const hostel = await resolveHostelForMess(mess);
-    if (!hostel) {
-      return res.status(403).json({
-        success: false,
-        message: "No hostel linked to this caterer",
-      });
+    if (!mess || !hostel) {
+      if (!hqCatererAllowAnyGoogleEmail) {
+        const message = !mess
+          ? "This Google account is not registered for any caterer (mess)"
+          : "No hostel linked to this caterer";
+        return res.status(403).json({ success: false, message });
+      }
+
+      hostel = await resolveFallbackHostel();
+      if (!hostel) {
+        return res.status(503).json({
+          success: false,
+          message:
+            "Reviewer fallback hostel is not configured. Set HQ_CATERER_FALLBACK_HOSTEL_NAME to an existing hostel.",
+        });
+      }
+
+      mess = await resolveMessForHostel(hostel);
+      if (!mess) {
+        return res.status(503).json({
+          success: false,
+          message: "No mess linked to fallback hostel",
+        });
+      }
+
+      authType = "caterer_google_fallback";
     }
 
     const rawRefresh = crypto.randomBytes(48).toString("base64url");
-    const expiresAt = new Date(
-      Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000,
-    );
+    const expiresAt = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
 
     await CatererSession.create({
       mess: mess._id,
@@ -110,7 +146,7 @@ export const catererGoogleLoginHandler = async (req, res, next) => {
       refreshToken: rawRefresh,
       hostelName: hostel.hostel_name,
       messId: mess._id.toString(),
-      authType: "caterer_google",
+      authType,
     });
   } catch (err) {
     console.error("catererGoogleLoginHandler:", err);
@@ -169,9 +205,7 @@ export const catererRefreshHandler = async (req, res, next) => {
     await session.save();
 
     const rawRefresh = crypto.randomBytes(48).toString("base64url");
-    const expiresAt = new Date(
-      Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000,
-    );
+    const expiresAt = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
 
     await CatererSession.create({
       mess: session.mess,
@@ -205,7 +239,9 @@ export const catererLogoutHandler = async (req, res, next) => {
   try {
     const { refreshToken } = req.body || {};
     if (!refreshToken || typeof refreshToken !== "string") {
-      return res.status(400).json({ success: false, message: "refreshToken is required" });
+      return res
+        .status(400)
+        .json({ success: false, message: "refreshToken is required" });
     }
 
     const hashed = hashRefreshToken(refreshToken);

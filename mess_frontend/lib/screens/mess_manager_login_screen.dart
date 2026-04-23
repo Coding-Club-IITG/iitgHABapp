@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 
 import '../apis/caterer_auth_api.dart';
-import '../config/google_oauth_config.dart';
 import '../providers/auth_controller.dart';
 import '../constants/endpoint.dart';
 
@@ -145,36 +145,14 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       if (kDebugMode) debugPrint('[HQ GoogleLogin] $msg');
     }
 
-    if (kGoogleServerClientId.isEmpty) {
-      ScaffoldMessenger.of(sheetContext).showSnackBar(
-        const SnackBar(
-          content: Center(
-            child: Text(
-              'Build with --dart-define=GOOGLE_SERVER_CLIENT_ID=your-web-client-id',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white),
-            ),
-          ),
-          backgroundColor: Colors.black,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.all(50),
-          duration: Duration(milliseconds: 3000),
-        ),
-      );
-      return;
-    }
-
-    log('Starting Google sign-in. serverClientId length=${kGoogleServerClientId.length}');
+    log('Starting Google sign-in (Firebase).');
     _showLoader(sheetContext);
     final navigator = Navigator.of(sheetContext);
     final messenger = ScaffoldMessenger.of(sheetContext);
     final auth = Provider.of<AuthController>(sheetContext, listen: false);
 
     try {
-      final gsi = GoogleSignIn(
-        scopes: const ['email', 'openid'],
-        serverClientId: kGoogleServerClientId,
-      );
+      final gsi = GoogleSignIn(scopes: const ['email']);
       log('Calling GoogleSignIn.signIn()');
       final account = await gsi.signIn();
       if (account == null) {
@@ -185,15 +163,16 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       log('Google account selected: ${account.email}');
 
       final googleAuth = await account.authentication;
+      final accessToken = googleAuth.accessToken;
       final idToken = googleAuth.idToken;
-      if (idToken == null || idToken.isEmpty) {
-        log('Missing ID token (idToken null/empty). accessTokenPresent=${googleAuth.accessToken != null}');
+      if (accessToken == null || accessToken.isEmpty || idToken == null || idToken.isEmpty) {
+        log('Missing Google tokens. accessTokenPresent=${accessToken != null} idTokenPresent=${idToken != null}');
         navigator.pop();
         messenger.showSnackBar(
           const SnackBar(
             content: Center(
               child: Text(
-                'Could not get Google ID token',
+                'Could not complete Google sign-in',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.white),
               ),
@@ -206,10 +185,64 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
         );
         return;
       }
-      log('Received ID token. length=${idToken.length} suffix=${idToken.substring(idToken.length - 6)}');
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: accessToken,
+        idToken: idToken,
+      );
+
+      log('Signing into Firebase with Google credential');
+      final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+      final user = userCred.user;
+      if (user == null) {
+        log('FirebaseAuth returned null user');
+        navigator.pop();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Center(
+              child: Text(
+                'Firebase sign-in failed',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            backgroundColor: Colors.black,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(50),
+            duration: Duration(milliseconds: 3000),
+          ),
+        );
+        return;
+      }
+
+      final String? firebaseIdToken = await user.getIdToken(true);
+      if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
+        log('Missing Firebase ID token');
+        navigator.pop();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Center(
+              child: Text(
+                'Could not get Firebase ID token',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            backgroundColor: Colors.black,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(50),
+            duration: Duration(milliseconds: 3000),
+          ),
+        );
+        return;
+      }
+      final firebaseToken = firebaseIdToken;
+      log(
+        'Received Firebase ID token. length=${firebaseToken.length} suffix=${firebaseToken.substring(firebaseToken.length - 6)}',
+      );
 
       log('Calling backend: ${AuthEndpoints.catererGoogle}');
-      final data = await CatererAuthApi.loginWithGoogleIdToken(idToken);
+      final data = await CatererAuthApi.loginWithGoogleIdToken(firebaseToken);
       log('Backend response keys=${data.keys.toList()} success=${data['success']}');
       if (data['success'] != true) {
         navigator.pop();
@@ -235,12 +268,12 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
 
       final token = data['token']?.toString();
       final refresh = data['refreshToken']?.toString();
-      final hostelName = data['hostelName']?.toString();
-      if (token == null ||
-          refresh == null ||
-          hostelName == null ||
-          hostelName.isEmpty) {
-        log('Invalid server response. tokenPresent=${token != null} refreshPresent=${refresh != null} hostelName="$hostelName"');
+      final serverHostelName = data['hostelName']?.toString();
+      final hostelName = (serverHostelName == null || serverHostelName.isEmpty)
+          ? 'Lohit'
+          : serverHostelName;
+      if (token == null || refresh == null) {
+        log('Invalid server response. tokenPresent=${token != null} refreshPresent=${refresh != null} hostelName="$serverHostelName"');
         navigator.pop();
         messenger.showSnackBar(
           const SnackBar(
