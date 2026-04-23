@@ -332,38 +332,44 @@ export const getUpcomingGalaWithMenusForHostel = async (req, res) => {
 
     const startOfToday = getIstStartOfToday();
 
-    const gala = await GalaDinner.findOne({
+    // Find the next upcoming gala *that this hostel participates in*.
+    // There can be upcoming galas scheduled for other hostels only; SMC should see
+    // the next one that has menus for their hostel.
+    const upcomingGalas = await GalaDinner.find({
       date: { $gte: startOfToday },
     })
       .sort({ date: 1 })
+      .limit(30)
       .lean();
 
-    if (!gala) {
+    if (!upcomingGalas.length) {
       return res.status(200).json({ galaDinner: null, menus: [] });
     }
 
-    const menus = await GalaDinnerMenu.find({
-      galaDinnerId: gala._id,
-      hostelId,
-    })
-      .populate("qrCode", "qr_base64 qr_string")
-      .lean();
+    for (const gala of upcomingGalas) {
+      const menus = await GalaDinnerMenu.find({
+        galaDinnerId: gala._id,
+        hostelId,
+      })
+        .populate("qrCode", "qr_base64 qr_string")
+        .lean();
 
-    const menusWithItems = await Promise.all(
-      menus.map(async (m) => {
-        const items = await MenuItem.find({ galaMenuId: m._id }).lean();
-        return { ...m, items };
-      }),
-    );
+      if (!menus.length) continue;
 
-    if (!menusWithItems.length) {
-      return res.status(200).json({ galaDinner: null, menus: [] });
+      const menusWithItems = await Promise.all(
+        menus.map(async (m) => {
+          const items = await MenuItem.find({ galaMenuId: m._id }).lean();
+          return { ...m, items };
+        }),
+      );
+
+      return res.status(200).json({
+        galaDinner: gala,
+        menus: menusWithItems,
+      });
     }
 
-    return res.status(200).json({
-      galaDinner: gala,
-      menus: menusWithItems,
-    });
+    return res.status(200).json({ galaDinner: null, menus: [] });
   } catch (error) {
     console.error("getUpcomingGalaWithMenusForHostel:", error);
     return res
