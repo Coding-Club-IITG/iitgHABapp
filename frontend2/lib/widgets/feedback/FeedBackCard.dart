@@ -48,9 +48,6 @@ class _FeedbackCardState extends State<FeedbackCard> {
   }
 
   Future<void> _checkFeedbackStatus() async {
-    if (mounted && _windowOpen) {
-      setState(() => _loading = true);
-    }
     try {
       final dio = DioClient().dio;
 
@@ -186,8 +183,10 @@ class _FeedbackCardState extends State<FeedbackCard> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('How did the mess do this month?',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          const Text(
+            'How did the mess do this month?',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
           const SizedBox(height: 4),
           const Text("You can help the mess team serve better meals.",
               style: TextStyle(color: Colors.black54)),

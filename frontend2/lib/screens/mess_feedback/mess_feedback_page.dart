@@ -71,7 +71,7 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
     final instance = await SharedPreferences.getInstance();
     if (!mounted) return;
     final provider = Provider.of<FeedbackProvider>(context, listen: false);
-    provider.isSMC = instance.getBool('isSMC') ?? false;
+    provider.loadSMCStatus(instance.getBool('isSMC') ?? false);
     setState(() => _loading = false);
   }
 
@@ -171,34 +171,34 @@ class _MessFeedbackPageState extends State<MessFeedbackPage> {
                   ),
                 ),
                 Center(
-                  child: GestureDetector(
-                    onTap: provider.isComplete()
-                        ? () => Navigator.push(context,
-                            MaterialPageRoute(builder: (_) => const CommentPage()))
-                        : null,
-                    child: Container(
-                      width: 358,
-                      height: 54,
-                      margin: const EdgeInsets.symmetric(vertical: 4),
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12, horizontal: 10),
-                      decoration: BoxDecoration(
-                        color: const Color.fromRGBO(76, 78, 219, 1),
-                        borderRadius: BorderRadius.circular(9999), // pill shape
+                  child: SizedBox(
+                    width: 358,
+                    height: 54,
+                    child: ElevatedButton(
+                      onPressed: provider.isComplete()
+                          ? () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const CommentPage(),
+                                ),
+                              )
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color.fromRGBO(76, 78, 219, 1),
+                        disabledBackgroundColor: const Color(0xFFD9D9D9),
+                        foregroundColor: Colors.white,
+                        disabledForegroundColor: const Color(0xFF7A7A7A),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(9999),
+                        ),
                       ),
-                      child: const Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          SizedBox(width: 12),
-                          Text(
-                            'Next',
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
+                      child: const Text(
+                        'Next',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),

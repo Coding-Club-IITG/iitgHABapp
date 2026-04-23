@@ -15,9 +15,11 @@ import '../models/mess_menu_model.dart';
 import '../providers/hostels.dart';
 import '../models/mess_info_model.dart';
 import '../providers/mess_info_provider.dart';
+import '../providers/notification_provider.dart';
 import '../utils/meal_countdown_text.dart';
 import '../widgets/common/hostel_logo.dart';
 import '../widgets/common/shimmer_host.dart';
+import '../widgets/feedback/FeedBackCard.dart';
 import '../widgets/microsoft_required_dialog.dart';
 import 'leave_application_list_screen.dart';
 import 'mess_preference.dart';
@@ -69,6 +71,28 @@ class _MessScreenState extends State<MessScreen> {
 
   bool _isLoading = true;
   bool _startedLoading = false;
+  bool _isFeedbackWindowLive = false;
+  late bool _lastFeedbackRefreshTick;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastFeedbackRefreshTick = globalNotificationProvider.feedbackRefresh;
+    globalNotificationProvider.addListener(_onGlobalNotificationUpdated);
+  }
+
+  @override
+  void dispose() {
+    globalNotificationProvider.removeListener(_onGlobalNotificationUpdated);
+    super.dispose();
+  }
+
+  void _onGlobalNotificationUpdated() {
+    final currentTick = globalNotificationProvider.feedbackRefresh;
+    if (currentTick == _lastFeedbackRefreshTick) return;
+    _lastFeedbackRefreshTick = currentTick;
+    _refreshAfterFeedbackSubmission();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,13 +131,22 @@ class _MessScreenState extends State<MessScreen> {
               ),
             ),
           ),
-          const Expanded(
+          Expanded(
             child: SingleChildScrollView(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  SizedBox(height: 20),
-                  _MenuSection(),
+                  const SizedBox(height: 20),
+                  if (_isFeedbackWindowLive) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 16),
+                      child: FeedbackCard(),
+                    ),
+                    const SizedBox(height: 20),
+                    const _MessScreenSectionDivider(),
+                    const SizedBox(height: 20),
+                  ],
+                  const _MenuSection(),
                 ],
               ),
             ),
@@ -132,11 +165,41 @@ class _MessScreenState extends State<MessScreen> {
   }
 
   Future<void> _loadData() async {
-    await _fetchCurrSubscrMess();
+    await Future.wait([
+      _fetchCurrSubscrMess(),
+      _fetchFeedbackWindowStatus(),
+    ]);
     if (!mounted) return;
     setState(() {
       _isLoading = false;
     });
+  }
+
+  Future<void> _refreshAfterFeedbackSubmission() async {
+    if (!mounted) return;
+    setState(() {
+      _isLoading = true;
+    });
+
+    await Future.wait([
+      _fetchCurrSubscrMess(),
+      _fetchFeedbackWindowStatus(),
+    ]);
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _fetchFeedbackWindowStatus() async {
+    try {
+      final dio = DioClient().dio;
+      final res = await dio.get(MessFeedback.feedbackSettings);
+      _isFeedbackWindowLive = res.data['isEnabled'] == true;
+    } catch (_) {
+      _isFeedbackWindowLive = false;
+    }
   }
 
   Future<void> _fetchCurrSubscrMess() async {
@@ -1369,12 +1432,65 @@ class _MessScreenInitialLoading extends StatelessWidget {
               child: SingleChildScrollView(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
-                  child: _MessMenuLoadingSkeleton(box: box),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _MessFeedbackCardLoadingSkeleton(box: box),
+                      const SizedBox(height: 20),
+                      const _MessScreenSectionDivider(),
+                      const SizedBox(height: 20),
+                      _MessMenuLoadingSkeleton(box: box),
+                    ],
+                  ),
                 ),
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MessFeedbackCardLoadingSkeleton extends StatelessWidget {
+  final ShimmerBoxBuilder box;
+
+  const _MessFeedbackCardLoadingSkeleton({required this.box});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: _MessScreenState.surface,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: _MessScreenState.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          box(height: 20, width: 260),
+          const SizedBox(height: 10),
+          box(height: 14, width: 220),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              box(
+                height: 18,
+                width: 18,
+                borderRadius: const BorderRadius.all(Radius.circular(9)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: box(height: 16, width: double.infinity)),
+            ],
+          ),
+          const SizedBox(height: 14),
+          box(
+            height: 48,
+            width: double.infinity,
+            borderRadius: BorderRadius.circular(24),
+          ),
+        ],
       ),
     );
   }

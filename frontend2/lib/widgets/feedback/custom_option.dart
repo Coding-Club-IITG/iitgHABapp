@@ -6,7 +6,9 @@ Widget customOption({
   required String value,
   required Function(String) onChanged,
 }) {
-  bool isSelected = groupValue == value;
+  final isSelected = groupValue == value;
+  const primary = Color(0xFF4C4EDB);
+  const textPrimary = Color(0xFF2E2F31);
 
   return GestureDetector(
     onTap: () => onChanged(value),
@@ -26,7 +28,7 @@ Widget customOption({
         children: [
           Icon(
             isSelected ? Icons.check_circle : Icons.circle_outlined,
-            color: isSelected ? const Color(0xFF4C4BD9) : Colors.grey,
+            color: isSelected ? primary : Colors.grey,
             size: 18*7/6,
           ),
 
@@ -35,7 +37,7 @@ Widget customOption({
             text,
             style: TextStyle(
               fontSize: 16,
-              color: isSelected ? const Color(0xFF4C4BD9) : Colors.black,
+              color: isSelected ? primary : textPrimary,
               fontWeight: FontWeight.w500,
             ),
           ),
