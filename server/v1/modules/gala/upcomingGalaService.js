@@ -9,25 +9,25 @@ import { getIstStartOfToday } from "../../utils/date.js";
 export async function getUpcomingGalaData(subscribedHostelId) {
   const startOfToday = getIstStartOfToday();
 
-  const upcoming = await GalaDinner.findOne({
+  const upcomingGalas = await GalaDinner.find({
     date: { $gte: startOfToday },
   })
     .sort({ date: 1 })
+    .limit(30)
     .lean();
 
-  if (!upcoming) {
-    return null;
+  if (!upcomingGalas.length) return null;
+
+  if (!subscribedHostelId) return upcomingGalas[0];
+
+  for (const gala of upcomingGalas) {
+    const participates = await GalaDinnerMenu.exists({
+      galaDinnerId: gala._id,
+      hostelId: subscribedHostelId,
+    });
+    if (participates) return gala;
   }
 
-  if (!subscribedHostelId) {
-    return upcoming;
-  }
-
-  const participates = await GalaDinnerMenu.exists({
-    galaDinnerId: upcoming._id,
-    hostelId: subscribedHostelId,
-  });
-
-  return participates ? upcoming : null;
+  return null;
 }
 
