@@ -139,6 +139,42 @@ export const getAllBillsByMonth = async (month, year) => {
   }
 };
 
+// Get available month/year snapshots for which bills exist
+export const getBillSnapshotMonths = async () => {
+  try {
+    const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
+    const response = await axios.get(`${BACKEND_URL}/mess/bills/months`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.data?.months || [];
+  } catch (error) {
+    console.error("Error fetching bill snapshot months:", error);
+    throw error;
+  }
+};
+
+export const downloadMessBillExcel = async ({ hostelId, month, year }) => {
+  try {
+    const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
+    const response = await axios.get(
+      `${BACKEND_URL}/mess/bills/download`,
+      {
+        params: { hostelId, month, year },
+        responseType: "blob",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      },
+    );
+    return response;
+  } catch (error) {
+    console.error("Error downloading mess bill excel:", error);
+    throw error;
+  }
+};
+
 export const getMessShutdowns = async (hostelId) => {
   try {
     const response = await axios.get(`${BACKEND_URL}/mess/shutdowns`, {

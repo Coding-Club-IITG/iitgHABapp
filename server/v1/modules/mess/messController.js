@@ -1223,3 +1223,61 @@ export const getAllMessBillsByMonth = async (req, res) => {
     return res.status(500).json({ message: "Internal server error" });
   }
 };
+
+const MONTHS = [
+  "January",
+  "February",
+  "March",
+  "April",
+  "May",
+  "June",
+  "July",
+  "August",
+  "September",
+  "October",
+  "November",
+  "December",
+];
+
+function monthNameToIndex(name) {
+  if (!name) return -1;
+  const idx = MONTHS.findIndex(
+    (m) => m.toLowerCase() === String(name).trim().toLowerCase(),
+  );
+  return idx;
+}
+
+/**
+ * Return available bill "snapshots" months (distinct month/year present in MessBill).
+ * Intended for HAB bills dropdown.
+ */
+export const getAvailableMessBillMonths = async (req, res) => {
+  try {
+    const raw = await MessBill.aggregate([
+      { $group: { _id: { month: "$month", year: "$year" } } },
+      {
+        $project: {
+          _id: 0,
+          month: "$_id.month",
+          year: "$_id.year",
+        },
+      },
+    ]);
+
+    const months = (raw || [])
+      .filter((x) => x?.month && x?.year != null)
+      .map((x) => ({
+        month: String(x.month),
+        year: Number(x.year),
+        _monthIndex: monthNameToIndex(x.month),
+      }))
+      .filter((x) => x._monthIndex >= 0 && Number.isFinite(x.year))
+      .sort((a, b) => (b.year - a.year) || (b._monthIndex - a._monthIndex))
+      .map(({ _monthIndex, ...rest }) => rest);
+
+    return res.status(200).json({ months });
+  } catch (error) {
+    console.error("Error fetching available mess bill months:", error);
+    return res.status(500).json({ message: "Internal server error" });
+  }
+};
