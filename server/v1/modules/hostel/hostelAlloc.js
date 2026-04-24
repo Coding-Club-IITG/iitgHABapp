@@ -59,6 +59,73 @@ export async function updateAllocation(req, res) {
   }
 }
 
+export async function upsertAllocation(req, res) {
+  try {
+    const { rollno, hostelId, currentSubscribedMessId, email } = req.body || {};
+
+    const roll = String(rollno || "").trim();
+    const hostelIdStr = String(hostelId || "").trim();
+    const emailStr = String(email || "").trim();
+    const currentMessIdStr = String(currentSubscribedMessId || "").trim();
+
+    if (!roll || !hostelIdStr) {
+      return res.status(400).json({
+        message: "rollno and hostelId are required",
+      });
+    }
+
+    const hostel = await Hostel.findById(hostelIdStr).select("_id").lean();
+    if (!hostel) {
+      return res.status(400).json({ message: "Invalid hostelId" });
+    }
+
+    let currentSubscribedMess = null;
+    if (currentMessIdStr) {
+      currentSubscribedMess = await Hostel.findById(currentMessIdStr)
+        .select("_id")
+        .lean();
+      if (!currentSubscribedMess) {
+        return res.status(400).json({ message: "Invalid currentSubscribedMessId" });
+      }
+    }
+
+    const updateData = {
+      rollno: roll,
+      hostel: hostel._id,
+      // If left empty, default to hostel (as requested).
+      current_subscribed_mess: (currentSubscribedMess?._id ?? hostel._id),
+    };
+
+    // Optional email
+    if (emailStr) {
+      updateData.email = emailStr.toLowerCase();
+    } else {
+      updateData.email = null;
+    }
+
+    const updated = await UserAllocHostel.findOneAndUpdate(
+      { rollno: roll },
+      { $set: updateData },
+      { upsert: true, new: true, runValidators: true },
+    )
+      .populate("hostel", "hostel_name")
+      .populate("current_subscribed_mess", "hostel_name");
+
+    return res.status(200).json({
+      message: "Allocation upserted",
+      allocation: updated,
+    });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({
+        message: "Duplicate key: roll number or email already exists",
+      });
+    }
+    console.error("Error upserting allocation:", error);
+    return res.status(500).json({ message: "Failed to upsert allocation" });
+  }
+}
+
 export async function uploadData(req, res) {
   try {
     if (!req.file || !req.file.path) {

@@ -105,3 +105,25 @@ export const updateAllocation = async (id, email) => {
     throw error;
   }
 };
+
+export const upsertAllocation = async ({
+  rollno,
+  hostelId,
+  currentSubscribedMessId,
+  email,
+}) => {
+  try {
+    const token =
+      localStorage.getItem("admin_token") || localStorage.getItem("token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await axios.post(
+      `${BACKEND_URL}/hostel/allocations/upsert`,
+      { rollno, hostelId, currentSubscribedMessId, email },
+      { headers },
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error upserting allocation:", error);
+    throw error;
+  }
+};

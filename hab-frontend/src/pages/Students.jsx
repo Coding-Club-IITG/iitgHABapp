@@ -221,48 +221,13 @@ const Students = () => {
               </div>
             </Tooltip>
 
-            {/* Allocate Hostel (CSV) */}
-            <Tooltip title="Upload CSV to allocate hostel to students by roll number">
-              <Button
-                icon={<UploadOutlined />}
-                onClick={() => setAllocOpen(true)}
-                style={{ borderRadius: 6, height: 40, fontWeight: 500 }}
-              >
-                Allocate Hostel
-              </Button>
-            </Tooltip>
+            {/* Hostel allocation CSV upload moved to Hostel Allocations page */}
           </div>
         </div>
 
         <StudentList refreshTrigger={refreshTrigger} />
       </div>
 
-      {/* Allocate Hostel Modal */}
-      <Modal
-        title="Allocate Hostel"
-        open={allocOpen}
-        onCancel={() => setAllocOpen(false)}
-        footer={null}
-        destroyOnClose
-      >
-        <Typography.Paragraph style={{ marginTop: 0 }}>
-          Upload a CSV with columns <b>Roll Number</b> and <b>Hostel</b>. Hostel
-          names must match existing hostel names.
-        </Typography.Paragraph>
-        <Upload {...uploadProps}>
-          <Button icon={<UploadOutlined />}>Select CSV</Button>
-        </Upload>
-        <div style={{ marginTop: 16 }}>
-          <Button
-            type="primary"
-            onClick={handleAllocUpload}
-            loading={uploading}
-            disabled={fileList.length === 0}
-          >
-            {uploading ? "Uploading..." : "Upload and Process"}
-          </Button>
-        </div>
-      </Modal>
     </div>
   );
 };

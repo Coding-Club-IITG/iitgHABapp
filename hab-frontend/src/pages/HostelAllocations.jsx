@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { getAllocations, updateAllocation } from "../apis/hostel";
+import React, { useEffect, useMemo, useState } from "react";
+import { getAllocations, getAllHostels, updateAllocation, upsertAllocation } from "../apis/hostel";
 
 const HostelAllocations = () => {
   const [allocations, setAllocations] = useState([]);
@@ -10,6 +10,24 @@ const HostelAllocations = () => {
   const [editId, setEditId] = useState(null);
   const [editEmail, setEditEmail] = useState("");
   const [updating, setUpdating] = useState(false);
+
+  const [hostels, setHostels] = useState([]);
+  const [entryRoll, setEntryRoll] = useState("");
+  const [entryHostelId, setEntryHostelId] = useState("");
+  const [entryCurrentMessId, setEntryCurrentMessId] = useState("");
+  const [entryEmail, setEntryEmail] = useState("");
+  const [entrySaving, setEntrySaving] = useState(false);
+
+  const hostelOptions = useMemo(
+    () =>
+      (hostels || [])
+        .map((h) => ({
+          id: String(h._id),
+          name: h.hostel_name || String(h._id),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name)),
+    [hostels],
+  );
 
   const fetchAllocations = async (currentPage = 1, searchQuery = "") => {
     setLoading(true);
@@ -26,6 +44,19 @@ const HostelAllocations = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // Load hostels for dropdowns (best-effort).
+    (async () => {
+      try {
+        const data = await getAllHostels();
+        const list = data?.hostels || data || [];
+        if (Array.isArray(list)) setHostels(list);
+      } catch (_) {
+        setHostels([]);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -72,6 +103,34 @@ const HostelAllocations = () => {
     }
   };
 
+  const handleUpsert = async (e) => {
+    e.preventDefault();
+    const roll = entryRoll.trim();
+    if (!roll || !entryHostelId) {
+      alert("Roll number and hostel are required");
+      return;
+    }
+    setEntrySaving(true);
+    try {
+      await upsertAllocation({
+        rollno: roll,
+        hostelId: entryHostelId,
+        currentSubscribedMessId: entryCurrentMessId || undefined,
+        email: entryEmail.trim() || undefined,
+      });
+      setEntryRoll("");
+      setEntryHostelId("");
+      setEntryCurrentMessId("");
+      setEntryEmail("");
+      // Refresh current list
+      fetchAllocations(1, search);
+    } catch (err) {
+      alert(err.response?.data?.message || "Failed to save allocation");
+    } finally {
+      setEntrySaving(false);
+    }
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 flex flex-col h-full min-h-[calc(100vh-8rem)]">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -93,6 +152,65 @@ const HostelAllocations = () => {
             className="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700"
           >
             Search
+          </button>
+        </form>
+      </div>
+
+      <div className="border border-gray-200 rounded-lg p-4 mb-6 bg-gray-50">
+        <div className="flex items-start justify-between gap-4 flex-col lg:flex-row">
+          <div className="flex-1">
+            <h2 className="text-sm font-semibold text-gray-900 mb-1">
+              Add / Update a single allocation
+            </h2>
+            <p className="text-xs text-gray-600">
+              Email and current subscribed mess are optional. If current subscribed mess is left empty, it will default to the selected hostel.
+            </p>
+          </div>
+        </div>
+
+        <form onSubmit={handleUpsert} className="mt-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3">
+          <input
+            value={entryRoll}
+            onChange={(e) => setEntryRoll(e.target.value)}
+            placeholder="Roll number"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <select
+            value={entryHostelId}
+            onChange={(e) => setEntryHostelId(e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Select hostel</option>
+            {hostelOptions.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+          </select>
+          <select
+            value={entryCurrentMessId}
+            onChange={(e) => setEntryCurrentMessId(e.target.value)}
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          >
+            <option value="">Subscribed mess (optional)</option>
+            {hostelOptions.map((h) => (
+              <option key={h.id} value={h.id}>
+                {h.name}
+              </option>
+            ))}
+          </select>
+          <input
+            value={entryEmail}
+            onChange={(e) => setEntryEmail(e.target.value)}
+            placeholder="Email (optional)"
+            className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <button
+            type="submit"
+            disabled={entrySaving}
+            className="rounded-md bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-60"
+          >
+            {entrySaving ? "Saving..." : "Save"}
           </button>
         </form>
       </div>

@@ -29,7 +29,12 @@ import {
   setHMCMembers,
   setHostelPassword,
 } from "./hostelController.js";
-import { uploadData, getAllocations, updateAllocation } from "./hostelAlloc.js";
+import {
+  uploadData,
+  getAllocations,
+  updateAllocation,
+  upsertAllocation,
+} from "./hostelAlloc.js";
 
 const uploadDir = path.join(process.cwd(), "uploads");
 if (!fs.existsSync(uploadDir)) {
@@ -41,6 +46,7 @@ const hostelRouter = express.Router();
 
 hostelRouter.get("/allocations", authenticateHabJWT, getAllocations);
 hostelRouter.put("/allocations/:id", authenticateHabJWT, updateAllocation);
+hostelRouter.post("/allocations/upsert", authenticateHabJWT, upsertAllocation);
 /**
  * @swagger
  * /api/hostel:
