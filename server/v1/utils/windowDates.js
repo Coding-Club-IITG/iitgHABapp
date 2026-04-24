@@ -17,7 +17,7 @@ export const getFeedbackWindowDates = (
   } else {
     // All other months
     startDay = 23;
-    endDay = 25;
+    endDay = 26;
   }
 
   // Create dates in local time (IST)
