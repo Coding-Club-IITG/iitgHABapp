@@ -31,6 +31,7 @@ export const mobileUrl = process.env.MOBILE_URL;
 
 export const habEmail = process.env.HAB_EMAIL;
 export const habEmail2 = process.env.HAB_EMAIL_2;
+export const habEmail3 = process.env.HAB_EMAIL3;
 export const habFrontendUrl = process.env.HAB_FRONTEND_URL;
 export const hostelFrontendUrl = process.env.HOSTEL_FRONTEND_URL;
 export const smcFrontendUrl = process.env.SMC_FRONTEND_URL;

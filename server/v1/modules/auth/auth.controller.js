@@ -22,6 +22,7 @@ import {
   webRedirectUri,
   habEmail,
   habEmail2,
+  habEmail3,
   habFrontendUrl,
   hostelFrontendUrl,
   smcFrontendUrl,
@@ -380,7 +381,8 @@ export const webLoginHandler = async (req, res, next) => {
     if (loginType === "hab") {
       if (
         email.toLowerCase() !== habEmail.toLowerCase() &&
-        email.toLowerCase() !== habEmail2?.toLowerCase()
+        email.toLowerCase() !== habEmail2?.toLowerCase() &&
+        email.toLowerCase() !== habEmail3?.toLowerCase()
       )
         throw new AppError(403, "Unauthorized HAB login");
       token = jwt.sign({ hab: true, email }, adminJwtSecret, {
