@@ -337,6 +337,7 @@ export default function Caterers() {
           <th style="width:180px">Caterer Name</th>
           <th style="width:140px">Hostel</th>
           <th style="width:70px" class="center">Feedbacks</th>
+          <th style="width:90px" class="center">Feedback %</th>
           <th style="width:70px" class="center">SMC</th>
           <th style="width:70px" class="center">Breakfast</th>
           <th style="width:70px" class="center">Lunch</th>
@@ -359,6 +360,9 @@ export default function Caterers() {
       <td class="caterer-cell">${escapeHTML(r.caterer_name ?? "-")}</td>
       <td>${escapeHTML(r.hostel_name ?? "-")}</td>
       <td class="center">${r.totalUsers ?? 0}</td>
+      <td class="center">${
+        r.feedbackPercentage == null ? "-" : Number(r.feedbackPercentage).toFixed(1)
+      }</td>
       <td class="center">${r.smcUsers ?? 0}</td>
       <td class="center">${
         r.avgBreakfast == null ? "-" : Number(r.avgBreakfast).toFixed(2)
@@ -1033,6 +1037,13 @@ const compactColumns = [
     key: "totalUsers",
     width: 120,
     render: (v) => (v == null ? 0 : v),
+  },
+  {
+    title: "Feedback %",
+    dataIndex: "feedbackPercentage",
+    key: "feedbackPercentage",
+    width: 130,
+    render: (v) => (v == null ? "-" : `${Number(v).toFixed(1)}%`),
   },
   {
     title: "SMC Members",

@@ -1014,6 +1014,8 @@ export const getFeedbackLeaderboard = async (req, res) => {
     for (const [, g] of groups) {
       const subscriberCount =
         subscriberCountByCaterer.get(String(g.catererId)) || 0;
+      const feedbackPercentage =
+        subscriberCount > 0 ? (g.totalUsers / subscriberCount) * 100 : null;
       const avgBreakfast = computeMealOpi({
         mealSum: g.breakfastSum,
         responseCount: g.totalUsers,
@@ -1055,6 +1057,8 @@ export const getFeedbackLeaderboard = async (req, res) => {
         catererName: g.catererName,
         totalUsers: g.totalUsers,
         smcUsers: g.smcUsers,
+        subscriberCount,
+        feedbackPercentage,
         avgBreakfast,
         avgLunch,
         avgDinner,
