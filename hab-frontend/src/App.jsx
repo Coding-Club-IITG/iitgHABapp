@@ -12,6 +12,7 @@ import GalaDinnerPage from "./pages/GalaDinnerPage.jsx";
 import GalaDinnerDetailPage from "./pages/GalaDinnerDetailPage.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import BillsPage from "./pages/BillsPage.jsx";
+import HostelAllocations from "./pages/HostelAllocations.jsx";
 import CreateMess from "./components/CreateMess";
 import MessDetails from "./components/MessDetails";
 import MessMenu from "./components/MessMenu";
@@ -87,6 +88,10 @@ function App() {
                           <Route
                             path="/bills"
                             element={<BillsPage />}
+                          />
+                          <Route
+                            path="/allocations"
+                            element={<HostelAllocations />}
                           />
                           <Route
                             path="/gala-dinner/:galaDinnerId"

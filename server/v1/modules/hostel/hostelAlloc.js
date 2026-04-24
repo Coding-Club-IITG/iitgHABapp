@@ -4,6 +4,61 @@ import csv from "csv-parser";
 import UserAllocHostel from "./hostelAllocModel.js";
 import { Hostel } from "./hostelModel.js";
 
+export async function getAllocations(req, res) {
+  try {
+    const { search, page = 1, limit = 50 } = req.query;
+    const query = {};
+    if (search) {
+      query.rollno = { $regex: search, $options: "i" };
+    }
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    
+    const allocations = await UserAllocHostel.find(query)
+      .populate("hostel", "hostel_name")
+      .populate("current_subscribed_mess", "hostel_name")
+      .skip(skip)
+      .limit(parseInt(limit))
+      .sort({ rollno: 1 });
+      
+    const totalCount = await UserAllocHostel.countDocuments(query);
+    
+    return res.status(200).json({
+      allocations,
+      totalCount,
+      totalPages: Math.ceil(totalCount / limit),
+      currentPage: parseInt(page)
+    });
+  } catch (error) {
+    console.error("Error fetching allocations:", error);
+    return res.status(500).json({ message: "Failed to fetch allocations" });
+  }
+}
+
+export async function updateAllocation(req, res) {
+  try {
+    const { id } = req.params;
+    const { email } = req.body;
+    
+    const updated = await UserAllocHostel.findByIdAndUpdate(
+      id,
+      { $set: { email: email ? email.trim() : null } },
+      { new: true }
+    );
+    
+    if (!updated) {
+      return res.status(404).json({ message: "Allocation not found" });
+    }
+    
+    return res.status(200).json({ message: "Allocation updated", allocation: updated });
+  } catch (error) {
+    if (error.code === 11000) {
+      return res.status(400).json({ message: "Email already exists in another allocation" });
+    }
+    console.error("Error updating allocation:", error);
+    return res.status(500).json({ message: "Failed to update allocation" });
+  }
+}
+
 export async function uploadData(req, res) {
   try {
     if (!req.file || !req.file.path) {
@@ -38,9 +93,11 @@ export async function uploadData(req, res) {
             row["currentSubscribedMess"] ||
             row["current_subscribed_mess"] ||
             row["CURRENT_SUBSCRIBED_MESS"];
+          const emailRaw = row["Email"] || row["email"] || row["EMAIL"];
 
           const rollno = rollRaw ? String(rollRaw).trim() : "";
           const hostelName = hostelRaw ? String(hostelRaw).trim() : "";
+          const email = emailRaw ? String(emailRaw).trim() : "";
           const currentSubscribedMessName = currentSubscribedMessRaw
             ? String(currentSubscribedMessRaw).trim()
             : "";
@@ -64,6 +121,10 @@ export async function uploadData(req, res) {
               rollno: rollno,
               hostel: hostel._id,
             };
+
+            if (email) {
+              updateData.email = email;
+            }
 
             // Only set current_subscribed_mess if it was found
             if (currentSubscribedMess) {

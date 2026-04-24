@@ -6,6 +6,11 @@ const UserAllocHostelSchema = new mongoose.Schema({
     required: true,
     unique: true,
   },
+  email: {
+    type: String,
+    unique: true,
+    sparse: true,
+  },
   hostel: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "Hostel",
