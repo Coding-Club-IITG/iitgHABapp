@@ -45,6 +45,7 @@ import {
   getMessBill,
   downloadMessBillFile,
   getAllMessBillsByMonth,
+  getAvailableMessBillMonths,
 } from "./messController.js";
 import {
   getMessMenuByDayForSMC,
@@ -120,6 +121,9 @@ messRouter.delete("/workers/:id", authenticateAdminJWT, deleteMessWorker);
 messRouter.post("/bill/generate", authenticateAdminJWT, generateMessBill);
 messRouter.get("/bill/download", authenticateAdminJWT, downloadMessBillFile);
 messRouter.get("/bill", authenticateAdminJWT, getMessBill);
+messRouter.get("/bills/months", authenticateHabJWT, getAvailableMessBillMonths);
+// HAB: download bill Excel without exposing OneDrive link
+messRouter.get("/bills/download", authenticateHabJWT, downloadMessBillFile);
 messRouter.get("/bills/all", authenticateHabJWT, getAllMessBillsByMonth);
 
 messRouter.get("/:id", authenticateHabJWT, getMessInfo);

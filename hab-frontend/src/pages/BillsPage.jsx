@@ -1,48 +1,60 @@
 import React, { useState, useEffect } from "react";
-import { getAllBillsByMonth } from "../apis/mess";
+import {
+  getAllBillsByMonth,
+  getBillSnapshotMonths,
+  downloadMessBillExcel,
+} from "../apis/mess";
 
 const BillsPage = () => {
-  const getAvailableMonths = () => {
-    const months = [];
-    const now = new Date();
-    const currentYear = now.getFullYear();
-    const currentMonth = now.getMonth();
+  const [availableMonths, setAvailableMonths] = useState([]);
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState(null);
 
-    // Get past 12 months (excluding current month)
-    for (let i = 11; i >= 1; i--) {
-      let month = currentMonth - i;
-      let year = currentYear;
-
-      if (month < 0) {
-        month += 12;
-        year -= 1;
-      }
-      months.push({ year, month });
-    }
-    return months.reverse();
-  };
-
-  const availableMonths = getAvailableMonths();
-  const [selectedMonthIndex, setSelectedMonthIndex] = useState(
-    availableMonths.length > 0 ? 0 : null
-  );
-
-  const selectedMonthData = selectedMonthIndex !== null ? availableMonths[selectedMonthIndex] : null;
-  const selectedMonth = selectedMonthData?.month ?? new Date().getMonth();
-  const selectedYear = selectedMonthData?.year ?? new Date().getFullYear();
+  const selectedMonthData =
+    selectedMonthIndex !== null ? availableMonths[selectedMonthIndex] : null;
 
   const [bills, setBills] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedBill, setSelectedBill] = useState(null);
+  const [downloadingHostelId, setDownloadingHostelId] = useState(null);
+
+  const buildMonthLabel = (m) => `${m.month} ${m.year}`;
+
+  const fetchAvailableMonths = async () => {
+    const now = new Date();
+    const currentMonthName = now.toLocaleString("default", { month: "long" });
+    const currentYear = now.getFullYear();
+
+    const current = { month: currentMonthName, year: currentYear };
+
+    const snapshots = await getBillSnapshotMonths(); // [{month,year}, ...] sorted desc by backend
+    const items = [current, ...(snapshots || [])];
+
+    // De-dupe by "Month Year"
+    const seen = new Set();
+    const deduped = [];
+    for (const item of items) {
+      const key = buildMonthLabel(item);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      deduped.push(item);
+    }
+
+    setAvailableMonths(deduped);
+
+    // Default: current month if present (always index 0), else first snapshot, else null
+    setSelectedMonthIndex(deduped.length ? 0 : null);
+  };
 
   const fetchBills = async () => {
-    if (selectedMonthIndex === null) return;
+    if (selectedMonthIndex === null || !selectedMonthData) return;
     try {
       setLoading(true);
       setError("");
-      const monthName = new Date(selectedYear, selectedMonth, 1).toLocaleString("default", { month: "long" });
-      const data = await getAllBillsByMonth(monthName, selectedYear);
+      const data = await getAllBillsByMonth(
+        selectedMonthData.month,
+        selectedMonthData.year,
+      );
       setBills(data);
     } catch (err) {
       setError(err.message || "Failed to fetch bills");
@@ -51,9 +63,65 @@ const BillsPage = () => {
     }
   };
 
+  const extractFilename = (contentDisposition) => {
+    if (!contentDisposition) return null;
+    // content-disposition: attachment; filename="mess-bill_March_2026.xlsx"
+    const m = /filename\*=UTF-8''([^;]+)|filename="?([^"]+)"?/i.exec(
+      String(contentDisposition),
+    );
+    const raw = m?.[1] || m?.[2];
+    if (!raw) return null;
+    try {
+      return decodeURIComponent(raw);
+    } catch {
+      return raw;
+    }
+  };
+
+  const handleDownload = async (bill) => {
+    if (!bill?.hostelId || !selectedMonthData) return;
+    try {
+      setDownloadingHostelId(String(bill.hostelId));
+      const res = await downloadMessBillExcel({
+        hostelId: bill.hostelId,
+        month: selectedMonthData.month,
+        year: selectedMonthData.year,
+      });
+
+      const blob = new Blob([res.data], {
+        type:
+          res.headers?.["content-type"] ||
+          "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        extractFilename(res.headers?.["content-disposition"]) ||
+        `mess-bill_${bill.hostel_name || "hostel"}_${selectedMonthData.month}_${selectedMonthData.year}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      setError(e?.message || "Failed to download bill");
+    } finally {
+      setDownloadingHostelId(null);
+    }
+  };
+
+  useEffect(() => {
+    fetchAvailableMonths().catch((e) => {
+      console.error(e);
+      setError(e?.message || "Failed to fetch available months");
+      setAvailableMonths([]);
+      setSelectedMonthIndex(null);
+    });
+  }, []);
+
   useEffect(() => {
     fetchBills();
-  }, [selectedMonthIndex]);
+  }, [selectedMonthIndex, availableMonths]);
 
   // Separate hostels by generation status
   const generatedBills = bills.filter(b => b.isGenerated);
@@ -87,10 +155,9 @@ const BillsPage = () => {
         >
           <option value="">-- Select Month --</option>
           {availableMonths.map((item, idx) => {
-            const monthName = new Date(item.year, item.month, 1).toLocaleString("default", { month: "long" });
             return (
               <option key={idx} value={idx}>
-                {monthName} {item.year}
+                {item.month} {item.year}
               </option>
             );
           })}
@@ -124,7 +191,7 @@ const BillsPage = () => {
                     <tr>
                       <th className="px-5 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hostel</th>
                       <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Claimed Amount</th>
-                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Expenditure</th>
+                      <th className="px-5 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Download</th>
                     </tr>
                   </thead>
                   <tbody className="bg-white divide-y divide-gray-200">
@@ -136,7 +203,23 @@ const BillsPage = () => {
                       >
                         <td className="px-5 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{bill.hostel_name}</td>
                         <td className="px-5 py-4 whitespace-nowrap text-sm text-right text-gray-700">{formatCurrency(bill.messBillClaimed)}</td>
-                        <td className="px-5 py-4 whitespace-nowrap text-sm text-right font-semibold text-gray-900">{formatCurrency(bill.totalExpenditure)}</td>
+                        <td className="px-5 py-4 whitespace-nowrap text-sm text-right">
+                          <button
+                            type="button"
+                            className="inline-flex items-center justify-center px-3 py-1.5 rounded-md border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                            disabled={
+                              downloadingHostelId === String(bill.hostelId)
+                            }
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDownload(bill);
+                            }}
+                          >
+                            {downloadingHostelId === String(bill.hostelId)
+                              ? "Downloading..."
+                              : "Download"}
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
