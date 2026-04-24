@@ -47,10 +47,6 @@ export const stationLeave = {
  * - When true, any verified Google email can sign in to caterer flow.
  * - If no mess mapping exists, user is attached to fallback hostel.
  */
-export const hqCatererAllowAnyGoogleEmail =
-  (process.env.HQ_CATERER_ALLOW_ANY_GOOGLE_EMAIL || "false")
-    .trim()
-    .toLowerCase() === "true";
+export const hqCatererAllowAnyGoogleEmail = true;
 
-export const hqCatererFallbackHostelName =
-  process.env.HQ_CATERER_FALLBACK_HOSTEL_NAME || "Lohit";
+export const hqCatererFallbackHostelName = "Lohit";
