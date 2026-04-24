@@ -198,7 +198,7 @@ const userSchema = new mongoose.Schema({
   },
   isSetupDone: {
     type: Boolean,
-    default: false,
+    default: true,
   },
   profilePictureUrl: {
     type: String,
