@@ -22,6 +22,7 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
     { key: "2", name: "Hostels", path: "/hostels", icon: <BankOutlined /> },
     { key: "3", name: "Caterers", path: "/caterers", icon: <ShopOutlined /> },
     { key: "4", name: "Students", path: "/students", icon: <UserOutlined /> },
+    { key: "4b", name: "Bills", path: "/bills", icon: <BookOutlined /> },
     {
       key: "5",
       name: "Mess Change",
