@@ -83,6 +83,11 @@ function buildAuthorizeUrl() {
 }
 
 const app = express();
+// Behind a reverse proxy (nginx / cloudflare), enable trust proxy so:
+// - req.ip reflects the real client IP
+// - express-rate-limit can safely use X-Forwarded-For
+// See: https://express-rate-limit.github.io/ERR_ERL_UNEXPECTED_X_FORWARDED_FOR/
+app.set("trust proxy", true);
 app.use(bodyParser.json({ limit: "1mb" }));
 app.use(
   compression({
