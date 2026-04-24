@@ -1,5 +1,4 @@
 import express from "express";
-import rateLimit from "express-rate-limit";
 
 const router = express.Router();
 
@@ -20,22 +19,6 @@ import {
   catererLogoutHandler,
 } from "./catererAuth.controller.js";
 import { authenticateJWT } from "../../middleware/authenticateJWT.js";
-
-const catererGoogleLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: "Too many Google sign-in attempts" },
-});
-
-const catererRefreshLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 120,
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: { success: false, message: "Too many refresh attempts" },
-});
 
 /**
  * @swagger
@@ -121,9 +104,9 @@ router.post("/guest", guestLoginHandler);
 router.post("/manager/login", managerLoginHandler);
 
 // HABit HQ: caterer Google sign-in + refresh (does not change /manager/login — used by HABit RC)
-router.post("/caterer/google", catererGoogleLimiter, catererGoogleLoginHandler);
-router.post("/caterer/refresh", catererRefreshLimiter, catererRefreshHandler);
-router.post("/caterer/logout", catererRefreshLimiter, catererLogoutHandler);
+router.post("/caterer/google", catererGoogleLoginHandler);
+router.post("/caterer/refresh", catererRefreshHandler);
+router.post("/caterer/logout", catererLogoutHandler);
 
 // Apple Sign In
 router.post("/apple", appleLoginHandler);
