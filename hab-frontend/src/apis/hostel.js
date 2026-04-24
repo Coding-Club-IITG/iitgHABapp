@@ -74,3 +74,34 @@ export const updateHostel = async (hostelId, hostelData) => {
     throw error;
   }
 };
+
+export const getAllocations = async (page = 1, search = "") => {
+  try {
+    const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await axios.get(
+      `${BACKEND_URL}/hostel/allocations?page=${page}&limit=50&search=${search}`,
+      { headers }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error fetching allocations:", error);
+    throw error;
+  }
+};
+
+export const updateAllocation = async (id, email) => {
+  try {
+    const token = localStorage.getItem("admin_token") || localStorage.getItem("token");
+    const headers = token ? { Authorization: `Bearer ${token}` } : {};
+    const response = await axios.put(
+      `${BACKEND_URL}/hostel/allocations/${id}`,
+      { email },
+      { headers }
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error updating allocation:", error);
+    throw error;
+  }
+};
