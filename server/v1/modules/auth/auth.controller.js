@@ -115,23 +115,40 @@ export const mobileRedirectHandler = async (req, res, next) => {
       tenant: userFromToken?.data?.tenantId,
     });
 
-    const roll = userFromToken.data.surname;
+    let roll = userFromToken.data.surname;
+    let allocatedHostel = null;
+    let currentSubscribedMess = null;
+
+    if (roll) {
+      console.log("[Auth][MobileRedirect][hostel-alloc][request]", { rid, roll });
+      allocatedHostel = await getHostelAlloc(roll);
+      currentSubscribedMess = await getCurrentSubscribedMess(roll);
+    } else {
+      const email = userFromToken.data.mail;
+      console.log("[Auth][MobileRedirect][hostel-alloc][request-by-email]", { rid, email });
+      if (email) {
+        const allocation = await UserAllocHostel.findOne({ email }).populate("hostel").populate("current_subscribed_mess");
+        if (allocation) {
+          roll = allocation.rollno;
+          allocatedHostel = allocation.hostel;
+          currentSubscribedMess = allocation.current_subscribed_mess || null;
+        }
+      }
+    }
+
     if (!roll) throw new AppError(401, "Sign in using Institute Account");
 
-    console.log("[Auth][MobileRedirect][hostel-alloc][request]", { rid, roll });
-    const allocatedHostel = await getHostelAlloc(roll);
     if (!allocatedHostel)
       throw new AppError(
         401,
-        "Hostel allocation not found for this roll number",
+        "Hostel allocation not found for this roll number or email",
       );
+
     console.log("[Auth][MobileRedirect][hostel-alloc][ok]", {
       rid,
       roll,
       hostelId: String(allocatedHostel?._id),
     });
-
-    const currentSubscribedMess = await getCurrentSubscribedMess(roll);
     // currentSubscribedMess is optional - if not found, User model will default to hostel
 
     let existingUser = await findUserWithEmail(userFromToken.data.mail);
