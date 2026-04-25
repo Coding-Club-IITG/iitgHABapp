@@ -13,11 +13,14 @@ const redis = new Redis(redisUrl, {
   lazyConnect: true,
 });
 
-redis.on("error", (err) => console.error("[Worker] Redis error:", err.message));
-redis.on("ready", () => console.log("[Worker] Redis connected"));
+redis.on("error", (err) =>
+  console.error("[Logger Worker] Redis error:", err.message),
+);
+
+redis.on("ready", () => console.log("[Logger Worker] Redis connected"));
 
 await redis.connect().catch((err) => {
-  console.error("[Worker] Redis connection failed:", err.message);
+  console.error("[Logger Worker] Redis connection failed:", err.message);
 });
 
 /* Postgres */
@@ -79,9 +82,9 @@ async function flush() {
       params,
     );
 
-    console.log("[Worker] Inserted", parsed.length);
+    console.log("[Logger Worker] Inserted", parsed.length);
   } catch (error) {
     // Prevents the worker from crashing and restarting in PM2 if an insert fails
-    console.log("[Worker] Error during flush:", error.message || error);
+    console.log("[Logger Worker] Error during flush:", error.message || error);
   }
 }

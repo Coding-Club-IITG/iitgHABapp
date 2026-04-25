@@ -1,14 +1,14 @@
 module.exports = {
   apps: [
     {
-      name: "gateway",
+      name: "hab-gateway",
       script: "./index.js",
       cwd: __dirname,
       env: { PORT: 3000 },
       max_memory_restart: "512M",
     },
     {
-      name: "api-v1",
+      name: "hab-api-v1",
       cwd: "./v1",
       script: "./index.js",
       watch: false,
@@ -38,7 +38,27 @@ module.exports = {
       merge_logs: true,
     },
     {
-      name: "api-v2",
+      name: "hab-worker-logger-v1",
+      cwd: "./v1",
+      script: "./workers/loggerWorker.js",
+      instances: 1,
+      exec_mode: "fork",
+      autorestart: true,
+      max_memory_restart: "512M",
+      env: { NODE_ENV: "production" },
+    },
+    {
+      name: "hab-worker-agenda-v1",
+      cwd: "./v1",
+      script: "./workers/agendaWorker.js",
+      instances: 1,
+      exec_mode: "fork",
+      autorestart: true,
+      max_memory_restart: "1G",
+      env: { NODE_ENV: "production" },
+    },
+    {
+      name: "hab-api-v2",
       script: "./index.js",
       cwd: "./v2",
       instances: "6",

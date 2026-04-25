@@ -22,7 +22,6 @@ import compression from "compression";
 import winston from "winston";
 import expressWinston from "express-winston";
 import { randomUUID } from "crypto";
-import { Worker } from "worker_threads";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 
@@ -43,35 +42,6 @@ import profileRoute from "./modules/profile/profileRoute.js";
 import festivalModeRoute from "./modules/festival_mode/festivalModeRoute.js";
 import appRoute from "./modules/app/appRoute.js";
 
-import agenda from "./utils/agenda.js";
-import {
-  defineFeedbackJobs,
-  scheduleFeedbackJobs,
-} from "./modules/feedback/autoFeedbackScheduler.js";
-import {
-  defineMessChangeJobs,
-  scheduleMessChangeJobs,
-} from "./modules/mess_change/autoMessChangeScheduler.js";
-import {
-  defineMessAllotmentJobs,
-  scheduleMessAllotmentJobs,
-} from "./modules/mess_change/allotmentScheduler.js";
-import {
-  defineMessRebateJobs,
-  scheduleMessRebateJobs,
-} from "./modules/leave/autoMessRebateScheduler.js";
-import {
-  defineRoomCleaningJobs,
-  scheduleRoomCleaningJobs,
-} from "./modules/room_cleaning/autoRoomCleaningResolveScheduler.js";
-import {
-  defineFestivalModeJobs,
-  scheduleFestivalModeJobs,
-} from "./modules/festival_mode/autoFestivalModeDisableScheduler.js";
-import {
-  defineGuestCleanupJobs,
-  scheduleGuestCleanupJobs,
-} from "./modules/auth/autoGuestCleanupScheduler.js";
 import { initializeAnonymizedUser } from "./modules/user/anonymizedUserInit.js";
 
 import { initMessManagerWs } from "./modules/mess/messManagerWs.js";
@@ -206,22 +176,6 @@ app.use(
     bodyBlacklist: ["password", "secret", "token"],
   }),
 );
-
-function startWorker() {
-  const worker = new Worker(
-    path.resolve(__dirname, "./workers/loggerWorker.js"),
-    // PM2 injects --max-old-space-size into process.execArgv
-    // Worker threads reject it (ERR_WORKER_INVALID_EXEC_ARGV)
-    { execArgv: [] },
-  );
-
-  worker.on("error", (err) => console.error("Worker Error:", err));
-  worker.on("exit", (code) => {
-    if (code !== 0) console.error(`Worker stopped with exit code ${code}`);
-  });
-}
-
-startWorker();
 
 app.use(
   "/api/docs",
@@ -417,38 +371,6 @@ async function bootstrap() {
   await mongoose.connect(mongodbUri);
   console.log("MongoDB connected");
 
-  await agenda.start();
-  console.log("[Agenda] Job processor started");
-
-  if (ENABLE_SCHEDULERS) {
-    console.log(
-      `[Agenda] Defining jobs on instance ${process.env.NODE_APP_INSTANCE}`,
-    );
-    defineFeedbackJobs();
-    defineMessChangeJobs();
-    defineMessAllotmentJobs();
-    defineMessRebateJobs();
-    defineRoomCleaningJobs();
-    defineGuestCleanupJobs();
-    defineFestivalModeJobs();
-
-    if (
-      !process.env.NODE_APP_INSTANCE ||
-      process.env.NODE_APP_INSTANCE === "0"
-    ) {
-      console.log(`[Agenda] Scheduling jobs on instance 0`);
-      scheduleFeedbackJobs();
-      scheduleMessChangeJobs();
-      scheduleMessAllotmentJobs();
-      scheduleMessRebateJobs();
-      scheduleRoomCleaningJobs();
-      scheduleGuestCleanupJobs();
-      scheduleFestivalModeJobs();
-    }
-  } else {
-    console.log("Schedulers are Disabled!");
-  }
-
   await initializeAnonymizedUser();
 
   server = app.listen(port, () => {
@@ -472,22 +394,14 @@ bootstrap().catch((err) => {
 async function gracefulShutdown(signal) {
   console.log(`\n[${signal}] Shutdown initiated...`);
 
-  // 1. Stop accepting new HTTP connections
+  // Stop accepting new HTTP connections
   if (server) {
     server.close(() => {
       console.log("✅ HTTP server closed");
     });
   }
 
-  // 2. Stop Agenda from picking up new jobs and wait for running jobs to finish
-  try {
-    await agenda.stop();
-    console.log("✅ Agenda stopped");
-  } catch (err) {
-    console.error("❌ Agenda stop error:", err);
-  }
-
-  // 3. Close Mongoose connection
+  // Close Mongoose connection
   try {
     await mongoose.connection.close();
     console.log("✅ Mongoose connection closed");
