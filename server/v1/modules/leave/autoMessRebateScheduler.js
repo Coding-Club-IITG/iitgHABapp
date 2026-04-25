@@ -125,7 +125,7 @@ export const runMessRebateJob = async () => {
   }
 };
 
-export const initializeMessRebateAutoScheduler = () => {
+export const defineMessRebateJobs = () => {
   agenda.define(
     JOB_NAME,
     async (job) => {
@@ -139,9 +139,10 @@ export const initializeMessRebateAutoScheduler = () => {
     },
     { concurrency: 1 },
   );
+};
 
-  // Every day at 01:00 AM IST
+// Every day at 01:00 AM IST
+export const scheduleMessRebateJobs = () => {
   agenda.every("0 1 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
-
   console.log("[MESS REBATE] Scheduled: every day at 01:00 AM IST");
 };

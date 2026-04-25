@@ -9,11 +9,15 @@ import { RedisNotificationChannel } from "@agendajs/redis-backend";
 import { mongodbUri, redisUrl, API_VERSION } from "../config/default.js";
 
 const agenda = new Agenda({
-  backend: new MongoBackend({ address: mongodbUri, collection: `agendaJobs_${API_VERSION}` }),
+  backend: new MongoBackend({
+    address: mongodbUri,
+    collection: `agendaJobs_${API_VERSION}`,
+  }),
   notificationChannel: new RedisNotificationChannel({
     connectionString: redisUrl,
   }),
 
+  logging: true,
   processEvery: "30 seconds",
   maxConcurrency: 4,
   defaultLockLifetime: 10 * 60 * 1000,

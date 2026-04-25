@@ -400,18 +400,29 @@ async function bootstrap() {
   console.log("[Agenda] Job processor started");
 
   if (ENABLE_SCHEDULERS) {
+    console.log(
+      `[Agenda] Defining jobs on instance ${process.env.NODE_APP_INSTANCE}`,
+    );
+    defineFeedbackJobs();
+    defineMessChangeJobs();
+    defineMessAllotmentJobs();
+    defineMessRebateJobs();
+    defineRoomCleaningJobs();
+    defineGuestCleanupJobs();
+    defineFestivalModeJobs();
+
     if (
       !process.env.NODE_APP_INSTANCE ||
       process.env.NODE_APP_INSTANCE === "0"
     ) {
-      console.log("[Agenda] Scheduling jobs on instance 0");
-      initializeFeedbackAutoScheduler();
-      initializeMessChangeAutoScheduler();
-      initializeMessAllotmentScheduler();
-      initializeMessRebateAutoScheduler();
-      initializeRoomCleaningAutoResolveScheduler();
-      initializeGuestCleanupScheduler();
-      initializeFestivalModeAutoDisableScheduler();
+      console.log(`[Agenda] Scheduling jobs on instance 0`);
+      scheduleFeedbackJobs();
+      scheduleMessChangeJobs();
+      scheduleMessAllotmentJobs();
+      scheduleMessRebateJobs();
+      scheduleRoomCleaningJobs();
+      scheduleGuestCleanupJobs();
+      scheduleFestivalModeJobs();
     }
   } else {
     console.log("Schedulers are Disabled!");

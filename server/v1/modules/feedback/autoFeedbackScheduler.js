@@ -63,7 +63,10 @@ const scheduleFeedbackReminders = async () => {
     // 12 hours before closing
     const reminder12h = new Date(closingTime.getTime() - 12 * 60 * 60 * 1000);
     if (reminder12h > now) {
-      await agenda.schedule(reminder12h, JOB_REMIND_12H);
+      const job12 = agenda.create(JOB_REMIND_12H, {});
+      job12.unique({ name: JOB_REMIND_12H });
+      job12.schedule(reminder12h);
+      await job12.save();
       console.log(
         `[FEEDBACK] Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
@@ -72,7 +75,10 @@ const scheduleFeedbackReminders = async () => {
     // 2 hours before closing
     const reminder2h = new Date(closingTime.getTime() - 2 * 60 * 60 * 1000);
     if (reminder2h > now) {
-      await agenda.schedule(reminder2h, JOB_REMIND_2H);
+      const job2 = agenda.create(JOB_REMIND_2H, {});
+      job2.unique({ name: JOB_REMIND_2H });
+      job2.schedule(reminder2h);
+      await job2.save();
       console.log(
         `[FEEDBACK] Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
@@ -82,8 +88,7 @@ const scheduleFeedbackReminders = async () => {
   }
 };
 
-// Initialize feedback scheduler
-export const initializeFeedbackAutoScheduler = () => {
+export const defineFeedbackJobs = () => {
   // Runs daily at 9 AM IST
   agenda.define(
     JOB_ENABLE,
@@ -148,8 +153,9 @@ export const initializeFeedbackAutoScheduler = () => {
     },
     { concurrency: 1 },
   );
+};
 
-  // Set up recurring schedules
+export const scheduleFeedbackJobs = () => {
   agenda.every("0 9 * * *", JOB_ENABLE, {}, { timezone: "Asia/Kolkata" });
   agenda.every("1 0 * * *", JOB_DISABLE, {}, { timezone: "Asia/Kolkata" });
 
