@@ -59,14 +59,27 @@ module.exports = {
     },
     {
       name: "hab-api-v2",
-      script: "./index.js",
       cwd: "./v2",
-      instances: "6",
-      exec_mode: "cluster",
+      script: "./index.js",
       watch: false,
       env: { PORT: 3002 },
-      max_memory_restart: "1G",
       instance_var: "NODE_APP_INSTANCE",
+
+      // Performance
+      instances: "6",
+      exec_mode: "cluster",
+
+      // Stability
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: "10s",
+      max_memory_restart: "1G",
+      node_args: "--max-old-space-size=1024",
+
+      // Graceful Reload
+      wait_ready: true,
+      listen_timeout: 10000,
+      kill_timeout: 5000,
     },
   ],
 };

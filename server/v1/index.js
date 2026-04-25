@@ -1,12 +1,6 @@
 import path from "path";
 const __dirname = import.meta.dirname;
-import {
-  nodeENV,
-  port,
-  publicBaseUrl,
-  mongodbUri,
-  ENABLE_SCHEDULERS,
-} from "./config/default.js";
+import { nodeENV, port, publicBaseUrl, mongodbUri } from "./config/default.js";
 import onedrive from "./config/onedrive.js";
 
 import { installProcessHandlers } from "../processHandlers.cjs";

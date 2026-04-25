@@ -5,20 +5,15 @@ dotenv.config({ path: path.join(__dirname, "../../.env") });
 
 export const API_VERSION = "v1";
 export const REDIS_KEY_PREFIX = `hab:${API_VERSION}:`;
-export const ENABLE_SCHEDULERS = API_VERSION === "v1";
 export const ENABLE_MESS_CHANGE_FLOW =
   process.env.ENABLE_MESS_CHANGE_FLOW === "true" || false;
 
 export const nodeENV = process.env.NODE_ENV || "development";
-export const port =
-  process.env[`PORT_${API_VERSION.toUpperCase()}`] ||
-  (API_VERSION === "v1" ? 3001 : 3002);
+export const port = process.env[`PORT_${API_VERSION.toUpperCase()}`];
 
 export const mongodbUri = process.env.MONGODB_URI;
-export const redisUrl = process.env.REDIS_URL || "redis://127.0.0.1:6379";
-export const postgresUrl =
-  process.env.POSTGRES_URL ||
-  "postgresql://postgres:postgres@localhost:5433/postgres";
+export const redisUrl = process.env.REDIS_URL;
+export const postgresUrl = process.env.POSTGRES_URL;
 
 export const refreshSecret = process.env.REFRESH_SECRET;
 export const jwtSecret = process.env.JWT_SECRET;
