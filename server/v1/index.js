@@ -44,14 +44,35 @@ import festivalModeRoute from "./modules/festival_mode/festivalModeRoute.js";
 import appRoute from "./modules/app/appRoute.js";
 
 import agenda from "./utils/agenda.js";
-import { initializeFeedbackAutoScheduler } from "./modules/feedback/autoFeedbackScheduler.js";
-import { initializeMessChangeAutoScheduler } from "./modules/mess_change/autoMessChangeScheduler.js";
-import { initializeMessAllotmentScheduler } from "./modules/mess_change/allotmentScheduler.js";
+import {
+  defineFeedbackJobs,
+  scheduleFeedbackJobs,
+} from "./modules/feedback/autoFeedbackScheduler.js";
+import {
+  defineMessChangeJobs,
+  scheduleMessChangeJobs,
+} from "./modules/mess_change/autoMessChangeScheduler.js";
+import {
+  defineMessAllotmentJobs,
+  scheduleMessAllotmentJobs,
+} from "./modules/mess_change/allotmentScheduler.js";
+import {
+  defineMessRebateJobs,
+  scheduleMessRebateJobs,
+} from "./modules/leave/autoMessRebateScheduler.js";
+import {
+  defineRoomCleaningJobs,
+  scheduleRoomCleaningJobs,
+} from "./modules/room_cleaning/autoRoomCleaningResolveScheduler.js";
+import {
+  defineFestivalModeJobs,
+  scheduleFestivalModeJobs,
+} from "./modules/festival_mode/autoFestivalModeDisableScheduler.js";
+import {
+  defineGuestCleanupJobs,
+  scheduleGuestCleanupJobs,
+} from "./modules/auth/autoGuestCleanupScheduler.js";
 import { initializeAnonymizedUser } from "./modules/user/anonymizedUserInit.js";
-import { initializeGuestCleanupScheduler } from "./modules/auth/autoGuestCleanupScheduler.js";
-import { initializeMessRebateAutoScheduler } from "./modules/leave/autoMessRebateScheduler.js";
-import { initializeRoomCleaningAutoResolveScheduler } from "./modules/room_cleaning/autoRoomCleaningResolveScheduler.js";
-import { initializeFestivalModeAutoDisableScheduler } from "./modules/festival_mode/autoFestivalModeDisableScheduler.js";
 
 import { initMessManagerWs } from "./modules/mess/messManagerWs.js";
 import { initGalaManagerWs } from "./modules/gala/galaManagerWs.js";
