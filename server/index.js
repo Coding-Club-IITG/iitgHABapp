@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
-import { installProcessHandlers } from "./processHandlers.cjs";
+import installProcessHandlers from "./processHandlers.js";
 installProcessHandlers();
 
 import express from "express";
@@ -73,7 +73,9 @@ app.use((req, res, next) => {
       url: req.url,
       hasCode: typeof req.query?.code === "string" && req.query.code.length > 0,
       state:
-        typeof req.query?.state === "string" ? String(req.query.state) : undefined,
+        typeof req.query?.state === "string"
+          ? String(req.query.state)
+          : undefined,
       xApiVersion: req.headers["x-api-version"],
       userAgent: req.headers["user-agent"],
       ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress,

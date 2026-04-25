@@ -9,7 +9,7 @@ import {
 } from "./config/default.js";
 import onedrive from "./config/onedrive.js";
 
-import { installProcessHandlers } from "../processHandlers.cjs";
+import installProcessHandlers from "../processHandlers.js";
 installProcessHandlers();
 
 import axios from "axios";

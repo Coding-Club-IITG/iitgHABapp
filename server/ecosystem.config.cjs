@@ -4,7 +4,6 @@ module.exports = {
       name: "hab-gateway",
       script: "./index.js",
       cwd: __dirname,
-      env: { PORT: 3000 },
       max_memory_restart: "512M",
     },
     {
@@ -12,8 +11,6 @@ module.exports = {
       cwd: "./v1",
       script: "./index.js",
       watch: false,
-      env: { PORT: 3001 },
-      instance_var: "NODE_APP_INSTANCE",
 
       // Performance
       instances: "18",
@@ -45,7 +42,6 @@ module.exports = {
       exec_mode: "fork",
       autorestart: true,
       max_memory_restart: "512M",
-      env: { NODE_ENV: "production" },
     },
     {
       name: "hab-worker-agenda-v1",
@@ -55,14 +51,12 @@ module.exports = {
       exec_mode: "fork",
       autorestart: true,
       max_memory_restart: "1G",
-      env: { NODE_ENV: "production" },
     },
     {
       name: "hab-api-v2",
       cwd: "./v2",
       script: "./index.js",
       watch: false,
-      env: { PORT: 3002 },
       instance_var: "NODE_APP_INSTANCE",
 
       // Performance

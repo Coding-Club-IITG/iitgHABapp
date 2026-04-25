@@ -7,6 +7,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends libfaketime tzdata && \
     rm -rf /var/lib/apt/lists/*
 
+# Install pm2
+RUN npm install -g pm2
 
 # Install deps
 COPY package.json package-lock.json ./

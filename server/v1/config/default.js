@@ -19,14 +19,16 @@ export const refreshSecret = process.env.REFRESH_SECRET;
 export const jwtSecret = process.env.JWT_SECRET;
 export const adminJwtSecret = process.env.ADMIN_JWT_SECRET;
 
+export const debugMail = process.env.DEBUG_MAIL || "codingclub@iitg.ac.in";
+export const debugKey = process.env.DEBUG_KEY;
+
 export const publicBaseUrl =
   process.env.PUBLIC_BASE_URL || "https://hab.codingclub.in";
 export const webRedirectUri = process.env.WEB_REDIRECT_URI;
 export const mobileUrl = process.env.MOBILE_URL;
 
 export const habEmail = process.env.HAB_EMAIL;
-export const habEmail2 = process.env.HAB_EMAIL_2;
-export const habEmail3 = process.env.HAB_EMAIL3;
+export const habEmail2 = process.env.HAB_EMAIL2;
 export const habFrontendUrl = process.env.HAB_FRONTEND_URL;
 export const hostelFrontendUrl = process.env.HOSTEL_FRONTEND_URL;
 export const smcFrontendUrl = process.env.SMC_FRONTEND_URL;

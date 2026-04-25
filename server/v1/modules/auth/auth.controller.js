@@ -22,7 +22,7 @@ import {
   webRedirectUri,
   habEmail,
   habEmail2,
-  habEmail3,
+  debugMail,
   habFrontendUrl,
   hostelFrontendUrl,
   smcFrontendUrl,
@@ -120,14 +120,22 @@ export const mobileRedirectHandler = async (req, res, next) => {
     let currentSubscribedMess = null;
 
     if (roll) {
-      console.log("[Auth][MobileRedirect][hostel-alloc][request]", { rid, roll });
+      console.log("[Auth][MobileRedirect][hostel-alloc][request]", {
+        rid,
+        roll,
+      });
       allocatedHostel = await getHostelAlloc(roll);
       currentSubscribedMess = await getCurrentSubscribedMess(roll);
     } else {
       const email = userFromToken.data.mail;
-      console.log("[Auth][MobileRedirect][hostel-alloc][request-by-email]", { rid, email });
+      console.log("[Auth][MobileRedirect][hostel-alloc][request-by-email]", {
+        rid,
+        email,
+      });
       if (email) {
-        const allocation = await UserAllocHostel.findOne({ email }).populate("hostel").populate("current_subscribed_mess");
+        const allocation = await UserAllocHostel.findOne({ email })
+          .populate("hostel")
+          .populate("current_subscribed_mess");
         if (allocation) {
           roll = allocation.rollno;
           allocatedHostel = allocation.hostel;
@@ -249,9 +257,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
       userId: String(existingUser?._id),
       isFirstLogin,
     });
-    return res.redirect(
-      redirectUrl,
-    );
+    return res.redirect(redirectUrl);
   } catch (error) {
     const status = error?.response?.status;
     const data = error?.response?.data;
@@ -399,7 +405,7 @@ export const webLoginHandler = async (req, res, next) => {
       if (
         email.toLowerCase() !== habEmail.toLowerCase() &&
         email.toLowerCase() !== habEmail2?.toLowerCase() &&
-        email.toLowerCase() !== habEmail3?.toLowerCase()
+        email.toLowerCase() !== debugMail?.toLowerCase()
       )
         throw new AppError(403, "Unauthorized HAB login");
       token = jwt.sign({ hab: true, email }, adminJwtSecret, {
