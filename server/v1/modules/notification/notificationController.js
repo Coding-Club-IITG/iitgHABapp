@@ -163,7 +163,7 @@ export const sendNotificationToMultipleUsers = async (
 
     if (tokenArray.length === 0) return null;
 
-    const response = await admin.messaging().sendMulticast({
+    const response = await admin.messaging().sendEachForMulticast({
       tokens: tokenArray,
       notification: { title, body },
       android: {

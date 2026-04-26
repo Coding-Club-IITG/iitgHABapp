@@ -42,6 +42,9 @@ module.exports = {
       exec_mode: "fork",
       autorestart: true,
       max_memory_restart: "512M",
+      out_file: "./logs/logger-out.log",
+      error_file: "./logs/logger-error.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
     },
     {
       name: "hab-worker-agenda-v1",
@@ -51,6 +54,9 @@ module.exports = {
       exec_mode: "fork",
       autorestart: true,
       max_memory_restart: "1G",
+      out_file: "./logs/agenda-out.log",
+      error_file: "./logs/agenda-error.log",
+      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
     },
     {
       name: "hab-api-v2",

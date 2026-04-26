@@ -31,7 +31,7 @@ export const getLogs = async (req, res, next) => {
 export const getAgendaLogs = async (req, res, next) => {
   try {
     const tableName = `agenda_logs_${API_VERSION}`;
-    const query = `SELECT * FROM ${tableName} ORDER BY _id DESC LIMIT 500`;
+    const query = `SELECT * FROM ${tableName} ORDER BY timestamp DESC LIMIT 500`;
     const result = await pool.query(query);
     return res.status(200).json({ logs: result.rows });
   } catch (err) {
