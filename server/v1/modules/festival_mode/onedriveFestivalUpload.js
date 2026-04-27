@@ -23,11 +23,7 @@ export async function uploadFestivalImageToOneDrive(
     const errorMsg = err.message || "";
     console.error(`[OneDrive Festival] Token fetch error: ${errorMsg}`);
     if (errorMsg.includes("No refresh_token")) {
-      throw new Error(
-        "OneDrive delegated token not configured. " +
-          "As an admin, visit http://localhost:3000/api/_debug/graph/start to authorize festival image uploads. " +
-          "Login with the storage account (codingclub@iitg.ac.in) and complete the OAuth flow.",
-      );
+      throw new Error("OneDrive delegated token not configured");
     }
     throw err;
   });
@@ -83,11 +79,7 @@ export async function deleteFestivalImageFromOneDrive(itemId) {
   } catch (err) {
     const errorMsg = err.message || "";
     if (errorMsg.includes("No refresh_token")) {
-      console.warn(
-        "OneDrive delegated token not configured for deletion. " +
-          "Visit http://localhost:3000/api/_debug/graph/start to authorize. " +
-          "Skipping OneDrive deletion (file remains but database record is cleaned).",
-      );
+      console.warn("OneDrive delegated token not configured for deletion");
       return; // Gracefully skip deletion if token not available
     }
     throw err;

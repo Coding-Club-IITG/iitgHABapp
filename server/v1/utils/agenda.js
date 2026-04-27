@@ -6,14 +6,35 @@
 import { Agenda } from "agenda";
 import { MongoBackend } from "@agendajs/mongo-backend";
 import { RedisNotificationChannel } from "@agendajs/redis-backend";
-import { mongodbUri, redisUrl, API_VERSION } from "../config/default.js";
+import { PostgresJobLogger } from "@agendajs/postgres-backend";
+import { Pool } from "pg";
+
+import {
+  mongodbUri,
+  redisUrl,
+  postgresUrl,
+  API_VERSION,
+} from "../config/default.js";
+
+const pool = new Pool({
+  connectionString: postgresUrl,
+});
+
+const postgresLogger = new PostgresJobLogger({
+  pool,
+  tableName: `agenda_logs_${API_VERSION}`,
+});
 
 const agenda = new Agenda({
-  backend: new MongoBackend({ address: mongodbUri, collection: `agendaJobs_${API_VERSION}` }),
+  backend: new MongoBackend({
+    address: mongodbUri,
+    collection: `agendaJobs_${API_VERSION}`,
+  }),
   notificationChannel: new RedisNotificationChannel({
     connectionString: redisUrl,
   }),
 
+  logging: postgresLogger,
   processEvery: "30 seconds",
   maxConcurrency: 4,
   defaultLockLifetime: 10 * 60 * 1000,
@@ -25,7 +46,7 @@ agenda.on("error", (err) => {
 });
 
 agenda.on("ready", () => {
-  console.log("[Agenda] Connected to MongoDB job store");
+  console.log("[Agenda] Connected and Ready");
 });
 
 export default agenda;

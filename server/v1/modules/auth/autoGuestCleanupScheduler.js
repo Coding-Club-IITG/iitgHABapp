@@ -86,7 +86,7 @@ const cleanupOldGuestAccounts = async () => {
   console.log(`[GUEST CLEANUP] Deleted ${userIds.length} old guest accounts`);
 };
 
-export const initializeGuestCleanupScheduler = () => {
+export const defineGuestCleanupJobs = () => {
   agenda.define(
     JOB_NAME,
     async (job) => {
@@ -100,9 +100,10 @@ export const initializeGuestCleanupScheduler = () => {
     },
     { concurrency: 1 },
   );
+};
 
-  // Every Monday at 02:00 AM IST
+// Every Monday at 02:00 AM IST
+export const scheduleGuestCleanupJobs = () => {
   agenda.every("0 2 * * 1", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
-
   console.log("[GUEST CLEANUP] Scheduled: every Monday at 02:00 AM IST");
 };

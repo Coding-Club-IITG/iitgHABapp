@@ -110,11 +110,10 @@ const rotateMessAllotments = async () => {
 };
 
 /**
- * Initialize mess allotment scheduler
  * This scheduler runs at the beginning of the 1st of every month
  * to move the 'next_mess' (allotted) to 'curr_subscribed_mess' (active).
  */
-export const initializeMessAllotmentScheduler = () => {
+export const defineMessAllotmentJobs = () => {
   agenda.define(
     JOB_NAME,
     async (job) => {
@@ -128,8 +127,10 @@ export const initializeMessAllotmentScheduler = () => {
     },
     { priority: "high", concurrency: 1 },
   );
+};
 
-  // Schedule: 1st of every month at 00:05 IST
+// 1st of every month at 00:05 IST
+export const scheduleMessAllotmentJobs = () => {
   agenda.every("5 0 1 * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
   console.log("[MESS ALLOTMENT] Scheduled: 1st of every month at 00:05 IST");
 };

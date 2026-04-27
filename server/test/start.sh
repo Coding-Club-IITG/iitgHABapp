@@ -5,19 +5,19 @@ set -e
 FAKETIME_LIB=$(find /usr/lib -name 'libfaketime.so.1' 2>/dev/null | head -1)
 
 if [ -z "$FAKETIME_LIB" ]; then
-  echo "❌ libfaketime not found! Running with real time."
+	echo "❌ libfaketime not found! Running in real time."
 else
-  # Ensure FAKETIME starts with @, otherwise the clock stays frozen
-  export LD_PRELOAD="$FAKETIME_LIB"
-  export FAKETIME_NO_CACHE=1
-  export FAKETIME_DONT_FAKE_MONOTONIC=1
-  echo ""
-  echo "FAKETIME is set to:      ${FAKETIME:-(unset)}"
-  echo "Current (faked) date:    $(date)"
-  echo "====================================================="
-  echo ""
+	# Ensure FAKETIME starts with @, otherwise the clock stays frozen
+	export LD_PRELOAD="$FAKETIME_LIB"
+	export FAKETIME_NO_CACHE=1
+	export FAKETIME_DONT_FAKE_MONOTONIC=1
+	echo ""
+	echo "FAKETIME is set to:      ${FAKETIME:-(unset)}"
+	echo "Current (faked) date:    $(date)"
+	echo "====================================================="
+	echo ""
 fi
 
-# Run v1
-cd /app/v1
-exec node index.js
+# Run server
+cd /app
+exec pm2-runtime start test/ecosystem.config.cjs

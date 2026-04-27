@@ -1,14 +1,12 @@
 /**
  * Process-level error handlers to prevent silent crashes in production.
- * Require this once at the top of each entry point (gateway, v1, v2).
- *
- * CommonJS build so `server/v2` (CJS) can require() it; ESM entry points import this file.
+ * Import this once at the top of each entrypoint.
  *
  * Without these, a single unhandled promise rejection or uncaught exception
  * will exit the Node process; PM2 will restart it, but the app will keep
  * stopping until the root cause is fixed.
  */
-function installProcessHandlers() {
+export default function installProcessHandlers() {
   process.on("unhandledRejection", (reason, promise) => {
     console.error(
       "[CRASH PREVENTION] Unhandled Rejection at:",
@@ -25,5 +23,3 @@ function installProcessHandlers() {
     process.exit(1);
   });
 }
-
-module.exports = { installProcessHandlers };

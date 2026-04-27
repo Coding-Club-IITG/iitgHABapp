@@ -13,6 +13,7 @@
   "description": "",
   "dependencies": {
     "@agendajs/mongo-backend": "^4.0.1",
+    "@agendajs/postgres-backend": "^3.0.4",
     "@agendajs/redis-backend": "^3.0.5",
     "@azure/identity": "^4.13.1",
     "@microsoft/microsoft-graph-client": "^3.0.7",
@@ -29,9 +30,9 @@
     "enums": "^1.0.3",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.5.0",
     "express-winston": "^4.2.0",
     "firebase-admin": "^13.8.0",
-    "express-rate-limit": "^7.5.0",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.4.1",

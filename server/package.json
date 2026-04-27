@@ -8,7 +8,7 @@
     "stop": "pm2 stop all",
     "logs": "pm2 logs",
     "dev": "concurrently \"nodemon index.js\" \"cd v1 && nodemon index.js\" \"cd v2 && nodemon index.js\"",
-    "test:build": "docker compose -f test/docker-compose.yml build --build-arg CACHEBUST=$(Get-Date)",
+    "test:build": "docker compose -f test/docker-compose.yml build --no-cache",
     "test:up": "docker compose -f test/docker-compose.yml up",
     "test:down": "docker compose -f test/docker-compose.yml down -v"
   },

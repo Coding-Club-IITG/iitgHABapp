@@ -33,7 +33,7 @@ async function autoResolveUnresolvedBookings() {
   );
 }
 
-export function initializeRoomCleaningAutoResolveScheduler() {
+export function defineRoomCleaningJobs() {
   agenda.define(
     JOB_NAME,
     async (job) => {
@@ -47,9 +47,10 @@ export function initializeRoomCleaningAutoResolveScheduler() {
     },
     { concurrency: 1 },
   );
+}
 
-  // Every day at 00:30 AM IST
+// Every day at 00:30 AM IST
+export function scheduleRoomCleaningJobs() {
   agenda.every("30 0 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
-
   console.log("[ROOM CLEANING] Scheduled: every day at 00:30 AM IST");
 }
