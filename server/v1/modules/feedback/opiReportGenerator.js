@@ -50,6 +50,7 @@ export const generateOpiReport = async ({
   const center = { horizontal: "center", vertical: "middle", wrapText: true };
   const left = { horizontal: "left", vertical: "middle" };
   const numFmt2 = "0.00";
+  const numFmt6 = "0.000000";
 
   // Helper: apply header style to a cell
   const styleHeader = (cell, bgArgb, bold = true) => {
@@ -400,6 +401,7 @@ export const generateOpiReport = async ({
   // messes is expected sorted in display order, matching what the app calculates.
   // Each mess has: { hostelName, name (caterer) }
   const dataStartRow = 5;
+  const dataEndRow = dataStartRow + Math.max(messes.length - 1, 0);
 
   messes.forEach((mess, idx) => {
     const r = dataStartRow + idx;
@@ -452,9 +454,9 @@ export const generateOpiReport = async ({
       `(Feedbacks!${ratingCol}3:${ratingCol}${fbLastRow}="Very Good")*5))` +
       `/COUNTIF(Feedbacks!C3:C${fbLastRow},"${caterer}"), "")`;
 
-    setCell(3, fbCatFilter("C", "D"), baseBg, false, numFmt2); // Avg Breakfast
-    setCell(4, fbCatFilter("C", "E"), baseBg, false, numFmt2); // Avg Lunch
-    setCell(5, fbCatFilter("C", "F"), baseBg, false, numFmt2); // Avg Dinner
+    setCell(3, fbCatFilter("C", "D"), baseBg, false, numFmt6); // Avg Breakfast
+    setCell(4, fbCatFilter("C", "E"), baseBg, false, numFmt6); // Avg Lunch
+    setCell(5, fbCatFilter("C", "F"), baseBg, false, numFmt6); // Avg Dinner
 
     // F-I: SMC Fields - SUMPRODUCT over SMC Fields sheet
     // Cols in SMC sheet: C=caterer, D=Hygiene, E=Waste, F=Quality, G=Uniform
@@ -468,10 +470,10 @@ export const generateOpiReport = async ({
       `('SMC Fields'!${smcCol}3:${smcCol}${smcLastRow}="Very Good")*5))` +
       `/COUNTIF('SMC Fields'!C3:C${smcLastRow},"${caterer}"), "")`;
 
-    setCell(6, smcFilter("G"), baseBg, false, numFmt2); // F: Uniform & Punctuality  (SMC col G)
-    setCell(7, smcFilter("D"), baseBg, false, numFmt2); // G: Cleanliness & Hygiene  (SMC col D)
-    setCell(8, smcFilter("E"), baseBg, false, numFmt2); // H: Waste Disposal          (SMC col E)
-    setCell(9, smcFilter("F"), baseBg, false, numFmt2); // I: Quality of Ingredients  (SMC col F)
+    setCell(6, smcFilter("G"), baseBg, false, numFmt6); // F: Uniform & Punctuality  (SMC col G)
+    setCell(7, smcFilter("D"), baseBg, false, numFmt6); // G: Cleanliness & Hygiene  (SMC col D)
+    setCell(8, smcFilter("E"), baseBg, false, numFmt6); // H: Waste Disposal          (SMC col E)
+    setCell(9, smcFilter("F"), baseBg, false, numFmt6); // I: Quality of Ingredients  (SMC col F)
 
     // J: Total Responses (feedbacks count for this caterer)
     setCell(10, `COUNTIF(Feedbacks!C3:C${fbLastRow},"${caterer}")`, baseBg);
@@ -507,7 +509,7 @@ export const generateOpiReport = async ({
       `IF(${Kref}>0,(${Cref}*${Jref}+4*(${Kref}-${Jref}))/${Kref},"")`,
       opiBg,
       false,
-      numFmt2,
+      numFmt6,
     );
 
     // O: OPI Lunch
@@ -516,7 +518,7 @@ export const generateOpiReport = async ({
       `IF(${Kref}>0,(${Dref}*${Jref}+4*(${Kref}-${Jref}))/${Kref},"")`,
       opiBg,
       false,
-      numFmt2,
+      numFmt6,
     );
 
     // P: OPI Dinner
@@ -525,7 +527,7 @@ export const generateOpiReport = async ({
       `IF(${Kref}>0,(${Eref}*${Jref}+4*(${Kref}-${Jref}))/${Kref},"")`,
       opiBg,
       false,
-      numFmt2,
+      numFmt6,
     );
 
     // Q: Net OPI = (10B + 10L + 10D + 2U + 4C + 1W + 3Q) / 40
@@ -541,14 +543,15 @@ export const generateOpiReport = async ({
       `IF(${Kref}>0,(10*${Nref}+10*${Oref}+10*${Pref}+2*IF(${Fref}="",0,${Fref})+4*IF(${Gref}="",0,${Gref})+1*IF(${Href}="",0,${Href})+3*IF(${Iref}="",0,${Iref}))/40,"")`,
       opiBg,
       true,
-      numFmt2,
+      numFmt6,
     );
 
-    // R: Rank (counts rows with >=40% feedback rate that have higher Net OPI)
+    // R: Rank among rows with >=40% feedback rate, ordered by higher Net OPI
     const Mref = `M${r}`;
+    const Qref = `Q${r}`;
     setCell(
       18,
-      `IF(${Mref}>=40,COUNTIF($M$${dataStartRow}:${Mref},">=40"),"Unranked")`,
+      `IF(${Mref}>=40,1+COUNTIFS($M$${dataStartRow}:$M$${dataEndRow},">=40",$Q$${dataStartRow}:$Q$${dataEndRow},">"&${Qref}),"Unranked")`,
       baseBg,
     );
 

@@ -100,7 +100,7 @@ const computeMealOpi = ({
   subscriberCount = 0,
 }) => {
   const responses = Number(responseCount) || 0;
-  const subscribers = Math.max(Number(subscriberCount) || 0, responses);
+  const subscribers = Number(subscriberCount) || 0;
   if (subscribers <= 0) return 0;
   return (Number(mealSum) + 4 * (subscribers - responses)) / subscribers;
 };
@@ -1374,18 +1374,18 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
         caterer: { $ne: null },
       },
     },
+    { $sort: { date: -1, _id: -1 } },
     {
-      $lookup: {
-        from: "users",
-        localField: "user",
-        foreignField: "_id",
-        pipeline: [{ $project: { isSMC: 1 } }],
-        as: "userData",
+      $group: {
+        _id: { $ifNull: ["$user", "$_id"] },
+        latest: { $first: "$$ROOT" },
       },
     },
-    { $unwind: { path: "$userData", preserveNullAndEmptyArrays: true } },
+    { $replaceRoot: { newRoot: "$latest" } },
     {
-      $addFields: { isSMC: { $ifNull: ["$userData.isSMC", false] } },
+      $addFields: {
+        hasSmcFields: { $ne: ["$smcFields", null] },
+      },
     },
     {
       $group: {
@@ -1396,18 +1396,18 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
         dinnerSum: { $sum: ratingSwitch("$dinner") },
         hygieneSum: {
           $sum: {
-            $cond: ["$isSMC", ratingSwitch("$smcFields.hygiene"), 0],
+            $cond: ["$hasSmcFields", ratingSwitch("$smcFields.hygiene"), 0],
           },
         },
         wasteDisposalSum: {
           $sum: {
-            $cond: ["$isSMC", ratingSwitch("$smcFields.wasteDisposal"), 0],
+            $cond: ["$hasSmcFields", ratingSwitch("$smcFields.wasteDisposal"), 0],
           },
         },
         qualitySum: {
           $sum: {
             $cond: [
-              "$isSMC",
+              "$hasSmcFields",
               ratingSwitch("$smcFields.qualityOfIngredients"),
               0,
             ],
@@ -1416,13 +1416,13 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
         uniformSum: {
           $sum: {
             $cond: [
-              "$isSMC",
+              "$hasSmcFields",
               ratingSwitch("$smcFields.uniformAndPunctuality"),
               0,
             ],
           },
         },
-        smcCount: { $sum: { $cond: ["$isSMC", 1, 0] } },
+        smcCount: { $sum: { $cond: ["$hasSmcFields", 1, 0] } },
       },
     },
   ]);
@@ -1451,6 +1451,8 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
     const subscriberCount = hostelId
       ? subscriberByHostel.get(String(hostelId)) || 0
       : 0;
+    const feedbackPercentage =
+      subscriberCount > 0 ? (agg.totalUsers / subscriberCount) * 100 : 0;
 
     const avgBreakfast = computeMealOpi({
       mealSum: agg.breakfastSum,
@@ -1487,21 +1489,40 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
       wasteAvg: avgWasteDisposal ?? 0,
       qualityAvg: avgQualityOfIngredients ?? 0,
     });
-    // Round to two decimal places before storing
-    overall = Math.round(overall * 100) / 100;
+    // Round to six decimal places before storing
+    overall = Math.round(overall * 1_000_000) / 1_000_000;
 
-    rows.push({ messId, overall });
+    rows.push({
+      messId,
+      overall,
+      feedbackPercentage:
+        Math.round(feedbackPercentage * 1_000_000) / 1_000_000,
+    });
   }
 
   rows.sort((a, b) => b.overall - a.overall);
-  rows.forEach((r, i) => (r.rank = i + 1));
+  let eligibleRank = 0;
+  rows.forEach((r) => {
+    if (r.feedbackPercentage >= 40) {
+      eligibleRank += 1;
+      r.rank = eligibleRank;
+      return;
+    }
+    r.rank = 0;
+  });
 
   // Single bulk write
   if (rows.length > 0) {
     const bulkOps = rows.map((r) => ({
       updateOne: {
         filter: { _id: r.messId },
-        update: { $set: { rating: r.overall, ranking: r.rank } },
+        update: {
+          $set: {
+            rating: r.overall,
+            ranking: r.rank,
+            feedbackPercentage: r.feedbackPercentage,
+          },
+        },
       },
     }));
     await Mess.bulkWrite(bulkOps);
