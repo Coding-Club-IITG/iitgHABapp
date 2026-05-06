@@ -51,7 +51,8 @@ class AppBootstrapCache {
         }
       }
       await box.put(_kBootstrapKey, data);
-      await box.put(_kBootstrapFetchedAtKey, DateTime.now().millisecondsSinceEpoch);
+      await box.put(
+          _kBootstrapFetchedAtKey, DateTime.now().millisecondsSinceEpoch);
       await box.put(_kBootstrapUserIdKey, userId);
       await box.put(_kBootstrapCurrMessKey, currMess);
     } catch (_) {
@@ -246,13 +247,54 @@ Future<bool> applyAppBootstrapData(
     }
   }
 
+  // Update HostelsNotifier with curr subscribed mess and summer active flag
+  try {
+    String? curr;
+    bool? summerFlag;
+    if (userRaw is Map) {
+      final cm = userRaw['curr_subscribed_mess'];
+      if (cm is Map) {
+        curr = cm['_id']?.toString();
+      } else if (cm != null) {
+        curr = cm.toString();
+      }
+    }
+
+    // Tentative locations for summer flag in bootstrap payload — check common shapes
+    if (payload.containsKey('summer') && payload['summer'] is Map) {
+      summerFlag = payload['summer']['isActive'] == true;
+    } else if (payload.containsKey('summerMessStatus') &&
+        payload['summerMessStatus'] is Map) {
+      final sm = payload['summerMessStatus'] as Map;
+      if (sm.containsKey('summer') && sm['summer'] is Map) {
+        summerFlag = (sm['summer']['isActive'] == true);
+      }
+    } else if (payload.containsKey('summerMess') && payload['summerMess'] is Map) {
+      summerFlag = payload['summerMess']['isActive'] == true;
+    }
+
+    await HostelsNotifier.updateFromBootstrap(curr: curr, summer: summerFlag);
+  } catch (_) {}
+
   final userMessRaw = payload['userMessInfo'];
   if (userMessRaw is Map) {
     try {
-      await persistUserMessInfoFromPayload(Map<String, dynamic>.from(userMessRaw));
+      await persistUserMessInfoFromPayload(
+          Map<String, dynamic>.from(userMessRaw));
       appliedAny = true;
     } catch (e) {
-      if (kDebugMode) debugPrint('App bootstrap: userMessInfo apply failed: $e');
+      if (kDebugMode) {
+        debugPrint('App bootstrap: userMessInfo apply failed: $e');
+      }
+    }
+  } else {
+    try {
+      await clearUserMessInfoFromPrefs();
+      appliedAny = true;
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('App bootstrap: userMessInfo clear failed: $e');
+      }
     }
   }
 
@@ -295,7 +337,9 @@ Future<bool> applyAppBootstrapData(
         appliedAny = true;
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('App bootstrap: roomCleaning apply failed: $e');
+      if (kDebugMode) {
+        debugPrint('App bootstrap: roomCleaning apply failed: $e');
+      }
     }
   }
 

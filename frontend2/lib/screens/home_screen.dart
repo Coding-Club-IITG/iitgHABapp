@@ -18,12 +18,15 @@ import 'package:frontend2/screens/account_screen.dart';
 import 'package:frontend2/screens/gala_dinner_screen.dart';
 import 'package:frontend2/screens/qr_scanner.dart';
 import 'package:frontend2/screens/room_cleaning/room_cleaning.dart';
+import 'package:frontend2/screens/summer_mess_registration_screen.dart';
 import 'package:frontend2/services/weather_background_service.dart';
 import 'package:frontend2/utils/meal_countdown_text.dart';
 import 'package:frontend2/widgets/common/alert_expirer.dart';
 import 'package:frontend2/providers/notification_provider.dart';
 import 'package:frontend2/widgets/alert_countdown_text.dart';
 import 'package:frontend2/widgets/common/name_trimmer.dart';
+import 'package:frontend2/widgets/common/summer_mess_registration_card.dart';
+import 'package:frontend2/widgets/common/feature_blocked_for_unsubscribed.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:frontend2/widgets/festival_background_widget.dart';
 import 'package:frontend2/services/festival_mode_service.dart';
@@ -32,6 +35,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/services.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/apis/app_bootstrap.dart';
+import 'package:frontend2/apis/summer_mess/summer_mess_api.dart';
 
 import '../providers/mess_info_provider.dart';
 import 'initial_setup_screen.dart';
@@ -83,6 +87,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String currSubscribedMess = '';
   String? token;
   String? userHostelId;
+  SummerMessStatusData? _summerMessStatus;
   final ValueNotifier<_QuickActionStatusData> _scanQrStatusNotifier =
       ValueNotifier(
           const _QuickActionStatusData(status: 'Closed', color: textMuted));
@@ -347,6 +352,31 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       _hasMicrosoftLinked = prefs.getBool('hasMicrosoftLinked') ?? false;
     });
     await _loadScanQrStatus(messId);
+    await _loadSummerMessStatus();
+  }
+
+  Future<void> _loadSummerMessStatus() async {
+    if (!mounted) return;
+    if (!_hasMicrosoftLinked) {
+      setState(() {
+        _summerMessStatus = null;
+      });
+      return;
+    }
+
+    try {
+      final status = await fetchSummerMessStatus();
+      if (!mounted) return;
+      setState(() {
+        _summerMessStatus = status.shouldShowCard ? status : null;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      if (kDebugMode) debugPrint('Summer mess status fetch failed: $e');
+      setState(() {
+        _summerMessStatus = null;
+      });
+    }
   }
 
   Future<void> _runDeferredHomeNetworkWork() async {
@@ -555,6 +585,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _requireSubscribedMessThenNavigate({
+    required String featureName,
+    required Widget screen,
+  }) async {
+    if (!HostelsNotifier.hasSubscribedMess()) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (context) => FeatureBlockedForUnsubscribed(
+          featureName: featureName,
+        ),
+      );
+      return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => screen),
+    );
+  }
+
   Future<void> _openNotificationsSheet() async {
     await showModalBottomSheet(
       context: context,
@@ -604,7 +654,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         status: _buildRoomCleaningStatusText(roomCleaningProvider),
         statusColor: green,
         iconAsset: 'assets/icon/room_cleaning_icon.svg',
-        onTap: () => _requireMicrosoftThenNavigate(
+        onTap: () => _requireSubscribedMessThenNavigate(
           featureName: 'Room Cleaning',
           screen: const RoomCleaningScreen(),
         ),
@@ -615,7 +665,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         statusColor: _scanQrStatusNotifier.value.color,
         statusListenable: _scanQrStatusNotifier,
         iconAsset: 'assets/icon/qrscan.svg',
-        onTap: () => _requireMicrosoftThenNavigate(
+        onTap: () => _requireSubscribedMessThenNavigate(
           featureName: 'Scan Mess QR',
           screen: const QrScan(),
         ),
@@ -1684,6 +1734,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     );
   }
 
+  Future<void> _onSummerMessQuickTap() async {
+    await _requireMicrosoftThenNavigate(
+      featureName: 'Summer Mess Registration',
+      screen: SummerMessRegistrationScreen(),
+    );
+  }
+
+  Widget _buildSummerMessFeaturedCard() {
+    final status = _summerMessStatus;
+    if (status == null) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: SummerMessRegistrationCard(
+        status: status,
+        onTap: _onSummerMessQuickTap,
+      ),
+    );
+  }
+
   Widget _buildQuickActionsSection() {
     final actions = _buildQuickActions();
     final featured = actions.take(2).toList();
@@ -1695,6 +1765,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         Text('Quick Actions', style: _sectionTitleStyle()),
         const SizedBox(height: 24),
         _buildGalaDinnerFeaturedCard(),
+        _buildSummerMessFeaturedCard(),
         Row(
           children: [
             _buildQuickActionCard(featured[0]),

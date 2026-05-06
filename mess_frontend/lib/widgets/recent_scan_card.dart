@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../constants/themes.dart';
 import '../models/recent_entry.dart';
 import '../utils/name_case.dart';
 import '../utils/scan_time.dart';
@@ -18,61 +19,52 @@ class RecentScanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final displayName =
-        entry.name.isEmpty ? 'Unknown' : toTitleCase(entry.name);
+    final displayName = entry.name.isEmpty
+        ? 'Unknown'
+        : toTitleCase(entry.name);
 
-    return Container(
+    return Card(
       margin: const EdgeInsets.only(bottom: 6),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x08000000),
-            blurRadius: 8,
-            offset: Offset(0, 3),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          if (showIndex && index != null) ...[
-            Text(
-              '${index!}.',
-              style: const TextStyle(
-                color: Color(0xFF6B7280),
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            if (showIndex && index != null) ...[
+              Text(
+                '${index!}.',
+                style: const TextStyle(
+                  color: Themes.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
+            ],
+            Expanded(
+              child: Text(
+                displayName,
+                style: const TextStyle(
+                  color: Themes.textPrimary,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 8),
-          ],
-          Expanded(
-            child: Text(
-              displayName,
+            Text(
+              formatScanTime(entry.time),
               style: const TextStyle(
-                color: Color(0xFF111827),
-                fontSize: 14,
+                color: Themes.textSecondary,
+                fontSize: 12,
                 fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),
-          ),
-          const SizedBox(width: 8),
-          Text(
-            formatScanTime(entry.time),
-            style: const TextStyle(
-              color: Color(0xFF6B7280),
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

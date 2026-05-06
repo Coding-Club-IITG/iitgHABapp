@@ -162,8 +162,7 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
         (event) {
           try {
             if (kDebugMode) {
-              debugPrint(
-                  '[GalaCourseLogs] WS message for ${widget.course}');
+              debugPrint('[GalaCourseLogs] WS message for ${widget.course}');
             }
             final data = jsonDecode(event as String) as Map<String, dynamic>;
             final log = GalaScanLog.fromJson(data);
@@ -190,7 +189,8 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
           } catch (e) {
             if (kDebugMode) {
               debugPrint(
-                  '[GalaCourseLogs] Failed to parse WS scan log for ${widget.course}: $e');
+                '[GalaCourseLogs] Failed to parse WS scan log for ${widget.course}: $e',
+              );
             }
             if (!mounted) return;
             setState(() {
@@ -202,7 +202,8 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
           if (!mounted) return;
           if (kDebugMode) {
             debugPrint(
-                '[GalaCourseLogs] WS error for ${widget.course}: $error');
+              '[GalaCourseLogs] WS error for ${widget.course}: $error',
+            );
           }
           setState(() {
             _connectionError = 'Connection error: $error';
@@ -213,7 +214,8 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
           if (!mounted) return;
           if (kDebugMode) {
             debugPrint(
-                '[GalaCourseLogs] WS done for ${widget.course} (closed by server/client)');
+              '[GalaCourseLogs] WS done for ${widget.course} (closed by server/client)',
+            );
           }
           setState(() {
             _connectionError ??= 'Connection closed';
@@ -224,7 +226,8 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
     } catch (e) {
       if (kDebugMode) {
         debugPrint(
-            '[GalaCourseLogs] Failed to connect WS for ${widget.course}: $e');
+          '[GalaCourseLogs] Failed to connect WS for ${widget.course}: $e',
+        );
       }
       if (!mounted) return;
       setState(() {
@@ -256,15 +259,13 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
         elevation: 0,
       ),
       body: _initialLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_initialFetchError != null)
                   Material(
-                    color: const Color(0xFFFFF7ED),
+                    color: const Color(0xFFF1F5F9),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -274,7 +275,7 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
                         children: [
                           const Icon(
                             Icons.wifi_off_outlined,
-                            color: Color(0xFF9A3412),
+                            color: Color(0xFF475569),
                             size: 20,
                           ),
                           const SizedBox(width: 8),
@@ -282,7 +283,7 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
                             child: Text(
                               'Could not refresh list: $_initialFetchError',
                               style: const TextStyle(
-                                color: Color(0xFF9A3412),
+                                color: Color(0xFF334155),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -301,7 +302,7 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
                   ),
                 if (_connectionError != null)
                   Material(
-                    color: const Color(0xFFFFF7ED),
+                    color: const Color(0xFFF1F5F9),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -311,7 +312,7 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
                         children: [
                           const Icon(
                             Icons.link_off,
-                            color: Color(0xFF9A3412),
+                            color: Color(0xFF475569),
                             size: 20,
                           ),
                           const SizedBox(width: 8),
@@ -319,7 +320,7 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
                             child: Text(
                               _connectionError!,
                               style: const TextStyle(
-                                color: Color(0xFF9A3412),
+                                color: Color(0xFF334155),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -336,15 +337,15 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
                 if (_logs.isNotEmpty && _connecting)
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: const [
                         SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                         SizedBox(width: 10),
                         Expanded(
@@ -359,10 +360,7 @@ class _GalaCourseScanLogsScreenState extends State<GalaCourseScanLogsScreen> {
                       ],
                     ),
                   ),
-                const Divider(
-                  color: Color(0xFFE5E7EB),
-                  height: 1,
-                ),
+                const Divider(color: Color(0xFFE5E7EB), height: 1),
                 Expanded(
                   child: _logs.isEmpty
                       ? Center(

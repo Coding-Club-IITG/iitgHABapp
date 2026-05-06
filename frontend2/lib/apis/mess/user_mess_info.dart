@@ -6,7 +6,19 @@ import 'package:frontend2/models/mess_info_model.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:dio/dio.dart';
 
-Future<void> persistUserMessInfoFromPayload(Map<String, dynamic> userData) async {
+Future<void> clearUserMessInfoFromPrefs() async {
+  final prefs = await SharedPreferences.getInstance();
+  await prefs.remove('messID');
+  await prefs.remove('messName');
+  await prefs.remove('hostelID');
+  await prefs.remove('rating');
+  await prefs.remove('ranking');
+  await prefs.remove('feedbackPercentage');
+  await prefs.remove('curr_subscribed_mess');
+}
+
+Future<void> persistUserMessInfoFromPayload(
+    Map<String, dynamic> userData) async {
   final prefs = await SharedPreferences.getInstance();
 
   final String messID = userData['_id']?.toString() ?? "Not found";
@@ -49,8 +61,13 @@ Future<void> getUserMessInfo() async {
           response.data as Map<String, dynamic>;
       if (kDebugMode) debugPrint('user mess info is $userData');
       await persistUserMessInfoFromPayload(userData);
+    } else if (response.statusCode == 404) {
+      await clearUserMessInfoFromPrefs();
     }
   } catch (e) {
     if (kDebugMode) debugPrint('API Error in userMessInfo: $e');
+    if (e is DioException && e.response?.statusCode == 404) {
+      await clearUserMessInfoFromPrefs();
+    }
   }
 }

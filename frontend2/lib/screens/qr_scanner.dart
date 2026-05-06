@@ -6,9 +6,11 @@ import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/mess/mess_menu.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/models/mess_menu_model.dart';
+import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart'
     show ProfilePictureProvider;
 import 'package:frontend2/screens/scan_status.dart';
+import 'package:frontend2/widgets/common/feature_blocked_for_unsubscribed.dart';
 import 'package:frontend2/widgets/common/snack_bar.dart';
 import 'package:frontend2/widgets/microsoft_required_dialog.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
@@ -53,6 +55,20 @@ class _QrScanState extends State<QrScan> {
   @override
   void initState() {
     super.initState();
+    if (!HostelsNotifier.hasSubscribedMess()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog<void>(
+          context: context,
+          builder: (context) => const FeatureBlockedForUnsubscribed(
+            featureName: 'QR Code Scanning',
+          ),
+        ).then((_) {
+          if (mounted) Navigator.of(context).pop();
+        });
+      });
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _refreshMealSessionCountdown();
@@ -659,6 +675,10 @@ class _QrScanState extends State<QrScan> {
 
   @override
   Widget build(BuildContext context) {
+    if (!HostelsNotifier.hasSubscribedMess()) {
+      return const Scaffold(backgroundColor: Colors.white);
+    }
+
     return PopScope(
       canPop: !_profilePicMissing,
       onPopInvokedWithResult: (didPop, result) {

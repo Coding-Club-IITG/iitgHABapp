@@ -8,8 +8,9 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
 
 import '../apis/caterer_auth_api.dart';
-import '../providers/auth_controller.dart';
+import '../constants/themes.dart';
 import '../constants/endpoint.dart';
+import '../providers/auth_controller.dart';
 
 /// HABit HQ login — same onboarding layout as HABit IITG; Google (caterer) sign-in only.
 class MessManagerLoginScreen extends StatelessWidget {
@@ -17,13 +18,7 @@ class MessManagerLoginScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
-      data: Theme.of(context).copyWith(
-        primaryColor: const Color(0xFF0D1D40),
-        scaffoldBackgroundColor: const Color(0xFF0D1D40),
-      ),
-      child: const _HqOnboardingScreen(),
-    );
+    return const _HqOnboardingScreen();
   }
 }
 
@@ -71,8 +66,10 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       curve: Curves.decelerate,
       reverseCurve: Curves.easeIn,
     );
-    _expandAnimation =
-        Tween<double>(begin: 0, end: 1).animate(_curvedAnimation);
+    _expandAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(_curvedAnimation);
   }
 
   @override
@@ -95,7 +92,7 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
               height: 48,
               child: CircularProgressIndicator(
                 strokeWidth: 3,
-                color: const Color(0xFF6149CD),
+                color: Themes.kAccent,
                 backgroundColor: Colors.white24,
               ),
             ),
@@ -111,7 +108,7 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
     required VoidCallback onTap,
     required Widget child,
   }) {
-    final radius = BorderRadius.circular(12);
+    final radius = BorderRadius.circular(14);
     final shape = outlineSide != null
         ? RoundedRectangleBorder(borderRadius: radius, side: outlineSide)
         : RoundedRectangleBorder(borderRadius: radius);
@@ -165,8 +162,13 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       final googleAuth = await account.authentication;
       final accessToken = googleAuth.accessToken;
       final idToken = googleAuth.idToken;
-      if (accessToken == null || accessToken.isEmpty || idToken == null || idToken.isEmpty) {
-        log('Missing Google tokens. accessTokenPresent=${accessToken != null} idTokenPresent=${idToken != null}');
+      if (accessToken == null ||
+          accessToken.isEmpty ||
+          idToken == null ||
+          idToken.isEmpty) {
+        log(
+          'Missing Google tokens. accessTokenPresent=${accessToken != null} idTokenPresent=${idToken != null}',
+        );
         navigator.pop();
         messenger.showSnackBar(
           const SnackBar(
@@ -192,7 +194,9 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       );
 
       log('Signing into Firebase with Google credential');
-      final userCred = await FirebaseAuth.instance.signInWithCredential(credential);
+      final userCred = await FirebaseAuth.instance.signInWithCredential(
+        credential,
+      );
       final user = userCred.user;
       if (user == null) {
         log('FirebaseAuth returned null user');
@@ -243,7 +247,9 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
 
       log('Calling backend: ${AuthEndpoints.catererGoogle}');
       final data = await CatererAuthApi.loginWithGoogleIdToken(firebaseToken);
-      log('Backend response keys=${data.keys.toList()} success=${data['success']}');
+      log(
+        'Backend response keys=${data.keys.toList()} success=${data['success']}',
+      );
       if (data['success'] != true) {
         navigator.pop();
         final msg = data['message']?.toString() ?? 'Google sign-in failed';
@@ -273,7 +279,9 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
           ? 'Lohit'
           : serverHostelName;
       if (token == null || refresh == null) {
-        log('Invalid server response. tokenPresent=${token != null} refreshPresent=${refresh != null} hostelName="$serverHostelName"');
+        log(
+          'Invalid server response. tokenPresent=${token != null} refreshPresent=${refresh != null} hostelName="$serverHostelName"',
+        );
         navigator.pop();
         messenger.showSnackBar(
           const SnackBar(
@@ -293,7 +301,9 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
         return;
       }
 
-      log('Saving tokens. hostelName="$hostelName" tokenLen=${token.length} refreshLen=${refresh.length}');
+      log(
+        'Saving tokens. hostelName="$hostelName" tokenLen=${token.length} refreshLen=${refresh.length}',
+      );
       await auth.signInWithCatererTokens(
         token: token,
         hostelName: hostelName,
@@ -324,11 +334,12 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
         ),
       );
     } on DioException catch (e) {
-      log('DioException: type=${e.type} status=${e.response?.statusCode} dataType=${e.response?.data.runtimeType}');
+      log(
+        'DioException: type=${e.type} status=${e.response?.statusCode} dataType=${e.response?.data.runtimeType}',
+      );
       navigator.pop();
       final msg = e.response?.data is Map
-          ? (e.response!.data['message']?.toString() ??
-              _getErrorMessage(e))
+          ? (e.response!.data['message']?.toString() ?? _getErrorMessage(e))
           : _getErrorMessage(e);
       messenger.showSnackBar(
         SnackBar(
@@ -380,8 +391,8 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
               decoration: const BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(16),
-                  topRight: Radius.circular(16),
+                  topLeft: Radius.circular(24),
+                  topRight: Radius.circular(24),
                 ),
               ),
               child: Padding(
@@ -400,12 +411,12 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 8),
                         child: Text(
-                          'Sign in',
+                          'Sign in to HABit HQ',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             fontSize: 32,
                             height: 48 / 32,
-                            color: Color(0xFF2E2F31),
+                            color: Themes.textPrimary,
                           ),
                         ),
                       ),
@@ -419,18 +430,18 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                       const Padding(
                         padding: EdgeInsets.symmetric(horizontal: 8),
                         child: Text(
-                          'For caterers',
+                          'For mess managers',
                           style: TextStyle(
                             fontWeight: FontWeight.w500,
                             fontSize: 14,
                             height: 20 / 14,
-                            color: Color(0xFF535353),
+                            color: Themes.textSecondary,
                           ),
                         ),
                       ),
                       const SizedBox(height: 8),
                       _signInSheetButton(
-                        materialColor: const Color(0xFF4C4EDB),
+                        materialColor: Themes.kAccent,
                         outlineSide: null,
                         onTap: () => _signInWithGoogle(context),
                         child: const _GoogleSignInSheetButtonContent(),
@@ -457,9 +468,9 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
 
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFFCBC1EC), Color(0xFFFFFFFF)],
+            colors: const [Color(0xFFCBC1EC), Colors.white],
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
           ),
@@ -502,9 +513,11 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                               fit: StackFit.loose,
                               children: [
                                 Positioned(
-                                  left: (40 + 10 * _expandAnimation.value) *
+                                  left:
+                                      (40 + 10 * _expandAnimation.value) *
                                       scaleFactor,
-                                  top: (40 - 5 * _expandAnimation.value) *
+                                  top:
+                                      (40 - 5 * _expandAnimation.value) *
                                       scaleFactor,
                                   child: Image.asset(
                                     'assets/icon/LoginIcon4.png',
@@ -513,9 +526,11 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                                   ),
                                 ),
                                 Positioned(
-                                  right: (40 + 10 * _expandAnimation.value) *
+                                  right:
+                                      (40 + 10 * _expandAnimation.value) *
                                       scaleFactor,
-                                  top: (50 - 20 * _expandAnimation.value) *
+                                  top:
+                                      (50 - 20 * _expandAnimation.value) *
                                       scaleFactor,
                                   child: Image.asset(
                                     'assets/icon/LoginIcon2.png',
@@ -524,9 +539,11 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                                   ),
                                 ),
                                 Positioned(
-                                  left: (10 + 10 * _expandAnimation.value) *
+                                  left:
+                                      (10 + 10 * _expandAnimation.value) *
                                       scaleFactor,
-                                  top: (130 - 30 * _expandAnimation.value) *
+                                  top:
+                                      (130 - 30 * _expandAnimation.value) *
                                       scaleFactor,
                                   child: Image.asset(
                                     'assets/icon/LoginIcon3.png',
@@ -535,9 +552,11 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                                   ),
                                 ),
                                 Positioned(
-                                  right: (0 + 10 * _expandAnimation.value) *
+                                  right:
+                                      (0 + 10 * _expandAnimation.value) *
                                       scaleFactor,
-                                  top: (140 - 40 * _expandAnimation.value) *
+                                  top:
+                                      (140 - 40 * _expandAnimation.value) *
                                       scaleFactor,
                                   child: Image.asset(
                                     'assets/icon/LoginIcon1.png',
@@ -558,16 +577,47 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                                 Positioned(
                                   right: 0,
                                   left: 0,
-                                  top: (120 - 45 * _expandAnimation.value) *
+                                  top:
+                                      (112 - 42 * _expandAnimation.value) *
                                       scaleFactor,
-                                  child: Text(
-                                    'A space built\naround your\nhostel life',
-                                    textAlign: TextAlign.center,
-                                    style: TextStyle(
-                                      color: const Color(0xFF2E2F31),
-                                      fontSize: 28 * scaleFactor,
-                                      fontWeight: FontWeight.w500,
-                                    ),
+                                  child: Column(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 12,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.84,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                          border: Border.all(
+                                            color: Themes.border,
+                                          ),
+                                        ),
+                                        child: const Text(
+                                          'Mess Manager App',
+                                          style: TextStyle(
+                                            color: Themes.textSecondary,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                        'Scans, summer\nmess and rebates\nin one place',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          color: Themes.textPrimary,
+                                          fontSize: 28 * scaleFactor,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ),
                               ],
@@ -577,45 +627,48 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                       ),
                     ),
                     Text(
-                      'From mess feedback to hostel\nroom cleaning everything you\nneed is now just a tap away.',
+                      'Review live meal scans, handle summer mess approvals\nand verify rebate applications with the same HABit flow.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Color.lerp(
-                          const Color(0xFF2E2F31),
-                          const Color(0xFF535353),
+                          Themes.textPrimary,
+                          Themes.textSecondary,
                           _expandAnimation.value,
                         ),
-                        fontSize: 12,
+                        fontSize: 12.5,
+                        height: 1.45,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
                     const Spacer(),
-                    const Spacer(),
                     SafeArea(
                       child: Container(
-                        margin: const EdgeInsets.only(bottom: 60),
+                        margin: const EdgeInsets.only(bottom: 44),
                         padding: const EdgeInsets.symmetric(horizontal: 24),
                         child: Center(
-                          child: SizedBox(
-                            width: 220,
-                            child: ElevatedButton(
-                              onPressed: () => _showBottomSheet(context),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: const Color(0xFF6149CD),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 300),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: () => _showBottomSheet(context),
+                                    child: const Text('Continue'),
+                                  ),
                                 ),
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 16),
-                              ),
-                              child: const Text(
-                                'Get Started',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.white,
+                                const SizedBox(height: 12),
+                                const Text(
+                                  'Use the manager Google account linked to your mess.',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    color: Themes.textSecondary,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
                                 ),
-                              ),
+                              ],
                             ),
                           ),
                         ),
@@ -666,7 +719,7 @@ class _GoogleSignInSheetButtonContent extends StatelessWidget {
           'Sign in with Google',
           style: TextStyle(
             color: Colors.white,
-            fontWeight: FontWeight.w500,
+            fontWeight: FontWeight.w600,
             fontSize: 14,
             height: 20 / 14,
           ),

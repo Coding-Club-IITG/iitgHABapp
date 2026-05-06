@@ -1,5 +1,5 @@
-const String baseUrl = "https://hab.codingclub.in/api";
-const String authUrl = "https://hab.codingclub.in/api";
+const String baseUrl = "http://localhost:3000/api";
+const String authUrl = "http://localhost:3000/api";
 
 class MessRebateEndpoints {
   static const String sendApplication = '$baseUrl/leave/apply';
@@ -101,4 +101,14 @@ class LaundryEndpoints {
 
 class AppBootstrapEndpoints {
   static const String bootstrap = '$baseUrl/app/bootstrap';
+}
+
+class SummerMessEndpoints {
+  static const String status = '$baseUrl/summer-mess/status';
+  static const String register = '$baseUrl/summer-mess/register';
+  static const String unsubscribe = '$baseUrl/summer-mess/unsubscribe';
+  static String cancelApplication(String applicationId) =>
+      '$baseUrl/summer-mess/my-applications/$applicationId';
+  static String myApplicationProofDocument(String applicationId) =>
+      '$baseUrl/summer-mess/my-applications/$applicationId/proof-document';
 }

@@ -13,6 +13,8 @@ import GalaDinnerDetailPage from "./pages/GalaDinnerDetailPage.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import BillsPage from "./pages/BillsPage.jsx";
 import HostelAllocations from "./pages/HostelAllocations.jsx";
+import SummerMessIndexPage from "./pages/SummerMessIndexPage.jsx";
+import SummerMessPage from "./pages/SummerMessPage.jsx";
 import CreateMess from "./components/CreateMess";
 import MessDetails from "./components/MessDetails";
 import MessMenu from "./components/MessMenu";
@@ -80,6 +82,14 @@ function App() {
                           <Route
                             path="/mess/changeapplication"
                             element={<MessChangePage />}
+                          />
+                          <Route
+                            path="/summer-mess"
+                            element={<SummerMessIndexPage />}
+                          />
+                          <Route
+                            path="/summer-mess/:seasonId"
+                            element={<SummerMessPage />}
                           />
                           <Route
                             path="/gala-dinner"

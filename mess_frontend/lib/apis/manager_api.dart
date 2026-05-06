@@ -31,19 +31,21 @@ class ManagerApi {
   }
 
   static Map<String, String> _authHeaders(String token) => {
-        'Authorization': 'Bearer $token',
-      };
+    'Authorization': 'Bearer $token',
+  };
 
   static Future<List<String>> fetchHostels() async {
     if (kDebugMode) {
       debugPrint(
-          '[ManagerApi] Fetching hostels from ${HostelEndpoints.allHostels} ...');
+        '[ManagerApi] Fetching hostels from ${HostelEndpoints.allHostels} ...',
+      );
     }
     try {
       final response = await ManagerDio.dio.get(HostelEndpoints.allHostels);
       if (kDebugMode) {
         debugPrint(
-            '[ManagerApi] /hostel/all -> status=${response.statusCode}, dataType=${response.data.runtimeType}');
+          '[ManagerApi] /hostel/all -> status=${response.statusCode}, dataType=${response.data.runtimeType}',
+        );
       }
       final data = response.data as List<dynamic>;
       final hostels = data
@@ -68,18 +70,17 @@ class ManagerApi {
   }) async {
     if (kDebugMode) {
       debugPrint(
-          '[ManagerApi] Login manager: hostel=$hostelName url=${AuthEndpoints.managerLogin}');
+        '[ManagerApi] Login manager: hostel=$hostelName url=${AuthEndpoints.managerLogin}',
+      );
     }
     final response = await ManagerDio.dio.post(
       AuthEndpoints.managerLogin,
-      data: {
-        'hostelName': hostelName,
-        'password': password,
-      },
+      data: {'hostelName': hostelName, 'password': password},
     );
     if (kDebugMode) {
       debugPrint(
-          '[ManagerApi] /auth/manager/login -> status=${response.statusCode}, data=${response.data}');
+        '[ManagerApi] /auth/manager/login -> status=${response.statusCode}, data=${response.data}',
+      );
     }
     return response.data as Map<String, dynamic>;
   }
@@ -160,9 +161,85 @@ class ManagerApi {
     return data is Map<String, dynamic> ? data : <String, dynamic>{};
   }
 
+  static Future<
+    ({
+      List<Map<String, dynamic>> applications,
+      String seasonKey,
+      String seasonLabel,
+    })
+  >
+  fetchSummerMessApplications({
+    required String token,
+    String status = 'Pending',
+    String? seasonKey,
+  }) async {
+    final response = await ManagerDio.dio.get(
+      SummerMessManagerEndpoints.applications,
+      queryParameters: <String, dynamic>{
+        'status': status,
+        if (seasonKey != null && seasonKey.trim().isNotEmpty)
+          'seasonKey': seasonKey.trim(),
+      },
+      options: Options(headers: _authHeaders(token)),
+    );
+
+    final data = response.data;
+    if (data is Map && data['applications'] is List) {
+      return (
+        applications: (data['applications'] as List)
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .toList(),
+        seasonKey: (data['seasonKey'] ?? '').toString(),
+        seasonLabel: (data['seasonLabel'] ?? '').toString(),
+      );
+    }
+    return (
+      applications: const <Map<String, dynamic>>[],
+      seasonKey: '',
+      seasonLabel: '',
+    );
+  }
+
+  static Future<Map<String, dynamic>> acknowledgeSummerMessApplication({
+    required String token,
+    required String applicationId,
+  }) async {
+    final response = await ManagerDio.dio.post(
+      SummerMessManagerEndpoints.acknowledge(applicationId),
+      options: Options(headers: _authHeaders(token)),
+    );
+    final data = response.data;
+    return data is Map<String, dynamic> ? data : <String, dynamic>{};
+  }
+
+  static Future<({Uint8List bytes, String? contentType})>
+  downloadSummerMessProof({
+    required String token,
+    required String applicationId,
+  }) async {
+    final response = await ManagerDio.dio.get<List<int>>(
+      SummerMessManagerEndpoints.proofDocument(applicationId),
+      options: Options(
+        headers: _authHeaders(token),
+        responseType: ResponseType.bytes,
+        validateStatus: (code) => code != null && code >= 200 && code < 400,
+      ),
+    );
+    final bytes = response.data;
+    if (bytes == null || bytes.isEmpty) {
+      throw Exception('Empty download response');
+    }
+    return (
+      bytes: Uint8List.fromList(bytes),
+      contentType: _contentType(response),
+    );
+  }
+
   /// Download a proof/leave document via authenticated backend endpoint.
   /// The backend streams OneDrive bytes so the client doesn't hit 401/403.
-  static Future<({Uint8List bytes, String? contentType})> downloadLeaveDocument({
+  static Future<({Uint8List bytes, String? contentType})>
+  downloadLeaveDocument({
     required String token,
     required String documentUrl,
   }) async {
@@ -274,4 +351,3 @@ class ManagerApi {
     return data is Map<String, dynamic> ? data : <String, dynamic>{};
   }
 }
-
