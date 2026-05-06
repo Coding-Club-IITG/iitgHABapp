@@ -30,6 +30,10 @@ import {
   defineGuestCleanupJobs,
   scheduleGuestCleanupJobs,
 } from "../modules/auth/autoGuestCleanupScheduler.js";
+import {
+  defineSummerMessJobs,
+  scheduleSummerMessJobs,
+} from "../modules/summer_mess/autoSummerMessScheduler.js";
 
 async function bootstrap() {
   await mongoose.connect(mongodbUri);
@@ -44,6 +48,7 @@ async function bootstrap() {
   defineRoomCleaningJobs();
   defineGuestCleanupJobs();
   defineFestivalModeJobs();
+  defineSummerMessJobs();
 
   console.log("[Agenda Worker] Scheduling jobs...");
   scheduleFeedbackJobs();
@@ -53,6 +58,7 @@ async function bootstrap() {
   scheduleRoomCleaningJobs();
   scheduleGuestCleanupJobs();
   scheduleFestivalModeJobs();
+  scheduleSummerMessJobs();
 
   console.log("[Agenda Worker] Ready");
 }

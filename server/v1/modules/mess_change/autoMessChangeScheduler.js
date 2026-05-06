@@ -7,6 +7,7 @@ import {
   disableMessChangeAutomatic,
 } from "./controllers/schedulerController.js";
 import { sendNotificationToMultipleUsers } from "../notification/notificationController.js";
+import { isSummerMessActiveNow } from "../summer_mess/summerMessService.js";
 
 import { getMessChangeWindowDates } from "../../utils/windowDates.js";
 import agenda from "../../utils/agenda.js";
@@ -101,6 +102,13 @@ export const defineMessChangeJobs = () => {
         const year = now.getFullYear();
         const month = now.getMonth();
         const day = now.getDate();
+
+        if (await isSummerMessActiveNow()) {
+          console.log(
+            "[MESS CHANGE] Summer mess is active. Skipping mess change window automation.",
+          );
+          return;
+        }
 
         if (!ENABLE_MESS_CHANGE_FLOW) {
           console.log("[MESS CHANGE] Flow is disabled via config this month.");
