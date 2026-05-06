@@ -4,9 +4,11 @@ import 'package:file_picker/file_picker.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
+import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/screens/rebate_application_success_screen.dart';
 import 'package:frontend2/utils/rebate_academic.dart';
 import 'package:frontend2/utils/rebate_form_validation.dart';
+import 'package:frontend2/widgets/common/feature_blocked_for_unsubscribed.dart';
 import 'package:frontend2/widgets/common/shimmer_host.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -107,6 +109,20 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
   void initState() {
     super.initState();
     _selectedValue = widget.leaveType;
+    if (!HostelsNotifier.hasSubscribedMess()) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showDialog<void>(
+          context: context,
+          builder: (context) => const FeatureBlockedForUnsubscribed(
+            featureName: 'Mess Rebate',
+          ),
+        ).then((_) {
+          if (mounted) Navigator.of(context).pop();
+        });
+      });
+      return;
+    }
     _loadProfile();
   }
 
@@ -553,6 +569,35 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (!HostelsNotifier.hasSubscribedMess()) {
+      return Scaffold(
+        backgroundColor: Colors.white,
+        appBar: AppBar(
+          elevation: 0,
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          centerTitle: false,
+          titleSpacing: NavigationToolbar.kMiddleSpacing,
+          iconTheme: const IconThemeData(color: Colors.black),
+          title: const Text(
+            'Mess Rebate',
+            style: TextStyle(
+              color: Colors.black,
+              fontWeight: FontWeight.w500,
+              fontSize: 20,
+            ),
+          ),
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => Navigator.pop(context),
+          ),
+        ),
+        body: const SafeArea(
+          child: FeatureBlockedForUnsubscribed(featureName: 'Mess Rebate'),
+        ),
+      );
+    }
+
     if (_profileLoading) {
       return Scaffold(
         backgroundColor: Colors.white,

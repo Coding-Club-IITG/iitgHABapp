@@ -4,9 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../apis/room_cleaning/room_cleaning_api.dart';
-import '../../providers/hostels.dart';
 import '../../providers/room_cleaning_provider.dart';
-import '../../widgets/common/feature_blocked_for_unsubscribed.dart';
 import '../../widgets/common/page_loading_shimmer.dart';
 
 /// Slot letter to time range for display (replaces "Slot A" etc. with timing).
@@ -43,20 +41,6 @@ class _RoomCleaningScreenState extends State<RoomCleaningScreen> {
   @override
   void initState() {
     super.initState();
-    if (!HostelsNotifier.hasSubscribedMess()) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        showDialog<void>(
-          context: context,
-          builder: (context) => const FeatureBlockedForUnsubscribed(
-            featureName: 'Room Cleaning',
-          ),
-        ).then((_) {
-          if (mounted) Navigator.of(context).pop();
-        });
-      });
-      return;
-    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _runInitialLoadIfNeeded();
     });
@@ -64,10 +48,6 @@ class _RoomCleaningScreenState extends State<RoomCleaningScreen> {
 
   @override
   Widget build(BuildContext context) {
-    if (!HostelsNotifier.hasSubscribedMess()) {
-      return const Scaffold(backgroundColor: Colors.white);
-    }
-
     return DefaultTabController(
       length: 2,
       child: Scaffold(

@@ -87,6 +87,30 @@ const resolveSubscribedMessForRoll = async ({ rollno, fallbackHostelId }) => {
   }
 };
 
+const syncUserAllocationMess = async ({
+  rollno,
+  hostelId,
+  currentSubscribedMessId,
+  email,
+}) => {
+  if (!rollno || !hostelId) return;
+
+  const update = {
+    hostel: hostelId,
+    current_subscribed_mess: currentSubscribedMessId || hostelId,
+  };
+
+  if (email) {
+    update.email = email;
+  }
+
+  await UserAllocHostel.findOneAndUpdate(
+    { rollno },
+    { $set: update },
+    { upsert: true, new: true, runValidators: true },
+  );
+};
+
 // Mobile redirect (used by app deep link)
 export const mobileRedirectHandler = async (req, res, next) => {
   const rid =
@@ -226,6 +250,12 @@ export const mobileRedirectHandler = async (req, res, next) => {
 
       const user = new User(userData);
       existingUser = await user.save();
+      await syncUserAllocationMess({
+        rollno: roll,
+        hostelId: allocatedHostel._id,
+        currentSubscribedMessId: currentSubscribedMess,
+        email: userFromToken.data.mail,
+      });
       isFirstLogin = true;
       console.log("[Auth][MobileRedirect][user-create][ok]", {
         rid,
@@ -249,6 +279,12 @@ export const mobileRedirectHandler = async (req, res, next) => {
       existingUser.curr_subscribed_mess = currentSubscribedMess;
 
       await existingUser.save();
+      await syncUserAllocationMess({
+        rollno: roll,
+        hostelId: allocatedHostel._id,
+        currentSubscribedMessId: currentSubscribedMess,
+        email: userFromToken.data.mail,
+      });
       console.log("[Auth][MobileRedirect][user-update][ok]", {
         rid,
         userId: String(existingUser?._id),
@@ -750,6 +786,12 @@ export const linkMicrosoftAccount = async (req, res, next) => {
     }
 
     await currentUser.save();
+    await syncUserAllocationMess({
+      rollno: roll,
+      hostelId: allocatedHostel._id,
+      currentSubscribedMessId: currentSubscribedMess,
+      email: microsoftEmail,
+    });
 
     return res.status(200).json({
       message: "Microsoft account linked successfully",
