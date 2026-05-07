@@ -13,7 +13,7 @@ module.exports = {
       watch: false,
 
       // Performance
-      instances: "18",
+      instances: "1",
       exec_mode: "cluster",
 
       // Stability
@@ -66,7 +66,7 @@ module.exports = {
       instance_var: "NODE_APP_INSTANCE",
 
       // Performance
-      instances: "6",
+      instances: "1",
       exec_mode: "cluster",
 
       // Stability

@@ -9,6 +9,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/endpoint.dart';
 import '../widgets/microsoft_required_dialog.dart';
 import 'package:frontend2/widgets/common/shimmer_host.dart';
+import 'package:frontend2/providers/hostels.dart';
+import 'package:frontend2/widgets/common/feature_blocked_for_unsubscribed.dart';
 
 /// Same palette rhythm as [MessScreen] / leave flows — no Material blue / raw red fills.
 abstract final class _MessPrefTheme {
@@ -58,7 +60,14 @@ class _MessChangePreferenceScreenState
   void initState() {
     super.initState();
     _checkMicrosoftLink();
-    checkMessChangeStatus();
+    // Rebuild when hostel/provider values change (bootstrap update)
+    HostelsNotifier.addOnChange(() {
+      if (mounted) setState(() {});
+    });
+    // If user has no subscribed mess, skip fetching mess-change status.
+    if (HostelsNotifier.hasSubscribedMess()) {
+      checkMessChangeStatus();
+    }
     checkSMCStatus();
   }
 
@@ -438,9 +447,43 @@ class _MessChangePreferenceScreenState
 
   @override
   Widget build(BuildContext context) {
+    final blockedDueToSubscription = !HostelsNotifier.hasSubscribedMess();
     final bottomInset = MediaQuery.paddingOf(context).bottom;
     final showSubmit =
         (isMessChangeEnabled == true) && !alreadyApplied && !isSMC;
+
+    if (blockedDueToSubscription) {
+      return Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.white,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          scrolledUnderElevation: 0,
+          centerTitle: false,
+          titleSpacing: NavigationToolbar.kMiddleSpacing,
+          foregroundColor: _MessPrefTheme.textPrimary,
+          shape: const Border(
+            bottom: BorderSide(
+              color: _MessPrefTheme.border,
+              width: 1,
+            ),
+          ),
+          leading: const BackButton(color: _MessPrefTheme.textPrimary),
+          title: const Text(
+            'Mess Change',
+            style: TextStyle(
+              color: _MessPrefTheme.textPrimary,
+              fontWeight: FontWeight.w500,
+              fontSize: 20,
+              height: 24 / 20,
+            ),
+          ),
+        ),
+        body: const SafeArea(
+          child: FeatureBlockedForUnsubscribed(featureName: 'Mess Change'),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: _MessPrefTheme.pageBg,

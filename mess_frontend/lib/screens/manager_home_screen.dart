@@ -5,9 +5,11 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:go_router/go_router.dart';
 
 import '../apis/manager_api.dart';
+import '../constants/themes.dart';
 import '../providers/auth_controller.dart';
 import 'gala_summary_screen.dart';
 import 'rebate_summary_screen.dart';
+import 'summer_mess_summary_screen.dart';
 import 'today_mess_screen.dart';
 
 /// Manager home with bottom navigation: Today Mess, Gala Dinner, Rebate.
@@ -22,6 +24,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
   int _currentIndex = 0;
   bool _galaInitialized = false;
   bool _hasGalaToday = false;
+  bool _summerInitialized = false;
   bool _rebateInitialized = false;
 
   Future<void> _logout() async {
@@ -89,9 +92,7 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         if (_currentIndex != 0) _currentIndex = 0;
       });
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Could not check Gala Dinner: $e'),
-        ),
+        SnackBar(content: Text('Could not check Gala Dinner: $e')),
       );
     }
   }
@@ -107,6 +108,9 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         (_galaInitialized
             ? GalaSummaryScreen(hostelName: hostelName)
             : const SizedBox.shrink()),
+      (_summerInitialized
+          ? SummerMessSummaryScreen(hostelName: hostelName)
+          : const SizedBox.shrink()),
       (_rebateInitialized
           ? RebateSummaryScreen(hostelName: hostelName)
           : const SizedBox.shrink()),
@@ -123,24 +127,24 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
           label: 'Gala Dinner',
         ),
       const BottomNavigationBarItem(
+        icon: Icon(Icons.wb_sunny_outlined),
+        label: 'Summer',
+      ),
+      const BottomNavigationBarItem(
         icon: Icon(Icons.receipt_long),
         label: 'Rebate',
       ),
     ];
 
-    final rebateIndex = _hasGalaToday ? 2 : 1;
+    final summerIndex = _hasGalaToday ? 2 : 1;
+    final rebateIndex = _hasGalaToday ? 3 : 2;
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: Themes.pageBg,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
         title: Text(
           hostelName.isEmpty ? 'HABit HQ' : hostelName,
-          style: const TextStyle(
-            color: Color(0xFF111827),
-            fontWeight: FontWeight.w600,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.w700),
         ),
         actions: [
           PopupMenuButton<String>(
@@ -163,36 +167,38 @@ class _ManagerHomeScreenState extends State<ManagerHomeScreen> {
         ],
       ),
       body: SafeArea(
-        child: IndexedStack(
-          index: _currentIndex,
-          children: screens,
+        child: Column(
+          children: [
+            Expanded(
+              child: IndexedStack(index: _currentIndex, children: screens),
+            ),
+          ],
         ),
       ),
-      bottomNavigationBar: Theme(
-        data: Theme.of(context).copyWith(
-          splashFactory: NoSplash.splashFactory,
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-        ),
-        child: BottomNavigationBar(
-          currentIndex: _currentIndex,
-          items: items,
-          onTap: (index) {
-            setState(() {
-              if (_hasGalaToday && index == 1) {
-                _galaInitialized = true;
-              }
-              if (index == rebateIndex) {
-                _rebateInitialized = true;
-              }
-              _currentIndex = index;
-            });
-          },
-          selectedItemColor: const Color(0xFF111827),
-          unselectedItemColor: const Color(0xFF9CA3AF),
-          backgroundColor: Colors.white,
-          type: BottomNavigationBarType.fixed,
-        ),
+      bottomNavigationBar: NavigationBar(
+        selectedIndex: _currentIndex,
+        destinations: items
+            .map(
+              (item) => NavigationDestination(
+                icon: item.icon,
+                label: item.label ?? '',
+              ),
+            )
+            .toList(),
+        onDestinationSelected: (index) {
+          setState(() {
+            if (_hasGalaToday && index == 1) {
+              _galaInitialized = true;
+            }
+            if (index == summerIndex) {
+              _summerInitialized = true;
+            }
+            if (index == rebateIndex) {
+              _rebateInitialized = true;
+            }
+            _currentIndex = index;
+          });
+        },
       ),
     );
   }

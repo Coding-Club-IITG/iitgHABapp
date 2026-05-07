@@ -15,6 +15,7 @@ import {
 } from "./auth.controller.js";
 import {
   catererGoogleLoginHandler,
+  catererGuestLoginHandler,
   catererRefreshHandler,
   catererLogoutHandler,
 } from "./catererAuth.controller.js";
@@ -105,6 +106,7 @@ router.post("/manager/login", managerLoginHandler);
 
 // HABit HQ: caterer Google sign-in + refresh (does not change /manager/login — used by HABit RC)
 router.post("/caterer/google", catererGoogleLoginHandler);
+router.post("/caterer/guest", catererGuestLoginHandler);
 router.post("/caterer/refresh", catererRefreshHandler);
 router.post("/caterer/logout", catererLogoutHandler);
 

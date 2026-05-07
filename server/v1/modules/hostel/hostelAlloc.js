@@ -3,6 +3,23 @@ import csv from "csv-parser";
 
 import UserAllocHostel from "./hostelAllocModel.js";
 import { Hostel } from "./hostelModel.js";
+import { SummerMessSettings } from "../summer_mess/summerMessSettingsModel.js";
+
+async function resolveDefaultSubscribedMess(hostelId, currentSubscribedMessId = null) {
+  if (currentSubscribedMessId) return currentSubscribedMessId;
+
+  const activeSummerSeason = await SummerMessSettings.findOne({
+    isSummerActive: true,
+  })
+    .select("_id")
+    .lean();
+
+  if (activeSummerSeason) {
+    return null;
+  }
+
+  return hostelId;
+}
 
 export async function getAllocations(req, res) {
   try {
@@ -89,11 +106,15 @@ export async function upsertAllocation(req, res) {
       }
     }
 
+    const resolvedSubscribedMess = await resolveDefaultSubscribedMess(
+      hostel._id,
+      currentSubscribedMess?._id ?? null,
+    );
+
     const updateData = {
       rollno: roll,
       hostel: hostel._id,
-      // If left empty, default to hostel (as requested).
-      current_subscribed_mess: (currentSubscribedMess?._id ?? hostel._id),
+      current_subscribed_mess: resolvedSubscribedMess,
     };
 
     // Optional email
@@ -184,18 +205,19 @@ export async function uploadData(req, res) {
               continue;
             }
 
+            const resolvedSubscribedMess = await resolveDefaultSubscribedMess(
+              hostel._id,
+              currentSubscribedMess?._id ?? null,
+            );
+
             const updateData = {
               rollno: rollno,
               hostel: hostel._id,
+              current_subscribed_mess: resolvedSubscribedMess,
             };
 
             if (email) {
               updateData.email = email;
-            }
-
-            // Only set current_subscribed_mess if it was found
-            if (currentSubscribedMess) {
-              updateData.current_subscribed_mess = currentSubscribedMess._id;
             }
 
             await UserAllocHostel.findOneAndUpdate(

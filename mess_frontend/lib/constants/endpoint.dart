@@ -11,6 +11,7 @@ class AuthEndpoints {
 
   /// HABit HQ caterer Google sign-in (separate from RC manager password login).
   static String get catererGoogle => '$baseUrl/auth/caterer/google';
+  static String get catererGuest => '$baseUrl/auth/caterer/guest';
   static String get catererRefresh => '$baseUrl/auth/caterer/refresh';
   static String get catererLogout => '$baseUrl/auth/caterer/logout';
 }
@@ -55,6 +56,14 @@ class MessRebateManagerEndpoints {
 
   /// Streams the file bytes via server-side OneDrive download (auth required).
   static String get download => '$baseUrl/leave/download';
+}
+
+class SummerMessManagerEndpoints {
+  static String get applications => '$baseUrl/summer-mess/manager/applications';
+  static String acknowledge(String id) =>
+      '$baseUrl/summer-mess/manager/applications/$id/acknowledge';
+  static String proofDocument(String id) =>
+      '$baseUrl/summer-mess/manager/applications/$id/proof-document';
 }
 
 class HqAppVersionEndpoints {

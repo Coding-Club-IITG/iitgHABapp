@@ -1,6 +1,7 @@
 import { User } from "../user/userModel.js";
 import UserAllocHostel from "../hostel/hostelAllocModel.js";
 import { MessChangeSettings } from "./messChangeSettingsModel.js";
+import { isSummerMessActiveNow } from "../summer_mess/summerMessService.js";
 
 import { withTransaction } from "../../utils/withTransaction.js";
 import agenda from "../../utils/agenda.js";
@@ -12,6 +13,13 @@ const JOB_NAME = "mess-allotment-rotate";
  */
 const rotateMessAllotments = async () => {
   console.log("[MESS ALLOTMENT] Starting monthly mess rotation...");
+
+  if (await isSummerMessActiveNow()) {
+    console.log(
+      "[MESS ALLOTMENT] Summer mess is active. Skipping monthly rotation.",
+    );
+    return 0;
+  }
 
   // Safety check: ensure mess change processing has occurred
   const settings = await MessChangeSettings.findOne();

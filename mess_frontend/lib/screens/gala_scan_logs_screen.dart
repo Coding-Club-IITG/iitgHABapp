@@ -234,7 +234,7 @@ class _GalaScanLogsScreenState extends State<GalaScanLogsScreen>
                       else
                         const Icon(
                           Icons.error_outline,
-                          color: Color(0xFFF97316),
+                          color: Color(0xFFB91C1C),
                           size: 20,
                         ),
                       const SizedBox(width: 10),
@@ -323,7 +323,7 @@ class _GalaScanLogsScreenState extends State<GalaScanLogsScreen>
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: isDuplicate
-                  ? const Color(0xFFF97316)
+                  ? const Color(0xFFEF4444)
                   : const Color(0xFF22C55E),
               width: 1,
             ),
@@ -335,13 +335,13 @@ class _GalaScanLogsScreenState extends State<GalaScanLogsScreen>
                 height: 36,
                 decoration: BoxDecoration(
                   color: isDuplicate
-                      ? const Color(0xFF7C2D12)
+                      ? const Color(0xFFFEE2E2)
                       : const Color(0xFF14532D),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Icon(
                   isDuplicate ? Icons.warning_amber_rounded : Icons.check,
-                  color: Colors.white,
+                  color: isDuplicate ? const Color(0xFFB91C1C) : Colors.white,
                   size: 20,
                 ),
               ),
@@ -351,7 +351,9 @@ class _GalaScanLogsScreenState extends State<GalaScanLogsScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      log.userName.isEmpty ? 'Unknown' : toTitleCase(log.userName),
+                      log.userName.isEmpty
+                          ? 'Unknown'
+                          : toTitleCase(log.userName),
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 15,
@@ -392,7 +394,7 @@ class _GalaScanLogsScreenState extends State<GalaScanLogsScreen>
                     ),
                     decoration: BoxDecoration(
                       color: isDuplicate
-                          ? const Color(0xFF7C2D12)
+                          ? const Color(0xFFFEE2E2)
                           : const Color(0xFF14532D),
                       borderRadius: BorderRadius.circular(999),
                     ),

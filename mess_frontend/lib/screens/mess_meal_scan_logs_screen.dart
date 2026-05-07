@@ -21,8 +21,7 @@ class MessMealScanLogsScreen extends StatefulWidget {
   final String meal;
 
   @override
-  State<MessMealScanLogsScreen> createState() =>
-      _MessMealScanLogsScreenState();
+  State<MessMealScanLogsScreen> createState() => _MessMealScanLogsScreenState();
 }
 
 class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
@@ -195,7 +194,8 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
           if (!mounted) return;
           if (kDebugMode) {
             debugPrint(
-                '[MessMealScanLogs] WS error for ${widget.meal}: $error');
+              '[MessMealScanLogs] WS error for ${widget.meal}: $error',
+            );
           }
           setState(() {
             _connectionError = 'Connection error: $error';
@@ -206,7 +206,8 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
           if (!mounted) return;
           if (kDebugMode) {
             debugPrint(
-                '[MessMealScanLogs] WS done for ${widget.meal} (closed by server/client)');
+              '[MessMealScanLogs] WS done for ${widget.meal} (closed by server/client)',
+            );
           }
           setState(() {
             _connectionError ??= 'Connection closed';
@@ -255,15 +256,13 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
         elevation: 0,
       ),
       body: _initialLoading
-          ? const Center(
-              child: CircularProgressIndicator(),
-            )
+          ? const Center(child: CircularProgressIndicator())
           : Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_initialFetchError != null)
                   Material(
-                    color: const Color(0xFFFFF7ED),
+                    color: const Color(0xFFF1F5F9),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -273,7 +272,7 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
                         children: [
                           const Icon(
                             Icons.wifi_off_outlined,
-                            color: Color(0xFF9A3412),
+                            color: Color(0xFF475569),
                             size: 20,
                           ),
                           const SizedBox(width: 8),
@@ -281,7 +280,7 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
                             child: Text(
                               'Could not refresh list: $_initialFetchError',
                               style: const TextStyle(
-                                color: Color(0xFF9A3412),
+                                color: Color(0xFF334155),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -300,7 +299,7 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
                   ),
                 if (_connectionError != null)
                   Material(
-                    color: const Color(0xFFFFF7ED),
+                    color: const Color(0xFFF1F5F9),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 16,
@@ -310,7 +309,7 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
                         children: [
                           const Icon(
                             Icons.link_off,
-                            color: Color(0xFF9A3412),
+                            color: Color(0xFF475569),
                             size: 20,
                           ),
                           const SizedBox(width: 8),
@@ -318,7 +317,7 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
                             child: Text(
                               _connectionError!,
                               style: const TextStyle(
-                                color: Color(0xFF9A3412),
+                                color: Color(0xFF334155),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -335,15 +334,15 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
                 if (_logs.isNotEmpty && _connecting)
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 12),
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                     child: Row(
                       children: const [
                         SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
+                          child: CircularProgressIndicator(strokeWidth: 2),
                         ),
                         SizedBox(width: 10),
                         Expanded(
@@ -388,7 +387,9 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
                         )
                       : ListView.builder(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 8),
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           itemCount: _logs.length,
                           itemBuilder: (context, index) {
                             final entry = _logs[index];
@@ -401,8 +402,8 @@ class _MessMealScanLogsScreenState extends State<MessMealScanLogsScreen> {
                                         MaterialPageRoute<void>(
                                           builder: (_) =>
                                               ManagerUserProfileScreen(
-                                            userId: entry.userId,
-                                          ),
+                                                userId: entry.userId,
+                                              ),
                                         ),
                                       );
                                     },

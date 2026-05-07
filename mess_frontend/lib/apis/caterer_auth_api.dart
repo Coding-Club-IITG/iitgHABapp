@@ -18,9 +18,7 @@ class CatererAuthApi {
       final res = await _plain.post<Map<String, dynamic>>(
         AuthEndpoints.catererRefresh,
         data: <String, dynamic>{'refreshToken': refresh},
-        options: Options(
-          validateStatus: (c) => c != null && c < 500,
-        ),
+        options: Options(validateStatus: (c) => c != null && c < 500),
       );
       final data = res.data;
       if (res.statusCode == 200 &&
@@ -29,10 +27,7 @@ class CatererAuthApi {
           data['token'] != null) {
         final access = data['token']!.toString();
         final newRefresh = data['refreshToken']?.toString() ?? refresh;
-        await auth.applyRefreshedTokens(
-          access: access,
-          refresh: newRefresh,
-        );
+        await auth.applyRefreshedTokens(access: access, refresh: newRefresh);
         return true;
       }
     } catch (e, st) {
@@ -45,7 +40,9 @@ class CatererAuthApi {
   }
 
   /// Google ID token → caterer session. Returns server JSON or throws [DioException].
-  static Future<Map<String, dynamic>> loginWithGoogleIdToken(String idToken) async {
+  static Future<Map<String, dynamic>> loginWithGoogleIdToken(
+    String idToken,
+  ) async {
     if (kDebugMode) {
       debugPrint(
         '[CatererAuthApi] POST ${AuthEndpoints.catererGoogle} (idTokenLen=${idToken.length})',
@@ -54,9 +51,32 @@ class CatererAuthApi {
     final res = await _plain.post<Map<String, dynamic>>(
       AuthEndpoints.catererGoogle,
       data: <String, dynamic>{'idToken': idToken},
-      options: Options(
-        validateStatus: (c) => c != null && c < 500,
-      ),
+      options: Options(validateStatus: (c) => c != null && c < 500),
+    );
+    if (kDebugMode) {
+      debugPrint(
+        '[CatererAuthApi] response status=${res.statusCode} dataType=${res.data.runtimeType}',
+      );
+    }
+    final data = res.data;
+    if (data == null) {
+      throw DioException(
+        requestOptions: res.requestOptions,
+        message: 'Empty response',
+      );
+    }
+    return data;
+  }
+
+  /// Guest login → caterer session for Lohit hostel. Returns server JSON or throws [DioException].
+  static Future<Map<String, dynamic>> guestAuthenticate() async {
+    if (kDebugMode) {
+      debugPrint('[CatererAuthApi] POST ${AuthEndpoints.catererGuest}');
+    }
+    final res = await _plain.post<Map<String, dynamic>>(
+      AuthEndpoints.catererGuest,
+      data: <String, dynamic>{},
+      options: Options(validateStatus: (c) => c != null && c < 500),
     );
     if (kDebugMode) {
       debugPrint(

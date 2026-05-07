@@ -4,10 +4,7 @@ import { getHqAuth } from "./hqFirebaseAdmin.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import { Mess } from "../mess/messModel.js";
 import CatererSession from "./catererSession.model.js";
-import {
-  hqCatererAllowAnyGoogleEmail,
-  hqCatererFallbackHostelName,
-} from "../../config/default.js";
+import { hqCatererAllowAnyGoogleEmail } from "../../config/default.js";
 
 const REFRESH_DAYS = Number(process.env.CATERER_REFRESH_DAYS || 30);
 
@@ -21,30 +18,6 @@ async function resolveHostelForMess(mess) {
     if (h) return h;
   }
   return Hostel.findOne({ messId: mess._id });
-}
-
-function escapeRegex(str) {
-  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-async function resolveFallbackHostel() {
-  const configuredName = String(hqCatererFallbackHostelName || "").trim();
-  if (!configuredName) return null;
-
-  let hostel = await Hostel.findOne({ hostel_name: configuredName });
-  if (hostel) return hostel;
-
-  hostel = await Hostel.findOne({
-    hostel_name: { $regex: `^${escapeRegex(configuredName)}$`, $options: "i" },
-  });
-  if (hostel) return hostel;
-
-  if (configuredName.toLowerCase().startsWith("lohit")) {
-    hostel = await Hostel.findOne({
-      hostel_name: { $regex: "^lohit( hostel)?$", $options: "i" },
-    });
-  }
-  return hostel;
 }
 
 async function resolveMessForHostel(hostel) {
@@ -99,31 +72,10 @@ export const catererGoogleLoginHandler = async (req, res, next) => {
     let authType = "caterer_google";
 
     if (!mess || !hostel) {
-      if (!hqCatererAllowAnyGoogleEmail) {
-        const message = !mess
-          ? "This Google account is not registered for any caterer (mess)"
-          : "No hostel linked to this caterer";
-        return res.status(403).json({ success: false, message });
-      }
-
-      hostel = await resolveFallbackHostel();
-      if (!hostel) {
-        return res.status(503).json({
-          success: false,
-          message:
-            "Reviewer fallback hostel is not configured. Set HQ_CATERER_FALLBACK_HOSTEL_NAME to an existing hostel.",
-        });
-      }
-
-      mess = await resolveMessForHostel(hostel);
-      if (!mess) {
-        return res.status(503).json({
-          success: false,
-          message: "No mess linked to fallback hostel",
-        });
-      }
-
-      authType = "caterer_google_fallback";
+      const message = !mess
+        ? "This Google account is not registered for any caterer (mess)"
+        : "No hostel linked to this caterer";
+      return res.status(403).json({ success: false, message });
     }
 
     const rawRefresh = crypto.randomBytes(48).toString("base64url");
@@ -254,6 +206,59 @@ export const catererLogoutHandler = async (req, res, next) => {
     return res.status(200).json({ success: true });
   } catch (err) {
     console.error("catererLogoutHandler:", err);
+    next(err);
+  }
+};
+
+/**
+ * POST /api/auth/caterer/guest
+ * Guest login — no authentication required. Returns Lohit hostel access.
+ * Body: {} (empty)
+ */
+export const catererGuestLoginHandler = async (req, res, next) => {
+  try {
+    const hostel = await Hostel.findOne({ hostel_name: "Lohit" });
+
+    if (!hostel) {
+      return res.status(503).json({
+        success: false,
+        message:
+          "Lohit hostel not found in database. Guest access is not available.",
+      });
+    }
+
+    const mess = await resolveMessForHostel(hostel);
+    if (!mess) {
+      return res.status(503).json({
+        success: false,
+        message: "No mess linked to Lohit hostel",
+      });
+    }
+
+    const rawRefresh = crypto.randomBytes(48).toString("base64url");
+    const expiresAt = new Date(Date.now() + REFRESH_DAYS * 24 * 60 * 60 * 1000);
+
+    await CatererSession.create({
+      mess: mess._id,
+      hostel: hostel._id,
+      refreshToken: rawRefresh,
+      userAgent: req.headers["user-agent"],
+      ipAddress: req.ip,
+      expiresAt,
+    });
+
+    const accessToken = hostel.generateJWT();
+
+    return res.status(200).json({
+      success: true,
+      token: accessToken,
+      refreshToken: rawRefresh,
+      hostelName: hostel.hostel_name,
+      messId: mess._id.toString(),
+      authType: "caterer_guest",
+    });
+  } catch (err) {
+    console.error("catererGuestLoginHandler:", err);
     next(err);
   }
 };

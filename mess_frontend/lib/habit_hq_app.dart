@@ -13,25 +13,7 @@ class HabitHqApp extends StatelessWidget {
     return MaterialApp.router(
       debugShowCheckedModeBanner: false,
       title: 'HABit HQ',
-      theme: Themes.theme.copyWith(
-        inputDecorationTheme: const InputDecorationTheme(
-          filled: true,
-          fillColor: Themes.shimmerHighlight,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-            borderSide: BorderSide(color: Themes.shimmerBase),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-            borderSide: BorderSide(color: Themes.shimmerBase),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.all(Radius.circular(12)),
-            borderSide: BorderSide(color: Themes.kAccent, width: 1.5),
-          ),
-          hintStyle: TextStyle(color: Colors.black54, fontSize: 14),
-        ),
-      ),
+      theme: Themes.buildAppTheme(),
       routerConfig: router,
     );
   }

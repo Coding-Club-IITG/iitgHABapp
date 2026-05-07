@@ -102,3 +102,13 @@ class LaundryEndpoints {
 class AppBootstrapEndpoints {
   static const String bootstrap = '$baseUrl/app/bootstrap';
 }
+
+class SummerMessEndpoints {
+  static const String status = '$baseUrl/summer-mess/status';
+  static const String register = '$baseUrl/summer-mess/register';
+  static const String unsubscribe = '$baseUrl/summer-mess/unsubscribe';
+  static String cancelApplication(String applicationId) =>
+      '$baseUrl/summer-mess/my-applications/$applicationId';
+  static String myApplicationProofDocument(String applicationId) =>
+      '$baseUrl/summer-mess/my-applications/$applicationId/proof-document';
+}

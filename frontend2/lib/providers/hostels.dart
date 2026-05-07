@@ -2,15 +2,45 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/constants/endpoint.dart';
-import 'package:frontend2/screens/mess_screen.dart';
 import 'package:frontend2/widgets/common/hostel_name.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class HostelsNotifier {
+  // Current subscribed mess id/name (persisted to prefs as 'curr_subscribed_mess').
+  static String currSubscribedMess = '';
+
+  // Whether summer is active (set from bootstrap / initial API call).
+  static bool isSummerActive = false;
+
+  // Returns true if user currently has a subscribed mess.
+  static bool hasSubscribedMess() {
+    return currSubscribedMess.isNotEmpty;
+  }
+
+  // Update subscription and summer flag from bootstrap values and persist.
+  static Future<void> updateFromBootstrap({String? curr, bool? summer}) async {
+    final prefs = await SharedPreferences.getInstance();
+    currSubscribedMess = curr ?? '';
+    if (currSubscribedMess.isNotEmpty) {
+      await prefs.setString('curr_subscribed_mess', currSubscribedMess);
+    } else {
+      await prefs.remove('curr_subscribed_mess');
+    }
+    if (summer != null) {
+      isSummerActive = summer;
+      await prefs.setBool('isSummerActive', isSummerActive);
+    }
+    for (var onChange in onHostelChanged) {
+      try {
+        onChange();
+      } catch (_) {}
+    }
+  }
   static String userHostel = "";
   static var hostelNotifier = ValueNotifier<List<String>>([]);
   static var hostels = <String>[];
   static var hostelIdToNameMap = <String, String>{};
+
   /// Hostel ID -> whether laundry is available at that hostel.
   static var hostelIdToLaundry = <String, bool>{};
   static var onHostelChanged = <void Function()>[];
@@ -72,19 +102,28 @@ class HostelsNotifier {
     hostelNotifier.value = hostels;
     prefs.setStringList("hostels", hostels);
 
-    if (prefs.getString('hostelID') != null) {
-      currSubscribedMess = calculateHostel(prefs.getString('hostelID') ?? "");
-      if (hostels.contains(currSubscribedMess)) {
-        userHostel = currSubscribedMess;
-        prefs.setString("curr_subscribed_mess", currSubscribedMess);
+    // Always read the actual subscribed mess from persisted state.
+    // Do not synthesize it from hostelID/boarding hostel, because that hides
+    // the distinction between boarding hostel and subscribed mess.
+    currSubscribedMess = prefs.getString('curr_subscribed_mess') ?? '';
+
+    final boardingHostelName = prefs.getString('hostelName') ?? '';
+    if (boardingHostelName.isNotEmpty && hostels.contains(boardingHostelName)) {
+      userHostel = boardingHostelName;
+    } else if (prefs.getString('hostelID') != null) {
+      final mappedHostel = calculateHostel(prefs.getString('hostelID') ?? "");
+      if (mappedHostel.isNotEmpty && hostels.contains(mappedHostel)) {
+        userHostel = mappedHostel;
       }
-    } else {
-      // API can return [] (empty DB) — never index hostels[0] blindly.
-      if (hostels.isEmpty) {
-        hostels = List<String>.from(_fallbackHostelNames);
-      }
-      userHostel = hostels.isNotEmpty ? hostels.first : '';
     }
+
+    // API can return [] (empty DB) — never index hostels[0] blindly.
+    if (hostels.isEmpty) {
+      hostels = List<String>.from(_fallbackHostelNames);
+    }
+    userHostel = userHostel.isNotEmpty
+        ? userHostel
+        : (hostels.isNotEmpty ? hostels.first : '');
 
     for (var onChange in onHostelChanged) {
       onChange();
@@ -103,11 +142,12 @@ class HostelsNotifier {
     try {
       final raw = preloadedHostels ??
           (await DioClient().dio.get(
-            '$baseUrl/hostel/all', // Match your backend route
-          ))
+                    '$baseUrl/hostel/all', // Match your backend route
+                  ))
               .data;
       if (raw is! List) {
-        throw FormatException('hostel/all: expected JSON array, got ${raw.runtimeType}');
+        throw FormatException(
+            'hostel/all: expected JSON array, got ${raw.runtimeType}');
       }
       _applyHostelRows(raw);
       await _persistHostelMaps(prefs);
@@ -147,7 +187,9 @@ class HostelsNotifier {
       // If the callback fails (for example, because the widget that added it
       // is no longer mounted), swallow the error here — callers should still
       // receive the callback registration and can remove it later.
-      if (kDebugMode) debugPrint('HostelsNotifier.addOnChange initial call failed: $e');
+      if (kDebugMode) {
+        debugPrint('HostelsNotifier.addOnChange initial call failed: $e');
+      }
       if (kDebugMode) debugPrint('$st');
     }
     onHostelChanged.add(func);

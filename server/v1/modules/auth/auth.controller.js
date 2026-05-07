@@ -13,6 +13,8 @@ import {
 import { Hostel } from "../hostel/hostelModel.js";
 import UserAllocHostel from "../hostel/hostelAllocModel.js";
 import Session from "../session/session.model.js";
+import { SummerMessApplication } from "../summer_mess/summerMessApplicationModel.js";
+import { SummerMessSettings } from "../summer_mess/summerMessSettingsModel.js";
 
 import AppError from "../../utils/appError.js";
 import redisClient from "../../utils/redisClient.js";
@@ -52,6 +54,61 @@ const getCurrentSubscribedMess = async (rollno) => {
     console.error("Error fetching current subscribed mess:", err);
     return null;
   }
+};
+
+const resolveSubscribedMessForRoll = async ({ rollno, fallbackHostelId }) => {
+  try {
+    const activeSummerSeason = await SummerMessSettings.findOne({
+      isSummerActive: true,
+    })
+      .select("seasonKey")
+      .lean();
+
+    if (!activeSummerSeason) {
+      const currentSubscribedMess = await getCurrentSubscribedMess(rollno);
+      return currentSubscribedMess?._id || currentSubscribedMess || fallbackHostelId || null;
+    }
+
+    const user = await User.findOne({ rollNumber: rollno }).select("_id").lean();
+    if (!user) return null;
+
+    const acknowledgedApplication = await SummerMessApplication.findOne({
+      user: user._id,
+      seasonKey: activeSummerSeason.seasonKey,
+      status: "Acknowledged",
+    })
+      .select("appliedHostel")
+      .lean();
+
+    return acknowledgedApplication?.appliedHostel || null;
+  } catch (err) {
+    console.error("Error resolving summer-aware subscribed mess:", err);
+    return null;
+  }
+};
+
+const syncUserAllocationMess = async ({
+  rollno,
+  hostelId,
+  currentSubscribedMessId,
+  email,
+}) => {
+  if (!rollno || !hostelId) return;
+
+  const update = {
+    hostel: hostelId,
+    current_subscribed_mess: currentSubscribedMessId || hostelId,
+  };
+
+  if (email) {
+    update.email = email;
+  }
+
+  await UserAllocHostel.findOneAndUpdate(
+    { rollno },
+    { $set: update },
+    { upsert: true, new: true, runValidators: true },
+  );
 };
 
 // Mobile redirect (used by app deep link)
@@ -157,7 +214,12 @@ export const mobileRedirectHandler = async (req, res, next) => {
       roll,
       hostelId: String(allocatedHostel?._id),
     });
-    // currentSubscribedMess is optional - if not found, User model will default to hostel
+    currentSubscribedMess = await resolveSubscribedMessForRoll({
+      rollno: roll,
+      fallbackHostelId: allocatedHostel._id,
+    });
+
+    // During active summer, this resolves to null unless the student has an acknowledged summer application.
 
     let existingUser = await findUserWithEmail(userFromToken.data.mail);
     let isFirstLogin = false;
@@ -184,13 +246,16 @@ export const mobileRedirectHandler = async (req, res, next) => {
         hasMicrosoftLinked: true, // Microsoft login = student account (surname exists)
       };
 
-      // Only set curr_subscribed_mess if we have it, otherwise User model will default to hostel
-      if (currentSubscribedMess) {
-        userData.curr_subscribed_mess = currentSubscribedMess._id;
-      }
+      userData.curr_subscribed_mess = currentSubscribedMess;
 
       const user = new User(userData);
       existingUser = await user.save();
+      await syncUserAllocationMess({
+        rollno: roll,
+        hostelId: allocatedHostel._id,
+        currentSubscribedMessId: currentSubscribedMess,
+        email: userFromToken.data.mail,
+      });
       isFirstLogin = true;
       console.log("[Auth][MobileRedirect][user-create][ok]", {
         rid,
@@ -211,12 +276,15 @@ export const mobileRedirectHandler = async (req, res, next) => {
       existingUser.authProvider =
         existingUser.authProvider === "apple" ? "both" : "microsoft";
 
-      // Update curr_subscribed_mess if we have it
-      if (currentSubscribedMess) {
-        existingUser.curr_subscribed_mess = currentSubscribedMess._id;
-      }
+      existingUser.curr_subscribed_mess = currentSubscribedMess;
 
       await existingUser.save();
+      await syncUserAllocationMess({
+        rollno: roll,
+        hostelId: allocatedHostel._id,
+        currentSubscribedMessId: currentSubscribedMess,
+        email: userFromToken.data.mail,
+      });
       console.log("[Auth][MobileRedirect][user-update][ok]", {
         rid,
         userId: String(existingUser?._id),
@@ -690,8 +758,10 @@ export const linkMicrosoftAccount = async (req, res, next) => {
       );
     }
 
-    // Get current subscribed mess if available, otherwise will default to hostel
-    const currentSubscribedMess = await getCurrentSubscribedMess(roll);
+    const currentSubscribedMess = await resolveSubscribedMessForRoll({
+      rollno: roll,
+      fallbackHostelId: allocatedHostel._id,
+    });
 
     // Update current user with Microsoft info
     currentUser.name = userFromToken.data.displayName || currentUser.name; // Update name from Microsoft account
@@ -699,10 +769,7 @@ export const linkMicrosoftAccount = async (req, res, next) => {
     currentUser.email = microsoftEmail;
     currentUser.rollNumber = roll;
     currentUser.hostel = allocatedHostel._id;
-    // Use current_subscribed_mess from allocation if available, otherwise default to hostel
-    currentUser.curr_subscribed_mess = currentSubscribedMess
-      ? currentSubscribedMess._id
-      : allocatedHostel._id;
+    currentUser.curr_subscribed_mess = currentSubscribedMess;
     currentUser.hasMicrosoftLinked = true; // Microsoft account = student account (surname exists)
 
     // Update authProvider based on current provider
@@ -719,6 +786,12 @@ export const linkMicrosoftAccount = async (req, res, next) => {
     }
 
     await currentUser.save();
+    await syncUserAllocationMess({
+      rollno: roll,
+      hostelId: allocatedHostel._id,
+      currentSubscribedMessId: currentSubscribedMess,
+      email: microsoftEmail,
+    });
 
     return res.status(200).json({
       message: "Microsoft account linked successfully",

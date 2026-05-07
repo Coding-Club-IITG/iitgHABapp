@@ -31,6 +31,12 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       icon: <BarChartOutlined />,
     },
     {
+      key: "6b",
+      name: "Summer Mess",
+      path: "/summer-mess",
+      icon: <SettingOutlined />,
+    },
+    {
       key: "7",
       name: "Gala Dinner",
       path: "/gala-dinner",
@@ -83,7 +89,7 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
           <NavLink
             key={item.key}
             to={item.path}
-            end
+            end={item.path !== "/summer-mess"}
             className={({ isActive }) =>
               `flex items-center ${
                 collapsed ? "justify-center px-0" : "gap-3 px-3"
