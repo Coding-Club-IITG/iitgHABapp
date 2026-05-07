@@ -46,11 +46,14 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
       'The number of days should be greater than or equal to 4 to be eligible for mess rebate. '
       "If you don't want a rebate, go back and generate a leave form.";
   static const Color _rebateSummaryMintBg = Color(0xFFE6F4EA);
+
   /// Figma: footer actions and key controls — slightly square corners (not pill-like).
   static const double _rebateButtonRadius = 6;
+
   /// Full-bleed section separator (matches rebate status / home section bars).
   static const Color _sectionDividerBarColor = Color(0xFFF0F0F0);
   static const double _sectionDividerBarHeight = 8;
+
   /// Space reserved above scroll body for [_progressHeader] (same layout math + small buffer).
   static const double _kProgressHeaderSlotHeight =
       16 + 20 + 8 + 4 + 16 + 8; // = 72
@@ -75,10 +78,12 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 
   PlatformFile? _proofFile;
 
-  final TextEditingController _accountNumberController = TextEditingController();
+  final TextEditingController _accountNumberController =
+      TextEditingController();
   final TextEditingController _ifscController = TextEditingController();
   final TextEditingController _bankNameController = TextEditingController();
-  final TextEditingController _accountHolderController = TextEditingController();
+  final TextEditingController _accountHolderController =
+      TextEditingController();
 
   bool _registeredCurrentSem = true;
   bool _declarationAccepted = false;
@@ -377,9 +382,11 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
           url = (data['leaveDocumentUrl'] ?? '') as String? ?? '';
         }
         final prefs = await SharedPreferences.getInstance();
-        await prefs.setString('accountHolder', _accountHolderController.text.trim());
+        await prefs.setString(
+            'accountHolder', _accountHolderController.text.trim());
         await prefs.setString('bankName', _bankNameController.text.trim());
-        await prefs.setString('accountNumber', _accountNumberController.text.trim());
+        await prefs.setString(
+            'accountNumber', _accountNumberController.text.trim());
         await prefs.setString('ifsc', _ifscController.text.trim());
         if (!mounted) return;
         await Navigator.of(context).pushReplacement(
@@ -402,7 +409,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
         final msg = e.response?.data is Map
             ? (e.response!.data['message']?.toString() ?? 'Error')
             : 'Error';
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(msg)));
       }
     } catch (e) {
       if (mounted) setState(() => _isSubmitting = false);
@@ -453,18 +461,15 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 
   String? _typeErrorStep1() {
     final mob = _mobileController.text.trim();
-    if (mob.isNotEmpty &&
-        !RebateFormValidation.isValidIndianMobile(mob)) {
+    if (mob.isNotEmpty && !RebateFormValidation.isValidIndianMobile(mob)) {
       return 'Enter a valid 10-digit Indian mobile number.';
     }
     final room = _roomController.text.trim();
-    if (room.isNotEmpty &&
-        !RebateFormValidation.isValidRoomNumber(room)) {
+    if (room.isNotEmpty && !RebateFormValidation.isValidRoomNumber(room)) {
       return 'Room number may only include letters, digits, spaces, hyphen, or slash.';
     }
     final sem = _semesterController.text.trim();
-    if (sem.isNotEmpty &&
-        !RebateFormValidation.isValidSemesterDisplay(sem)) {
+    if (sem.isNotEmpty && !RebateFormValidation.isValidSemesterDisplay(sem)) {
       return 'Enter a valid semester (plain text, up to 64 characters).';
     }
     return null;
@@ -472,8 +477,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
 
   String? _typeErrorStep2() {
     final p = _contactPhoneController.text.trim();
-    if (p.isNotEmpty &&
-        !RebateFormValidation.isValidIndiaContactPhone(p)) {
+    if (p.isNotEmpty && !RebateFormValidation.isValidIndiaContactPhone(p)) {
       return 'Enter a valid contact phone (10-digit mobile, or 10–12 digits).';
     }
     return null;
@@ -536,7 +540,9 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     if (_currentStep == 3 && !_isCasual) {
       if (!_step3ProofOk()) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please upload proof (Academic) or skip only for Medical with later upload')),
+          const SnackBar(
+              content: Text(
+                  'Please upload proof (Academic) or skip only for Medical with later upload')),
         );
         return;
       }
@@ -546,7 +552,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
     if ((_currentStep == 3 && _isCasual) || (_currentStep == 4 && !_isCasual)) {
       if (!_stepBankOk()) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Complete bank details and declaration')),
+          const SnackBar(
+              content: Text('Complete bank details and declaration')),
         );
         return;
       }
@@ -642,7 +649,10 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     ),
                     child: Row(
                       children: [
-                        box(height: 24, width: 24, borderRadius: BorderRadius.circular(6)),
+                        box(
+                            height: 24,
+                            width: 24,
+                            borderRadius: BorderRadius.circular(6)),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
@@ -1112,7 +1122,8 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                         ),
                       ),
                       TextSpan(
-                        text: 'I declare that all information and documents submitted in this application are true and accurate. '
+                        text:
+                            'I declare that all information and documents submitted in this application are true and accurate. '
                             'I am also aware that availing a mess rebate will disallow me from dining in the mess during the applied dates. '
                             'I understand that any falsification may result in disciplinary action.',
                       ),
@@ -1467,8 +1478,7 @@ class _LeaveApplicationScreenState extends State<LeaveApplicationScreen> {
                     surfaceTintColor: Colors.transparent,
                     padding: const EdgeInsets.symmetric(vertical: 14),
                     shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(_rebateButtonRadius),
+                      borderRadius: BorderRadius.circular(_rebateButtonRadius),
                     ),
                   ),
                   child: _isSubmitting && last

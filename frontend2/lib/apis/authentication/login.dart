@@ -149,8 +149,20 @@ Future<bool> refreshAccessToken() async {
     debugPrint('[refreshAccessToken] Tokens updated');
     return true;
   } catch (e, stack) {
+    // Improved diagnostic logging for network/Dio errors
     debugPrint('[refreshAccessToken] Error: $e');
     debugPrint('[refreshAccessToken] Stack: $stack');
+    try {
+      if (e is DioException) {
+        debugPrint('[refreshAccessToken] DioException type: ${e.type}');
+        debugPrint('[refreshAccessToken] DioException message: ${e.message}');
+        debugPrint('[refreshAccessToken] DioException error: ${e.error}');
+        debugPrint(
+            '[refreshAccessToken] DioException response status: ${e.response?.statusCode}');
+        debugPrint(
+            '[refreshAccessToken] DioException response data: ${e.response?.data}');
+      }
+    } catch (_) {}
     return false;
   }
 }

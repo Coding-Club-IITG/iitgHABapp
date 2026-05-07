@@ -654,9 +654,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         status: _buildRoomCleaningStatusText(roomCleaningProvider),
         statusColor: green,
         iconAsset: 'assets/icon/room_cleaning_icon.svg',
-        onTap: () => _requireSubscribedMessThenNavigate(
-          featureName: 'Room Cleaning',
-          screen: const RoomCleaningScreen(),
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const RoomCleaningScreen()),
         ),
       ),
       _QuickActionData(

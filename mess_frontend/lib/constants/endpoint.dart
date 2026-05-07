@@ -1,10 +1,10 @@
 // Base API URL for the mess manager app.
 // Point this at the same gateway the main app uses.
 // REST API is served via the gateway on :3000.
-const String baseUrl = 'http://10.0.2.2:3000/api';
+const String baseUrl = 'https://hab.codingclub.in/api';
 
 // WebSockets are hosted by the v1 server (default :3001). Local gateway often doesn't proxy WS.
-const String baseWsUrl = 'ws://10.0.2.2:3000/api';
+const String baseWsUrl = 'wss://hab.codingclub.in/api';
 
 class AuthEndpoints {
   static String get managerLogin => '$baseUrl/auth/manager/login';
