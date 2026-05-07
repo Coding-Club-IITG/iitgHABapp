@@ -84,6 +84,7 @@ flutter:
     - assets/icon/LoginIcon3.png
     - assets/icon/LoginIcon4.png
     - assets/icon/LoginIcon5.png
+    - assets/icon/Google.jpeg
 
   fonts:
     - family: GeneralSans

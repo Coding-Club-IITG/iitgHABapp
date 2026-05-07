@@ -6,11 +6,12 @@ import 'package:go_router/go_router.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:provider/provider.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
 import '../apis/caterer_auth_api.dart';
 import '../constants/themes.dart';
 import '../constants/endpoint.dart';
 import '../providers/auth_controller.dart';
+import '../storage/manager_token_storage.dart';
 
 /// HABit HQ login — same onboarding layout as HABit IITG; Google (caterer) sign-in only.
 class MessManagerLoginScreen extends StatelessWidget {
@@ -39,6 +40,9 @@ String _getErrorMessage(dynamic error) {
   return 'Something went wrong. Please try again.';
 }
 
+const String _invalidManagerGmailMessage =
+    'Please login using a valid manager gmail id.';
+
 class _HqOnboardingScreen extends StatefulWidget {
   const _HqOnboardingScreen();
 
@@ -53,6 +57,52 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
   late Animation<double> _expandAnimation;
 
   static const double _kSignInSheetButtonHeight = 56;
+
+  Future<void> _showErrorDialog(String msg) async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      useRootNavigator: true,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return Dialog(
+          insetPadding: const EdgeInsets.symmetric(horizontal: 32),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'Login Failed',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 6),
+                Text(msg, style: const TextStyle(fontSize: 14, height: 1.3)),
+                const SizedBox(height: 10),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton(
+                    onPressed: () => Navigator.of(dialogContext).pop(),
+                    child: const Text('OK'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _closeSheetAndShowError(
+    BuildContext sheetContext,
+    String msg,
+  ) async {
+    if (!mounted) return;
+    await Navigator.of(sheetContext).maybePop();
+    await _showErrorDialog(msg);
+  }
 
   @override
   void initState() {
@@ -137,6 +187,36 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
     );
   }
 
+  Future<void> _clearAllCachedAuthData(
+    AuthController auth,
+    void Function(String) log,
+  ) async {
+    // Reset Google account picker state so a different account can be selected.
+    final gsi = GoogleSignIn(scopes: const ['email']);
+    try {
+      await gsi.signOut();
+    } catch (e) {
+      log('Google signOut failed: $e');
+    }
+
+    try {
+      await FirebaseAuth.instance.signOut();
+    } catch (e) {
+      log('Firebase signOut failed: $e');
+    }
+
+    try {
+      await auth.signOut();
+    } catch (e) {
+      log('AuthController signOut failed, forcing local clear: $e');
+      final prefs = await SharedPreferences.getInstance();
+      await ManagerTokenStorage.deleteToken();
+      await ManagerTokenStorage.deleteRefreshToken();
+      await prefs.remove('mm_hostelName');
+      await auth.hydrate();
+    }
+  }
+
   Future<void> _signInWithGoogle(BuildContext sheetContext) async {
     void log(String msg) {
       if (kDebugMode) debugPrint('[HQ GoogleLogin] $msg');
@@ -145,7 +225,6 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
     log('Starting Google sign-in (Firebase).');
     _showLoader(sheetContext);
     final navigator = Navigator.of(sheetContext);
-    final messenger = ScaffoldMessenger.of(sheetContext);
     final auth = Provider.of<AuthController>(sheetContext, listen: false);
 
     try {
@@ -170,20 +249,10 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
           'Missing Google tokens. accessTokenPresent=${accessToken != null} idTokenPresent=${idToken != null}',
         );
         navigator.pop();
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Center(
-              child: Text(
-                'Could not complete Google sign-in',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            backgroundColor: Colors.black,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(50),
-            duration: Duration(milliseconds: 3000),
-          ),
+        await _clearAllCachedAuthData(auth, log);
+        await _closeSheetAndShowError(
+          sheetContext,
+          'Could not complete Google sign-in',
         );
         return;
       }
@@ -201,21 +270,8 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       if (user == null) {
         log('FirebaseAuth returned null user');
         navigator.pop();
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Center(
-              child: Text(
-                'Firebase sign-in failed',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            backgroundColor: Colors.black,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(50),
-            duration: Duration(milliseconds: 3000),
-          ),
-        );
+        await _clearAllCachedAuthData(auth, log);
+        await _closeSheetAndShowError(sheetContext, 'Firebase sign-in failed');
         return;
       }
 
@@ -223,20 +279,10 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       if (firebaseIdToken == null || firebaseIdToken.isEmpty) {
         log('Missing Firebase ID token');
         navigator.pop();
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Center(
-              child: Text(
-                'Could not get Firebase ID token',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            backgroundColor: Colors.black,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(50),
-            duration: Duration(milliseconds: 3000),
-          ),
+        await _clearAllCachedAuthData(auth, log);
+        await _closeSheetAndShowError(
+          sheetContext,
+          'Could not get Firebase ID token',
         );
         return;
       }
@@ -252,23 +298,10 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       );
       if (data['success'] != true) {
         navigator.pop();
-        final msg = data['message']?.toString() ?? 'Google sign-in failed';
+        await _clearAllCachedAuthData(auth, log);
+        final msg = _invalidManagerGmailMessage;
         log('Backend reported failure message="$msg"');
-        messenger.showSnackBar(
-          SnackBar(
-            content: Center(
-              child: Text(
-                msg,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: Colors.white),
-              ),
-            ),
-            backgroundColor: Colors.black,
-            behavior: SnackBarBehavior.floating,
-            margin: const EdgeInsets.all(50),
-            duration: const Duration(milliseconds: 3000),
-          ),
-        );
+        await _closeSheetAndShowError(sheetContext, msg);
         return;
       }
 
@@ -283,21 +316,8 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
           'Invalid server response. tokenPresent=${token != null} refreshPresent=${refresh != null} hostelName="$serverHostelName"',
         );
         navigator.pop();
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Center(
-              child: Text(
-                'Invalid server response',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: Colors.white),
-              ),
-            ),
-            backgroundColor: Colors.black,
-            behavior: SnackBarBehavior.floating,
-            margin: EdgeInsets.all(50),
-            duration: Duration(milliseconds: 3000),
-          ),
-        );
+        await _clearAllCachedAuthData(auth, log);
+        await _closeSheetAndShowError(sheetContext, 'Invalid server response');
         return;
       }
 
@@ -318,62 +338,40 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
       if (!mounted) return;
       context.go('/home');
 
-      messenger.showSnackBar(
-        const SnackBar(
-          content: Center(
-            child: Text(
-              'Successfully Logged In',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white),
+      if (mounted) {
+        final messenger = ScaffoldMessenger.of(context);
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Center(
+              child: Text(
+                'Successfully Logged In',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              ),
             ),
+            backgroundColor: Colors.black,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(50),
+            duration: Duration(milliseconds: 1000),
           ),
-          backgroundColor: Colors.black,
-          behavior: SnackBarBehavior.floating,
-          margin: EdgeInsets.all(50),
-          duration: Duration(milliseconds: 1000),
-        ),
-      );
+        );
+      }
     } on DioException catch (e) {
       log(
         'DioException: type=${e.type} status=${e.response?.statusCode} dataType=${e.response?.data.runtimeType}',
       );
       navigator.pop();
-      final msg = e.response?.data is Map
-          ? (e.response!.data['message']?.toString() ?? _getErrorMessage(e))
+      await _clearAllCachedAuthData(auth, log);
+      final msg = e.response?.statusCode == 403
+          ? _invalidManagerGmailMessage
           : _getErrorMessage(e);
-      messenger.showSnackBar(
-        SnackBar(
-          content: Center(
-            child: Text(
-              msg,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-          backgroundColor: Colors.black,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(50),
-          duration: const Duration(milliseconds: 3000),
-        ),
-      );
+      await _closeSheetAndShowError(sheetContext, msg);
     } catch (e) {
       log('Unexpected error: $e');
       navigator.pop();
-      messenger.showSnackBar(
-        SnackBar(
-          content: Center(
-            child: Text(
-              _getErrorMessage(e),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: Colors.white),
-            ),
-          ),
-          backgroundColor: Colors.black,
-          behavior: SnackBarBehavior.floating,
-          margin: const EdgeInsets.all(50),
-          duration: const Duration(milliseconds: 3000),
-        ),
-      );
+      await _clearAllCachedAuthData(auth, log);
+      await _closeSheetAndShowError(sheetContext, _getErrorMessage(e));
     }
   }
 
@@ -735,34 +733,9 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                                       scaleFactor,
                                   child: Column(
                                     children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 12,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.84,
-                                          ),
-                                          borderRadius: BorderRadius.circular(
-                                            999,
-                                          ),
-                                          border: Border.all(
-                                            color: Themes.border,
-                                          ),
-                                        ),
-                                        child: const Text(
-                                          'Mess Manager App',
-                                          style: TextStyle(
-                                            color: Themes.textSecondary,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                        ),
-                                      ),
                                       const SizedBox(height: 16),
                                       Text(
-                                        'Scans, summer\nmess and rebates\nin one place',
+                                        'Your Mess \n Your App',
                                         textAlign: TextAlign.center,
                                         style: TextStyle(
                                           color: Themes.textPrimary,
@@ -780,7 +753,7 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                       ),
                     ),
                     Text(
-                      'Review live meal scans, handle summer mess approvals\nand verify rebate applications with the same HABit flow.',
+                      'HABit HQ is the central dashboard \nfor mess managers.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Color.lerp(
@@ -808,7 +781,7 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                                   width: double.infinity,
                                   child: ElevatedButton(
                                     onPressed: () => _showBottomSheet(context),
-                                    child: const Text('Continue'),
+                                    child: const Text('Proceed To Login'),
                                   ),
                                 ),
                                 const SizedBox(height: 12),
@@ -855,14 +828,14 @@ class _GoogleSignInSheetButtonContent extends StatelessWidget {
             color: Colors.white,
             borderRadius: BorderRadius.circular(4),
           ),
-          child: const Center(
-            child: Text(
-              'G',
-              style: TextStyle(
-                color: Color(0xFF4285F4),
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-                height: 1,
+          child: Center(
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: Image.asset(
+                'assets/icon/Google.jpeg',
+                width: 18,
+                height: 18,
+                fit: BoxFit.cover,
               ),
             ),
           ),
