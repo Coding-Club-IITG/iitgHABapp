@@ -377,6 +377,141 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
     }
   }
 
+  Future<void> _signInAsGuest(BuildContext sheetContext) async {
+    void log(String msg) {
+      if (kDebugMode) debugPrint('[HQ GuestLogin] $msg');
+    }
+
+    log('Starting guest sign-in.');
+    _showLoader(sheetContext);
+    final navigator = Navigator.of(sheetContext);
+    final messenger = ScaffoldMessenger.of(sheetContext);
+    final auth = Provider.of<AuthController>(sheetContext, listen: false);
+
+    try {
+      log('Calling backend: ${AuthEndpoints.catererGuest}');
+      final data = await CatererAuthApi.guestAuthenticate();
+      log('Backend response: success=${data['success']}');
+
+      if (data['success'] != true) {
+        navigator.pop();
+        final msg = data['message']?.toString() ?? 'Guest sign-in failed';
+        log('Failed: $msg');
+        messenger.showSnackBar(
+          SnackBar(
+            content: Center(
+              child: Text(
+                msg,
+                textAlign: TextAlign.center,
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+            backgroundColor: Colors.black,
+            behavior: SnackBarBehavior.floating,
+            margin: const EdgeInsets.all(50),
+            duration: const Duration(milliseconds: 3000),
+          ),
+        );
+        return;
+      }
+
+      final token = data['token']?.toString();
+      final refresh = data['refreshToken']?.toString();
+      final serverHostelName = data['hostelName']?.toString();
+      final hostelName = (serverHostelName == null || serverHostelName.isEmpty)
+          ? 'Lohit'
+          : serverHostelName;
+
+      if (token == null || refresh == null) {
+        navigator.pop();
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Center(
+              child: Text(
+                'Invalid server response',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+            backgroundColor: Colors.black,
+            behavior: SnackBarBehavior.floating,
+            margin: EdgeInsets.all(50),
+            duration: Duration(milliseconds: 3000),
+          ),
+        );
+        return;
+      }
+
+      log('Saving tokens for $hostelName');
+      await auth.signInWithCatererTokens(
+        token: token,
+        hostelName: hostelName,
+        refreshToken: refresh,
+      );
+
+      navigator.pop();
+      if (!mounted) return;
+      navigator.pop();
+      if (!mounted) return;
+      context.go('/home');
+
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Center(
+            child: Text(
+              'Successfully Logged In',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.white),
+            ),
+          ),
+          backgroundColor: Colors.black,
+          behavior: SnackBarBehavior.floating,
+          margin: EdgeInsets.all(50),
+          duration: Duration(milliseconds: 1000),
+        ),
+      );
+    } on DioException catch (e) {
+      log('DioException: ${e.type}');
+      navigator.pop();
+      final msg = e.response?.data is Map
+          ? (e.response!.data['message']?.toString() ?? _getErrorMessage(e))
+          : _getErrorMessage(e);
+      messenger.showSnackBar(
+        SnackBar(
+          content: Center(
+            child: Text(
+              msg,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+          backgroundColor: Colors.black,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(50),
+          duration: const Duration(milliseconds: 3000),
+        ),
+      );
+    } catch (e) {
+      log('Error: $e');
+      navigator.pop();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Center(
+            child: Text(
+              _getErrorMessage(e),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.white),
+            ),
+          ),
+          backgroundColor: Colors.black,
+          behavior: SnackBarBehavior.floating,
+          margin: const EdgeInsets.all(50),
+          duration: const Duration(milliseconds: 3000),
+        ),
+      );
+    }
+  }
+
   void _showBottomSheet(BuildContext context) {
     _controller.forward();
     showModalBottomSheet<void>(
@@ -445,6 +580,24 @@ class _HqOnboardingScreenState extends State<_HqOnboardingScreen>
                         outlineSide: null,
                         onTap: () => _signInWithGoogle(context),
                         child: const _GoogleSignInSheetButtonContent(),
+                      ),
+                      const SizedBox(height: 12),
+                      _signInSheetButton(
+                        materialColor: Colors.grey.shade200,
+                        outlineSide: BorderSide(
+                          color: Themes.kAccent.withAlpha(100),
+                          width: 1,
+                        ),
+                        onTap: () => _signInAsGuest(context),
+                        child: Text(
+                          'Continue as Guest',
+                          style: TextStyle(
+                            color: Themes.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            height: 20 / 14,
+                          ),
+                        ),
                       ),
                     ],
                   ),
