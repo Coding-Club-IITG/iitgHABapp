@@ -415,7 +415,9 @@ export const getSummerMessAdminApplications = async (req, res) => {
     });
     const seasonKey = selectedSettings?.seasonKey || defaultSeasonKey(now);
     const status = String(req.query?.status || "").trim();
-    const hostelId = req.query?.hostelId ? ensureObjectId(req.query.hostelId) : null;
+    const hostelId = req.query?.hostelId
+      ? ensureObjectId(req.query.hostelId)
+      : null;
 
     const query = {
       seasonKey,
