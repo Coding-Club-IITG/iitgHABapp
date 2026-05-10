@@ -16,6 +16,7 @@ import {
   Statistic,
   Tag,
   Typography,
+  Table,
   message,
 } from "antd";
 import {
@@ -35,6 +36,7 @@ import {
   restoreSummerMess,
   saveSummerMessSettings,
   deleteSummerMessSeason,
+  getSummerMessAdminApplications,
 } from "../apis/summerMess";
 
 const { Title, Text, Paragraph } = Typography;
@@ -109,9 +111,15 @@ export default function SummerMessPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [formState, setFormState] = useState(EMPTY_FORM_STATE);
+  const [applications, setApplications] = useState([]);
+  const [applicationsLoading, setApplicationsLoading] = useState(false);
+  const [selectedHostelForApplications, setSelectedHostelForApplications] =
+    useState(null);
 
   const applySettingsToForm = useCallback((nextSettings) => {
-    const participatingHostelIds = Array.isArray(nextSettings?.participatingHostels)
+    const participatingHostelIds = Array.isArray(
+      nextSettings?.participatingHostels,
+    )
       ? nextSettings.participatingHostels
           .map((hostel) =>
             typeof hostel === "string" ? hostel : hostel?._id?.toString() || "",
@@ -147,7 +155,9 @@ export default function SummerMessPage() {
   const applyAdminPayload = useCallback(
     (payload, fallbackSeasonId = null) => {
       const nextSettings = payload?.settings || null;
-      const nextSeasons = Array.isArray(payload?.seasons) ? payload.seasons : [];
+      const nextSeasons = Array.isArray(payload?.seasons)
+        ? payload.seasons
+        : [];
       const nextMeta = payload?.meta || {
         selectedSeasonId: null,
         activeSeason: null,
@@ -197,6 +207,27 @@ export default function SummerMessPage() {
     [applyAdminPayload],
   );
 
+  const loadApplications = useCallback(
+    async (seasonIdToLoad = null, hostelIdFilter = null) => {
+      if (!seasonIdToLoad) return;
+      try {
+        setApplicationsLoading(true);
+        const params = { seasonId: seasonIdToLoad };
+        if (hostelIdFilter) {
+          params.hostelId = hostelIdFilter;
+        }
+        const response = await getSummerMessAdminApplications(params);
+        setApplications(response.applications || []);
+      } catch (err) {
+        console.error("Failed to load applications:", err);
+        setApplications([]);
+      } finally {
+        setApplicationsLoading(false);
+      }
+    },
+    [],
+  );
+
   // Load hostels whenever token changes
   useEffect(() => {
     if (!token) return;
@@ -230,8 +261,9 @@ export default function SummerMessPage() {
     setSelectedSeasonId(seasonId || null);
     if (seasonId) {
       loadPageData(seasonId);
+      loadApplications(seasonId);
     }
-  }, [applySettingsToForm, loadPageData, seasonId, token]);
+  }, [applySettingsToForm, loadPageData, loadApplications, seasonId, token]);
 
   const messHostels = useMemo(
     () =>
@@ -245,8 +277,9 @@ export default function SummerMessPage() {
 
   const selectedSeasonSummary = useMemo(
     () =>
-      seasons.find((season) => String(season?._id) === String(selectedSeasonId)) ||
-      null,
+      seasons.find(
+        (season) => String(season?._id) === String(selectedSeasonId),
+      ) || null,
     [seasons, selectedSeasonId],
   );
 
@@ -311,7 +344,9 @@ export default function SummerMessPage() {
       setError("");
 
       const registrationRange = formState.registrationRange;
-      const summerRange = normalizeRangeWithBoundaryTimes(formState.summerRange);
+      const summerRange = normalizeRangeWithBoundaryTimes(
+        formState.summerRange,
+      );
 
       const payload = {
         seasonId: selectedSeasonId,
@@ -347,7 +382,9 @@ export default function SummerMessPage() {
   };
 
   return (
-    <div style={{ padding: 24, backgroundColor: "#f5f5f5", minHeight: "100vh" }}>
+    <div
+      style={{ padding: 24, backgroundColor: "#f5f5f5", minHeight: "100vh" }}
+    >
       <div className="mb-6 flex items-center justify-between gap-4">
         <Button type="link" onClick={() => navigate("/summer-mess")}>
           Back to season list
@@ -379,34 +416,47 @@ export default function SummerMessPage() {
       <Row gutter={[16, 16]}>
         <Col xs={24} xl={15}>
           <Card
-            title={selectedSeasonId ? "Season Configuration" : "Create New Season"}
+            title={
+              selectedSeasonId ? "Season Configuration" : "Create New Season"
+            }
             loading={loading}
             extra={
               <Space>
                 {selectedSeasonId ? (
-                  <Button danger onClick={async () => {
-                    Modal.confirm({
-                      title: 'Delete season?',
-                      content: 'This will delete the selected season and all its applications. This action is irreversible.',
-                      okText: 'Delete',
-                      okType: 'danger',
-                      cancelText: 'Keep',
-                      onOk: async () => {
-                        try {
-                          await deleteSummerMessSeason(selectedSeasonId);
-                          message.success('Season deleted');
-                          navigate('/summer-mess');
-                        } catch (err) {
-                          const msg = err?.response?.data?.message || err?.message || 'Failed to delete season';
-                          message.error(msg);
-                        }
-                      },
-                    });
-                  }}>
+                  <Button
+                    danger
+                    onClick={async () => {
+                      Modal.confirm({
+                        title: "Delete season?",
+                        content:
+                          "This will delete the selected season and all its applications. This action is irreversible.",
+                        okText: "Delete",
+                        okType: "danger",
+                        cancelText: "Keep",
+                        onOk: async () => {
+                          try {
+                            await deleteSummerMessSeason(selectedSeasonId);
+                            message.success("Season deleted");
+                            navigate("/summer-mess");
+                          } catch (err) {
+                            const msg =
+                              err?.response?.data?.message ||
+                              err?.message ||
+                              "Failed to delete season";
+                            message.error(msg);
+                          }
+                        },
+                      });
+                    }}
+                  >
                     Delete Season
                   </Button>
                 ) : null}
-                <Button type="primary" onClick={handleSaveSettings} loading={saving}>
+                <Button
+                  type="primary"
+                  onClick={handleSaveSettings}
+                  loading={saving}
+                >
                   {selectedSeasonId ? "Save Settings" : "Create Season"}
                 </Button>
               </Space>
@@ -440,9 +490,7 @@ export default function SummerMessPage() {
                 <RangePicker
                   showTime
                   value={formState.registrationRange}
-                  onChange={(value) =>
-                    updateForm({ registrationRange: value })
-                  }
+                  onChange={(value) => updateForm({ registrationRange: value })}
                   style={{ marginTop: 8, width: "100%" }}
                   format="DD MMM YYYY hh:mm A"
                 />
@@ -460,7 +508,10 @@ export default function SummerMessPage() {
                   style={{ marginTop: 8, width: "100%" }}
                   format="DD MMM YYYY hh:mm A"
                 />
-                <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+                <Text
+                  type="secondary"
+                  style={{ display: "block", marginTop: 8 }}
+                >
                   This date range cannot overlap with any other saved summer
                   mess season.
                 </Text>
@@ -493,7 +544,10 @@ export default function SummerMessPage() {
                   placeholder="Select hostels whose caterers are serving during this summer season"
                   style={{ marginTop: 8, width: "100%" }}
                 />
-                <Text type="secondary" style={{ display: "block", marginTop: 8 }}>
+                <Text
+                  type="secondary"
+                  style={{ display: "block", marginTop: 8 }}
+                >
                   Leave a hostel out if its caterer is closed for this season.
                   Students will not be able to apply there.
                 </Text>
@@ -550,56 +604,201 @@ export default function SummerMessPage() {
                   </Text>
                 </div>
               </div>
-
             </Space>
           </Card>
         </Col>
       </Row>
 
-      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
-        <Col xs={24} xl={12}>
-          <Card
-            title={`Participating Hostels (${participatingHostels.length})`}
-            loading={loading}
-          >
-            {participatingHostels.length ? (
-              <Space wrap>
-                {participatingHostels.map((hostel) => (
-                  <Tag key={hostel._id} color="green" style={{ padding: "6px 10px" }}>
-                    {hostelOptionLabel(hostel)}
-                  </Tag>
-                ))}
-              </Space>
-            ) : (
-              <Text type="secondary">
-                No summer hostels selected yet. Save settings after choosing the
-                caterers who will continue serving food in this season.
-              </Text>
-            )}
-          </Card>
-        </Col>
-        <Col xs={24} xl={12}>
-          <Card
-            title={`Excluded / Closed Caterers (${excludedHostels.length})`}
-            loading={loading}
-          >
-            {excludedHostels.length ? (
-              <Space wrap>
-                {excludedHostels.map((hostel) => (
-                  <Tag key={hostel._id} style={{ padding: "6px 10px" }}>
-                    {hostelOptionLabel(hostel)}
-                  </Tag>
-                ))}
-              </Space>
-            ) : (
-              <Text type="secondary">
-                Every hostel with an assigned caterer is currently participating
-                in this selected season.
-              </Text>
-            )}
-          </Card>
-        </Col>
-      </Row>
+      {selectedSeasonId && (
+        <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+          <Col xs={24}>
+            <ApplicationsSection
+              selectedSeasonId={selectedSeasonId}
+              applications={applications}
+              applicationsLoading={applicationsLoading}
+              selectedHostelForApplications={selectedHostelForApplications}
+              setSelectedHostelForApplications={
+                setSelectedHostelForApplications
+              }
+              loadApplications={loadApplications}
+              participatingHostels={participatingHostels}
+            />
+          </Col>
+        </Row>
+      )}
     </div>
+  );
+}
+
+function ApplicationsSection({
+  selectedSeasonId,
+  applications,
+  applicationsLoading,
+  selectedHostelForApplications,
+  setSelectedHostelForApplications,
+  loadApplications,
+  participatingHostels,
+}) {
+  const pendingApplications = useMemo(
+    () => applications.filter((app) => app.status === "Pending"),
+    [applications],
+  );
+
+  const acknowledgedApplications = useMemo(
+    () => applications.filter((app) => app.status === "Acknowledged"),
+    [applications],
+  );
+
+  const hostelOptions = useMemo(
+    () =>
+      participatingHostels.map((hostel) => ({
+        value: hostel._id?.toString(),
+        label: hostel.hostel_name || "Unknown Hostel",
+      })),
+    [participatingHostels],
+  );
+
+  const handleHostelChange = (hostelId) => {
+    setSelectedHostelForApplications(hostelId);
+    loadApplications(selectedSeasonId, hostelId);
+  };
+
+  const columns = [
+    {
+      title: "Name",
+      dataIndex: ["user", "name"],
+      key: "name",
+      render: (text) => text || "—",
+      width: 150,
+    },
+    {
+      title: "Roll Number",
+      dataIndex: ["user", "rollNumber"],
+      key: "rollNumber",
+      render: (text) => text || "—",
+      width: 120,
+    },
+    {
+      title: "Hostel",
+      dataIndex: ["appliedHostel", "hostel_name"],
+      key: "hostel",
+      render: (text) => text || "—",
+      width: 130,
+    },
+    {
+      title: "Applied At",
+      dataIndex: "createdAt",
+      key: "appliedAt",
+      render: (text) =>
+        text ? dayjs(text).format("DD MMM YYYY, hh:mm A") : "—",
+      width: 160,
+    },
+  ];
+
+  return (
+    <Card
+      title="Season Applications"
+      loading={applicationsLoading}
+      extra={
+        <Button
+          onClick={() =>
+            loadApplications(selectedSeasonId, selectedHostelForApplications)
+          }
+          loading={applicationsLoading}
+        >
+          Refresh
+        </Button>
+      }
+    >
+      <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+        <div>
+          <Text strong>Filter by Hostel</Text>
+          <Select
+            allowClear
+            showSearch
+            optionFilterProp="label"
+            value={selectedHostelForApplications}
+            onChange={handleHostelChange}
+            options={hostelOptions}
+            placeholder="Select a hostel to filter applications"
+            style={{ marginTop: 8, width: "100%" }}
+          />
+        </div>
+
+        <Row gutter={16}>
+          <Col xs={24} sm={12}>
+            <Card
+              size="small"
+              title={
+                <Space>
+                  <ClockCircleOutlined style={{ color: "#faad14" }} />
+                  <Text strong>Pending Applications</Text>
+                </Space>
+              }
+              style={{
+                backgroundColor: "#fafafa",
+              }}
+            >
+              <Statistic
+                value={pendingApplications.length}
+                valueStyle={{ color: "#faad14", fontSize: "32px" }}
+              />
+              <Table
+                columns={columns}
+                dataSource={pendingApplications}
+                loading={applicationsLoading}
+                pagination={false}
+                size="small"
+                rowKey={(record) => record._id}
+                style={{ marginTop: 16 }}
+                scroll={{ x: true }}
+              />
+            </Card>
+          </Col>
+          <Col xs={24} sm={12}>
+            <Card
+              size="small"
+              title={
+                <Space>
+                  <CheckCircleOutlined style={{ color: "#52c41a" }} />
+                  <Text strong>Acknowledged Applications</Text>
+                </Space>
+              }
+              style={{
+                backgroundColor: "#fafafa",
+              }}
+            >
+              <Statistic
+                value={acknowledgedApplications.length}
+                valueStyle={{ color: "#52c41a", fontSize: "32px" }}
+              />
+              <Table
+                columns={columns}
+                dataSource={acknowledgedApplications}
+                loading={applicationsLoading}
+                pagination={false}
+                size="small"
+                rowKey={(record) => record._id}
+                style={{ marginTop: 16 }}
+                scroll={{ x: true }}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        {applications.length === 0 && !applicationsLoading && (
+          <Alert
+            type="info"
+            showIcon
+            message="No applications"
+            description={
+              selectedHostelForApplications
+                ? "No applications found for the selected hostel."
+                : "No applications submitted for this season yet."
+            }
+          />
+        )}
+      </Space>
+    </Card>
   );
 }

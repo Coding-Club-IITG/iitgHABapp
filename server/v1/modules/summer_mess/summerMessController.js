@@ -404,6 +404,92 @@ export const cancelSummerMessApplication = async (req, res) => {
 
 // (unsubscribeSummerMess removed — server-side unsubscribe handled elsewhere if needed)
 
+export const getSummerMessAdminApplications = async (req, res) => {
+  try {
+    const now = new Date();
+    const settingsList = await getSummerMessSettingsList();
+    const selectedSettings = pickManagerSeasonSettings(settingsList, {
+      seasonId: req.query?.seasonId || null,
+      seasonKey: req.query?.seasonKey || null,
+      now,
+    });
+    const seasonKey = selectedSettings?.seasonKey || defaultSeasonKey(now);
+    const status = String(req.query?.status || "").trim();
+    const hostelId = req.query?.hostelId ? ensureObjectId(req.query.hostelId) : null;
+
+    const query = {
+      seasonKey,
+    };
+    if (status && status.toLowerCase() !== "all") {
+      query.status = status;
+    }
+    if (hostelId) {
+      query.appliedHostel = hostelId;
+    }
+
+    const applications = await SummerMessApplication.find(query)
+      .sort({ createdAt: -1 })
+      .populate("user", "name rollNumber email hostel curr_subscribed_mess")
+      .populate("boardingHostel", "hostel_name")
+      .populate("appliedHostel", "hostel_name")
+      .lean();
+
+    // Group applications by hostel and status
+    const groupedByHostel = {};
+    applications.forEach((app) => {
+      const hostelName = app.appliedHostel?.hostel_name || "Unknown Hostel";
+      const hostelId = app.appliedHostel?._id?.toString() || "unknown";
+      if (!groupedByHostel[hostelId]) {
+        groupedByHostel[hostelId] = {
+          hostelName,
+          hostelId,
+          pending: [],
+          acknowledged: [],
+        };
+      }
+      if (app.status === "Pending") {
+        groupedByHostel[hostelId].pending.push(app);
+      } else if (app.status === "Acknowledged") {
+        groupedByHostel[hostelId].acknowledged.push(app);
+      }
+    });
+
+    return res.status(200).json({
+      seasonId: selectedSettings?._id || null,
+      seasonKey,
+      seasonLabel:
+        selectedSettings?.seasonLabel ||
+        selectedSettings?.seasonKey ||
+        defaultSeasonLabel(now),
+      registration: selectedSettings
+        ? {
+            isOpen: isSummerRegistrationOpen(selectedSettings, now),
+            startAt: selectedSettings.registrationStartAt || null,
+            endAt: selectedSettings.registrationEndAt || null,
+          }
+        : null,
+      summer: selectedSettings
+        ? {
+            isActive: isSummerActive(selectedSettings),
+            startAt: selectedSettings.summerStartAt || null,
+            endAt: selectedSettings.summerEndAt || null,
+          }
+        : null,
+      seasons: settingsList.map((settings) =>
+        serializeSeasonSummary(settings, now),
+      ),
+      applications,
+      groupedByHostel,
+      participatingHostels: selectedSettings?.participatingHostels || [],
+    });
+  } catch (error) {
+    console.error("getSummerMessAdminApplications:", error);
+    return res
+      .status(500)
+      .json({ message: "Internal server error", error: error.message });
+  }
+};
+
 export const getManagerSummerMessApplications = async (req, res) => {
   try {
     const now = new Date();

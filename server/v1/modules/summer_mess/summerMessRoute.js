@@ -13,6 +13,7 @@ import {
   closeSummerMessRegistration,
   getManagerSummerMessApplications,
   getSummerMessAdminSettings,
+  getSummerMessAdminApplications,
   getSummerMessStatus,
   openSummerMessRegistration,
   registerForSummerMess,
@@ -67,6 +68,7 @@ summerMessRouter.get(
 );
 
 summerMessRouter.get("/settings", authenticateHabJWT, getSummerMessAdminSettings);
+summerMessRouter.get("/admin/applications", authenticateHabJWT, getSummerMessAdminApplications);
 summerMessRouter.post("/settings", authenticateHabJWT, upsertSummerMessAdminSettings);
 summerMessRouter.post(
   "/settings/open-registration",
