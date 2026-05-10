@@ -810,10 +810,45 @@ export const linkMicrosoftAccount = async (req, res, next) => {
   }
 };
 
-// Guest login - DISABLED
+// Guest login
+// Backward compatible: Accepts email/password from old app versions but ignores them
+// New app versions can send empty body and still login as guest
+// Each guest login creates a unique guest account identified by guestIdentifier (UUID)
 export const guestLoginHandler = async (req, res, next) => {
   try {
-    return next(new AppError(403, "Guest login is currently disabled"));
+    const { email, password } = req.body || {};
+
+    // Backward compatibility: Old app versions send email/password, but we ignore them
+    // New app versions send nothing, which is also fine
+
+    // Generate unique guest identifier (UUID) for this guest session
+    const guestIdentifier = crypto.randomUUID();
+
+    // Create new guest user for each login (don't reuse accounts)
+    // Similar to Apple Sign-In: each guest gets unique account identified by guestIdentifier
+    // Give guest users a unique rollNumber to avoid MongoDB sparse unique index conflicts with null
+    // Format: "GUEST-{UUID}" - this ensures uniqueness and identifies guest users
+    const userData = {
+      name: "Guest User",
+      guestIdentifier: guestIdentifier,
+      rollNumber: `GUEST-${guestIdentifier}`, // Unique rollNumber for guest users to avoid index conflicts
+      // Don't set email - leave it undefined (similar to Apple Sign-In when email not provided)
+      // Don't set hostel or curr_subscribed_mess
+      // This ensures guest users cannot access features requiring these fields
+      authProvider: "guest",
+      hasMicrosoftLinked: false,
+    };
+
+    // Create user using Mongoose (normal approach - rollNumber is explicitly set so no conflicts)
+    const existingUser = await User.create(userData);
+
+    const access_token = existingUser.generateAccessToken();
+    const refresh_token = existingUser.generateRefreshToken();
+    return res.status(200).json({
+      accessToken: access_token,
+      refreshToken: refresh_token,
+      hasMicrosoftLinked: false,
+    });
   } catch (err) {
     console.error("Error in guestLoginHandler:", err);
     next(new AppError(500, "Guest login failed"));
