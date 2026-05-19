@@ -1207,7 +1207,7 @@ class _MealCardState extends State<_MealCard> {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: widget.onToggle,
-          splashColor: Colors.transparent,    
+          splashColor: Colors.transparent,
           highlightColor: Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.all(16),
