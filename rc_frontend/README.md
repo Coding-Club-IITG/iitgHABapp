@@ -1,16 +1,43 @@
-# rc_frontend
+# HABit RC: Room Cleaning Manager App
 
-A new Flutter project.
+Mobile application for hostel room cleaning managers to manage daily cleaning schedules (assign cleaners, finalize statuses, and generate PDF reports).
 
-## Getting Started
+**Version:** 1.0.0+1  
+**Stack:** Flutter 3.x, Dart ^3.10.7, Dio
 
-This project is a starting point for a Flutter application.
+## Setup
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Run
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter run
+```
+
+## Build
+
+```bash
+flutter build apk --release
+```
+
+## Configuration
+
+### API Endpoint
+
+Edit `lib/constants/endpoint.dart`:
+
+```dart
+const String baseUrl = 'https://hab.codingclub.in/api';
+```
+
+## Features
+
+- **Yesterday**: view past bookings, mark statuses (Cleaned / Room Locked / Student Did Not Respond / Student Asked To Cancel / Room Cleaners Not Available), bulk finalize per cleaner
+- **Today**: view current day's schedule filtered by cleaner
+- **Tomorrow**: assign cleaners to bookings per slot (A/B/C/D), manage buffer slots, save assignments
+- **PDF generation**: per-cleaner A4 assignment sheets with room numbers, slot times, phone numbers, and signature columns, shared via system share sheet (WhatsApp, email, etc.)
+- **Password-based login**: per-hostel shared password (no Google OAuth)
+- **App version enforcement**: update check on launch
