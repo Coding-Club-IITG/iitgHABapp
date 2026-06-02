@@ -932,6 +932,7 @@ class _MealListState extends State<_MealList> {
           const SizedBox(height: 12),
         ],
         const SizedBox(height: 8),
+        if (widget.userMessId == widget.selectedMessId)
         const Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -1110,12 +1111,14 @@ class _MealCardState extends State<_MealCard> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            if (widget.isSubscribed) ...[
             Icon(
               item.isLiked ? Icons.favorite : Icons.favorite_border,
               size: 12,
               color: iconColor,
             ),
             const SizedBox(width: 8),
+            ],
             Flexible(
               child: Text(
                 item.name,
@@ -1204,6 +1207,8 @@ class _MealCardState extends State<_MealCard> {
         child: InkWell(
           borderRadius: BorderRadius.circular(12),
           onTap: widget.onToggle,
+          splashColor: Colors.transparent,
+          highlightColor: Colors.transparent,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
