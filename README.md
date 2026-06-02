@@ -266,4 +266,4 @@ We follow a specific branching strategy to ensure stability:
 
 ## License
 
-IIT Guwahati © 2024 Hostel Affairs Board
+IIT Guwahati © 2026 Hostel Affairs Board
