@@ -1,124 +1,345 @@
-# 🏘️ Hostel Affairs Board
+<h1 align="center">HABit IITG</h1>
 
-**Official IIT Guwahati Resident Portal**
+<p align="center">
+   IIT Guwahati's unified campus-life platform
+</p>
 
-![Node.js](https://img.shields.io/badge/Node.js-18.x-green)
-![Flutter](https://img.shields.io/badge/Flutter-3.x-blue)
-![MongoDB](https://img.shields.io/badge/MongoDB-6.0-green)
-![AWS](https://img.shields.io/badge/AWS-Deployed-orange)
-![React](https://img.shields.io/badge/React-19.x-61DAFB?logo=react)
-
-An Official platform being made for IIT Guwahati residents to improve their living experience in campus.
-
-This app helps students to put a complaint about issues faced in hostel. It also has a mess card system which enables swift authentication for mess related purposes.
-
----
-
-## 📱 UI of the Application
-
-> All UI mock-ups, prototypes, designs were created in Figma.
-
-<div align="center">
-  <img src="./readme-assets/boardingscreen.png" width="24%" alt="Mockup 1"/>
-  <img src="./readme-assets/homescreen1.png" width="24%" alt="Mockup 2"/>
-  <img src="./readme-assets/homescreen.png" width="24%" alt="Mockup 3"/>
-  <img src="./readme-assets/messscreen.png" width="24%" alt="Mockup 4"/>
-  <img src="./readme-assets/messscan.png" width="24%" alt="Mockup 5"/>
-  <img src="./readme-assets/scanstatus1.png" width="24%" alt="Mockup 6"/>
-  <img src="./readme-assets/scanstatus2.png" width="24%" alt="Mockup 7"/>
-  <img src="./readme-assets/scanstatus3.png" width="24%" alt="Mockup 8"/>
+<div align="center"> 
+   <img src="./readme-assets/habit-ad.jpg">
 </div>
 
-## NOTE: JUST ONE PART OF THE APP OTHER PART IN PROGRESS
+<div align="center">
+  <a href="https://play.google.com/store/apps/details?id=in.codingclub.hab"><img src="./readme-assets/playstore.svg" alt="Get it on Google Play"></a>
+  <a href="https://apps.apple.com/us/app/habit-iitg/id6740746036"><img src="./readme-assets/appstore.svg" alt="Download on the App Store"></a>
+</div>
 
----
+A unified ecosystem powering complaints, mess management, room cleaning, laundry services, gala dinners, leave requests, rebates, notifications, and administrative workflows across the entire IIT Guwahati hostel network.
 
-## ✨ Key Features
+Built collaboratively by the [Hostel Affairs Board (HAB)](https://hab.codingclub.in) and [Coding Club, IIT Guwahati](https://codingclub.in), the platform serves students, wardens, mess managers, hostel administrations, and governing bodies through a collection of mobile apps, web dashboards, and backend services.
 
-- **Complaint Management System**: Submit, track, and resolve hostel issues
-- **Role-Based Access Control**:
-  - Students: Submit/view complaints
-  - Wardens: Approve/reject complaints
-  - Admins: Manage system settings
-- **QR Mess Cards**: Instant student verification for meal tracking
-- **Secure Authentication**: JWT tokens with Outlook OAuth (Azure AD)
-- **Modular REST API**: Structured Express.js backend with middleware support
+## Features
 
----
+- **Complaint management** with multi-stage approval workflows
+- **QR-based mess authentication** and meal tracking
+- **Mess change, rebate, and summer mess automation**
+- **Room cleaning** scheduling and workforce management
+- **Laundry** registration and tracking
+- **Gala Dinner** registrations and QR validation
+- **Leave applications** and hostel service feedback
+- **Real-time notifications** and live updates
+- Dedicated dashboards for HAB, SMC, wardens, caterers, and administrators
 
-## 🛠 Tech Stack
+## Screenshots
+
+<figure>
+  <img src="./readme-assets/screenshots.jpg" alt="App screens showing the mobile interface">
+  <figcaption style="text-align: center;">Mobile App screens</figcaption>
+</figure>
+
+<figure>
+  <img src="./readme-assets/hab-dash.jpeg" alt="HAB Dashboard showing the administrative panel">
+  <figcaption style="text-align: center;">HAB Dashboard panel</figcaption>
+</figure>
+
+## Architecture Overview
+
+```mermaid
+graph LR
+
+%% ===== STYLES =====
+classDef mobile fill:#dbeafe,stroke:#2563eb,stroke-width:2px,color:#000000
+classDef web fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#000000
+classDef gateway fill:#c7d2fe,stroke:#4338ca,stroke-width:3px,color:#000000
+classDef api fill:#d1fae5,stroke:#059669,stroke-width:2px,color:#000000
+classDef apiOld fill:#fce7f3,stroke:#db2777,stroke-width:2px,color:#000000
+classDef service fill:#ede9fe,stroke:#7c3aed,stroke-width:2px,color:#000000
+classDef db fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#000000
+classDef ext fill:#ecfdf5,stroke:#16a34a,stroke-width:2px,color:#000000
+%% ===== CLIENTS =====
+subgraph Clients["Client Applications"]
+
+    subgraph Mobile["📱 Mobile Apps"]
+        direction TB
+        SA["HABit<br/>Student App"]:::mobile
+        HQ["HABit HQ<br/>Mess Manager"]:::mobile
+        RC["HABit RC<br/>Room Cleaning"]:::mobile
+    end
+
+    subgraph Web["🖥️ Web Dashboards"]
+        direction TB
+        HAB["HAB Admin Panel"]:::web
+        HTL["Hostel Office Panel"]:::web
+        SMC["SMC Panel"]:::web
+        LND["Landing Page"]:::web
+    end
+
+end
+
+%% ===== GATEWAY =====
+GW["🌐 API Gateway<br/>Version Routing"]:::gateway
+
+%% ===== APIS =====
+subgraph Backend["Backend Services"]
+direction TB
+
+V1["🆕 API v1<br/>Latest<br/>21 Modules"]:::api
+V2["🔄 API v2<br/>Legacy<br/>19 Modules"]:::apiOld
+
+end
+
+%% ===== PLATFORM =====
+SERV["🔧 Shared Platform Services<br/>WebSockets • Agenda • Logging<br/>Notifications • Version Enforcement"]:::service
+
+%% ===== DATA =====
+DATA["🗄️ Data Layer<br/>MongoDB Atlas • Redis • PostgreSQL"]:::db
+
+%% ===== EXTERNAL =====
+EXT["☁️ External Services<br/>Microsoft OAuth (Azure AD)<br/>Firebase FCM • Cloudinary<br/>OneDrive • AWS S3"]:::ext
+
+%% ===== FLOWS =====
+SA --> GW
+HQ --> GW
+RC --> GW
+
+HAB --> GW
+HTL --> GW
+SMC --> GW
+LND --> GW
+
+GW -->|"x-api-version: v1"| V1
+GW -->|"x-api-version: v2"| V2
+
+V1 --> SERV
+V2 --> SERV
+
+V1 --> DATA
+V2 --> DATA
+
+V1 --> EXT
+V2 --> EXT
+```
+
+HABit follows a versioned service-oriented architecture designed to support multiple client applications while maintaining backward compatibility with legacy systems.
+
+### Client Applications
+
+The platform consists of seven frontend applications:
+
+**Mobile Applications**
+
+- **HABit** — Student-facing application for hostel services and daily operations.
+- **HABit HQ** — Mess management and dining operations.
+- **HABit RC** — Room cleaning and maintenance workflows.
+
+**Web Dashboards**
+
+- **HAB Admin Panel** — Central administration and platform management.
+- **Hostel Office Panel** — Hostel administration and resident management.
+- **SMC Panel** — Student Mess Committee operations and oversight.
+- **Landing Page** — Public-facing website and platform information.
+
+### API Gateway
+
+All client requests are routed through a centralized API Gateway. The gateway determines the appropriate backend service using the `x-api-version` header, allowing multiple API versions to coexist without impacting client applications.
+
+### Backend Services
+
+The backend currently maintains two API versions:
+
+- **API v1** — The latest actively developed backend containing new features and improvements.
+- **API v2** — Legacy backend retained for backward compatibility with existing clients and workflows.
+
+This versioned approach enables gradual migration of features while ensuring uninterrupted service availability.
+
+### Shared Platform Services
+
+Both API versions leverage a common set of platform services, including:
+
+- Real-time communication through WebSockets
+- Background job scheduling and processing
+- Centralized logging and monitoring
+- Push notification delivery
+- Application version enforcement
+
+### Data Layer
+
+The platform uses a polyglot persistence model:
+
+- **MongoDB Atlas** serves as the primary operational database.
+- **Redis** provides caching and real-time data synchronization.
+- **PostgreSQL** powers background job scheduling and queue management.
+
+### External Integrations
+
+HABit integrates with several third-party services:
+
+- **Microsoft OAuth (Azure AD)** for authentication and identity management.
+- **Firebase Cloud Messaging (FCM)** for push notifications.
+- **Cloudinary** for image storage and media processing.
+- **OneDrive** and **AWS S3** for file storage and asset management.
+
+### Request Lifecycle
+
+A typical request follows the path:
+
+`Client Application → API Gateway → API Version (v1/v2) → Platform Services → Database / External Services`
+
+This architecture provides scalability, maintainability, and the flexibility to evolve the platform without disrupting existing users.
+
+## 🛠️ Tech Stack
+
+<img src="https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E" alt="JavaScript"/>
+<img src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React"/>
+<img src="https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="TailwindCSS">
+<img src="https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white" alt="Flutter"/>
+<img src="https://img.shields.io/badge/dart-%230175C2.svg?style=for-the-badge&logo=dart&logoColor=white" alt="Dart" />
+<img src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white" alt="NodeJS"/>
+<img src="https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"/>
+<img src="https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white" alt="Redis"/>
+<img src="https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="Postgres" />
+<img src="https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="AWS"/>
+<img src="https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
+<img src="https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+<img src="https://img.shields.io/badge/pnpm-%234a4a4a.svg?style=for-the-badge&logo=pnpm&logoColor=f69220" alt="PNPM" />
+
+### Mobile Applications
+
+| Technology      | Purpose                               |
+| --------------- | ------------------------------------- |
+| **Flutter 3.x** | Cross-platform mobile development     |
+| **Firebase**    | Push notifications and analytics      |
+| **Provider**    | State management                      |
+| **Dio**         | HTTP networking                       |
+| **WebSockets**  | Real-time updates and scan broadcasts |
+
+### Web Applications
+
+| Technology         | Purpose                              |
+| ------------------ | ------------------------------------ |
+| **React 19**       | Frontend framework                   |
+| **Vite 6**         | Build tooling and development server |
+| **Tailwind CSS 4** | Utility-first styling                |
+| **Ant Design 5**   | Component library                    |
+| **Axios**          | API communication                    |
+| **Chart.js**       | Analytics and reporting dashboards   |
 
 ### Backend
 
-- **Runtime**: Node.js 18
-- **Framework**: Express.js
-- **Database**: MongoDB Atlas
-- **Authentication**: JWT + Azure Active Directory
+| Technology            | Purpose                           |
+| --------------------- | --------------------------------- |
+| **Node.js 18+**       | Runtime environment               |
+| **Express 5**         | REST API framework                |
+| **WebSockets**        | Real-time communication           |
+| **Agenda**            | Background job scheduling         |
+| **JWT**               | Authentication and authorization  |
+| **Swagger / OpenAPI** | API documentation                 |
+| **PM2**               | Process management and deployment |
 
-### Frontend
+### Data Layer
 
-- **Mobile App**: Flutter (iOS & Android)
-- **Admin Panel**: React.js
+| Technology        | Purpose                       |
+| ----------------- | ----------------------------- |
+| **MongoDB Atlas** | Primary application database  |
+| **Redis**         | Caching and Pub/Sub messaging |
+| **PostgreSQL**    | Job scheduling and logging    |
 
-### Infrastructure
+### Cloud & Integrations
 
-- **Cloud**: AWS EC2 (Backend), S3 (Storage)
-- **CI/CD**: GitHub Workflows
+| Technology                   | Purpose                        |
+| ---------------------------- | ------------------------------ |
+| **Microsoft Azure AD**       | OAuth authentication           |
+| **Firebase Cloud Messaging** | Push notifications             |
+| **Cloudinary**               | Image storage and optimization |
+| **Microsoft OneDrive**       | File storage                   |
+| **AWS S3**                   | Object storage                 |
+| **AWS EC2**                  | Infrastructure hosting         |
 
----
+## Setup
 
-## ⚙️ Setup Guide
+### Prerequisites
 
-### Backend Setup
+- Node.js 18+
+- Flutter 3.x
+- pnpm (for web frontends)
+- MongoDB (replica set), Redis, PostgreSQL
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/HABIITG/iitgHABapp.git
-   cd server
-   ```
-2. Create .env file in the server directory with these variables:
+### 1. Backend — Server
 
-   ```bash
-   # MongoDB
-   MONGODB_URI="your_mongodb_connection_string"
+The server must be running before any frontend can connect.
 
-   # Azure AD, can be obtained from Azure portal
-   CLIENT_ID="your_azure_app_id"
-   CLIENT_SECRET="your_azure_secret"
-   REDIRECT_URI="https://hab.codingclub.in/auth/callback"
+```bash
+cd server
+cp .env.example .env   # configure your environment variables
+pnpm install
+pnpm dev
+```
 
-   # JWT
-   JWT_SECRET="your_secure_random_string"
+> [!NOTE]
+> See `server/README.md` for detailed setup instructions including PM2 production deployment, environment variables reference, and API versioning.
 
-   # Outlook Email
-   OUTLOOK_ID="sender@iitg.ac.in"
-   OUTLOOK_PASS="email_password"
-   NAME_ID="Hostel Affairs Board"
+### 2. Login Portal — Landing Page
 
-   # Server
-   PORT=3000
-   ```
+The login portal must be set up before any web dashboard.
 
-3. Install dependencies and run:
-   ```bash
-   npm install
-   npm run start
-   ```
+```bash
+cd login-frontend
+pnpm install && pnpm dev        # localhost:5172/
+```
 
----
+### 3. Web Dashboards
 
-## 🤝 Workflow & Deployment
+Once the server and login portal are running, set up the admin dashboards:
+
+```bash
+# HAB Admin Panel
+cd hab-frontend
+pnpm install && pnpm dev       # localhost:5173/hab/
+
+# Hostel Office Panel
+cd hostel-frontend
+pnpm install && pnpm dev       # localhost:5174/hostel/
+
+# SMC Panel
+cd smc-frontend
+pnpm install && pnpm dev       # localhost:5175/smc/
+```
+
+### 4. Mobile Apps (Flutter)
+
+```bash
+# Student App
+cd frontend2
+flutter pub get && flutter run
+
+# Mess Manager App
+cd mess_frontend
+flutter pub get && flutter run
+
+# Room Cleaning App
+cd rc_frontend
+flutter pub get && flutter run
+```
+
+> [!NOTE]
+> See the individual READMEs for platform-specific build instructions and API endpoint configuration.
+
+## Workflow & Deployment
 
 We follow a specific branching strategy to ensure stability:
 
 - **`dev` Branch**: This is the active development branch. **All code changes, features, and fixes must be committed here.** Please create Pull Requests (PRs) against the `dev` branch.
 - **`prod` Branch**: This branch is strictly for **production server deployment**. It reflects the live state of the application.
 
-> [!NOTE]
+> [!CAUTION]
 > Do not commit directly to `prod`. Changes are merged from `dev` to `prod` only when ready for release.
 
 ---
 
-## 📜 License
+## License
 
 IIT Guwahati © 2024 Hostel Affairs Board
+
+<div align="center">
+   <img src="./readme-assets/habit-header.svg">
+</div>
+```

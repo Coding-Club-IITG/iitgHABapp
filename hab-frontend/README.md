@@ -1,12 +1,46 @@
-# React + Vite
+# HAB Admin Panel
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Central administration dashboard for the Hostel Affairs Board. Manages hostels, caterers, students, mess changes, gala dinners, billing, notifications, summer mess, and festival mode.
 
-Currently, two official plugins are available:
+**Stack:** React 19, Vite 6, Tailwind CSS 4, Ant Design 5
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## Setup
 
-## Expanding the ESLint configuration
+```bash
+pnpm install
+```
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+## Development
+
+```bash
+pnpm dev
+```
+
+Runs on `http://localhost:5173/hab/`.
+
+## Build
+
+```bash
+pnpm build
+```
+
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `VITE_SERVER_URL` | `http://localhost:3000/api` | Backend API base URL |
+| `VITE_BASE` | `/hab` | Router base path |
+
+## Features
+
+- Dashboard with per-meal scan statistics and hostel rankings
+- Hostel CRUD with caterer assignment
+- Mess/Caterer CRUD and menu management
+- Student list with CSV bulk hostel allocation
+- Mess change application processing (approve/reject)
+- Gala dinner scheduling and scan log export
+- Monthly bill generation (Excel download)
+- Push notification dispatch with alert TTL
+- Festival mode configuration (theme, overlay, images)
+- Summer mess season management
+- Feedback window control and leaderboard

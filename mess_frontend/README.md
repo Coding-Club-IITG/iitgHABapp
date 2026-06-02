@@ -1,16 +1,50 @@
-# mess_frontend
+# HABit HQ — Mess Manager App
 
-A new Flutter project.
+Mobile application for mess and caterer staff to manage daily operations — live QR scan monitoring, subscriber management, rebate processing, summer mess, and gala dinner attendance.
 
-## Getting Started
+**Version:** 1.0.0+6  
+**Stack:** Flutter 3.x, Dart ^3.10.7, GoRouter, Provider, WebSocket
 
-This project is a starting point for a Flutter application.
+## Setup
 
-A few resources to get you started if this is your first Flutter project:
+```bash
+flutter pub get
+```
 
-- [Lab: Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Cookbook: Useful Flutter samples](https://docs.flutter.dev/cookbook)
+## Run
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter run
+```
+
+## Build
+
+```bash
+flutter build apk --release
+```
+
+## Configuration
+
+### API Endpoint
+
+Edit `lib/constants/endpoint.dart`:
+
+```dart
+const String baseUrl = 'https://hab.codingclub.in/api';
+const String baseWsUrl = 'wss://hab.codingclub.in/api';
+```
+
+### Firebase
+
+Place `google-services.json` in `android/app/` for Firebase Auth.
+
+## Features
+
+- **Live scan dashboard** — real-time QR scan feed (5-second WebSocket refresh), per-meal totals (breakfast/lunch/dinner)
+- **Scan log history** — full per-meal scan logs with student details
+- **Mess subscribers** — view current subscriber list
+- **Rebate management** — view and process mess rebate/leave applications
+- **Summer mess** — view registrations and attendance
+- **Gala dinner** — attendance view and per-course scan logs
+- **Google OAuth + Firebase Auth** login
+- **App version enforcement** — update check on launch
