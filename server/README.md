@@ -6,12 +6,12 @@ Node.js/Express backend for the IIT Guwahati Hostel Affairs Board platform. Cons
 
 ```
 Gateway (port 3000)
-├── x-api-version: v1  →  API v1 (port 3001)  — Latest API (21 modules)
-└── x-api-version: v2  →  API v2 (port 3002)  — Legacy API (19 modules + Agenda schedulers)
+├── x-api-version: v1  →  API v1 (port 3001) : Latest API (21 modules)
+└── x-api-version: v2  →  API v2 (port 3002) : Legacy API (19 modules + Agenda schedulers)
 
 Background processes:
-├── hab-worker-logger-v1  — Log processing worker
-└── hab-worker-agenda-v1  — Job scheduler (auto-feedback, auto-rebate, etc.)
+├── hab-worker-logger-v1 : Log processing worker
+└── hab-worker-agenda-v1 : Job scheduler (auto-feedback, auto-rebate, etc.)
 ```
 
 ## Prerequisites
@@ -39,7 +39,7 @@ cd v2 && pnpm install && cd ..
 cp .env.example .env
 ```
 
-Edit `.env` with your credentials — see [Environment Variables](#environment-variables) below.
+Edit `.env` with your credentials.
 
 ### 3. Start dependencies
 
@@ -63,17 +63,17 @@ pnpm start
 
 Starts 5 PM2 processes:
 
-- `hab-gateway` — Reverse proxy (port 3000)
-- `hab-api-v1` — API v1 server (port 3001)
-- `hab-api-v2` — API v2 server (port 3002)
-- `hab-worker-logger-v1` — Logger worker
-- `hab-worker-agenda-v1` — Agenda scheduler
+- `hab-gateway`: Reverse proxy (port 3000)
+- `hab-api-v1`: API v1 server (port 3001)
+- `hab-api-v2`: API v2 server (port 3002)
+- `hab-worker-logger-v1`: Logger worker
+- `hab-worker-agenda-v1`: Agenda scheduler
 
 ## Project Structure
 
 ```
 server/
-├── index.js                 # Gateway — reverse proxy
+├── index.js                 # Gateway: reverse proxy
 ├── ecosystem.config.cjs     # PM2 process configuration
 ├── processHandlers.js       # Crash handlers (uncaught exceptions)
 ├── VERSIONING.md            # API versioning strategy guide

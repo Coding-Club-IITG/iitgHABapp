@@ -26,17 +26,17 @@ pnpm build
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable          | Default                     | Description          |
+| ----------------- | --------------------------- | -------------------- |
 | `VITE_SERVER_URL` | `http://localhost:3000/api` | Backend API base URL |
 
 ## Pages
 
-| Route | Page |
-|-------|------|
-| `/` | Home — hero carousel, app download buttons, live stats, hostel showcase |
-| `/forms` | Online forms for hostel services |
-| `/hostels` | Public hostel information listing |
-| `/privacy` | Privacy policy |
-| `/contact` | Contact and support |
-| `/bug-report` | Bug report submission form |
+| Route         | Page                                                                   |
+| ------------- | ---------------------------------------------------------------------- |
+| `/`           | Home: hero carousel, app download buttons, live stats, hostel showcase |
+| `/forms`      | Online forms for hostel services                                       |
+| `/hostels`    | Public hostel information listing                                      |
+| `/privacy`    | Privacy policy                                                         |
+| `/contact`    | Contact and support                                                    |
+| `/bug-report` | Bug report submission form                                             |

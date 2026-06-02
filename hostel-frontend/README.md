@@ -26,18 +26,18 @@ pnpm build
 
 ## Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
+| Variable          | Default                     | Description          |
+| ----------------- | --------------------------- | -------------------- |
 | `VITE_SERVER_URL` | `http://localhost:3000/api` | Backend API base URL |
-| `VITE_BASE` | `/hostel` | Router base path |
+| `VITE_BASE`       | `/hostel`                   | Router base path     |
 
 ## Features
 
-- **Boarders** — searchable directory with PDF export
-- **Mess** — live and historical subscriber snapshots
-- **SMC Management** — assign/remove SMC members
-- **HMC Management** — committee roster with 9 secretary positions
-- **Room Cleaners** — CRUD with slot assignment (A/B/C/D)
-- **Laundry** — QR code display, monthly stats, usage logs
-- **Bill** — mess bill calculator per month
-- **Mess Workers** — CRUD with designation and wage rate
+- **Boarders**: searchable directory with PDF export
+- **Mess**: live and historical subscriber snapshots
+- **SMC Management**: assign/remove SMC members
+- **HMC Management**: committee roster with 9 secretary positions
+- **Room Cleaners**: CRUD with slot assignment (A/B/C/D)
+- **Laundry**: QR code display, monthly stats, usage logs
+- **Bill**: mess bill calculator per month
+- **Mess Workers**: CRUD with designation and wage rate

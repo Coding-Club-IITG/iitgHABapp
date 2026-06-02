@@ -1,4 +1,4 @@
-# HABit — Student Mobile App
+# HABit: Student Mobile App
 
 Primary student-facing Flutter application for IIT Guwahati residents. Used for mess QR scanning, room cleaning booking, mess menus, feedback, leave/rebate applications, laundry, gala dinner, and more.
 
@@ -48,17 +48,17 @@ The Azure AD client ID, tenant ID, and redirect URIs are configured in `lib/cons
 
 ## Features
 
-- **QR mess scanning** — camera-based scanning with vibration feedback and duplicate prevention
-- **Weekly mess menus** — browse menus across all hostels, like/favorite items
-- **Room cleaning booking** — slot selection with 14-day cooldown and capacity checks
-- **Laundry service** — QR-based registration (once per 2 weeks)
-- **Mess change** — apply and track mess change requests (requires Microsoft account)
-- **Mess rebate / leave** — submit and track leave applications, upload medical documents
-- **Summer mess registration** — apply for summer mess and check status
-- **Gala dinner** — view info, scan QR per course
-- **Meal feedback** — rate breakfast/lunch/dinner, SMC-specific fields
-- **Notifications** — push via FCM with alert countdown timers
-- **Weather-aware home screen** — dynamic backgrounds based on time/weather/festival mode
-- **Festival mode** — server-driven theming and overlay
+- **QR mess scanning**: camera-based scanning with vibration feedback and duplicate prevention
+- **Weekly mess menus**: browse menus across all hostels, like/favorite items
+- **Room cleaning booking**: slot selection with 14-day cooldown and capacity checks
+- **Laundry service**: QR-based registration (once per 2 weeks)
+- **Mess change**: apply and track mess change requests (requires Microsoft account)
+- **Mess rebate / leave**: submit and track leave applications, upload medical documents
+- **Summer mess registration**: apply for summer mess and check status
+- **Gala dinner**: view info, scan QR per course
+- **Meal feedback**: rate breakfast/lunch/dinner, SMC-specific fields
+- **Notifications**: push via FCM with alert countdown timers
+- **Weather-aware home screen**: dynamic backgrounds based on time/weather/festival mode
+- **Festival mode**: server-driven theming and overlay
 - **Google OAuth + Microsoft account linking**
 - **Offline caching** via Hive and SharedPreferences

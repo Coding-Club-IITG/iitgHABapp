@@ -140,18 +140,18 @@ HABit follows a versioned service-oriented architecture designed to support mult
 
 The platform consists of seven frontend applications:
 
-**Mobile Applications** — Built with Flutter 3.x + Dart.
+**Mobile Applications**: Built with Flutter 3.x + Dart.
 
-- **HABit** — Student-facing application for hostel services and daily operations.
-- **HABit HQ** — Mess management and dining operations.
-- **HABit RC** — Room cleaning and maintenance workflows.
+- **HABit**: Student-facing application for hostel services and daily operations.
+- **HABit HQ**: Mess management and dining operations.
+- **HABit RC**: Room cleaning and maintenance workflows.
 
-**Web Dashboards** — Built with React 19, Vite 6, Tailwind CSS 4, and Ant Design 5.
+**Web Dashboards**: Built with React 19, Vite 6, Tailwind CSS 4, and Ant Design 5.
 
-- **HAB Admin Panel** — Central administration and platform management.
-- **Hostel Office Panel** — Hostel administration and resident management.
-- **SMC Panel** — Student Mess Committee operations and oversight.
-- **Landing Page** — Public-facing website and platform information.
+- **HAB Admin Panel**: Central administration and platform management.
+- **Hostel Office Panel**: Hostel administration and resident management.
+- **SMC Panel**: Student Mess Committee operations and oversight.
+- **Landing Page**: Public-facing website and platform information.
 
 ### API Gateway
 
@@ -161,8 +161,8 @@ All client requests are routed through a centralized API Gateway built with Expr
 
 The backend currently maintains two Node.js 18+ / Express 5 API versions:
 
-- **API v1** — The latest actively developed backend containing new features and improvements.
-- **API v2** — Legacy backend retained for backward compatibility with existing clients and workflows.
+- **API v1**: The latest actively developed backend containing new features and improvements.
+- **API v2**: Legacy backend retained for backward compatibility with existing clients and workflows.
 
 This versioned approach enables gradual migration of features while ensuring uninterrupted service availability.
 
@@ -192,7 +192,7 @@ HABit integrates with several third-party services:
 - pnpm (for web frontends)
 - MongoDB (replica set), Redis, PostgreSQL
 
-### 1. Backend — Server
+### 1. Backend Server
 
 The server must be running before any frontend can connect.
 
@@ -206,7 +206,7 @@ pnpm dev
 > [!NOTE]
 > See `server/README.md` for detailed setup instructions including PM2 production deployment, environment variables reference, and API versioning.
 
-### 2. Login Portal — Landing Page
+### 2. Login Portal (Landing Page)
 
 The login portal must be set up before any web dashboard.
 
