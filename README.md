@@ -1,3 +1,7 @@
+<div align="center">
+   <img src="./readme-assets/habit-header.svg">
+</div>
+
 <h1 align="center">HABit IITG</h1>
 
 <p align="center">
@@ -37,7 +41,7 @@ Built collaboratively by the [Hostel Affairs Board (HAB)](https://hab.codingclub
 <div align="center">HAB Dashboard panel</div>
 <img src="./readme-assets/hab-dash.jpeg" alt="HAB Dashboard showing the administrative panel">
 
-## Architecture Overview
+## System Architecture
 
 ```mermaid
 graph LR
@@ -115,19 +119,34 @@ V1 --> EXT
 V2 --> EXT
 ```
 
+<p align="center">
+    <img src="https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white" alt="Flutter"/>
+    <img src="https://img.shields.io/badge/dart-%230175C2.svg?style=for-the-badge&logo=dart&logoColor=white" alt="Dart"/>
+    <img src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React"/>
+    <img src="https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="TailwindCSS"/>
+    <img src="https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white" alt="Vite"/>
+    <img src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white" alt="NodeJS"/>
+    <img src="https://img.shields.io/badge/express.js-%23404d59.svg?style=for-the-badge&logo=express&logoColor=%2361DAFB" alt="Express.js"/>
+    <img src="https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"/>
+    <img src="https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white" alt="Redis"/>
+    <img src="https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="Postgres"/>
+    <img src="https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="AWS"/>
+    <img src="https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
+</p>
+
 HABit follows a versioned service-oriented architecture designed to support multiple client applications while maintaining backward compatibility with legacy systems.
 
 ### Client Applications
 
 The platform consists of seven frontend applications:
 
-**Mobile Applications**
+**Mobile Applications** — Built with Flutter 3.x + Dart.
 
 - **HABit** — Student-facing application for hostel services and daily operations.
 - **HABit HQ** — Mess management and dining operations.
 - **HABit RC** — Room cleaning and maintenance workflows.
 
-**Web Dashboards**
+**Web Dashboards** — Built with React 19, Vite 6, Tailwind CSS 4, and Ant Design 5.
 
 - **HAB Admin Panel** — Central administration and platform management.
 - **Hostel Office Panel** — Hostel administration and resident management.
@@ -136,33 +155,23 @@ The platform consists of seven frontend applications:
 
 ### API Gateway
 
-All client requests are routed through a centralized API Gateway. The gateway determines the appropriate backend service using the `x-api-version` header, allowing multiple API versions to coexist without impacting client applications.
+All client requests are routed through a centralized API Gateway built with Express 5. The gateway determines the appropriate backend service using the `x-api-version` header, allowing multiple API versions to coexist without impacting client applications.
 
 ### Backend Services
 
-The backend currently maintains two API versions:
+The backend currently maintains two Node.js 18+ / Express 5 API versions:
 
 - **API v1** — The latest actively developed backend containing new features and improvements.
 - **API v2** — Legacy backend retained for backward compatibility with existing clients and workflows.
 
 This versioned approach enables gradual migration of features while ensuring uninterrupted service availability.
 
-### Shared Platform Services
-
-Both API versions leverage a common set of platform services, including:
-
-- Real-time communication through WebSockets
-- Background job scheduling and processing
-- Centralized logging and monitoring
-- Push notification delivery
-- Application version enforcement
-
 ### Data Layer
 
-The platform uses a persistence model:
+The platform uses a persistence model backed by three databases:
 
 - **MongoDB Atlas** serves as the primary operational database.
-- **Redis** provides caching and real-time data synchronization.
+- **Redis** provides caching and real-time Pub/Sub messaging.
 - **PostgreSQL** powers background job scheduling and queue management.
 
 ### External Integrations
@@ -173,76 +182,6 @@ HABit integrates with several third-party services:
 - **Firebase Cloud Messaging (FCM)** for push notifications.
 - **Cloudinary** for image storage and media processing.
 - **OneDrive** and **AWS S3** for file storage and asset management.
-
-## 🛠️ Tech Stack
-
-<p>
-    <img src="https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E" alt="JavaScript"/>
-    <img src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React"/>
-    <img src="https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="TailwindCSS">
-    <img src="https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white" alt="Flutter"/>
-    <img src="https://img.shields.io/badge/dart-%230175C2.svg?style=for-the-badge&logo=dart&logoColor=white" alt="Dart" />
-    <img src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white" alt="NodeJS"/>
-    <img src="https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"/>
-    <img src="https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white" alt="Redis"/>
-    <img src="https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="Postgres" />
-    <img src="https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="AWS"/>
-    <img src="https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
-    <img src="https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
-    <img src="https://img.shields.io/badge/pnpm-%234a4a4a.svg?style=for-the-badge&logo=pnpm&logoColor=f69220" alt="PNPM" />
-</p>
-
-### Mobile Applications
-
-| Technology      | Purpose                               |
-| --------------- | ------------------------------------- |
-| **Flutter 3.x** | Cross-platform mobile development     |
-| **Firebase**    | Push notifications and analytics      |
-| **Provider**    | State management                      |
-| **Dio**         | HTTP networking                       |
-| **WebSockets**  | Real-time updates and scan broadcasts |
-
-### Web Applications
-
-| Technology         | Purpose                              |
-| ------------------ | ------------------------------------ |
-| **React 19**       | Frontend framework                   |
-| **Vite 6**         | Build tooling and development server |
-| **Tailwind CSS 4** | Utility-first styling                |
-| **Ant Design 5**   | Component library                    |
-| **Axios**          | API communication                    |
-| **Chart.js**       | Analytics and reporting dashboards   |
-
-### Backend
-
-| Technology            | Purpose                           |
-| --------------------- | --------------------------------- |
-| **Node.js 18+**       | Runtime environment               |
-| **Express 5**         | REST API framework                |
-| **WebSockets**        | Real-time communication           |
-| **Agenda**            | Background job scheduling         |
-| **JWT**               | Authentication and authorization  |
-| **Swagger / OpenAPI** | API documentation                 |
-| **PM2**               | Process management and deployment |
-
-### Data Layer
-
-| Technology        | Purpose                       |
-| ----------------- | ----------------------------- |
-| **MongoDB Atlas** | Primary application database  |
-| **Redis**         | Caching and Pub/Sub messaging |
-| **PostgreSQL**    | Job scheduling and logging    |
-
-### Cloud & Integrations
-
-| Technology                   | Purpose                        |
-| ---------------------------- | ------------------------------ |
-| **Microsoft Azure AD**       | OAuth authentication           |
-| **Firebase Cloud Messaging** | Push notifications             |
-| **Cloudinary**               | Image storage and optimization |
-| **Microsoft OneDrive**       | File storage                   |
-| **AWS S3**                   | Object storage                 |
-| **AWS EC2**                  | Infrastructure hosting         |
 
 ## Setup
 
@@ -328,7 +267,3 @@ We follow a specific branching strategy to ensure stability:
 ## License
 
 IIT Guwahati © 2024 Hostel Affairs Board
-
-<div align="center">
-   <img src="./readme-assets/habit-header.svg">
-</div>
