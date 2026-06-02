@@ -31,15 +31,11 @@ Built collaboratively by the [Hostel Affairs Board (HAB)](https://hab.codingclub
 
 ## Screenshots
 
-<figure>
-  <img src="./readme-assets/screenshots.jpg" alt="App screens showing the mobile interface">
-  <figcaption style="text-align: center;">Mobile App screens</figcaption>
-</figure>
+<div align="center">Mobile App screens</div>
+<img src="./readme-assets/screenshots.jpg" alt="App screens showing the mobile interface">
 
-<figure>
-  <img src="./readme-assets/hab-dash.jpeg" alt="HAB Dashboard showing the administrative panel">
-  <figcaption style="text-align: center;">HAB Dashboard panel</figcaption>
-</figure>
+<div align="center">HAB Dashboard panel</div>
+<img src="./readme-assets/hab-dash.jpeg" alt="HAB Dashboard showing the administrative panel">
 
 ## Architecture Overview
 
@@ -163,7 +159,7 @@ Both API versions leverage a common set of platform services, including:
 
 ### Data Layer
 
-The platform uses a polyglot persistence model:
+The platform uses a persistence model:
 
 - **MongoDB Atlas** serves as the primary operational database.
 - **Redis** provides caching and real-time data synchronization.
@@ -178,29 +174,23 @@ HABit integrates with several third-party services:
 - **Cloudinary** for image storage and media processing.
 - **OneDrive** and **AWS S3** for file storage and asset management.
 
-### Request Lifecycle
-
-A typical request follows the path:
-
-`Client Application → API Gateway → API Version (v1/v2) → Platform Services → Database / External Services`
-
-This architecture provides scalability, maintainability, and the flexibility to evolve the platform without disrupting existing users.
-
 ## 🛠️ Tech Stack
 
-<img src="https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E" alt="JavaScript"/>
-<img src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React"/>
-<img src="https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="TailwindCSS">
-<img src="https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white" alt="Flutter"/>
-<img src="https://img.shields.io/badge/dart-%230175C2.svg?style=for-the-badge&logo=dart&logoColor=white" alt="Dart" />
-<img src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white" alt="NodeJS"/>
-<img src="https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"/>
-<img src="https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white" alt="Redis"/>
-<img src="https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="Postgres" />
-<img src="https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="AWS"/>
-<img src="https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
-<img src="https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
-<img src="https://img.shields.io/badge/pnpm-%234a4a4a.svg?style=for-the-badge&logo=pnpm&logoColor=f69220" alt="PNPM" />
+<p>
+    <img src="https://img.shields.io/badge/javascript-%23323330.svg?style=for-the-badge&logo=javascript&logoColor=%23F7DF1E" alt="JavaScript"/>
+    <img src="https://img.shields.io/badge/react-%2320232a.svg?style=for-the-badge&logo=react&logoColor=%2361DAFB" alt="React"/>
+    <img src="https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?style=for-the-badge&logo=tailwind-css&logoColor=white" alt="TailwindCSS">
+    <img src="https://img.shields.io/badge/Flutter-%2302569B.svg?style=for-the-badge&logo=Flutter&logoColor=white" alt="Flutter"/>
+    <img src="https://img.shields.io/badge/dart-%230175C2.svg?style=for-the-badge&logo=dart&logoColor=white" alt="Dart" />
+    <img src="https://img.shields.io/badge/node.js-6DA55F?style=for-the-badge&logo=node.js&logoColor=white" alt="NodeJS"/>
+    <img src="https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white" alt="MongoDB"/>
+    <img src="https://img.shields.io/badge/redis-%23DD0031.svg?style=for-the-badge&logo=redis&logoColor=white" alt="Redis"/>
+    <img src="https://img.shields.io/badge/postgres-%23316192.svg?style=for-the-badge&logo=postgresql&logoColor=white" alt="Postgres" />
+    <img src="https://img.shields.io/badge/AWS-%23FF9900.svg?style=for-the-badge&logo=amazon-aws&logoColor=white" alt="AWS"/>
+    <img src="https://img.shields.io/badge/docker-%230db7ed.svg?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
+    <img src="https://img.shields.io/badge/vite-%23646CFF.svg?style=for-the-badge&logo=vite&logoColor=white" alt="Vite" />
+    <img src="https://img.shields.io/badge/pnpm-%234a4a4a.svg?style=for-the-badge&logo=pnpm&logoColor=f69220" alt="PNPM" />
+</p>
 
 ### Mobile Applications
 
@@ -342,4 +332,3 @@ IIT Guwahati © 2024 Hostel Affairs Board
 <div align="center">
    <img src="./readme-assets/habit-header.svg">
 </div>
-```
