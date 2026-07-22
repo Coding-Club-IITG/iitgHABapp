@@ -13,6 +13,7 @@ import {
   closeSummerMessRegistration,
   getManagerSummerMessApplications,
   getSummerMessAdminSettings,
+  getSummerMessAdminApplications,
   getSummerMessStatus,
   openSummerMessRegistration,
   registerForSummerMess,
@@ -66,8 +67,21 @@ summerMessRouter.get(
   streamStudentSummerMessProof,
 );
 
-summerMessRouter.get("/settings", authenticateHabJWT, getSummerMessAdminSettings);
-summerMessRouter.post("/settings", authenticateHabJWT, upsertSummerMessAdminSettings);
+summerMessRouter.get(
+  "/settings",
+  authenticateHabJWT,
+  getSummerMessAdminSettings,
+);
+summerMessRouter.get(
+  "/admin/applications",
+  authenticateHabJWT,
+  getSummerMessAdminApplications,
+);
+summerMessRouter.post(
+  "/settings",
+  authenticateHabJWT,
+  upsertSummerMessAdminSettings,
+);
 summerMessRouter.post(
   "/settings/open-registration",
   authenticateHabJWT,

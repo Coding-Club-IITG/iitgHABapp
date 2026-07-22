@@ -80,3 +80,14 @@ export async function deleteSummerMessSeason(seasonId) {
   );
   return response.data;
 }
+
+export async function getSummerMessAdminApplications(params = {}) {
+  const response = await axios.get(
+    `${BACKEND_URL}/summer-mess/admin/applications`,
+    {
+      headers: getAuthHeaders(),
+      params,
+    },
+  );
+  return response.data;
+}

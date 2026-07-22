@@ -66,10 +66,17 @@ const resolveSubscribedMessForRoll = async ({ rollno, fallbackHostelId }) => {
 
     if (!activeSummerSeason) {
       const currentSubscribedMess = await getCurrentSubscribedMess(rollno);
-      return currentSubscribedMess?._id || currentSubscribedMess || fallbackHostelId || null;
+      return (
+        currentSubscribedMess?._id ||
+        currentSubscribedMess ||
+        fallbackHostelId ||
+        null
+      );
     }
 
-    const user = await User.findOne({ rollNumber: rollno }).select("_id").lean();
+    const user = await User.findOne({ rollNumber: rollno })
+      .select("_id")
+      .lean();
     if (!user) return null;
 
     const acknowledgedApplication = await SummerMessApplication.findOne({

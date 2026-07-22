@@ -39,7 +39,6 @@ function isRegistrationDueToOpen(settings, now = new Date()) {
 
   if (!registrationStartAt || registrationStartAt > now) return false;
   if (registrationEndAt && now > registrationEndAt) return false;
-  if (isSummerActive(settings)) return false;
 
   return true;
 }
@@ -77,13 +76,12 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
     const staleOpenRegistrations = settingsList
       .filter(
         (settings) =>
-          settings.isRegistrationOpen && !isSummerRegistrationOpen(settings, now),
+          settings.isRegistrationOpen &&
+          !isSummerRegistrationOpen(settings, now),
       )
       .sort((a, b) =>
-        compareByDate(
-          a,
-          b,
-          (settings) => toDateOrNull(settings.registrationEndAt),
+        compareByDate(a, b, (settings) =>
+          toDateOrNull(settings.registrationEndAt),
         ),
       );
 
@@ -96,7 +94,9 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
     }
 
     const expiredActiveSeasons = settingsList
-      .filter((settings) => isSummerActive(settings) && hasSeasonEnded(settings, now))
+      .filter(
+        (settings) => isSummerActive(settings) && hasSeasonEnded(settings, now),
+      )
       .sort((a, b) =>
         compareByDate(a, b, (settings) => toDateOrNull(settings.summerEndAt)),
       );
@@ -115,7 +115,9 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
       );
     }
 
-    const openRegistrationSeason = await getOpenSummerRegistrationSettings({ now });
+    const openRegistrationSeason = await getOpenSummerRegistrationSettings({
+      now,
+    });
     if (!openRegistrationSeason) {
       const refreshedSettingsList = await getSummerMessSettingsList();
       const nextRegistrationSeason = refreshedSettingsList
@@ -126,10 +128,8 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
             !hasSeasonEnded(settings, now),
         )
         .sort((a, b) =>
-          compareByDate(
-            a,
-            b,
-            (settings) => toDateOrNull(settings.registrationStartAt),
+          compareByDate(a, b, (settings) =>
+            toDateOrNull(settings.registrationStartAt),
           ),
         )[0];
 
@@ -151,7 +151,9 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
       const nextSeasonToActivate = refreshedSettingsList
         .filter((settings) => isSummerDueToActivate(settings, now))
         .sort((a, b) =>
-          compareByDate(a, b, (settings) => toDateOrNull(settings.summerStartAt)),
+          compareByDate(a, b, (settings) =>
+            toDateOrNull(settings.summerStartAt),
+          ),
         )[0];
 
       if (nextSeasonToActivate) {
@@ -181,7 +183,9 @@ export const defineSummerMessJobs = () => {
         await runSummerMessAutomationCycle();
       } catch (error) {
         if (error instanceof SummerMessAutomationLockedError) {
-          console.log("[SUMMER MESS] Transition cycle skipped because another transition is already running");
+          console.log(
+            "[SUMMER MESS] Transition cycle skipped because another transition is already running",
+          );
           return;
         }
         console.error("[SUMMER MESS] Automation cycle failed:", error);
