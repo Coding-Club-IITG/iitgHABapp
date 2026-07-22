@@ -26,7 +26,7 @@
           platformToolsVersion = "35.0.2";
           buildToolsVersions = ["35.0.0"];
           includeEmulator = true;
-          platformVersions = ["35"];
+          platformVersions = ["35" "36"];
           includeSystemImages = true;
           systemImageTypes = ["google_apis" "google_apis_playstore"];
           abiVersions = ["x86_64"];
@@ -98,6 +98,18 @@
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath linuxBuildInputs;
 
           shellHook = ''
+            mkdir -p .gradle .pub-cache .npm .cache .config .local/share .android/avd
+
+            export GRADLE_USER_HOME="$PWD/.gradle"
+            export PUB_CACHE="$PWD/.pub-cache"
+            export NPM_CONFIG_CACHE="$PWD/.npm"
+            export XDG_CACHE_HOME="$PWD/.cache"
+            export XDG_CONFIG_HOME="$PWD/.config"
+            export XDG_DATA_HOME="$PWD/.local/share"
+            export ANDROID_USER_HOME="$PWD/.android"
+            export ANDROID_AVD_HOME="$PWD/.android/avd"
+            export ANDROID_EMULATOR_HOME="$PWD/.android"
+
             echo "--------------------------------------------------------"
             echo " iitgHABapp Devshell"
             echo " - Flutter: $(flutter --version 2>/dev/null | head -n 1)"

@@ -22,3 +22,12 @@ devtools_options.yaml
 *.sln
 *.sw?
 .direnv
+
+# Project Cache
+.gradle
+.pub-cache
+.npm
+.cache
+.android
+.config
+.local
