@@ -21,3 +21,4 @@ devtools_options.yaml
 *.njsproj
 *.sln
 *.sw?
+.direnv
