@@ -6,7 +6,7 @@ import 'package:frontend2/apis/protected.dart';
 import 'package:frontend2/constants/endpoint.dart';
 import 'package:frontend2/utils/leave_pdf_download.dart';
 
-// ─── Theme tokens ────────────────────────────────────────────────────────────
+// Theme tokens
 abstract final class _Ui {
   static const Color primary = Color(0xFF4C4EDB);
   static const Color primaryBg = Color(0xFFEDEDFB);
@@ -20,7 +20,7 @@ abstract final class _Ui {
   static const Color semanticRed = Color(0xFFC40205);
 }
 
-// ─── Main screen ─────────────────────────────────────────────────────────────
+// Main screen
 
 class SummerMessApplicationStatusScreen extends StatelessWidget {
   const SummerMessApplicationStatusScreen({
@@ -34,7 +34,7 @@ class SummerMessApplicationStatusScreen extends StatelessWidget {
   final Future<void> Function() onCancel;
   final Future<void> Function()? onDelete;
 
-  // ── Formatters ──────────────────────────────────────────────────────────
+  // Formatters
 
   String _ordinalDay(int d) {
     if (d >= 11 && d <= 13) return '${d}th';
@@ -63,7 +63,7 @@ class SummerMessApplicationStatusScreen extends StatelessWidget {
     return DateFormat('d MMM yyyy').format(value.toLocal());
   }
 
-  // ── Payment proof helpers ───────────────────────────────────────────────
+  // Payment proof helpers
 
   String _paymentProofFileName(SummerMessApplicationData application) {
     final filename =
@@ -146,13 +146,12 @@ class SummerMessApplicationStatusScreen extends StatelessWidget {
     );
   }
 
-  // ── Timeline card ────────────────────────────────────────────────────────
+  // Timeline card
 
   Widget _buildTimelineCard(SummerMessApplicationData application) {
     final appliedAt = application.appliedAt;
     final acknowledgedAt = application.acknowledgedAt;
     final statusLower = application.status.toLowerCase().trim();
-    final isCancelled = statusLower == 'cancelled';
     final step2Done = statusLower == 'acknowledged';
 
     final steps = [
@@ -281,9 +280,9 @@ class SummerMessApplicationStatusScreen extends StatelessWidget {
             final endDate = status.summerEndAt;
 
             if (isPending) {
-              return Text(
+              return const Text(
                 'Your application is at the mess manager for verification. If it is taking more time than expected please visit the mess manager during mess hours.',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w400,
                   color: _Ui.grey1,
@@ -432,7 +431,7 @@ class SummerMessApplicationStatusScreen extends StatelessWidget {
     );
   }
 
-  // ── build ────────────────────────────────────────────────────────────────
+  // build
 
   @override
   Widget build(BuildContext context) {
@@ -518,7 +517,7 @@ class SummerMessApplicationStatusScreen extends StatelessWidget {
   }
 }
 
-// ─── Section block (mirrors rebate screen) ───────────────────────────────────
+// Section block (mirrors rebate screen)
 
 class _SectionBlock extends StatelessWidget {
   const _SectionBlock({
@@ -572,7 +571,7 @@ class _SectionBlock extends StatelessWidget {
   }
 }
 
-// ─── Detail row + divider ────────────────────────────────────────────────────
+// Detail row + divider
 
 class _DetailRow extends StatelessWidget {
   const _DetailRow({required this.label, required this.value});
@@ -627,7 +626,7 @@ class _DividerRow extends StatelessWidget {
   }
 }
 
-// ─── Shared sub-widgets ──────────────────────────────────────────────────────
+// Shared sub-widgets
 
 enum _DotKind { complete, active, incomplete }
 

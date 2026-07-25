@@ -1,9 +1,3 @@
-plugins {
-    id("com.android.application") apply false
-    id("org.jetbrains.kotlin.android") apply false
-    id("com.google.gms.google-services") version "4.4.2" apply false
-}
-
 allprojects {
     repositories {
         google()
@@ -11,27 +5,35 @@ allprojects {
     }
 }
 
-val newBuildDir = rootProject.layout.buildDirectory.dir("../build")
-rootProject.layout.buildDirectory.set(newBuildDir)
+val newBuildDir: Directory =
+    rootProject.layout.buildDirectory
+        .dir("../../build")
+        .get()
+rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
-    val subBuildDir = newBuildDir.map { it.dir(project.name) }
-    layout.buildDirectory.set(subBuildDir)
+    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
 subprojects {
-    afterEvaluate {
+    val configureSdk: Project.() -> Unit = {
         if (plugins.hasPlugin("com.android.application") ||
             plugins.hasPlugin("com.android.library")) {
             extensions.configure<com.android.build.gradle.BaseExtension> {
-                compileSdkVersion(35)
+                compileSdkVersion(36)
             }
         }
+    }
+    if (state.executed) {
+        configureSdk()
+    } else {
+        afterEvaluate { configureSdk() }
     }
 }
 
 subprojects {
-    evaluationDependsOn(":app")
+    project.evaluationDependsOn(":app")
 }
 
 tasks.register<Delete>("clean") {

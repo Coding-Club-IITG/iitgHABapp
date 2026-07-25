@@ -1,5 +1,11 @@
-const String baseUrl = "https://hab.codingclub.in/api";
-const String authUrl = "https://hab.codingclub.in/api";
+const String baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://hab.codingclub.in/api',
+);
+const String authUrl = String.fromEnvironment(
+  'API_AUTH_URL',
+  defaultValue: 'https://hab.codingclub.in/api',
+);
 
 class MessRebateEndpoints {
   static const String sendApplication = '$baseUrl/leave/apply';

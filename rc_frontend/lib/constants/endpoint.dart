@@ -1,6 +1,8 @@
-// Base API URL for the mess manager app.
-// Point this at the same gateway the main app uses.
-const String baseUrl = 'https://hab.codingclub.in/api';
+// Base API URL for the room cleaning manager app.
+const String baseUrl = String.fromEnvironment(
+  'API_BASE_URL',
+  defaultValue: 'https://hab.codingclub.in/api',
+);
 
 class AuthEndpoints {
   static const String managerLogin = '$baseUrl/auth/manager/login';

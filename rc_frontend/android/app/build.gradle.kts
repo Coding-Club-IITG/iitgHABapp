@@ -8,7 +8,13 @@ plugins {
 android {
     namespace = "com.example.rc_frontend"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    ndkVersion = "27.0.12077973"
+
+    packaging {
+        jniLibs {
+            keepDebugSymbols += "**/*.so"
+        }
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17

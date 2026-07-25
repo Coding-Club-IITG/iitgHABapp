@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 const __dirname = import.meta.dirname;
 dotenv.config({ path: path.join(__dirname, "../../.env") });
 import mongoose from "mongoose";
+import bcrypt from "bcrypt";
 
 import { Hostel } from "../modules/hostel/hostelModel.js";
 import { Mess } from "../modules/mess/messModel.js";
@@ -12,7 +13,12 @@ import { Menu } from "../modules/mess/menuModel.js";
 import { MenuItem } from "../modules/mess/menuItemModel.js";
 
 // Login via Microsoft with REAL_ROLL_NUMBER after running script
-const REAL_ROLL_NUMBER = process.env.REAL_ROLL_NUMBER;
+const REAL_ROLL_NUMBER = process.env.REAL_ROLL_NUMBER || "210000001";
+const MANAGER_GMAIL = (process.env.MANAGER_GMAIL || "codingclubiitg@gmail.com")
+  .trim()
+  .toLowerCase();
+const MANAGER_PASSWORD = process.env.MANAGER_PASSWORD || "password123";
+
 import { mongodbUri } from "../config/default.js";
 
 const daysOfWeek = [
@@ -40,14 +46,17 @@ const seedDatabase = async () => {
     await Menu.deleteMany({});
     await MenuItem.deleteMany({});
 
-    // 1. CREATE HOSTELS & MESSES
+    // 1. CREATE HOSTELS & MESSES WITH MANAGER CREDENTIALS
     console.log("Creating Hostels and Messes...");
+
+    const hashedPassword = await bcrypt.hash(MANAGER_PASSWORD, 10);
 
     const brahmaputra = await Hostel.create({
       hostel_name: "Brahmaputra",
       microsoft_email: "brahmaputra_manager@iitg.ac.in",
       secretary_email: "brahmaputra_secy@iitg.ac.in",
       curr_cap: 0,
+      managerPasswordHash: hashedPassword,
     });
 
     const barak = await Hostel.create({
@@ -55,16 +64,19 @@ const seedDatabase = async () => {
       microsoft_email: "barak_manager@iitg.ac.in",
       secretary_email: "barak_secy@iitg.ac.in",
       curr_cap: 0,
+      managerPasswordHash: hashedPassword,
     });
 
     const brahmaputraMess = await Mess.create({
       name: "Brahmaputra Mess",
       hostelId: brahmaputra._id,
+      managerGoogleEmail: MANAGER_GMAIL,
     });
 
     const barakMess = await Mess.create({
       name: "Barak Mess",
       hostelId: barak._id,
+      managerGoogleEmail: "barak_caterer@iitg.ac.in",
     });
 
     brahmaputra.messId = brahmaputraMess._id;
@@ -169,11 +181,13 @@ const seedDatabase = async () => {
     });
 
     console.log("\nFULL SEED COMPLETE!");
-    console.log("-------------------------------------------------");
+    console.log("------------------------------------------------------------");
     console.log(`✅ Hostels & Messes Created: Brahmaputra & Barak`);
     console.log(`✅ Menus Created: Every meal, 7 days a week`);
     console.log(`✅ Whitelisted Roll Number: ${REAL_ROLL_NUMBER}`);
-    console.log("-------------------------------------------------");
+    console.log(`✅ Mess Manager (HQ) Google Email: ${MANAGER_GMAIL}`);
+    console.log(`✅ Room Cleaning (RC) Manager Password: ${MANAGER_PASSWORD}`);
+    console.log("------------------------------------------------------------");
   } catch (err) {
     console.error("❌ Error seeding DB:", err);
   } finally {

@@ -41,7 +41,7 @@ dependencies:
   pdf: ^3.10.7
   path_provider: ^2.1.2
   share_plus: ^10.1.3
-  font_awesome_flutter: ^10.7.0
+  font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
   flutter_test:

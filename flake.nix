@@ -24,9 +24,9 @@
           cmdLineToolsVersion = "8.0";
           toolsVersion = "26.1.1";
           platformToolsVersion = "35.0.2";
-          buildToolsVersions = ["35.0.0"];
+          buildToolsVersions = ["34.0.0" "35.0.0"];
           includeEmulator = true;
-          platformVersions = ["35" "36"];
+          platformVersions = ["34" "35" "36"];
           includeSystemImages = true;
           systemImageTypes = ["google_apis" "google_apis_playstore"];
           abiVersions = ["x86_64"];
@@ -56,6 +56,11 @@
           jsoncpp
           libepoxy
           pango
+          libsecret
+          libunwind
+          gst_all_1.gstreamer
+          gst_all_1.gst-plugins-base
+          gst_all_1.gst-plugins-good
         ];
       in {
         default = pkgs.mkShell {

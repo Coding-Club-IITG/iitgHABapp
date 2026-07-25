@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
-    package="com.codingclub.hqbithq">
+    package="com.codingclub.habithq">
     <!-- Required for all HTTP(S) API calls in release builds -->
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Optional but commonly useful for connectivity checks -->

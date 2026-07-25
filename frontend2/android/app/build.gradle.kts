@@ -1,8 +1,7 @@
 import java.util.Properties
 import java.io.FileInputStream
 
-// Note: keep app-specific custom fields in app/build.gradle, which is the
-// authoritative module script currently evaluated by Gradle for :app.
+// Authoritative module build script evaluated by Gradle for :app
 
 plugins {
     id("com.android.application")
@@ -20,10 +19,25 @@ if (keystorePropertiesFile.exists()) {
     println("⚠️ Warning: key.properties not found — release signing may fail.")
 }
 
+val openWeatherApiKey = (keystoreProperties["OPENWEATHER_API_KEY"] ?: "").toString()
+val escapedOpenWeatherApiKey = openWeatherApiKey
+    .replace("\\", "\\\\")
+    .replace("\"", "\\\"")
+
 android {
     namespace = "in.codingclub.hab"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "27.0.12077973"
+
+    buildFeatures {
+        buildConfig = true
+    }
+
+    packaging {
+        jniLibs {
+            keepDebugSymbols += "**/*.so"
+        }
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -37,11 +51,12 @@ android {
 
     defaultConfig {
         applicationId = "in.codingclub.hab"
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutterVersionCode.toInt()
-        versionName = flutterVersionName
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
         manifestPlaceholders["appAuthRedirectScheme"] = "placeholder-text"
+        buildConfigField("String", "OPENWEATHER_API_KEY", "\"$escapedOpenWeatherApiKey\"")
     }
 
     signingConfigs {
@@ -55,7 +70,12 @@ android {
 
     buildTypes {
         getByName("release") {
-            signingConfig = signingConfigs.getByName("release")
+            val storeFileProp = keystoreProperties["storeFile"] as String?
+            if (keystorePropertiesFile.exists() && !storeFileProp.isNullOrEmpty()) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                signingConfig = signingConfigs.getByName("debug")
+            }
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
