@@ -12,6 +12,7 @@ import {
   linkMicrosoftAccount,
   managerLoginHandler,
   refreshTokenHandler,
+  revokeUserSessionsHandler,
 } from "./auth.controller.js";
 import {
   catererGoogleLoginHandler,
@@ -19,7 +20,10 @@ import {
   catererRefreshHandler,
   catererLogoutHandler,
 } from "./catererAuth.controller.js";
-import { authenticateJWT } from "../../middleware/authenticateJWT.js";
+import {
+  authenticateHabJWT,
+  authenticateJWT,
+} from "../../middleware/authenticateJWT.js";
 
 /**
  * @swagger
@@ -97,6 +101,13 @@ router.get("/login/redirect/web", webLoginHandler);
 // router.get("/me", meHandler);
 
 router.get("/logout", logoutHandler);
+router.post("/logout", logoutHandler);
+
+router.post(
+  "/sessions/revoke-user",
+  authenticateHabJWT,
+  revokeUserSessionsHandler,
+);
 
 // Guest login
 router.post("/guest", guestLoginHandler);

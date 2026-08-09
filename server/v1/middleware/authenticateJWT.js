@@ -17,7 +17,7 @@ const extractAndCheckToken = async (req) => {
     }
   }
 
-  if (!token) throw new AppError(403, "Invalid token");
+  if (!token) throw new AppError(401, "Invalid token");
 
   const isBlacklisted = await redisClient.get(`bl_${token}`);
   if (isBlacklisted) throw new AppError(401, "Token has been revoked");
@@ -31,7 +31,7 @@ function auth(Schema, param) {
       const token = await extractAndCheckToken(req);
       const found = await Schema.findByAccessToken(token);
 
-      if (!found) return next(new AppError(403, "Not Authenticated"));
+      if (!found) return next(new AppError(401, "Not Authenticated"));
 
       // Attach the param to the request object
       req[param] = found;
@@ -40,6 +40,9 @@ function auth(Schema, param) {
       if (err.name === "TokenExpiredError") {
         console.log("[Auth] Token expired error");
         return next(new AppError(401, "Access token expired"));
+      }
+      if (err.name === "TokenRevokedError") {
+        return next(new AppError(401, "Session revoked"));
       }
       // jwt.verify: bad signature, wrong secret, truncated token, etc. — not a server bug.
       if (err.name === "JsonWebTokenError" || err.name === "NotBeforeError") {
@@ -90,6 +93,9 @@ export const authenticateUserOrAdminJWT = async (req, res, next) => {
       if (err.name === "TokenExpiredError") {
         return next(new AppError(401, "Access token expired"));
       }
+      if (err.name === "TokenRevokedError") {
+        return next(new AppError(401, "Session revoked"));
+      }
       lastError = err;
     }
 
@@ -111,7 +117,7 @@ export const authenticateUserOrAdminJWT = async (req, res, next) => {
       console.error("Error verifying token:", lastError);
     }
 
-    return next(new AppError(403, "Not Authenticated"));
+    return next(new AppError(401, "Not Authenticated"));
   } catch (err) {
     if (err instanceof AppError) return next(err);
     console.error("Error verifying token:", err);
@@ -123,14 +129,14 @@ export const authenticateHabJWT = async (req, res, next) => {
   try {
     const token = await extractAndCheckToken(req);
     const decoded = jwt.verify(token, adminJwtSecret);
-    if (!decoded?.hab) return next(new AppError(403, "Not Authenticated"));
+    if (!decoded?.hab) return next(new AppError(401, "Not Authenticated"));
 
     req.hab = decoded;
     return next();
   } catch (err) {
     if (err instanceof AppError) return next(err);
     console.error("Error verifying HAB token:", err);
-    return next(new AppError(403, "Not Authenticated"));
+    return next(new AppError(401, "Not Authenticated"));
   }
 };
 
@@ -141,7 +147,7 @@ export const authenticateMessManagerJWT = async (req, res, next) => {
   try {
     const token = await extractAndCheckToken(req);
     const hostel = await Hostel.findByAccessToken(token);
-    if (!hostel) return next(new AppError(403, "Not Authenticated as manager"));
+      if (!hostel) return next(new AppError(401, "Not Authenticated as manager"));
 
     req.managerHostel = hostel;
     return next();
@@ -186,11 +192,14 @@ export const authenticateHabOrSMCJWT = async (req, res, next) => {
       if (err.name === "TokenExpiredError") {
         return next(new AppError(401, "Access token expired"));
       }
+      if (err.name === "TokenRevokedError") {
+        return next(new AppError(401, "Session revoked"));
+      }
       lastError = err;
     }
 
     if (lastError) console.error("Error verifying token:", lastError);
-    return next(new AppError(403, "Not Authenticated"));
+    return next(new AppError(401, "Not Authenticated"));
   } catch (err) {
     return next(err);
   }

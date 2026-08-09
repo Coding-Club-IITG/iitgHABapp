@@ -231,6 +231,13 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  // Increment to invalidate every access and refresh token issued earlier.
+  // Versionless legacy tokens are treated as version 0.
+  tokenVersion: {
+    type: Number,
+    default: 0,
+    min: 0,
+  },
 });
 
 // Generic JWT helper kept for backward compatibility.
@@ -243,19 +250,35 @@ userSchema.methods.generateJWT = function () {
 
 userSchema.methods.generateAccessToken = function () {
   var user = this;
-  var token = jwt.sign({ user: user._id }, jwtSecret, {
-    expiresIn: "4d",
-  });
+  var token = jwt.sign(
+    { user: user._id, tokenVersion: Number(user.tokenVersion || 0) },
+    jwtSecret,
+    { expiresIn: "4d" },
+  );
   return token;
 };
 
 userSchema.methods.generateRefreshToken = function () {
   var user = this;
-  var token = jwt.sign({ user: user._id }, refreshSecret, {
-    expiresIn: "60d",
-  });
+  var token = jwt.sign(
+    { user: user._id, tokenVersion: Number(user.tokenVersion || 0) },
+    refreshSecret,
+    { expiresIn: "60d" },
+  );
   return token;
 };
+
+export function isTokenVersionCurrent(decoded, user) {
+  const tokenVersion = Number(decoded?.tokenVersion || 0);
+  const userVersion = Number(user?.tokenVersion || 0);
+  return tokenVersion === userVersion;
+}
+
+function tokenRevokedError() {
+  const error = new Error("Session revoked");
+  error.name = "TokenRevokedError";
+  return error;
+}
 
 userSchema.statics.findByAccessToken = async function (token) {
   try {
@@ -265,6 +288,9 @@ userSchema.statics.findByAccessToken = async function (token) {
     const fetchedUser = await user.findOne({ _id: id });
     if (!fetchedUser) return false;
     if (fetchedUser.isBanned) return false;
+    if (!isTokenVersionCurrent(decoded, fetchedUser)) {
+      throw tokenRevokedError();
+    }
     return fetchedUser;
   } catch (error) {
     throw error;

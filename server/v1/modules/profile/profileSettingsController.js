@@ -1,5 +1,4 @@
 import { ProfileSettings } from "./profileSettingsModel.js";
-import { User } from "../user/userModel.js";
 import { sendNotificationMessage } from "../notification/notificationController.js";
 
 export async function getSettings(req, res) {
@@ -20,6 +19,14 @@ export async function enablePhotoChange(req, res) {
   try {
     let s = await ProfileSettings.findOne();
     if (!s) s = new ProfileSettings();
+
+    if (s.allowProfilePhotoChange) {
+      return res.status(200).json({
+        message: "Already enabled",
+        allowProfilePhotoChange: true,
+      });
+    }
+
     s.allowProfilePhotoChange = true;
     await s.save();
     sendNotificationMessage(
@@ -28,19 +35,12 @@ export async function enablePhotoChange(req, res) {
       "All_Hostels",
       { redirectType: "profile", isAlert: "true" },
     ).catch((err) => console.error("Profile update notification failed:", err));
-    // Reset setup status for all users who completed it earlier
-    const result = await User.updateMany(
-      { isSetupDone: true },
-      { $set: { isSetupDone: false } },
-    );
-
     return res.status(200).json({
       message: "Enabled",
       allowProfilePhotoChange: true,
-      resetUsers: result?.modifiedCount ?? 0,
     });
   } catch (e) {
-    return res.json({
+    return res.status(500).json({
       message: "Failed to enable",
       error: String(e.message || e),
     });
@@ -51,6 +51,14 @@ export async function disablePhotoChange(req, res) {
   try {
     const s = await ProfileSettings.findOne();
     if (!s) return res.status(404).json({ message: "Settings not found" });
+
+    if (!s.allowProfilePhotoChange) {
+      return res.status(200).json({
+        message: "Already disabled",
+        allowProfilePhotoChange: false,
+      });
+    }
+
     s.allowProfilePhotoChange = false;
     await s.save();
     sendNotificationMessage(

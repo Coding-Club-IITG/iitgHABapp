@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_easyloading/flutter_easyloading.dart';
 import 'package:frontend2/apis/authentication/login.dart' as auth;
+import 'package:frontend2/apis/app_bootstrap.dart';
+import 'package:frontend2/apis/dio_client.dart';
 import 'package:frontend2/providers/feedback_provider.dart';
 import 'package:frontend2/providers/room_cleaning_provider.dart';
 import 'package:frontend2/screens/initial_setup_screen.dart';
@@ -100,6 +102,16 @@ Future<void> main() async {
 
   // Initialize Festival Mode Service
   await FestivalModeService().initialize();
+
+  configureForcedLogoutCleanup(() async {
+    await AppBootstrapCache.clear();
+    try {
+      await FestivalModeService().clearActiveSummaryCache();
+    } catch (_) {}
+    await globalNotificationProvider.clearAlerts();
+    ProfilePictureProvider.profilePictureString.value = '';
+    ProfilePictureProvider.isSetupDone.value = false;
+  });
 
   // Phase 1: run while native splash is visible (single logo screen)
   await VersionChecker.init();

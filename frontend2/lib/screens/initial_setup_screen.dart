@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:frontend2/apis/dio_client.dart';
+import 'package:frontend2/apis/app_bootstrap.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -194,28 +195,38 @@ class _InitialSetupScreenState extends State<InitialSetupScreen> {
         return;
       }
 
-      // Then mark setup complete on backend (existing behaviour)
+      // Server is authoritative for setup completion
       final token = await getAccessToken();
-      if (token != 'error') {
-        final dio = DioClient().dio;
-        try {
-          await dio.post(
-            '$baseUrl/profile/setup/complete',
-            options: Options(headers: {'Authorization': 'Bearer $token'}),
-          );
-        } catch (_) {
-          // ignore; we still persist local copy
-        }
+      if (token == 'error') {
+        throw Exception('Not authenticated');
+      }
+      final dio = DioClient().dio;
+      final setupResponse = await dio.post(
+        '$baseUrl/profile/setup/complete',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+      if (setupResponse.statusCode != 200 ||
+          setupResponse.data is! Map ||
+          setupResponse.data['isSetupDone'] != true) {
+        throw Exception('Server did not confirm setup completion');
       }
 
       // Persist locally after backend success
       await prefs.setString('roomNumber', newRoom);
       await prefs.setString('phoneNumber', newPhone);
       await prefs.setBool('isSetupDone', true);
+      await AppBootstrapCache.clear();
       ProfilePictureProvider.isSetupDone.value = true;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Profile saved')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Could not complete setup. Please try again.'),
+        ),
       );
     } finally {
       if (mounted) setState(() => _saving = false);

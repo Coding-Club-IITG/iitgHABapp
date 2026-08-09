@@ -18,6 +18,15 @@ import 'package:frontend2/providers/mess_info_provider.dart';
 import 'home_screen.dart';
 import 'mess_screen.dart';
 
+@visibleForTesting
+bool shouldShowMainLoadingOverlay({
+  required bool navigationReady,
+  required bool setupDone,
+  required bool homeInitialDataReady,
+}) {
+  return !navigationReady || (setupDone && !homeInitialDataReady);
+}
+
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
 
@@ -462,40 +471,49 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final loadingOverlayVisible = !_navigationReady || !_homeInitialDataReady;
-    return Stack(
-      children: [
-        ValueListenableBuilder(
-          valueListenable: ProfilePictureProvider.isSetupDone,
-          builder: (context, setupDone, child) => Scaffold(
-            body: (setupDone == true)
-                ? (_navigationReady
-                    ? IndexedStack(
-                        index: _selectedIndex,
-                        children: [
-                          HomeScreen(
-                            onNavigateToTab: _handleNavTap,
-                            onInitialDataReady: () {
-                              if (!_homeInitialDataReady && mounted) {
-                                setState(() => _homeInitialDataReady = true);
-                              }
-                            },
-                          ),
-                          MessScreen(active: _selectedIndex == 1),
-                        ],
-                      )
-                    : const SizedBox.shrink())
-                : const InitialSetupScreen(),
-            bottomNavigationBar: (setupDone == true && _navigationReady)
-                ? BottomNavBar(
-                    currentIndex: _selectedIndex,
-                    onTap: _handleNavTap,
-                  )
-                : const SizedBox(),
-          ),
-        ),
-        if (loadingOverlayVisible) _buildHomeLoadingOverlay(),
-      ],
+    return ValueListenableBuilder<bool>(
+      valueListenable: ProfilePictureProvider.isSetupDone,
+      builder: (context, setupDone, child) {
+        // Home's readiness callback cannot fire while InitialSetupScreen is mounted.
+        // Only gate on it when Home is actually part of the tree.
+        final loadingOverlayVisible = shouldShowMainLoadingOverlay(
+          navigationReady: _navigationReady,
+          setupDone: setupDone,
+          homeInitialDataReady: _homeInitialDataReady,
+        );
+
+        return Stack(
+          children: [
+            Scaffold(
+              body: (setupDone == true)
+                  ? (_navigationReady
+                      ? IndexedStack(
+                          index: _selectedIndex,
+                          children: [
+                            HomeScreen(
+                              onNavigateToTab: _handleNavTap,
+                              onInitialDataReady: () {
+                                if (!_homeInitialDataReady && mounted) {
+                                  setState(() => _homeInitialDataReady = true);
+                                }
+                              },
+                            ),
+                            MessScreen(active: _selectedIndex == 1),
+                          ],
+                        )
+                      : const SizedBox.shrink())
+                  : const InitialSetupScreen(),
+              bottomNavigationBar: (setupDone == true && _navigationReady)
+                  ? BottomNavBar(
+                      currentIndex: _selectedIndex,
+                      onTap: _handleNavTap,
+                    )
+                  : const SizedBox(),
+            ),
+            if (loadingOverlayVisible) _buildHomeLoadingOverlay(),
+          ],
+        );
+      },
     );
   }
 }

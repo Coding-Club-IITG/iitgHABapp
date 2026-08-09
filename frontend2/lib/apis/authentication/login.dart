@@ -168,16 +168,18 @@ Future<bool> refreshAccessToken() async {
 }
 
 Future<void> logoutHandler(context) async {
+  final prefs = await SharedPreferences.getInstance();
   try {
     final dio = DioClient().dio;
-    // Don't throw on non-2xx so we can handle 404s gracefully
-    await dio.get('$baseUrl/auth/logout',
-        options: Options(validateStatus: (status) => true));
+    await dio.post(
+      '$baseUrl/auth/logout',
+      data: {'refreshToken': prefs.getString('refresh_token')},
+      options: Options(validateStatus: (status) => true),
+    );
   } catch (e) {
     // Server logout failed, continue with local logout
   }
 
-  final prefs = await SharedPreferences.getInstance();
   await prefs.clear();
   await AppBootstrapCache.clear();
   try {

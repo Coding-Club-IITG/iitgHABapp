@@ -35,19 +35,42 @@ bool _isAuthStyleForbidden403(DioException err) {
 }
 
 Future<void> _logoutAndShowLogin() async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.clear();
-  WidgetsBinding.instance.addPostFrameCallback((_) {
-    navigatorKey.currentState?.pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const LoginScreen()),
-      (route) => false,
-    );
-  });
+  final existing = _forcedLogoutFuture;
+  if (existing != null) return existing;
+
+  final future = () async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.clear();
+    await _forcedLogoutCleanup?.call();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      navigatorKey.currentState?.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (route) => false,
+      );
+    });
+  }();
+
+  _forcedLogoutFuture = future;
+  try {
+    await future;
+  } finally {
+    if (identical(_forcedLogoutFuture, future)) {
+      _forcedLogoutFuture = null;
+    }
+  }
+}
+
+Future<void> Function()? _forcedLogoutCleanup;
+Future<void>? _forcedLogoutFuture;
+
+void configureForcedLogoutCleanup(Future<void> Function() cleanup) {
+  _forcedLogoutCleanup = cleanup;
 }
 
 class DioClient {
   static final DioClient _instance = DioClient._internal();
   late final Dio _dio;
+  Future<bool>? _refreshFuture;
 
   factory DioClient() {
     return _instance;
@@ -103,7 +126,7 @@ class DioClient {
                 "[DioClient] Attempting refresh for request: ${error.requestOptions.uri}");
           }
 
-          final success = await refreshAccessToken();
+          final success = await _refreshAccessTokenOnce();
 
           debugPrint("Refresh success: $success");
 
@@ -150,6 +173,21 @@ class DioClient {
         return handler.next(error);
       },
     ));
+  }
+
+  Future<bool> _refreshAccessTokenOnce() async {
+    final existing = _refreshFuture;
+    if (existing != null) return existing;
+
+    final future = refreshAccessToken();
+    _refreshFuture = future;
+    try {
+      return await future;
+    } finally {
+      if (identical(_refreshFuture, future)) {
+        _refreshFuture = null;
+      }
+    }
   }
 
   Dio get dio => _dio;

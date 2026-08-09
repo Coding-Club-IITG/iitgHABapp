@@ -351,8 +351,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       userHostelId = hostelId;
       _hasMicrosoftLinked = prefs.getBool('hasMicrosoftLinked') ?? false;
     });
-    await _loadScanQrStatus(messId);
-    await _loadSummerMessStatus();
+
+    // Optional and must not hold the loader
+    unawaited(_loadScanQrStatus(messId));
+    unawaited(_loadSummerMessStatus());
   }
 
   Future<void> _loadSummerMessStatus() async {

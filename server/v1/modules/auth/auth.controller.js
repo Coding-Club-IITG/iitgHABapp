@@ -9,6 +9,7 @@ import {
   User,
   findUserWithEmail,
   findUserWithAppleIdentifier,
+  isTokenVersionCurrent,
 } from "../user/userModel.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import UserAllocHostel from "../hostel/hostelAllocModel.js";
@@ -392,18 +393,24 @@ export const refreshTokenHandler = async (req, res, next) => {
 
     if (session.expiresAt < new Date()) {
       console.error("Session expired");
-      return res.status(403).json({ message: "Session expired" });
+      return res.status(401).json({ message: "Session expired" });
     }
 
     const user = await User.findById(decoded.user);
     if (!user) {
       console.error("User not found");
-      return res.status(404).json({ message: "User not found" });
+      return res.status(401).json({ message: "User not found" });
+    }
+
+    if (!isTokenVersionCurrent(decoded, user)) {
+      session.isRevoked = true;
+      await session.save();
+      return res.status(401).json({ message: "Session revoked" });
     }
 
     if (user.isBanned) {
       console.error("User is banned");
-      return res.status(403).json({ message: "User has been banned" });
+      return res.status(401).json({ message: "User has been banned" });
     }
 
     const accessToken = user.generateAccessToken();
@@ -438,8 +445,72 @@ export const logoutHandler = async (req, res) => {
     (req.headers.authorization && req.headers.authorization.split(" ")[1]);
   if (token)
     await redisClient.set(`bl_${token}`, "true", "EX", 24 * 24 * 60 * 60);
+
+  const refreshToken = req.body?.refreshToken;
+  if (refreshToken) {
+    const hashedToken = crypto
+      .createHash("sha256")
+      .update(refreshToken)
+      .digest("hex");
+    await Session.updateOne(
+      { refreshToken: hashedToken, isRevoked: false },
+      { $set: { isRevoked: true } },
+    );
+  }
+
   res.clearCookie("token");
   res.status(200).json({ message: "Logged out" });
+};
+
+// HAB admin: revoke every access and refresh token for one student
+export const revokeUserSessionsHandler = async (req, res, next) => {
+  try {
+    const userId = req.body?.userId?.toString().trim();
+    const rollNumber = req.body?.rollNumber?.toString().trim();
+
+    if (!userId && !rollNumber) {
+      return res.status(400).json({
+        message: "Provide userId or rollNumber",
+      });
+    }
+
+    const lookup = userId ? { _id: userId } : { rollNumber };
+    const user = await User.findOneAndUpdate(
+      lookup,
+      { $inc: { tokenVersion: 1 } },
+      { new: true },
+    ).select("_id rollNumber tokenVersion");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const sessions = await Session.updateMany(
+      { user: user._id, isRevoked: false },
+      { $set: { isRevoked: true } },
+    );
+
+    console.log("[Auth][AdminRevoke]", {
+      actor: req.hab?.email,
+      userId: String(user._id),
+      rollNumber: user.rollNumber,
+      tokenVersion: user.tokenVersion,
+      revokedRefreshSessions: sessions.modifiedCount,
+    });
+
+    return res.status(200).json({
+      message: "All user sessions revoked",
+      userId: String(user._id),
+      rollNumber: user.rollNumber,
+      tokenVersion: user.tokenVersion,
+      revokedRefreshSessions: sessions.modifiedCount,
+    });
+  } catch (err) {
+    if (err?.name === "CastError") {
+      return res.status(400).json({ message: "Invalid userId" });
+    }
+    return next(new AppError(500, "Failed to revoke user sessions"));
+  }
 };
 
 // Unified web login handler - HAB / Hostel / SMC
