@@ -1,8 +1,6 @@
 import express from "express";
 import { requireDebugAuth } from "../../middleware/requireDebugAuth.js";
 import {
-  getLogs,
-  getAgendaLogs,
   getAgendaJobs,
   enableAgendaJob,
   disableAgendaJob,
@@ -17,11 +15,7 @@ const router = express.Router();
 // Apply debug auth to all routes
 router.use(requireDebugAuth);
 
-// Server logs
-router.get("/logs", getLogs);
-
 // Scheduler-related debug routes
-router.get("/agenda/logs", getAgendaLogs);
 router.get("/agenda/jobs", getAgendaJobs);
 router.post("/agenda/enable", enableAgendaJob);
 router.post("/agenda/disable", disableAgendaJob);

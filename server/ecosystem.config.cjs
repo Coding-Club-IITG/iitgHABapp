@@ -35,18 +35,6 @@ module.exports = {
       merge_logs: true,
     },
     {
-      name: "hab-worker-logger-v1",
-      cwd: "./v1",
-      script: "./workers/loggerWorker.js",
-      instances: 1,
-      exec_mode: "fork",
-      autorestart: true,
-      max_memory_restart: "512M",
-      out_file: "./logs/logger-out.log",
-      error_file: "./logs/logger-error.log",
-      log_date_format: "YYYY-MM-DD HH:mm:ss Z",
-    },
-    {
       name: "hab-worker-agenda-v1",
       cwd: "./v1",
       script: "./workers/agendaWorker.js",

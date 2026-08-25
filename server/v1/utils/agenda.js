@@ -6,24 +6,8 @@
 import { Agenda } from "agenda";
 import { MongoBackend } from "@agendajs/mongo-backend";
 import { RedisNotificationChannel } from "@agendajs/redis-backend";
-import { PostgresJobLogger } from "@agendajs/postgres-backend";
-import { Pool } from "pg";
 
-import {
-  mongodbUri,
-  redisUrl,
-  postgresUrl,
-  API_VERSION,
-} from "../config/default.js";
-
-const pool = new Pool({
-  connectionString: postgresUrl,
-});
-
-const postgresLogger = new PostgresJobLogger({
-  pool,
-  tableName: `agenda_logs_${API_VERSION}`,
-});
+import { mongodbUri, redisUrl, API_VERSION } from "../config/default.js";
 
 const agenda = new Agenda({
   backend: new MongoBackend({
@@ -34,7 +18,6 @@ const agenda = new Agenda({
     connectionString: redisUrl,
   }),
 
-  logging: postgresLogger,
   processEvery: "30 seconds",
   maxConcurrency: 4,
   defaultLockLifetime: 10 * 60 * 1000,

@@ -13,7 +13,6 @@ export const port = process.env[`PORT_${API_VERSION.toUpperCase()}`];
 
 export const mongodbUri = process.env.MONGODB_URI;
 export const redisUrl = process.env.REDIS_URL;
-export const postgresUrl = process.env.POSTGRES_URL;
 
 export const refreshSecret = process.env.REFRESH_SECRET;
 export const jwtSecret = process.env.JWT_SECRET;

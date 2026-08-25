@@ -1,6 +1,6 @@
 import path from "path";
 const __dirname = import.meta.dirname;
-import { nodeENV, port, publicBaseUrl, mongodbUri } from "./config/default.js";
+import { port, publicBaseUrl, mongodbUri } from "./config/default.js";
 
 import installProcessHandlers from "../processHandlers.js";
 installProcessHandlers();
@@ -11,8 +11,6 @@ import mongoose from "mongoose";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import compression from "compression";
-import winston from "winston";
-import expressWinston from "express-winston";
 import { randomUUID } from "crypto";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
@@ -42,9 +40,18 @@ import { initGalaManagerWs } from "./modules/gala/galaManagerWs.js";
 import { initScanBroadcast } from "./utils/scanBroadcast.js";
 import { initDelegatedGraphRedis } from "./utils/delegatedGraphAuth.js";
 
-import storeLogs from "./middleware/logger.js";
+import { opsHttpTelemetry } from "./telemetry/http.js";
 
 const app = express();
+
+// Generate correlation locally; never persist incoming headers or identity data
+app.use((req, res, next) => {
+  req.opsCorrelationId = randomUUID();
+  req.headers["x-request-id"] = req.opsCorrelationId;
+  next();
+});
+app.use(opsHttpTelemetry);
+
 app.use(bodyParser.json({ limit: "1mb" }));
 app.use(
   compression({
@@ -89,64 +96,6 @@ const swaggerOptions = {
 };
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
-
-// Middleware to assign a unique request ID for better log correlation
-app.use((req, res, next) => {
-  req.headers["x-request-id"] = req.headers["x-request-id"] || randomUUID();
-  next();
-});
-
-// Custom Winston transport to handle log storage
-class CustomTransport extends winston.Transport {
-  log(info, callback) {
-    setImmediate(() => {
-      this.emit("logged", info);
-    });
-
-    // Send full log object somewhere
-    console.log(info.message);
-    storeLogs(info);
-    callback();
-  }
-}
-
-// Example function to handle log data
-app.use(
-  expressWinston.logger({
-    transports: [new CustomTransport()],
-
-    format: winston.format.combine(
-      winston.format.timestamp(),
-      winston.format.json(),
-    ),
-
-    meta: true,
-    msg: "[{{req.headers['x-request-id']}}] HTTP {{req.method}} {{req.url}} {{res.statusCode}}",
-    expressFormat: true,
-    colorize: false,
-
-    // Use status code to determine log level
-    statusLevels: true,
-
-    // By default, headers and body are NOT logged
-    // You must whitelist them here:
-    requestWhitelist: ["url", "method", "query", "body"],
-    responseWhitelist: ["statusCode", "body"],
-
-    // Crucial metadata for debugging at scale
-    dynamicMeta: (req, res) => {
-      return {
-        correlationId: req.headers["x-request-id"],
-        user: req.body?.username || "anonymous",
-        ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress,
-        userAgent: req.get("User-Agent") || "unknown",
-        env: nodeENV,
-      };
-    },
-    // This replaces the value of 'password' with '*****' in the logs
-    bodyBlacklist: ["password", "secret", "token"],
-  }),
-);
 
 app.use(
   "/api/docs",

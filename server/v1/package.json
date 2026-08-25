@@ -4,7 +4,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "node --test telemetry/*.test.js",
     "start": "nodemon index.js"
   },
   "keywords": [],
@@ -13,9 +13,9 @@
   "description": "",
   "dependencies": {
     "@agendajs/mongo-backend": "^4.0.1",
-    "@agendajs/postgres-backend": "^3.0.4",
     "@agendajs/redis-backend": "^3.0.5",
     "@azure/identity": "^4.13.1",
+    "@coding-club-iitg/ops-contract": "^0.1.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "agenda": "^6.2.4",
     "axios": "^1.15.0",
@@ -39,7 +39,6 @@
     "multer": "^2.1.1",
     "nodemailer": "^8.0.5",
     "papaparse": "^5.5.3",
-    "pg": "^8.20.0",
     "qrcode": "^1.5.4",
     "redis": "^5.11.0",
     "server": "file:",

@@ -25,15 +25,6 @@ module.exports = {
       merge_logs: true,
     },
     {
-      name: "worker-logger",
-      cwd: path.join(__dirname, "../v1"),
-      script: "./workers/loggerWorker.js",
-      instances: 1,
-      exec_mode: "fork",
-      autorestart: true,
-      max_memory_restart: "512M",
-    },
-    {
       name: "worker-agenda",
       cwd: path.join(__dirname, "../v1"),
       script: "./workers/agendaWorker.js",
