@@ -37,9 +37,9 @@ import {
   scheduleSummerMessJobs,
 } from "../modules/summer_mess/autoSummerMessScheduler.js";
 
-function emitWorkerEvent(input) {
+function emitWorkerEvent(input, error) {
   try {
-    void publishLogEvent(buildApplicationEvent(input));
+    void publishLogEvent(buildApplicationEvent(input), error);
   } catch {
     // Invalid telemetry must never affect Agenda execution.
   }
@@ -73,19 +73,22 @@ async function bootstrap() {
       },
     });
   });
-  agenda.on("fail", (_error, job) => {
-    emitWorkerEvent({
-      level: "error",
-      message: "Agenda job failed",
-      error: { name: "AgendaJobError", code: "JOB_FAILED" },
-      attributes: {
-        component: "agenda",
-        jobName: job.attrs.name,
-        operation: "execute",
-        outcome: "failure",
-        retryable: true,
+  agenda.on("fail", (error, job) => {
+    emitWorkerEvent(
+      {
+        level: "error",
+        message: "Agenda job failed",
+        error: { name: "AgendaJobError", code: "JOB_FAILED" },
+        attributes: {
+          component: "agenda",
+          jobName: job.attrs.name,
+          operation: "execute",
+          outcome: "failure",
+          retryable: true,
+        },
       },
-    });
+      error,
+    );
   });
 
   await agenda.start();
@@ -135,12 +138,14 @@ bootstrap().catch((err) => {
         outcome: "failure",
       },
     }),
+    err,
   ).finally(() => process.exit(1));
 });
 
 // Graceful shutdown
 async function gracefulShutdown(signal) {
   let shutdownFailed = false;
+  let shutdownError;
   await publishLogEvent(
     buildApplicationEvent({
       level: "info",
@@ -157,6 +162,7 @@ async function gracefulShutdown(signal) {
     console.log("[Agenda Worker] ✅ Agenda stopped");
   } catch (err) {
     shutdownFailed = true;
+    shutdownError ??= err;
     console.error("[Agenda Worker] ❌ Agenda stop error:", err);
   }
 
@@ -165,6 +171,7 @@ async function gracefulShutdown(signal) {
     console.log("[Agenda Worker] ✅ Mongoose connection closed");
   } catch (err) {
     shutdownFailed = true;
+    shutdownError ??= err;
     console.error("[Agenda Worker] ❌ Mongoose close error:", err);
   }
   await publishLogEvent(
@@ -182,6 +189,7 @@ async function gracefulShutdown(signal) {
         outcome: shutdownFailed ? "failure" : "success",
       },
     }),
+    shutdownError,
   );
   await closeOpsTelemetry();
   process.exit(0);
