@@ -14,3 +14,5 @@ services:
     environment:
       TZ: "Asia/Kolkata"
       PORT: "3000"
+      PORT_V1: "3001"
+      OPS_LOGGING_ENABLED: "false"

@@ -1,3 +1,4 @@
+import { logger } from "../../../logging/logger.js";
 import xlsx from "xlsx";
 import fs from "fs";
 import path from "path";
@@ -203,9 +204,9 @@ export const createBackup = (users, hostels) => {
     const filename = `applications_backup_${Date.now()}.csv`;
     const filePath = path.join(backupDir, filename);
     xlsx.writeFile(wb, filePath, { bookType: "csv" });
-    console.log(`[MESS CHANGE] Created applications CSV backup: ${filename}`);
+    logger.info("Mess change CSV backup created");
   } catch (err) {
-    console.error("[MESS CHANGE] Error creating backup CSV:", err);
+    logger.error("[MESS CHANGE] Error creating backup CSV:", { error: err });
   }
 };
 
@@ -233,11 +234,11 @@ export const generateAndUploadReport = async (
     }
     const filePath = path.join(backupDir, filename);
     fs.writeFileSync(filePath, buffer);
-    console.log(`[MESS CHANGE] Saved report locally: ${filename}`);
+    logger.info("Mess change report saved locally");
 
     const url = await uploadReportToOnedrive(buffer, filename);
     if (url) {
-      console.log("[MESS CHANGE] Report uploaded to OneDrive:", url);
+      logger.info("Mess change report uploaded to OneDrive");
     }
 
     // Save to reports table (OneDrive link only)
@@ -251,7 +252,7 @@ export const generateAndUploadReport = async (
       link: url,
     });
   } catch (err) {
-    console.error("[MESS CHANGE] Error generating/uploading report:", err);
+    logger.error("[MESS CHANGE] Error generating/uploading report:", { error: err });
   }
 };
 
@@ -291,7 +292,7 @@ export const processAllMessChangeRequests = async (req, res) => {
       capacityTracker,
       hostels,
     ).catch((err) =>
-      console.error("[MESS CHANGE] Report generation failed:", err),
+      logger.error("[MESS CHANGE] Report generation failed:", { error: err }),
     );
 
     sendNotificationMessage(
@@ -300,7 +301,7 @@ export const processAllMessChangeRequests = async (req, res) => {
       "All_Hostels",
       { redirectType: "mess_change", isAlert: "true" },
     ).catch((err) =>
-      console.error("[MESS CHANGE] Disabled notification failed:", err),
+      logger.error("[MESS CHANGE] Disabled notification failed:", { error: err }),
     );
 
     // Per-user notifications after commit
@@ -335,7 +336,7 @@ export const processAllMessChangeRequests = async (req, res) => {
       });
     }
   } catch (err) {
-    console.error("[MESS CHANGE] processAllMessChangeRequests failed:", err);
+    logger.error("[MESS CHANGE] processAllMessChangeRequests failed:", { error: err });
     if (res) res.status(500).json({ message: "Internal server error" });
   }
 };

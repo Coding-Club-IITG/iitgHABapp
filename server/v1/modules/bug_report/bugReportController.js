@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import fs from "fs";
 import path from "path";
 const __dirname = import.meta.dirname;
@@ -92,7 +93,7 @@ export const createBugReport = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error creating bug report:", error);
+    logger.error("Error creating bug report:", { error: error });
     res.status(500).json({
       message: "Failed to submit bug report",
       error: error.message,
@@ -111,7 +112,7 @@ export const getBugReports = async (req, res) => {
       bugReports,
     });
   } catch (error) {
-    console.error("Error fetching bug reports:", error);
+    logger.error("Error fetching bug reports:", { error: error });
     res.status(500).json({
       message: "Failed to fetch bug reports",
       error: error.message,
@@ -147,7 +148,7 @@ export const updateBugReportStatus = async (req, res) => {
       bugReport,
     });
   } catch (error) {
-    console.error("Error updating bug report:", error);
+    logger.error("Error updating bug report:", { error: error });
     res.status(500).json({
       message: "Failed to update bug report",
       error: error.message,

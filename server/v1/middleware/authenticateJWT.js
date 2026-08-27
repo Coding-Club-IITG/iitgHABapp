@@ -1,3 +1,4 @@
+import { logger } from "../logging/logger.js";
 import jwt from "jsonwebtoken";
 
 import { User } from "../modules/user/userModel.js";
@@ -38,7 +39,7 @@ function auth(Schema, param) {
       return next();
     } catch (err) {
       if (err.name === "TokenExpiredError") {
-        console.log("[Auth] Token expired error");
+        logger.info("[Auth] Token expired error");
         return next(new AppError(401, "Access token expired"));
       }
       if (err.name === "TokenRevokedError") {
@@ -50,7 +51,7 @@ function auth(Schema, param) {
       }
       if (err instanceof AppError) return next(err);
 
-      console.error("[Auth] Error verifying token:", {
+      logger.error("[Auth] Error verifying token:", {
         name: err.name,
         message: err.message,
         tokenLength: token?.length,
@@ -114,13 +115,13 @@ export const authenticateUserOrAdminJWT = async (req, res, next) => {
     }
 
     if (lastError) {
-      console.error("Error verifying token:", lastError);
+      logger.error("Error verifying token:", { error: lastError });
     }
 
     return next(new AppError(401, "Not Authenticated"));
   } catch (err) {
     if (err instanceof AppError) return next(err);
-    console.error("Error verifying token:", err);
+    logger.error("Error verifying token:", { error: err });
     return next(new AppError(500, "Server error during authentication"));
   }
 };
@@ -135,7 +136,7 @@ export const authenticateHabJWT = async (req, res, next) => {
     return next();
   } catch (err) {
     if (err instanceof AppError) return next(err);
-    console.error("Error verifying HAB token:", err);
+    logger.error("Error verifying HAB token:", { error: err });
     return next(new AppError(401, "Not Authenticated"));
   }
 };
@@ -159,7 +160,7 @@ export const authenticateMessManagerJWT = async (req, res, next) => {
     if (err.name === "JsonWebTokenError" || err.name === "NotBeforeError") {
       return next(new AppError(401, "Invalid or malformed access token"));
     }
-    console.error("Error verifying Mess Manager token:", err);
+    logger.error("Error verifying Mess Manager token:", { error: err });
     return next(new AppError(500, "Server error during authentication"));
   }
 };
@@ -198,7 +199,7 @@ export const authenticateHabOrSMCJWT = async (req, res, next) => {
       lastError = err;
     }
 
-    if (lastError) console.error("Error verifying token:", lastError);
+    if (lastError) logger.error("Error verifying token:", { error: lastError });
     return next(new AppError(401, "Not Authenticated"));
   } catch (err) {
     return next(err);

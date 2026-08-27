@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import qrcode from "qrcode";
 import mongoose from "mongoose";
 
@@ -126,7 +127,7 @@ export const scheduleGalaDinner = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("scheduleGalaDinner:", error);
+    logger.error("scheduleGalaDinner:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -162,7 +163,7 @@ export const deleteGalaDinner = async (req, res) => {
       .status(200)
       .json({ message: "Gala Dinner cleared successfully" });
   } catch (error) {
-    console.error("deleteGalaDinner:", error);
+    logger.error("deleteGalaDinner:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -242,7 +243,7 @@ export const getGalaDinnerDetailForHostel = async (req, res) => {
       menus: menusWithItems,
     });
   } catch (error) {
-    console.error("getGalaDinnerDetailForHostel:", error);
+    logger.error("getGalaDinnerDetailForHostel:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -282,7 +283,7 @@ export const listGalaDinners = async (req, res) => {
     });
     return res.status(200).json(enriched);
   } catch (error) {
-    console.error("listGalaDinners:", error);
+    logger.error("listGalaDinners:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -307,7 +308,7 @@ export const getUpcomingGalaDinner = async (req, res) => {
     }
     return res.status(200).json(upcoming);
   } catch (error) {
-    console.error("getUpcomingGalaDinner:", error);
+    logger.error("getUpcomingGalaDinner:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -371,7 +372,7 @@ export const getUpcomingGalaWithMenusForHostel = async (req, res) => {
 
     return res.status(200).json({ galaDinner: null, menus: [] });
   } catch (error) {
-    console.error("getUpcomingGalaWithMenusForHostel:", error);
+    logger.error("getUpcomingGalaWithMenusForHostel:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -504,7 +505,7 @@ export const galaScan = async (req, res) => {
         alreadyScanned: false,
       });
     } catch (e) {
-      console.error("publishGalaScan failed:", e);
+      logger.error("publishGalaScan failed:", { error: e });
     }
 
     return res.status(200).json({
@@ -521,7 +522,7 @@ export const galaScan = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("galaScan:", error);
+    logger.error("galaScan:", { error: error });
     return res.status(500).json({
       message: "Internal server error",
       success: false,
@@ -586,7 +587,7 @@ export const getGalaScanStatus = async (req, res) => {
       scanLog: scanLog || null,
     });
   } catch (error) {
-    console.error("getGalaScanStatus:", error);
+    logger.error("getGalaScanStatus:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -712,7 +713,7 @@ export const getManagerGalaSummary = async (req, res) => {
       recent,
     });
   } catch (error) {
-    console.error("getManagerGalaSummary:", error);
+    logger.error("getManagerGalaSummary:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -759,7 +760,7 @@ export const createGalaMenuItem = async (req, res) => {
 
     return res.status(201).json(newItem);
   } catch (error) {
-    console.error("createGalaMenuItem:", error);
+    logger.error("createGalaMenuItem:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -779,7 +780,7 @@ export const getGalaMenuItems = async (req, res) => {
     const items = await MenuItem.find({ galaMenuId: galaDinnerMenuId }).lean();
     return res.status(200).json(items);
   } catch (error) {
-    console.error("getGalaMenuItems:", error);
+    logger.error("getGalaMenuItems:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -829,7 +830,7 @@ export const updateGalaMenuItem = async (req, res) => {
       menuItem: item,
     });
   } catch (error) {
-    console.error("updateGalaMenuItem:", error);
+    logger.error("updateGalaMenuItem:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -873,7 +874,7 @@ export const deleteGalaMenuItem = async (req, res) => {
     await MenuItem.findByIdAndDelete(_Id);
     return res.status(200).json({ message: "Menu item deleted successfully" });
   } catch (error) {
-    console.error("deleteGalaMenuItem:", error);
+    logger.error("deleteGalaMenuItem:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });

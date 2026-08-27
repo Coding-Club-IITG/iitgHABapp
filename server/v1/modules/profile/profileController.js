@@ -1,7 +1,9 @@
+import { logger } from "../../logging/logger.js";
 import axios from "axios";
 import { User } from "../user/userModel.js";
 import onedrive from "../../config/onedrive.js";
 import { ProfileSettings } from "./profileSettingsModel.js";
+import { API_VERSION } from "../../config/default.js";
 
 import {
   requireDelegatedToken,
@@ -19,7 +21,7 @@ const PROFILE_FOLDER_ID = onedrive.profilePicsFolderId;
 
 export async function setProfilePicture(req, res) {
   let debugContext = {
-    apiVersion: "v1",
+    apiVersion: API_VERSION,
     method: req.method,
     url: req.originalUrl,
     hasFile: !!req.file,
@@ -28,7 +30,7 @@ export async function setProfilePicture(req, res) {
   };
 
   try {
-    console.log("[Profile][v1] setProfilePicture start", debugContext);
+    logger.info("Profile picture update started");
 
     // Resolve user + roll (supports both authenticated and unauthenticated calls)
     let user = req.user;
@@ -149,7 +151,7 @@ export async function setProfilePicture(req, res) {
     // Do NOT mark isSetupDone here; it will be set on explicit save action
     await user.save();
 
-    console.log("[Profile][v1] setProfilePicture success", {
+    logger.info("Profile picture update completed", {
       ...debugContext,
       itemId: uploaded.id,
       hasPublicUrl: !!publicUrl,
@@ -165,7 +167,7 @@ export async function setProfilePicture(req, res) {
     const status = err.response?.status;
     const msg = err.response?.data?.error?.message || err.message;
 
-    console.error("[Profile][v1] setProfilePicture error", {
+    logger.error("Profile picture update failed", {
       ...debugContext,
       status,
       message: msg,

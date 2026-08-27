@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import fs from "fs";
 import path from "path";
 const __dirname = import.meta.dirname;
@@ -574,6 +575,6 @@ export const saveOpiReportBackup = async (buffer, filename) => {
   }
   const filePath = path.join(backupDir, filename);
   fs.writeFileSync(filePath, buffer);
-  console.log(`[OPI] Saved report backup to ${filePath}`);
+  logger.info("OPI report backup saved");
   return filePath;
 };

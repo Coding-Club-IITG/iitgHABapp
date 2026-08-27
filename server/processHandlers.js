@@ -6,20 +6,41 @@
  * will exit the Node process; PM2 will restart it, but the app will keep
  * stopping until the root cause is fixed.
  */
-export default function installProcessHandlers() {
-  process.on("unhandledRejection", (reason, promise) => {
-    console.error(
-      "[CRASH PREVENTION] Unhandled Rejection at:",
-      promise,
-      "reason:",
-      reason,
-    );
+const fallbackLogger = {
+  error(message) {
+    process.stderr.write(`${message}\n`);
+  },
+  fatal(message) {
+    process.stderr.write(`${message}\n`);
+  },
+};
+
+export default function installProcessHandlers({
+  logger = fallbackLogger,
+  flush = async () => {},
+} = {}) {
+  process.on("unhandledRejection", (reason) => {
+    logger.error("Unhandled promise rejection", {
+      error: reason,
+      attributes: {
+        component: "process",
+        operation: "promise",
+        outcome: "failure",
+      },
+    });
     // Don't exit - let the process keep running. Fix the code that caused this.
   });
 
-  process.on("uncaughtException", (err) => {
-    console.error("[CRASH PREVENTION] Uncaught Exception:", err);
-    // Exit after logging so PM2 can restart a clean process.
+  process.on("uncaughtException", async (err) => {
+    logger.fatal("Uncaught exception", {
+      error: err,
+      attributes: {
+        component: "process",
+        operation: "execute",
+        outcome: "failure",
+      },
+    });
+    await flush();
     process.exit(1);
   });
 }

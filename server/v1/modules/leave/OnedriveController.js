@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import {
   uploadBufferToLeaveFolder,
   downloadFromOnedrive,
@@ -10,7 +11,7 @@ const LEAVE_FOLDER_ID = onedrive.leaveFolderId;
 // Shared error handler
 
 function handleUploadError(err, res, message) {
-  console.error(`[OneDrive] ${message}`, err);
+  logger.error("OneDrive operation failed", { error: err });
   const status = err.response?.status;
   const msg = err.response?.data?.error?.message || err.message;
   return res
@@ -23,7 +24,7 @@ function handleUploadError(err, res, message) {
 export const uploadFilesToOnedrive = async (req, res, next) => {
   try {
     if (!req.files || Object.keys(req.files).length === 0) {
-      console.log(
+      logger.info(
         "[OneDrive][uploadFilesToOnedrive] No files; skipping upload",
       );
       req.uploadedDocuments = {};
@@ -31,7 +32,7 @@ export const uploadFilesToOnedrive = async (req, res, next) => {
     }
 
     if (!LEAVE_FOLDER_ID) {
-      console.error(
+      logger.error(
         "[OneDrive][uploadFilesToOnedrive] LEAVE_FOLDER_ID not configured; cannot upload",
       );
       return res
@@ -41,7 +42,7 @@ export const uploadFilesToOnedrive = async (req, res, next) => {
 
     const uniqueMiddleName = makeUniqueMiddleName(req.user._id);
     req.uploadedDocuments = {};
-    console.log(`[OneDrive] Starting upload for user: ${req.user?.name}`);
+    logger.info("OneDrive document upload started");
 
     const proofDocument = req.files?.["proofDocument"]?.[0] ?? null;
     const leaveDocument = req.files?.["leaveDocument"]?.[0] ?? null;
@@ -61,7 +62,7 @@ export const uploadFilesToOnedrive = async (req, res, next) => {
       );
     }
 
-    console.log("[OneDrive] Uploads successful", req.uploadedDocuments);
+    logger.info("OneDrive document uploads completed");
     next();
   } catch (err) {
     handleUploadError(err, res, "Failed to upload verification documents");
@@ -94,7 +95,7 @@ export async function uploadSingleToOnedrive(req, res, next) {
       ),
     };
 
-    console.log("[OneDrive] Upload successful", req.uploadedDocuments);
+    logger.info("OneDrive document upload completed");
     next();
   } catch (err) {
     handleUploadError(err, res, "Failed to upload medical documents");
@@ -111,7 +112,7 @@ export const sendDocument = async (req, res) => {
   try {
     await downloadFromOnedrive(proofDocumentUrl, res);
   } catch (err) {
-    console.error("[OneDrive] sendDocument error:", err);
+    logger.error("[OneDrive] sendDocument error:", { error: err });
     return res.status(500).json({
       message: "Failed to fetch Proof Document",
       error: err.message,

@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import agenda from "../../utils/agenda.js";
 import {
   SummerMessAutomationLockedError,
@@ -88,7 +89,7 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
     for (const settings of staleOpenRegistrations) {
       await closeSummerRegistrationForSeason({ seasonId: settings._id });
       summary.closedRegistration.push(settings.seasonKey);
-      console.log(
+      logger.info(
         `[SUMMER MESS] Auto-closed registration for ${formatSeasonName(settings)}`,
       );
     }
@@ -110,7 +111,7 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
         seasonKey: settings.seasonKey,
         restoredCount,
       });
-      console.log(
+      logger.info(
         `[SUMMER MESS] Auto-restored ${formatSeasonName(settings)} with ${restoredCount} default subscription(s)`,
       );
     }
@@ -139,7 +140,7 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
           now,
         });
         summary.openedRegistration = nextRegistrationSeason.seasonKey;
-        console.log(
+        logger.info(
           `[SUMMER MESS] Auto-opened registration for ${formatSeasonName(nextRegistrationSeason)}`,
         );
       }
@@ -165,7 +166,7 @@ export async function runSummerMessAutomationCycle(now = new Date()) {
           seasonKey: nextSeasonToActivate.seasonKey,
           activatedCount,
         };
-        console.log(
+        logger.info(
           `[SUMMER MESS] Auto-activated ${formatSeasonName(nextSeasonToActivate)} with ${activatedCount} acknowledged application(s)`,
         );
       }
@@ -183,12 +184,12 @@ export const defineSummerMessJobs = () => {
         await runSummerMessAutomationCycle();
       } catch (error) {
         if (error instanceof SummerMessAutomationLockedError) {
-          console.log(
+          logger.info(
             "[SUMMER MESS] Transition cycle skipped because another transition is already running",
           );
           return;
         }
-        console.error("[SUMMER MESS] Automation cycle failed:", error);
+        logger.error("[SUMMER MESS] Automation cycle failed:", { error: error });
         throw error;
       }
     },
@@ -198,5 +199,5 @@ export const defineSummerMessJobs = () => {
 
 export const scheduleSummerMessJobs = () => {
   agenda.every("*/5 * * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
-  console.log("[SUMMER MESS] Scheduler initialized: every 5 minutes");
+  logger.info("[SUMMER MESS] Scheduler initialized: every 5 minutes");
 };

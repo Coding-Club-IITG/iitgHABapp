@@ -1,3 +1,4 @@
+import { logger } from "../logging/logger.js";
 /**
  * Singleton Agenda instance shared by all scheduler modules
  * Jobs persist in MongoDB (collection: "agendaJobs")
@@ -25,11 +26,11 @@ const agenda = new Agenda({
 
 // Surface Agenda errors so they don't disappear silently
 agenda.on("error", (err) => {
-  console.error("[Agenda] Internal error:", err);
+  logger.error("[Agenda] Internal error:", { error: err });
 });
 
 agenda.on("ready", () => {
-  console.log("[Agenda] Connected and Ready");
+  logger.info("[Agenda] Connected and Ready");
 });
 
 export default agenda;

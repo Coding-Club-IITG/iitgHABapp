@@ -61,12 +61,11 @@ Runs gateway, v1, and v2 concurrently with `nodemon`.
 pnpm start
 ```
 
-Starts 5 PM2 processes:
+Starts 4 PM2 processes:
 
 - `hab-gateway`: Reverse proxy (port 3000)
 - `hab-api-v1`: API v1 server (port 3001)
 - `hab-api-v2`: API v2 server (port 3002)
-- `hab-worker-logger-v1`: Logger worker
 - `hab-worker-agenda-v1`: Agenda scheduler
 
 ## Project Structure
@@ -86,7 +85,8 @@ server/
 │   ├── config/              # App version config, DB config
 │   ├── modules/             # Route modules (auth, hostel, mess, etc.)
 │   ├── utils/               # Delegated Graph auth helpers
-│   ├── workers/             # Logger + Agenda workers
+│   ├── logging/             # Shared application/HTTP/worker logging
+│   ├── workers/             # Agenda worker
 │   └── models/              # Mongoose schemas
 ├── v2/                      # API v2 (legacy)
 │   └── (same structure as v1)
@@ -97,6 +97,18 @@ server/
 │   └── docker-compose.yml   # Test infrastructure containers
 └── uploads/                 # Uploaded files (dev)
 ```
+
+## Ops logging
+
+All HTTP outcomes are exported. Application `warn`, `error`, and `fatal`
+events are exported, while routine `debug` and `info` events remain local.
+The Agenda worker additionally exports selected startup, readiness,
+shutdown, and job-completion lifecycle events.
+
+Log messages and attributes must never contain identities, credentials, raw
+URLs or query values, request bodies or headers, IP addresses, user agents,
+uploads, storage paths, Redis keys, or third-party response objects.
+Pass caught failures through `details.error`.
 
 ### API v1 Modules
 

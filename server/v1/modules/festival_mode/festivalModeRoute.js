@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import express from "express";
 
 import {
@@ -127,7 +128,7 @@ router.delete("/image/:imageType", authenticateHabOrSMCJWT, deleteFestivalImage)
 // Diagnostic endpoint for OneDrive token status (ADMIN DEBUG ONLY)
 router.get("/admin/diagnostics/onedrive-token", authenticateHabOrSMCJWT, async (req, res, next) => {
   try {
-    console.log(`[Festival Diagnostics] Checking OneDrive token status...`);
+    logger.info(`[Festival Diagnostics] Checking OneDrive token status...`);
     const token = await getDelegatedAccessToken();
     
     if (token) {
@@ -151,7 +152,7 @@ router.get("/admin/diagnostics/onedrive-token", authenticateHabOrSMCJWT, async (
       }
     }
   } catch (err) {
-    console.error(`[Festival Diagnostics] Token check failed:`, err.message);
+    logger.error(`[Festival Diagnostics] Token check failed:`, err.message);
     return res.status(400).json({
       status: "ERROR",
       message: err.message || "Failed to retrieve OneDrive token",

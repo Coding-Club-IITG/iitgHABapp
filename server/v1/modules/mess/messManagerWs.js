@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import url from "url";
 import { WebSocketServer } from "ws";
 import { Hostel } from "../hostel/hostelModel.js";
@@ -58,7 +59,7 @@ export function initMessManagerWs(server) {
         managerClients.delete(clientInfo);
       });
     } catch (err) {
-      console.error("Error in Mess manager WS connection:", err);
+      logger.error("Error in Mess manager WS connection:", { error: err });
       try {
         ws.close(1011, "Internal server error");
       } catch (_) {}
@@ -106,7 +107,7 @@ export function broadcastMessScanToManagers({
     try {
       client.ws.send(payload);
     } catch (err) {
-      console.error("Failed to send WS message to manager client:", err);
+      logger.error("Failed to send WS message to manager client:", { error: err });
     }
   }
 }

@@ -1,8 +1,14 @@
 import mongoose from "mongoose";
+import { randomUUID } from "node:crypto";
 import { mongodbUri } from "../config/default.js";
 import agenda from "../utils/agenda.js";
-import { buildApplicationEvent } from "../telemetry/event.js";
-import { closeOpsTelemetry, publishLogEvent } from "../telemetry/publisher.js";
+import installProcessHandlers from "../../processHandlers.js";
+import {
+  agendaLifecycleLogger,
+  configureLogging,
+  flushLogging,
+  logger,
+} from "../logging/logger.js";
 
 import {
   defineFeedbackJobs,
@@ -37,34 +43,22 @@ import {
   scheduleSummerMessJobs,
 } from "../modules/summer_mess/autoSummerMessScheduler.js";
 
-function emitWorkerEvent(input, error) {
-  try {
-    void publishLogEvent(buildApplicationEvent(input), error);
-  } catch {
-    // Invalid telemetry must never affect Agenda execution.
-  }
-}
+configureLogging("hab-worker-agenda-v1");
+installProcessHandlers({ logger, flush: flushLogging });
 
 async function bootstrap() {
-  await publishLogEvent(
-    buildApplicationEvent({
-      level: "info",
-      message: "Agenda worker starting",
-      attributes: {
-        component: "agenda",
-        operation: "startup",
-        outcome: "started",
-      },
-    }),
-  );
+  agendaLifecycleLogger.info("Agenda worker starting", {
+    attributes: { component: "agenda", operation: "startup", outcome: "started" },
+  });
   await mongoose.connect(mongodbUri);
-  console.log("[Agenda Worker] MongoDB connected");
+  logger.info("Agenda worker MongoDB connected", {
+    attributes: { component: "database", dependency: "mongodb", outcome: "success" },
+  });
 
-  console.log("[Agenda Worker] Starting Agenda...");
+  logger.info("Agenda scheduler starting");
   agenda.on("success", (job) => {
-    emitWorkerEvent({
-      level: "info",
-      message: "Agenda job completed",
+    agendaLifecycleLogger.info("Agenda job completed", {
+      correlationId: randomUUID(),
       attributes: {
         component: "agenda",
         jobName: job.attrs.name,
@@ -74,21 +68,17 @@ async function bootstrap() {
     });
   });
   agenda.on("fail", (error, job) => {
-    emitWorkerEvent(
-      {
-        level: "error",
-        message: "Agenda job failed",
-        error: { name: "AgendaJobError", code: "JOB_FAILED" },
-        attributes: {
-          component: "agenda",
-          jobName: job.attrs.name,
-          operation: "execute",
-          outcome: "failure",
-          retryable: true,
-        },
-      },
+    agendaLifecycleLogger.error("Agenda job failed", {
       error,
-    );
+      correlationId: randomUUID(),
+      attributes: {
+        component: "agenda",
+        jobName: job.attrs.name,
+        operation: "execute",
+        outcome: "failure",
+        retryable: true,
+      },
+    });
   });
 
   await agenda.start();
@@ -101,7 +91,7 @@ async function bootstrap() {
   defineFestivalModeJobs();
   defineSummerMessJobs();
 
-  console.log("[Agenda Worker] Scheduling jobs...");
+  logger.info("Agenda jobs scheduling");
   scheduleFeedbackJobs();
   scheduleMessChangeJobs();
   scheduleMessAllotmentJobs();
@@ -111,89 +101,59 @@ async function bootstrap() {
   scheduleFestivalModeJobs();
   scheduleSummerMessJobs();
 
-  console.log("[Agenda Worker] Ready");
-  await publishLogEvent(
-    buildApplicationEvent({
-      level: "info",
-      message: "Agenda worker ready",
-      attributes: {
-        component: "agenda",
-        operation: "startup",
-        outcome: "success",
-      },
-    }),
-  );
+  agendaLifecycleLogger.info("Agenda worker ready", {
+    attributes: { component: "agenda", operation: "startup", outcome: "success" },
+  });
 }
 
 bootstrap().catch((err) => {
-  console.error("[Agenda Worker] Bootstrap failed:", err);
-  void publishLogEvent(
-    buildApplicationEvent({
-      level: "fatal",
-      message: "Agenda worker startup failed",
-      error: { name: "WorkerStartupError", code: "STARTUP_FAILED" },
-      attributes: {
-        component: "agenda",
-        operation: "startup",
-        outcome: "failure",
-      },
-    }),
-    err,
-  ).finally(() => process.exit(1));
+  agendaLifecycleLogger.fatal("Agenda worker startup failed", {
+    error: err,
+    attributes: { component: "agenda", operation: "startup", outcome: "failure" },
+  });
+  void flushLogging().finally(() => process.exit(1));
 });
 
 // Graceful shutdown
-async function gracefulShutdown(signal) {
+let shuttingDown = false;
+async function gracefulShutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
   let shutdownFailed = false;
   let shutdownError;
-  await publishLogEvent(
-    buildApplicationEvent({
-      level: "info",
-      message: "Agenda worker stopping",
-      attributes: {
-        component: "agenda",
-        operation: "shutdown",
-        outcome: "started",
-      },
-    }),
-  );
+  agendaLifecycleLogger.info("Agenda worker stopping", {
+    attributes: { component: "agenda", operation: "shutdown", outcome: "started" },
+  });
   try {
     await agenda.stop();
-    console.log("[Agenda Worker] ✅ Agenda stopped");
+    logger.info("Agenda scheduler stopped");
   } catch (err) {
     shutdownFailed = true;
     shutdownError ??= err;
-    console.error("[Agenda Worker] ❌ Agenda stop error:", err);
+    logger.error("Agenda scheduler shutdown failed", { error: err });
   }
 
   try {
     await mongoose.connection.close();
-    console.log("[Agenda Worker] ✅ Mongoose connection closed");
+    logger.info("Agenda MongoDB connection closed");
   } catch (err) {
     shutdownFailed = true;
     shutdownError ??= err;
-    console.error("[Agenda Worker] ❌ Mongoose close error:", err);
+    logger.error("Agenda MongoDB shutdown failed", { error: err });
   }
-  await publishLogEvent(
-    buildApplicationEvent({
-      level: shutdownFailed ? "error" : "info",
-      message: shutdownFailed
-        ? "Agenda worker shutdown failed"
-        : "Agenda worker stopped",
-      ...(shutdownFailed
-        ? { error: { name: "WorkerShutdownError", code: "SHUTDOWN_FAILED" } }
-        : {}),
-      attributes: {
-        component: "agenda",
-        operation: "shutdown",
-        outcome: shutdownFailed ? "failure" : "success",
-      },
-    }),
-    shutdownError,
-  );
-  await closeOpsTelemetry();
+  const details = {
+    ...(shutdownFailed ? { error: shutdownError } : {}),
+    attributes: {
+      component: "agenda",
+      operation: "shutdown",
+      outcome: shutdownFailed ? "failure" : "success",
+    },
+  };
+  if (shutdownFailed) agendaLifecycleLogger.error("Agenda worker shutdown failed", details);
+  else agendaLifecycleLogger.info("Agenda worker stopped", details);
+  await flushLogging();
   process.exit(0);
 }
 
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);

@@ -1,3 +1,4 @@
+import { logger } from "../../../logging/logger.js";
 import { User } from "../../user/userModel.js";
 import { MessChangeSettings } from "../messChangeSettingsModel.js";
 import { ENABLE_MESS_CHANGE_FLOW } from "../../../config/default.js";
@@ -23,7 +24,7 @@ export const getAllMessChangeRequestsForAllHostels = async (req, res) => {
       data: messChangeRequests || [],
     });
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -55,7 +56,7 @@ export const messChangeStatusForAdmin = async (req, res) => {
       data: returnSettings,
     });
   } catch (error) {
-    console.error("Error fetching mess change status:", error);
+    logger.error("Error fetching mess change status:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -112,7 +113,7 @@ export const getMessChangeScheduleInfo = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching mess change schedule info:", error);
+    logger.error("Error fetching mess change schedule info:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };

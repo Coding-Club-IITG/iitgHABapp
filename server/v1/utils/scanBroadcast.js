@@ -1,3 +1,4 @@
+import { logger } from "../logging/logger.js";
 /**
  * Cross-instance broadcast for scan events
  *
@@ -33,7 +34,7 @@ export function publishMessScan(payload) {
   const client = redisClient.getInstance();
   if (client && redisClient.getIsConnected()) {
     client.publish(REDIS_CHANNEL_MESS, JSON.stringify(payload)).catch((err) => {
-      console.error("[scanBroadcast] Redis publish mess failed:", err);
+      logger.error("[scanBroadcast] Redis publish mess failed:", { error: err });
       broadcastMessScanToManagers(payload);
     });
   } else {
@@ -50,7 +51,7 @@ export function publishGalaScan(payload) {
   const client = redisClient.getInstance();
   if (client && redisClient.getIsConnected()) {
     client.publish(REDIS_CHANNEL_GALA, JSON.stringify(payload)).catch((err) => {
-      console.error("[scanBroadcast] Redis publish gala failed:", err);
+      logger.error("[scanBroadcast] Redis publish gala failed:", { error: err });
       broadcastGalaScanToManagers(payload);
     });
   } else {
@@ -66,7 +67,7 @@ function disableRedis(reason) {
     } catch (_) {}
     redisSubscriber = null;
   }
-  console.warn(
+  logger.warn(
     "[scanBroadcast] Redis subscriber unavailable:",
     reason,
     "- using direct broadcast (single-instance).",
@@ -110,7 +111,7 @@ export function initScanBroadcast() {
           broadcastGalaScanToManagers(payload);
         }
       } catch (e) {
-        console.error("[scanBroadcast] Invalid message:", e);
+        logger.error("[scanBroadcast] Invalid message:", { error: e });
       }
     });
 
@@ -125,7 +126,7 @@ export function initScanBroadcast() {
             disableRedis(err.message || "subscribe failed");
             return;
           }
-          console.log(
+          logger.info(
             "[scanBroadcast] Subscribed to",
             REDIS_CHANNEL_MESS,
             REDIS_CHANNEL_GALA,
@@ -136,7 +137,7 @@ export function initScanBroadcast() {
       );
     });
   } catch (e) {
-    console.error("[scanBroadcast] Redis subscriber init failed:", e);
+    logger.error("[scanBroadcast] Redis subscriber init failed:", { error: e });
     redisSubscriber = null;
   }
 }

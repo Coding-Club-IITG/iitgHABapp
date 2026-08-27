@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { RoomCleaningBooking } from "./roomCleaningBookingModel.js";
 import { RcFeedback } from "./roomCleaningFeedbackModel.js";
 import { RcCleaner } from "./rcCleanerModel.js";
@@ -336,7 +337,7 @@ export const getAvailability = async (req, res) => {
       days: dayResults,
     });
   } catch (error) {
-    console.error("getAvailability error:", error);
+    logger.error("getAvailability error:", { error: error });
     return res.status(500).json({
       message: "Failed to fetch room-cleaning availability",
       error: String(error.message || error),
@@ -368,7 +369,7 @@ export const getRcCleaners = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error("getRcCleaners error:", err);
+    logger.error("getRcCleaners error:", { error: err });
     return res.status(500).json({
       message: "Failed to fetch room cleaners",
       error: String(err?.message || err),
@@ -406,7 +407,7 @@ export const postRcCleaner = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("postRcCleaner error:", err);
+    logger.error("postRcCleaner error:", { error: err });
     return res.status(500).json({
       message: "Failed to create room cleaner",
       error: String(err?.message || err),
@@ -452,7 +453,7 @@ export const putRcCleaner = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("putRcCleaner error:", err);
+    logger.error("putRcCleaner error:", { error: err });
     return res.status(500).json({
       message: "Failed to update room cleaner",
       error: String(err?.message || err),
@@ -488,7 +489,7 @@ export const deleteRcCleaner = async (req, res) => {
 
     return res.status(200).json({ message: "Cleaner deleted" });
   } catch (err) {
-    console.error("deleteRcCleaner error:", err);
+    logger.error("deleteRcCleaner error:", { error: err });
     return res.status(500).json({
       message: "Failed to delete room cleaner",
       error: String(err?.message || err),
@@ -662,7 +663,7 @@ export const createBooking = async (req, res) => {
 
     const status = error.statusCode || 500;
     if (status >= 500) {
-      console.error("createBooking error (transaction):", error);
+      logger.error("createBooking error (transaction):", { error: error });
     }
     return res.status(status).json({
       message: error.message || "Failed to create room-cleaning booking",
@@ -734,7 +735,7 @@ export const cancelBooking = async (req, res) => {
       booking,
     });
   } catch (error) {
-    console.error("cancelBooking error:", error);
+    logger.error("cancelBooking error:", { error: error });
     return res.status(500).json({
       message: "Failed to cancel room-cleaning booking",
       error: String(error.message || error),
@@ -758,7 +759,7 @@ export const getMyBookings = async (req, res) => {
     const list = await getRoomCleaningBookingsForUser(req.user._id);
     return res.status(200).json({ bookings: list });
   } catch (error) {
-    console.error("getMyBookings error:", error);
+    logger.error("getMyBookings error:", { error: error });
     return res.status(500).json({
       message: "Failed to fetch room-cleaning bookings",
       error: String(error.message || error),
@@ -877,7 +878,7 @@ export const submitFeedback = async (req, res) => {
       throw err;
     }
   } catch (error) {
-    console.error("submitFeedback error:", error);
+    logger.error("submitFeedback error:", { error: error });
     return res.status(500).json({
       message: "Failed to submit room-cleaning feedback",
       error: String(error.message || error),
@@ -976,7 +977,7 @@ export const getRcTomorrow = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error("getRcTomorrow error:", err);
+    logger.error("getRcTomorrow error:", { error: err });
     return res.status(500).json({
       message: "Failed to fetch tomorrow bookings",
       error: String(err?.message || err),
@@ -1050,7 +1051,7 @@ export const postRcTomorrowAssign = async (req, res) => {
 
     return res.status(200).json({ message: "Assignments saved" });
   } catch (err) {
-    console.error("postRcTomorrowAssign error:", err);
+    logger.error("postRcTomorrowAssign error:", { error: err });
     return res.status(500).json({
       message: "Failed to save assignments",
       error: String(err?.message || err),
@@ -1157,7 +1158,7 @@ export const postRcFinalizeStatuses = async (req, res) => {
       locked,
     });
   } catch (err) {
-    console.error("postRcFinalizeStatuses error:", err);
+    logger.error("postRcFinalizeStatuses error:", { error: err });
     return res.status(500).json({
       message: "Failed to finalize statuses",
       error: String(err?.message || err),

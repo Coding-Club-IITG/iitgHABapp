@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import axios from "axios";
 import path from "path";
 import multer from "multer";
@@ -85,7 +86,7 @@ export const getFestivalActiveSummary = async (req, res, next) => {
       cacheUntil: festivalMode.cacheUntil,
     });
   } catch (err) {
-    console.error("Error fetching festival active summary:", err);
+    logger.error("Error fetching festival active summary:", { error: err });
     next(new AppError(500, "Failed to fetch festival active summary"));
   }
 };
@@ -176,7 +177,7 @@ export const getFestivalModeStatus = async (req, res, next) => {
       cacheUntil: festivalMode.cacheUntil, // Tell mobile app when to refresh
     });
   } catch (err) {
-    console.error("Error fetching festival mode:", err);
+    logger.error("Error fetching festival mode:", { error: err });
     next(new AppError(500, "Failed to fetch festival mode"));
   }
 };
@@ -220,15 +221,15 @@ export const uploadFestivalImage = async (req, res, next) => {
     // Upload to OneDrive
     let uploaded;
     try {
-      console.log(`[Festival] Starting OneDrive upload: ${fileName}, size: ${req.file.size} bytes`);
+      logger.info("Festival image upload started");
       uploaded = await uploadFestivalImageToOneDrive(
         req.file.buffer,
         req.file.mimetype,
         fileName,
       );
-      console.log(`[Festival] Upload successful, itemId: ${uploaded.itemId}`);
+      logger.info("Festival image upload completed");
     } catch (err) {
-      console.error("OneDrive upload error:", {
+      logger.error("OneDrive upload error:", {
         message: err.message,
         status: err.response?.status,
         errorCode: err.response?.data?.error?.code,
@@ -279,7 +280,7 @@ export const uploadFestivalImage = async (req, res, next) => {
       message: "Image uploaded successfully",
     });
   } catch (err) {
-    console.error("Error in uploadFestivalImage:", err);
+    logger.error("Error in uploadFestivalImage:", { error: err });
     next(
       new AppError(500, err.message || "Failed to upload festival image")
     );
@@ -324,7 +325,7 @@ export const toggleFestivalMode = async (req, res, next) => {
       message: `Festival mode ${festivalMode.isEnabled ? "enabled" : "disabled"}`,
     });
   } catch (err) {
-    console.error("Error toggling festival mode:", err);
+    logger.error("Error toggling festival mode:", { error: err });
     if (err instanceof AppError) {
       return next(err);
     }
@@ -371,7 +372,7 @@ export const deleteFestivalImage = async (req, res, next) => {
       try {
         await deleteFestivalImageFromOneDrive(imageData.itemId);
       } catch (oneDriveErr) {
-        console.warn("OneDrive deletion warning:", oneDriveErr.message);
+        logger.warn("OneDrive deletion warning:", oneDriveErr.message);
         // Don't fail if the item was already removed externally
       }
     }
@@ -388,7 +389,7 @@ export const deleteFestivalImage = async (req, res, next) => {
       message: "Image deleted successfully",
     });
   } catch (err) {
-    console.error("Error deleting festival image:", err);
+    logger.error("Error deleting festival image:", { error: err });
     next(new AppError(500, "Failed to delete festival image"));
   }
 };
@@ -432,7 +433,7 @@ export const deleteFestivalImageByItemId = async (req, res, next) => {
     try {
       await deleteFestivalImageFromOneDrive(itemId);
     } catch (oneDriveErr) {
-      console.warn("OneDrive deletion warning:", oneDriveErr.message);
+      logger.warn("OneDrive deletion warning:", oneDriveErr.message);
     }
 
     festivalMode.lastUpdatedBy = req.user ? req.user._id : null;
@@ -450,7 +451,7 @@ export const deleteFestivalImageByItemId = async (req, res, next) => {
       message: removed > 0 ? "Image deleted successfully" : "No matching image found (legacy may have been cleared)",
     });
   } catch (err) {
-    console.error("Error deleting festival image by itemId:", err);
+    logger.error("Error deleting festival image by itemId:", { error: err });
     next(new AppError(500, "Failed to delete festival image"));
   }
 };
@@ -483,7 +484,7 @@ export const getFestivalImageContent = async (req, res, next) => {
     res.setHeader("Cache-Control", "public, max-age=300");
     response.data.pipe(res);
   } catch (err) {
-    console.error("Error proxying festival image content:", err);
+    logger.error("Error proxying festival image content:", { error: err });
     next(new AppError(500, err.message || "Failed to fetch festival image"));
   }
 };
@@ -515,7 +516,7 @@ export const getAdminFestivalConfig = async (req, res, next) => {
       cacheUntil: festivalMode.cacheUntil,
     });
   } catch (err) {
-    console.error("Error fetching admin config:", err);
+    logger.error("Error fetching admin config:", { error: err });
     next(new AppError(500, "Failed to fetch festival config"));
   }
 };
@@ -584,7 +585,7 @@ export const updateAdminFestivalConfig = async (req, res, next) => {
     try {
       await festivalMode.save();
     } catch (saveErr) {
-      console.error("FestivalMode save validation/error:", saveErr);
+      logger.error("FestivalMode save validation/error:", { error: saveErr });
       return next(
         new AppError(
           500,
@@ -606,7 +607,7 @@ export const updateAdminFestivalConfig = async (req, res, next) => {
       cacheUntil: festivalMode.cacheUntil,
     });
   } catch (err) {
-    console.error("Error updating admin festival config:", err);
+    logger.error("Error updating admin festival config:", { error: err });
     if (err instanceof AppError) {
       return next(err);
     }

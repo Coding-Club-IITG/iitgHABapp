@@ -1,8 +1,8 @@
-import dotenv from "dotenv";
-dotenv.config();
+import "dotenv/config";
 
 import installProcessHandlers from "./processHandlers.js";
-installProcessHandlers();
+import { flushLogging, logger, opsHttpMiddleware } from "./logging/logger.js";
+installProcessHandlers({ logger, flush: flushLogging });
 
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
@@ -21,15 +21,11 @@ const targets = {
   v2: `http://localhost:${process.env.PORT_V2 || 3002}`,
 };
 
-const isAuthRedirectPath = (url = "") =>
-  url.startsWith("/api/auth/login/redirect/mobile") ||
-  url.startsWith("/api/auth/login/redirect/web");
-
 // CORS middleware - must be before proxy
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
+      // Allow requests with no origin (like Postman)
       if (!origin) return callback(null, true);
 
       const allowedOrigins = [
@@ -56,35 +52,7 @@ app.use(
   }),
 );
 
-// 1. Logging Middleware (Optional: Helps debugging)
-app.use((req, res, next) => {
-  const rid =
-    req.headers["x-request-id"] ||
-    req.headers["x-correlation-id"] ||
-    req.headers["x-amzn-trace-id"] ||
-    "no-rid";
-
-  // Keep logs high-signal: always log auth redirect callbacks (they're critical to debug),
-  // otherwise keep the existing concise one-liner.
-  if (isAuthRedirectPath(req.url)) {
-    console.log("[Gateway][AuthRedirect][request]", {
-      rid,
-      method: req.method,
-      url: req.url,
-      hasCode: typeof req.query?.code === "string" && req.query.code.length > 0,
-      state:
-        typeof req.query?.state === "string"
-          ? String(req.query.state)
-          : undefined,
-      xApiVersion: req.headers["x-api-version"],
-      userAgent: req.headers["user-agent"],
-      ip: req.headers["x-forwarded-for"] || req.socket.remoteAddress,
-    });
-  } else {
-    console.log(`[Gateway] Request: ${req.method} ${req.url}`);
-  }
-  next();
-});
+app.use(opsHttpMiddleware);
 
 // 2. Routing Logic
 const selectProxyTarget = (req) => {
@@ -103,74 +71,64 @@ app.use("/api/app-version", appVersionRouter);
 app.use("/api/hq-app-version", hqAppVersionRouter);
 app.use("/api/rc-app-version", rcAppVersionRouter);
 
-// 3. Proxy Setup - http-proxy-middleware automatically handles multipart/form-data streaming
+// 3. Proxy Setup
 const apiProxy = createProxyMiddleware({
   target: targets.v1, // fallback target
   changeOrigin: true,
   router: selectProxyTarget,
   ws: true, // Support websockets if needed
-  logLevel: "debug", // detailed logs in console
-  onProxyReq: (proxyReq, req, res) => {
-    if (!isAuthRedirectPath(req.url)) return;
-    const rid =
-      req.headers["x-request-id"] ||
-      req.headers["x-correlation-id"] ||
-      req.headers["x-amzn-trace-id"] ||
-      "no-rid";
-    const target = selectProxyTarget(req);
-    console.log("[Gateway][AuthRedirect][proxyReq]", {
-      rid,
-      target,
-      method: req.method,
-      url: req.url,
-    });
-  },
-  onProxyRes: (proxyRes, req, res) => {
-    if (!isAuthRedirectPath(req.url)) return;
-    const rid =
-      req.headers["x-request-id"] ||
-      req.headers["x-correlation-id"] ||
-      req.headers["x-amzn-trace-id"] ||
-      "no-rid";
-    const target = selectProxyTarget(req);
-    console.log("[Gateway][AuthRedirect][proxyRes]", {
-      rid,
-      target,
-      statusCode: proxyRes.statusCode,
-      location: proxyRes.headers?.location,
-    });
-  },
   onError: (err, req, res) => {
-    const rid =
-      req.headers?.["x-request-id"] ||
-      req.headers?.["x-correlation-id"] ||
-      req.headers?.["x-amzn-trace-id"] ||
-      "no-rid";
-    const target = (() => {
-      try {
-        return selectProxyTarget(req);
-      } catch {
-        return "unknown";
-      }
-    })();
-    console.error("[Gateway][proxyError]", {
-      rid,
-      target,
-      method: req.method,
-      url: req.url,
-      message: err?.message,
-      code: err?.code,
+    logger.error("Gateway proxy request failed", {
+      error: err,
+      attributes: {
+        component: "proxy",
+        dependency:
+          selectProxyTarget(req) === targets.v2 ? "hab-api-v2" : "hab-api-v1",
+        operation: "forward",
+        outcome: "failure",
+        retryable: true,
+      },
     });
   },
   // All headers (including Authorization and Content-Type) are automatically preserved
   // Multipart/form-data is automatically streamed without buffering
 });
 
-// 4. Forward everything to the proxy (but don't parse body - proxy handles it)
+// 4. Forward everything to the proxy
 app.use("/", apiProxy);
 
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`[GATEWAY] Running on PORT ${PORT} (0.0.0.0)`);
-  console.log(`   -> v1 upstream: ${targets.v1}`);
-  console.log(`   -> v2 upstream: ${targets.v2}`);
+const server = app.listen(PORT, "0.0.0.0", () => {
+  logger.info("Gateway ready", {
+    attributes: {
+      component: "gateway",
+      operation: "startup",
+      outcome: "success",
+    },
+  });
 });
+
+let shuttingDown = false;
+async function gracefulShutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info("Gateway shutdown started", {
+    attributes: {
+      component: "gateway",
+      operation: "shutdown",
+      outcome: "started",
+    },
+  });
+  await new Promise((resolve) => server.close(resolve));
+  logger.info("Gateway stopped", {
+    attributes: {
+      component: "gateway",
+      operation: "shutdown",
+      outcome: "success",
+    },
+  });
+  await flushLogging();
+  process.exit(0);
+}
+
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);

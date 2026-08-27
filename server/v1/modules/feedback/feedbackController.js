@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { User } from "../user/userModel.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import { Mess } from "../mess/messModel.js";
@@ -329,7 +330,7 @@ export const getFeedbacksByCaterer = async (req, res) => {
       }
     } catch (e) {
       // If leaderboard calc fails, keep opi/rank null but do not fail the endpoint
-      console.error(
+      logger.error(
         "[FEEDBACK] getFeedbacksByCaterer leaderboard calc error:",
         e,
       );
@@ -345,7 +346,7 @@ export const getFeedbacksByCaterer = async (req, res) => {
       rank,
     });
   } catch (e) {
-    console.error("[FEEDBACK] getFeedbacksByCaterer error:", e);
+    logger.error("[FEEDBACK] getFeedbacksByCaterer error:", { error: e });
     return res.status(500).json({ message: "Failed to fetch feedbacks" });
   }
 };
@@ -406,7 +407,7 @@ export const getDetailedFeedbackByWindow = async (req, res) => {
 
     return res.status(200).json(rows);
   } catch (e) {
-    console.error("[FEEDBACK] getDetailedFeedbackByWindow error:", e);
+    logger.error("[FEEDBACK] getDetailedFeedbackByWindow error:", { error: e });
     return res.status(500).json({
       message: "Failed to fetch detailed feedback by window",
       error: String(e.message || e),
@@ -501,7 +502,7 @@ export const submitFeedback = async (req, res) => {
     if (err?.code === 11000) {
       return res.status(400).send("Feedback already submitted for this window");
     }
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     res.status(500).send("Error saving feedback");
   }
 };
@@ -536,7 +537,7 @@ export const removeFeedback = async (req, res) => {
 
     res.status(200).send("Feedback removed successfully");
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     res.status(500).send("Error removing feedback");
   }
 };
@@ -565,7 +566,7 @@ export const getAllFeedback = async (req, res) => {
 
     return res.status(200).json(formatted);
   } catch (err) {
-    console.error("[FEEDBACK] getAllFeedback error:", err);
+    logger.error("[FEEDBACK] getAllFeedback error:", { error: err });
     return res.status(500).json({
       message: "Error fetching feedbacks",
       error: String(err?.message || err),
@@ -613,14 +614,14 @@ export const enableFeedbackAutomatic = async (endDate = null) => {
       "All_Hostels",
       { redirectType: "mess_screen", isAlert: "true" },
     ).catch((err) =>
-      console.error("[FEEDBACK] Window enabled notification failed:", err),
+      logger.error("[FEEDBACK] Window enabled notification failed:", { error: err }),
     );
 
     await redisClient.del("feedback_settings");
-    console.log("[FEEDBACK] Window enabled automatically");
+    logger.info("[FEEDBACK] Window enabled automatically");
     return { success: true, settings: savedSettings };
   } catch (e) {
-    console.error("[FEEDBACK] Error enabling automatically:", e);
+    logger.error("[FEEDBACK] Error enabling automatically:", { error: e });
     return { success: false, error: e };
   }
 };
@@ -726,12 +727,12 @@ export const disableFeedbackAutomatic = async () => {
     // Recalculate all mess OPI ratings and rankings
     if (typeof windowNumber === "number") {
       await updateAllMessRatingsAndRankings(windowNumber).catch((err) =>
-        console.error("[OPI] Rankings update failed:", err),
+        logger.error("[OPI] Rankings update failed:", { error: err }),
       );
     }
 
     // Generate OPI Excel Report
-    console.log(`[OPI] Generating OPI report for window ${windowNumber}`);
+    logger.info("OPI report generation started");
     try {
       const { feedbacks, subscribers, messes } =
         await buildOpiReportData(windowNumber);
@@ -760,9 +761,9 @@ export const disableFeedbackAutomatic = async () => {
       // Upload to OneDrive Reports folder
       const url = await uploadReportToOnedrive(reportBuffer, reportFilename);
       if (url) {
-        console.log(`[OPI] Report uploaded to OneDrive: ${url}`);
+        logger.info("OPI report uploaded to OneDrive");
       } else {
-        console.warn("[OPI] OneDrive upload skipped or failed");
+        logger.warn("[OPI] OneDrive upload skipped or failed");
       }
 
       // Save to reports table (OneDrive link only)
@@ -775,7 +776,7 @@ export const disableFeedbackAutomatic = async () => {
             link: url,
           });
         } catch (e) {
-          console.error("[OPI] Failed to save report entry:", e);
+          logger.error("[OPI] Failed to save report entry:", { error: e });
         }
       }
 
@@ -785,22 +786,22 @@ export const disableFeedbackAutomatic = async () => {
           month: nowIST.getMonth() + 1,
           year,
         });
-        console.log(
+        logger.info(
           `[Snapshot] Mess subscribers snapshot: upserted=${snapRes.created} hostels=${snapRes.totalHostels}`,
         );
       } catch (e) {
-        console.error("[Snapshot] Failed to snapshot mess subscribers:", e);
+        logger.error("[Snapshot] Failed to snapshot mess subscribers:", { error: e });
       }
     } catch (reportErr) {
       // Report generation failure must not abort the disable flow
-      console.error("[OPI] Failed to generate/upload OPI report:", reportErr);
+      logger.error("[OPI] Failed to generate/upload OPI report:", reportErr);
     }
 
-    console.log("[FEEDBACK] Window disabled automatically");
+    logger.info("[FEEDBACK] Window disabled automatically");
     await redisClient.del("feedback_settings");
     return { success: true };
   } catch (e) {
-    console.error("[FEEDBACK] Error disabling automatically:", e);
+    logger.error("[FEEDBACK] Error disabling automatically:", { error: e });
     return { success: false, error: e };
   }
 };
@@ -946,7 +947,7 @@ export const getFeedbackScheduleInfo = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("[FEEDBACK] Error fetching schedule info:", error);
+    logger.error("[FEEDBACK] Error fetching schedule info:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1075,7 +1076,7 @@ export const getFeedbackLeaderboard = async (req, res) => {
 
     return res.status(200).json(rows);
   } catch (e) {
-    console.error(e);
+    logger.error("Operation failed", { error: e });
     return res.status(500).json({
       message: "Failed to build leaderboard",
       error: String(e.message || e),
@@ -1092,7 +1093,7 @@ export const getAvailableWindows = async (req, res) => {
     const sorted = windows.filter(Boolean).sort((a, b) => b - a); // Sort descending (newest first)
     return res.status(200).json(sorted);
   } catch (e) {
-    console.error("getAvailableWindows error:", e);
+    logger.error("getAvailableWindows error:", { error: e });
     return res.status(500).json({ message: "Failed to fetch windows" });
   }
 };
@@ -1223,7 +1224,7 @@ export const getFeedbackLeaderboardByWindow = async (req, res) => {
 
     return res.status(200).json(rows);
   } catch (e) {
-    console.error("getFeedbackLeaderboardByWindow error:", e);
+    logger.error("getFeedbackLeaderboardByWindow error:", { error: e });
     return res.status(500).json({
       message: "Failed to fetch window-based leaderboard",
       error: String(e.message || e),
@@ -1249,7 +1250,7 @@ export const checkFeedbackSubmitted = async (req, res) => {
       return res.status(200).json({ submitted: false });
     }
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     res
       .status(500)
       .json({ submitted: false, message: "Error checking feedback status" });
@@ -1315,7 +1316,7 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
   if (typeof windowNumber !== "number") return;
 
   const startTime = Date.now();
-  console.log(
+  logger.info(
     `[OPI] Starting mess ratings update for window ${windowNumber}...`,
   );
 
@@ -1528,7 +1529,7 @@ export const updateAllMessRatingsAndRankings = async (windowNumber) => {
     await Mess.bulkWrite(bulkOps);
   }
 
-  console.log(
+  logger.info(
     `[OPI] Mess ratings updated for ${rows.length} messes in ${Date.now() - startTime}ms`,
   );
 };

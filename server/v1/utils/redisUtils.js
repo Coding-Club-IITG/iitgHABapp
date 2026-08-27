@@ -1,3 +1,4 @@
+import { logger } from "../logging/logger.js";
 import redisClient from "./redisClient.js";
 import { REDIS_KEY_PREFIX } from "../config/default.js";
 
@@ -34,6 +35,6 @@ export const clearCacheByPattern = async (pattern) => {
       }
     } while (cursor !== "0");
   } catch (err) {
-    console.error(`Failed to clear cache for pattern ${pattern}:`, err);
+    logger.error("Redis cache clear failed", { error: err });
   }
 };

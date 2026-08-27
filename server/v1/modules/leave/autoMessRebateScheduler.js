@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import Leave from "./leaveModel.js";
 import { User } from "../user/userModel.js";
 
@@ -47,7 +48,7 @@ export const runMessRebateJob = async () => {
     .sort({ appliedAt: -1 })
     .lean();
 
-  console.log(
+  logger.info(
     `[MESS REBATE] Found ${activeApplications.length} active applications`,
   );
 
@@ -62,7 +63,7 @@ export const runMessRebateJob = async () => {
         { $set: { scannerPermission: true } },
       );
 
-      console.log(
+      logger.info(
         `[MESS REBATE] Re-enabled scanner for ${result.modifiedCount} users (leave ended before today)`,
       );
     }
@@ -79,7 +80,7 @@ export const runMessRebateJob = async () => {
         { _id: { $in: userIds } },
         { $set: { scannerPermission: false } },
       );
-      console.log(
+      logger.info(
         `[MESS REBATE] Revoked scanner for ${result.modifiedCount} users (on leave today)`,
       );
     }
@@ -118,7 +119,7 @@ export const runMessRebateJob = async () => {
         );
       });
 
-      console.log(
+      logger.info(
         `[MESS REBATE] Auto-cancelled ${targetIds.length} expired medical leaves, scanner restored for ${userIds.length} users`,
       );
     }
@@ -130,10 +131,10 @@ export const defineMessRebateJobs = () => {
     JOB_NAME,
     async (job) => {
       try {
-        console.log("[MESS REBATE] Daily job fired");
+        logger.info("[MESS REBATE] Daily job fired");
         await runMessRebateJob();
       } catch (err) {
-        console.error("[MESS REBATE] Job failed:", err);
+        logger.error("[MESS REBATE] Job failed:", { error: err });
         throw err;
       }
     },
@@ -144,5 +145,5 @@ export const defineMessRebateJobs = () => {
 // Every day at 01:00 AM IST
 export const scheduleMessRebateJobs = () => {
   agenda.every("0 1 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
-  console.log("[MESS REBATE] Scheduled: every day at 01:00 AM IST");
+  logger.info("[MESS REBATE] Scheduled: every day at 01:00 AM IST");
 };

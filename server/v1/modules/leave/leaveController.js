@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import fs from "fs";
 import path from "path";
 const __dirname = import.meta.dirname;
@@ -209,7 +210,7 @@ export const validateGenerateFormOnly = async (req, res, next) => {
   const userId = req.user?._id?.toString?.() ?? String(req.user?._id ?? "");
   const bodyKeys =
     req.body && typeof req.body === "object" ? Object.keys(req.body) : [];
-  console.log(`${LOG_FORM_ONLY} validate: start`, {
+  logger.info(`Station leave form validate: start`, {
     userId: userId || "(none)",
     bodyKeys,
     hasFile: Boolean(req.file),
@@ -240,7 +241,7 @@ export const validateGenerateFormOnly = async (req, res, next) => {
   ];
   const missingFields = fields.filter((field) => !req.body[field]);
   if (missingFields.length > 0) {
-    console.warn(`${LOG_FORM_ONLY} validate: missing fields`, {
+    logger.debug(`Station leave form validate: missing fields`, {
       userId,
       missingFields,
     });
@@ -258,7 +259,7 @@ export const validateGenerateFormOnly = async (req, res, next) => {
       reason: 'Use "HH:MM" (24-hour, e.g. "00:01", "23:59").',
     });
   }
-  console.log(`${LOG_FORM_ONLY} validate: ok`, { userId });
+  logger.info(`Station leave form validate: ok`, { userId });
   next();
 };
 
@@ -288,7 +289,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
       email,
     } = req.body;
 
-    console.log(`${LOG_FORM_ONLY} handler: start`, {
+    logger.info(`Station leave form handler: start`, {
       userId,
       startDate,
       endDate,
@@ -301,7 +302,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
       declarationAccepted === "true" ||
       declarationAccepted === "1";
     if (!decl) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 declaration not accepted`, {
+      logger.debug(`Station leave form handler: 400 declaration not accepted`, {
         userId,
       });
       return res.status(400).json({
@@ -322,7 +323,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     if (start < today) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 start before today`, {
+      logger.debug(`Station leave form handler: 400 start before today`, {
         userId,
         startDate,
       });
@@ -332,7 +333,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
     }
     const latestStartOk = latestRebateStartDateAllowed();
     if (start > latestStartOk) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 start too far ahead`, {
+      logger.debug(`Station leave form handler: 400 start too far ahead`, {
         userId,
         startDate,
       });
@@ -341,7 +342,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
       });
     }
     if (end < start) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 invalid range`, {
+      logger.debug(`Station leave form handler: 400 invalid range`, {
         userId,
         startDate,
         endDate,
@@ -355,7 +356,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
     const numberOfDays = Math.floor(diffBtwDates / (1000 * 60 * 60 * 24));
     const inclusiveLeaveDays = numberOfDays + 1;
     if (inclusiveLeaveDays < 1) {
-      console.warn(`${LOG_FORM_ONLY} handler: 400 invalid duration`, {
+      logger.debug(`Station leave form handler: 400 invalid duration`, {
         userId,
         inclusiveLeaveDays,
       });
@@ -364,12 +365,12 @@ export const generateStationLeaveFormOnly = async (req, res) => {
 
     if (!(req.user && req.user.curr_subscribed_mess)) {
       if (req.user && !req.user.curr_subscribed_mess) {
-        console.warn(`${LOG_FORM_ONLY} handler: 400 no subscribed mess`, {
+        logger.debug(`Station leave form handler: 400 no subscribed mess`, {
           userId,
         });
         return res.status(400).json({ message: "Hostel not provided" });
       }
-      console.warn(`${LOG_FORM_ONLY} handler: 400 not logged in / no user`, {
+      logger.debug(`Station leave form handler: 400 not logged in / no user`, {
         userId,
       });
       return res.status(400).json({ message: "Please login first" });
@@ -406,18 +407,18 @@ export const generateStationLeaveFormOnly = async (req, res) => {
       contactPhone: String(contactDuringLeavePhone || "").trim(),
     };
 
-    console.log(`${LOG_FORM_ONLY} handler: building PDF`, {
+    logger.info(`Station leave form handler: building PDF`, {
       userId,
       inclusiveLeaveDays,
     });
     const pdfBuffer = await buildStationLeavePdf(pdfPayload);
-    console.log(`${LOG_FORM_ONLY} handler: PDF built`, {
+    logger.info(`Station leave form handler: PDF built`, {
       userId,
       pdfBytes: pdfBuffer?.length ?? 0,
     });
 
     const leavePdfName = `station-leave-form-${req.user._id}-${Date.now()}.pdf`;
-    console.log(`${LOG_FORM_ONLY} handler: uploading`, {
+    logger.info(`Station leave form handler: uploading`, {
       userId,
       leavePdfName,
     });
@@ -426,7 +427,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
       "application/pdf",
       leavePdfName,
     );
-    console.log(`${LOG_FORM_ONLY} handler: upload ok`, {
+    logger.info(`Station leave form handler: upload ok`, {
       userId,
       hasUrl: Boolean(leaveUp?.url),
     });
@@ -436,7 +437,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
       ...(phoneTrim && { phoneNumber: phoneTrim }),
     });
 
-    console.log(`${LOG_FORM_ONLY} handler: 201 success`, { userId });
+    logger.info(`Station leave form handler: 201 success`, { userId });
     return res.status(201).json({
       message: "Leave form generated successfully",
       leaveDocumentUrl: leaveUp.url,
@@ -444,7 +445,7 @@ export const generateStationLeaveFormOnly = async (req, res) => {
     });
   } catch (err) {
     const graphErr = err?.response?.data?.error || err?.response?.data;
-    console.error(`${LOG_FORM_ONLY} handler: 500`, {
+    logger.error(`Station leave form handler: 500`, {
       userId,
       message: err?.message,
       name: err?.name,
@@ -467,15 +468,15 @@ const validateIntersection = async (req) => {
   const start = new Date(startYear, startMonth - 1, startDay);
   const end = new Date(endYear, endMonth - 1, endDay);
 
-  // console.log(startDate, endDate);
+  // logger.info(startDate, endDate);
 
-  // console.log("Starting to validate intersection for user");
+  // logger.info("Starting to validate intersection for user");
 
   let conflictStartDate = null;
   let conflictEndDate = null;
 
   const id = req.user;
-  // console.log(id);
+  // logger.info(id);
 
   let myApplications = await getMyApplications(req.user, "date");
 
@@ -494,7 +495,7 @@ const validateIntersection = async (req) => {
   const isWithinRange = myApplications.some((application) => {
     const applicationStart = application.startDate;
     const applicationEnd = application.endDate;
-    // console.log(applicationStart, " ",applicationEnd, " ", application._id);
+    // logger.info(applicationStart, " ",applicationEnd, " ", application._id);
     const check =
       (applicationStart <= start && start <= applicationEnd) ||
       (applicationStart <= end && end <= applicationEnd);
@@ -657,7 +658,7 @@ export const applyForLeave = async (req, res) => {
       email,
     } = req.body;
 
-    console.log(`${LOG_APPLY} start`, {
+    logger.info(`Station leave application start`, {
       userId: userId || "(none)",
       leaveType,
       startDate,
@@ -669,7 +670,7 @@ export const applyForLeave = async (req, res) => {
       declarationAccepted === "true" ||
       declarationAccepted === "1";
     if (!decl) {
-      console.warn(`${LOG_APPLY} 400 declaration not accepted`, { userId });
+      logger.debug(`Station leave application 400 declaration not accepted`, { userId });
       return res.status(400).json({
         message: "You must accept the declaration to submit",
       });
@@ -686,7 +687,7 @@ export const applyForLeave = async (req, res) => {
       .trim()
       .replace(/\s/g, "");
     if (!/^\d{6,20}$/.test(bankAcctNorm)) {
-      console.warn(`${LOG_APPLY} 400 invalid bank account number`, { userId });
+      logger.debug(`Station leave application 400 invalid bank account number`, { userId });
       return res.status(400).json({
         message:
           "Invalid bank account number. Use 6 to 20 digits only (no letters or symbols).",
@@ -767,7 +768,7 @@ export const applyForLeave = async (req, res) => {
       doesItIntersect.conflictEndDate.setDate(
         doesItIntersect.conflictEndDate.getDate() + 1,
       );
-      console.warn(`${LOG_APPLY} 400 date conflict with existing application`, {
+      logger.debug(`Station leave application 400 date conflict with existing application`, {
         userId,
       });
       return res.status(400).json({
@@ -781,7 +782,7 @@ export const applyForLeave = async (req, res) => {
       end,
     );
     if (semesterCapErr) {
-      console.warn(`${LOG_APPLY} 400 semester rebate day cap`, { userId });
+      logger.debug(`Station leave application 400 semester rebate day cap`, { userId });
       return res.status(400).json({ message: semesterCapErr.message });
     }
 
@@ -810,7 +811,7 @@ export const applyForLeave = async (req, res) => {
       });
     }
 
-    console.log(`${LOG_APPLY} validations passed; building PDF`, {
+    logger.info(`Station leave application validations passed; building PDF`, {
       userId,
       leaveType,
       inclusiveLeaveDays,
@@ -848,26 +849,26 @@ export const applyForLeave = async (req, res) => {
     };
 
     const pdfBuffer = await buildStationLeavePdf(pdfPayload);
-    console.log(`${LOG_APPLY} PDF generated`, {
+    logger.info(`Station leave application PDF generated`, {
       userId,
       pdfBytes: pdfBuffer?.length ?? 0,
     });
     const leavePdfName = `station-leave-${req.user._id}-${Date.now()}.pdf`;
-    console.log(`${LOG_APPLY} uploading leave PDF`, { userId, leavePdfName });
+    logger.info(`Station leave application uploading leave PDF`, { userId, leavePdfName });
     const leaveUp = await uploadBufferToLeaveFolder(
       pdfBuffer,
       "application/pdf",
       leavePdfName,
     );
     leaveDocumentUrl = leaveUp.url;
-    console.log(`${LOG_APPLY} leave PDF uploaded`, {
+    logger.info(`Station leave application leave PDF uploaded`, {
       userId,
       hasUrl: Boolean(leaveDocumentUrl),
     });
 
     if (proofFile) {
       const proofName = `proof-${req.user._id}-${Date.now()}-${proofFile.originalname}`;
-      console.log(`${LOG_APPLY} uploading proof document`, {
+      logger.info(`Station leave application uploading proof document`, {
         userId,
         proofName,
         proofBytes: proofFile.buffer?.length ?? 0,
@@ -879,7 +880,7 @@ export const applyForLeave = async (req, res) => {
         proofName,
       );
       proofDocumentUrl = pUp.url;
-      console.log(`${LOG_APPLY} proof uploaded`, {
+      logger.info(`Station leave application proof uploaded`, {
         userId,
         hasUrl: Boolean(proofDocumentUrl),
       });
@@ -920,7 +921,7 @@ export const applyForLeave = async (req, res) => {
       savedLeaves.push(leaveApplication);
     }
 
-    console.log(`${LOG_APPLY} DB rows saved`, {
+    logger.info(`Station leave application DB rows saved`, {
       userId,
       segmentCount: savedLeaves.length,
       leaveIds: savedLeaves.map((d) => String(d._id)),
@@ -929,7 +930,7 @@ export const applyForLeave = async (req, res) => {
     const leaveApplication = savedLeaves[0];
     const rebateEstimateInr = Math.round(119 * inclusiveLeaveDays);
 
-    console.log(`${LOG_APPLY} 201 success`, {
+    logger.info(`Station leave application 201 success`, {
       userId,
       primaryLeaveId: String(leaveApplication._id),
       segmentCount: savedLeaves.length,
@@ -958,7 +959,7 @@ export const applyForLeave = async (req, res) => {
     });
   } catch (err) {
     const graphErr = err?.response?.data?.error || err?.response?.data;
-    console.error(`${LOG_APPLY} 500 Error submitting leave application`, {
+    logger.error(`Station leave application 500 Error submitting leave application`, {
       userId,
       message: err?.message,
       name: err?.name,
@@ -1102,12 +1103,12 @@ export const streamMyProofDocument = async (req, res) => {
         return res.send(Buffer.from(r.data));
       }
     } catch (e) {
-      console.warn("[Leave] Direct proof URL fetch failed:", e?.message || e);
+      logger.warn("[Leave] Direct proof URL fetch failed:", { error: e });
     }
 
     return downloadFromOnedrive(url, res);
   } catch (err) {
-    console.error("[Leave] streamMyProofDocument", err);
+    logger.error("[Leave] streamMyProofDocument", { error: err });
     if (!res.headersSent) {
       return res.status(500).json({
         message: "Failed to fetch proof document",
@@ -1181,12 +1182,12 @@ export const streamHostelLeaveDocument = async (req, res) => {
         return res.send(Buffer.from(r.data));
       }
     } catch (e) {
-      console.warn("[Leave] Direct document URL fetch failed (hostel):", e?.message || e);
+      logger.warn("[Leave] Direct document URL fetch failed (hostel):", { error: e });
     }
 
     return downloadFromOnedrive(url, res, { inline: true });
   } catch (err) {
-    console.error("[Leave] streamHostelLeaveDocument", err);
+    logger.error("[Leave] streamHostelLeaveDocument", { error: err });
     if (!res.headersSent) {
       return res.status(500).json({
         message: "Failed to fetch document",
@@ -1218,7 +1219,7 @@ export const validateUploadDoc = async (req, res, next) => {
   try {
     const { id } = req.params;
     if (!id) {
-      console.error("Please provide application ID");
+      logger.error("Please provide application ID");
       return res.status(400).json({
         message: "Please provide application ID",
       });
@@ -1291,7 +1292,7 @@ export const validateUploadDoc = async (req, res, next) => {
     const numberOfDays = Math.floor(diffBtwDates / (1000 * 60 * 60 * 24));
 
     if (numberOfDays > 7) {
-      console.error(
+      logger.error(
         "The time limit of uploading medical certificate has exceeded",
       );
       return res.status(400).json({
@@ -1301,7 +1302,7 @@ export const validateUploadDoc = async (req, res, next) => {
 
     next();
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     return res.status(400).json({
       message: "Error in validating request",
       error: err.message,
@@ -1370,7 +1371,7 @@ export const cancelApplication = async (req, res) => {
   try {
     const { id } = req.params;
     if (!id) {
-      console.error("Application ID not provided");
+      logger.error("Application ID not provided");
       return res.status(400).json({
         message: "Application ID not provided",
       });
@@ -1651,7 +1652,7 @@ export const acknowledgeRebateApplication = async (req, res) => {
     }
 
     if (application.status !== "Pending") {
-      console.error("This operation is not permitted");
+      logger.error("This operation is not permitted");
       return res.status(400).json({
         message: "This operation is not permitted",
         cause:
@@ -1680,7 +1681,7 @@ export const acknowledgeRebateApplication = async (req, res) => {
         `Your rebate request for ${updatedDoc.startDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} to ${updatedDoc.endDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })} has been acknowledged by your mess office.`,
       );
     } catch (e) {
-      console.error("Error in sending notification", e);
+      logger.error("Error in sending notification", { error: e });
     }
   } catch (err) {
     res.status(500).json({

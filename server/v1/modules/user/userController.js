@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import mongoose from "mongoose";
 
 import { User } from "./userModel.js";
@@ -71,7 +72,7 @@ export const getUserByRoll = async (req, res) => {
     await redisClient.set(cacheKey, JSON.stringify(user), "EX", 3600);
     return res.status(200).json({ message: "User found", user: user });
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occured" });
   }
 };
@@ -97,7 +98,7 @@ export const createUser = async (req, res) => {
     });
   } catch (err) {
     res.status(500).json({ message: "Error creating user", error: err });
-    console.log(err);
+    logger.error("Operation failed", { error: err });
   }
 };
 
@@ -155,7 +156,7 @@ export const updateUser = async (req, res) => {
 
     res.status(200).json(updatedUser);
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     res.status(500).json({ message: "Error updating user" });
   }
 };
@@ -201,7 +202,7 @@ export const saveUserProfile = async (req, res) => {
 
     return res.status(400).json({ message: "No valid fields provided" });
   } catch (err) {
-    console.error("saveUserProfile error", err);
+    logger.error("saveUserProfile error", { error: err });
     return res
       .status(500)
       .json({ message: "Failed to save profile", error: String(err) });
@@ -233,7 +234,7 @@ export const getUserComplaints = async (req, res) => {
 //         }
 //         res.status(200).json(emails);
 //     } catch (err) {
-//         console.log(err);
+//         logger.error("Operation failed", { error: err });
 //         res.status(500).json({ message: 'Error fetching emails'} );
 //     }
 // };
@@ -247,7 +248,7 @@ export const getUserComplaints = async (req, res) => {
 //         }
 //         res.status(200).json(emails);
 //     } catch (err) {
-//         console.log(err);
+//         logger.error("Operation failed", { error: err });
 //         res.status(500).json({ message: 'Error fetching emails'} );
 //     }
 // };
@@ -281,7 +282,7 @@ export const getAllUsers = async (req, res) => {
     );
     res.status(200).json(updatedUsers);
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     res.status(500).json({ message: "Error fetching users" });
   }
 };
@@ -299,7 +300,7 @@ export const getUserCount = async (req, res) => {
 
     return res.status(200).json({ count });
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error fetching user count" });
   }
 };
@@ -357,7 +358,7 @@ export const getUserForManager = async (req, res, next) => {
     );
     return res.status(200).json(responsePayload);
   } catch (err) {
-    console.error("getUserForManager error:", err);
+    logger.error("getUserForManager error:", { error: err });
     return next(new AppError(500, "Failed to fetch user profile"));
   }
 };
@@ -392,7 +393,7 @@ export const getUsersByHostelForMess = async (req, res) => {
         .lean(),
     ]);
 
-    console.log(`Found ${users.length} users for hostel ${hostelId}`);
+    logger.info("Hostel users loaded");
 
     res.status(200).json({
       message: "Users fetched successfully",
@@ -404,7 +405,7 @@ export const getUsersByHostelForMess = async (req, res) => {
       hasPrevPage: pageNum > 1,
     });
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     res.status(500).json({ message: "Error fetching users by hostel" });
   }
 };
@@ -554,7 +555,7 @@ export const listManagerSubscribers = async (req, res) => {
       users: result,
     });
   } catch (err) {
-    console.error("listManagerSubscribers:", err);
+    logger.error("listManagerSubscribers:", { error: err });
     return res.status(500).json({ message: "Error fetching subscribers" });
   }
 };
@@ -628,7 +629,7 @@ export const getManagerSubscriberTodayStatus = async (req, res) => {
       leave: leave || null,
     });
   } catch (err) {
-    console.error("getManagerSubscriberTodayStatus:", err);
+    logger.error("getManagerSubscriberTodayStatus:", { error: err });
     return res.status(500).json({ message: "Error fetching status" });
   }
 };
@@ -759,7 +760,7 @@ export const deleteUserAccount = async (req, res, next) => {
       session.endSession();
     }
   } catch (err) {
-    console.error("Error deleting user account:", err);
+    logger.error("Error deleting user account:", { error: err });
     return next(new AppError(500, "Account deletion failed"));
   }
 };

@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import { getCurrentDay } from "../../utils/date.js";
 
@@ -102,7 +103,7 @@ export const getAppBootstrap = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("getAppBootstrap error:", error);
+    logger.error("getAppBootstrap error:", { error: error });
     return res.status(500).json({
       success: false,
       message: "Failed to fetch app bootstrap data",

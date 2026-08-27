@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import mongoose from "mongoose";
 
 import { User } from "../user/userModel.js";
@@ -35,11 +36,11 @@ const cleanupOldGuestAccounts = async () => {
   });
 
   if (oldGuestAccounts.length === 0) {
-    console.log("[GUEST CLEANUP] No old guest accounts to clean up");
+    logger.info("[GUEST CLEANUP] No old guest accounts to clean up");
     return;
   }
 
-  console.log(
+  logger.info(
     `[GUEST CLEANUP] Found ${oldGuestAccounts.length} old unlinked guest accounts`,
   );
 
@@ -80,10 +81,10 @@ const cleanupOldGuestAccounts = async () => {
     await redisClient.del("all_users");
     await redisClient.del("user_count");
   } catch (redisErr) {
-    console.error("[GUEST CLEANUP] Redis cache clear failed:", redisErr);
+    logger.error("[GUEST CLEANUP] Redis cache clear failed:", { error: redisErr });
   }
 
-  console.log(`[GUEST CLEANUP] Deleted ${userIds.length} old guest accounts`);
+  logger.info("Old guest accounts deleted");
 };
 
 export const defineGuestCleanupJobs = () => {
@@ -91,10 +92,10 @@ export const defineGuestCleanupJobs = () => {
     JOB_NAME,
     async (job) => {
       try {
-        console.log("[GUEST CLEANUP] Weekly job fired");
+        logger.info("[GUEST CLEANUP] Weekly job fired");
         await cleanupOldGuestAccounts();
       } catch (err) {
-        console.error("[GUEST CLEANUP] Job failed:", err);
+        logger.error("[GUEST CLEANUP] Job failed:", { error: err });
         throw err;
       }
     },
@@ -105,5 +106,5 @@ export const defineGuestCleanupJobs = () => {
 // Every Monday at 02:00 AM IST
 export const scheduleGuestCleanupJobs = () => {
   agenda.every("0 2 * * 1", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
-  console.log("[GUEST CLEANUP] Scheduled: every Monday at 02:00 AM IST");
+  logger.info("[GUEST CLEANUP] Scheduled: every Monday at 02:00 AM IST");
 };

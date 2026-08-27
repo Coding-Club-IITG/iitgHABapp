@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { User } from "../user/userModel.js";
 import UserAllocHostel from "../hostel/hostelAllocModel.js";
 import { MessChangeSettings } from "./messChangeSettingsModel.js";
@@ -12,10 +13,10 @@ const JOB_NAME = "mess-allotment-rotate";
  * Core rotation logic
  */
 const rotateMessAllotments = async () => {
-  console.log("[MESS ALLOTMENT] Starting monthly mess rotation...");
+  logger.info("[MESS ALLOTMENT] Starting monthly mess rotation...");
 
   if (await isSummerMessActiveNow()) {
-    console.log(
+    logger.info(
       "[MESS ALLOTMENT] Summer mess is active. Skipping monthly rotation.",
     );
     return 0;
@@ -35,7 +36,7 @@ const rotateMessAllotments = async () => {
       : null;
 
     if (!lastProcessed || lastProcessed < closingTime) {
-      console.error(
+      logger.error(
         `[MESS ALLOTMENT] CRITICAL: Rotation aborted! ` +
           `Processing for the window closing at ${closingTime.toLocaleString()} has not occurred. ` +
           `Last processed at: ${lastProcessed ? lastProcessed.toLocaleString() : "Never"}`,
@@ -49,11 +50,11 @@ const rotateMessAllotments = async () => {
   const usersToRotate = await User.find({ next_mess: { $ne: null } }).lean();
 
   if (usersToRotate.length === 0) {
-    console.log("[MESS ALLOTMENT] No users to rotate this month.");
+    logger.info("[MESS ALLOTMENT] No users to rotate this month.");
     return 0;
   }
 
-  console.log(`[MESS ALLOTMENT] Rotating ${usersToRotate.length} users...`);
+  logger.info("Mess allotment rotation started");
 
   // Build all bulk-write operations in memory
   const allocBulkOps = [];
@@ -111,7 +112,7 @@ const rotateMessAllotments = async () => {
     }
   });
 
-  console.log(
+  logger.info(
     `[MESS ALLOTMENT] Rotation complete. ${usersToRotate.length} users rotated.`,
   );
   return usersToRotate.length;
@@ -126,10 +127,10 @@ export const defineMessAllotmentJobs = () => {
     JOB_NAME,
     async (job) => {
       try {
-        console.log("[MESS ALLOTMENT] Agenda job fired");
+        logger.info("[MESS ALLOTMENT] Agenda job fired");
         await rotateMessAllotments();
       } catch (err) {
-        console.error("[MESS ALLOTMENT] Job failed:", err);
+        logger.error("[MESS ALLOTMENT] Job failed:", { error: err });
         throw err; // Rethrow so Agenda marks the job as failed and records the error
       }
     },
@@ -140,5 +141,5 @@ export const defineMessAllotmentJobs = () => {
 // 1st of every month at 00:05 IST
 export const scheduleMessAllotmentJobs = () => {
   agenda.every("5 0 1 * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
-  console.log("[MESS ALLOTMENT] Scheduled: 1st of every month at 00:05 IST");
+  logger.info("[MESS ALLOTMENT] Scheduled: 1st of every month at 00:05 IST");
 };

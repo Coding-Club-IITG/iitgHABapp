@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { User } from "../user/userModel.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import { LaundryBooking } from "./laundryBookingModel.js";
@@ -57,7 +58,7 @@ export const getStatus = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error("laundry getStatus error:", err);
+    logger.error("laundry getStatus error:", { error: err });
     return res.status(500).json({ message: "Error fetching laundry status" });
   }
 };
@@ -136,7 +137,7 @@ export const scan = async (req, res) => {
       },
     });
   } catch (err) {
-    console.error("laundry scan error:", err);
+    logger.error("laundry scan error:", { error: err });
     return res.status(500).json({ message: "Error processing laundry scan" });
   }
 };
@@ -200,7 +201,7 @@ export const getHostelDashboard = async (req, res) => {
       })),
     });
   } catch (err) {
-    console.error("laundry getHostelDashboard error:", err);
+    logger.error("laundry getHostelDashboard error:", { error: err });
     return res
       .status(500)
       .json({ message: "Error fetching laundry dashboard" });

@@ -1,3 +1,4 @@
+import { logger } from "../../../logging/logger.js";
 import { MessChangeSettings } from "../messChangeSettingsModel.js";
 import { sendNotificationMessage } from "../../notification/notificationController.js";
 import { processAllMessChangeRequests } from "./processingController.js";
@@ -30,13 +31,13 @@ export const enableMessChangeAutomatic = async (closingTime = null) => {
       "All_Hostels",
       { redirectType: "mess_change", isAlert: "true" },
     ).catch((err) =>
-      console.error("Mess change enabled notification failed:", err),
+      logger.error("Mess change enabled notification failed:", { error: err }),
     );
 
-    console.log("✅ Mess change enabled automatically");
+    logger.info("✅ Mess change enabled automatically");
     return { success: true, settings };
   } catch (error) {
-    console.error("❌ Error enabling mess change automatically:", error);
+    logger.error("❌ Error enabling mess change automatically:", { error: error });
     return { success: false, error };
   }
 };
@@ -53,7 +54,7 @@ export const disableMessChangeAutomatic = async () => {
       status(code) {
         return {
           json(payload) {
-            console.log(
+            logger.info(
               `[messchange] processAllMessChangeRequests result: ${code}`,
               payload && payload.message ? payload.message : payload,
             );
@@ -74,10 +75,10 @@ export const disableMessChangeAutomatic = async () => {
       await settings.save();
     }
 
-    console.log("✅ Mess change disabled automatically (processed requests)");
+    logger.info("✅ Mess change disabled automatically (processed requests)");
     return { success: true, settings };
   } catch (error) {
-    console.error("❌ Error disabling mess change automatically:", error);
+    logger.error("❌ Error disabling mess change automatically:", { error: error });
     return { success: false, error };
   }
 };

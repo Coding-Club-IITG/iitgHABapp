@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import mongoose from "mongoose";
 import { ScanLogs } from "./ScanLogsModel.js";
 import { getCurrentDate, getCurrentDay, getCurrentTime } from "../../utils/date.js";
@@ -70,7 +71,7 @@ export const statsByDate = async (req, res) => {
 
     res.status(200).json(stats);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -85,7 +86,7 @@ export const createLogs = async (req, res) => {
       data: insertedlogs,
     });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -98,7 +99,7 @@ export const deleteall = async (req, res) => {
       message: "Successfulyy deleted everything!",
     });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -109,7 +110,7 @@ export const getTotalScanLogsCount = async (req, res) => {
     const totalCount = await ScanLogs.countDocuments({});
     res.status(200).json({ total: totalCount });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -196,7 +197,7 @@ export const getManagerTodaySummary = async (req, res) => {
       recent,
     });
   } catch (error) {
-    console.error("getManagerTodaySummary:", error);
+    logger.error("getManagerTodaySummary:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -316,7 +317,7 @@ export const managerCreateScanEntry = async (req, res) => {
         time: kolkataTime,
       });
     } catch (e) {
-      console.error("Failed to broadcast manager scan entry:", e);
+      logger.error("Failed to broadcast manager scan entry:", { error: e });
     }
 
     return res.status(200).json({
@@ -332,7 +333,7 @@ export const managerCreateScanEntry = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("managerCreateScanEntry:", error);
+    logger.error("managerCreateScanEntry:", { error: error });
     return res
       .status(500)
       .json({ success: false, message: "Internal server error" });
@@ -491,7 +492,7 @@ export const managerAddOngoingMealScan = async (req, res) => {
         time: kolkataTime,
       });
     } catch (e) {
-      console.error("Failed to broadcast manager-added scan:", e);
+      logger.error("Failed to broadcast manager-added scan:", { error: e });
     }
 
     return res.status(200).json({
@@ -507,7 +508,7 @@ export const managerAddOngoingMealScan = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("managerAddOngoingMealScan:", error);
+    logger.error("managerAddOngoingMealScan:", { error: error });
     return res
       .status(500)
       .json({ success: false, message: "Internal server error" });

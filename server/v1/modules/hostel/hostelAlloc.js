@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import fs from "fs";
 import csv from "csv-parser";
 
@@ -46,7 +47,7 @@ export async function getAllocations(req, res) {
       currentPage: parseInt(page)
     });
   } catch (error) {
-    console.error("Error fetching allocations:", error);
+    logger.error("Error fetching allocations:", { error: error });
     return res.status(500).json({ message: "Failed to fetch allocations" });
   }
 }
@@ -71,7 +72,7 @@ export async function updateAllocation(req, res) {
     if (error.code === 11000) {
       return res.status(400).json({ message: "Email already exists in another allocation" });
     }
-    console.error("Error updating allocation:", error);
+    logger.error("Error updating allocation:", { error: error });
     return res.status(500).json({ message: "Failed to update allocation" });
   }
 }
@@ -142,7 +143,7 @@ export async function upsertAllocation(req, res) {
         message: "Duplicate key: roll number or email already exists",
       });
     }
-    console.error("Error upserting allocation:", error);
+    logger.error("Error upserting allocation:", { error: error });
     return res.status(500).json({ message: "Failed to upsert allocation" });
   }
 }
@@ -228,7 +229,7 @@ export async function uploadData(req, res) {
 
             processed++;
           } catch (err) {
-            console.error(`Error processing roll no ${rollno}:`, err.message);
+            logger.error("Hostel allocation row processing failed", { error: err });
             errors++;
           }
         }
@@ -241,11 +242,11 @@ export async function uploadData(req, res) {
           .json({ message: "Allocation upload completed", processed, errors });
       })
       .on("error", (err) => {
-        console.error("CSV parse error", err);
+        logger.error("CSV parse error", { error: err });
         return res.status(500).json({ message: "CSV parse error" });
       });
   } catch (error) {
-    console.error("Failed to upload allocation CSV:", error);
+    logger.error("Failed to upload allocation CSV:", { error: error });
     return res.status(500).json({ message: "Failed to upload allocation CSV" });
   }
 }

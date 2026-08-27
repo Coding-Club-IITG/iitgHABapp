@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { MessChangeSettings } from "./messChangeSettingsModel.js";
 import { User } from "../user/userModel.js";
 import { ENABLE_MESS_CHANGE_FLOW } from "../../config/default.js";
@@ -29,7 +30,7 @@ const sendMessChangeReminder = async (hoursLeft) => {
     }).select("_id");
 
     if (slackers.length === 0) {
-      console.log(`[MESS CHANGE] No reminders needed for ${hoursLeft}hr mark`);
+      logger.info("No mess change reminders needed");
       return;
     }
 
@@ -42,11 +43,11 @@ const sendMessChangeReminder = async (hoursLeft) => {
       "hab_mess_updates",
     );
 
-    console.log(
+    logger.info(
       `[MESS CHANGE] Sent ${hoursLeft}hr reminder to ${response.successCount} users`,
     );
   } catch (error) {
-    console.error("[MESS CHANGE] Error sending reminders:", error);
+    logger.error("[MESS CHANGE] Error sending reminders:", { error: error });
   }
 };
 
@@ -71,7 +72,7 @@ const scheduleMessChangeReminders = async () => {
       job12.unique({ name: JOB_REMIND_12H });
       job12.schedule(reminder12h);
       await job12.save();
-      console.log(
+      logger.info(
         `[MESS CHANGE] Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
     }
@@ -83,12 +84,12 @@ const scheduleMessChangeReminders = async () => {
       job2.unique({ name: JOB_REMIND_2H });
       job2.schedule(reminder2h);
       await job2.save();
-      console.log(
+      logger.info(
         `[MESS CHANGE] Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
     }
   } catch (error) {
-    console.error("[MESS CHANGE] Error scheduling reminders:", error);
+    logger.error("[MESS CHANGE] Error scheduling reminders:", { error: error });
   }
 };
 
@@ -104,28 +105,28 @@ export const defineMessChangeJobs = () => {
         const day = now.getDate();
 
         if (await isSummerMessActiveNow()) {
-          console.log(
+          logger.info(
             "[MESS CHANGE] Summer mess is active. Skipping mess change window automation.",
           );
           return;
         }
 
         if (!ENABLE_MESS_CHANGE_FLOW) {
-          console.log("[MESS CHANGE] Flow is disabled via config this month.");
+          logger.info("[MESS CHANGE] Flow is disabled via config this month.");
           return;
         }
 
         const { startDate, endDate } = getMessChangeWindowDates(month, year);
 
         if (day === startDate.getDate()) {
-          console.log(
+          logger.info(
             `[MESS CHANGE] Start date detected: ${day}/${month + 1}/${year}`,
           );
           await enableMessChangeAutomatic(endDate);
           await scheduleMessChangeReminders();
         }
       } catch (e) {
-        console.error("[MESS CHANGE] Enable check job failed:", e);
+        logger.error("[MESS CHANGE] Enable check job failed:", { error: e });
         throw e;
       }
     },
@@ -140,12 +141,12 @@ export const defineMessChangeJobs = () => {
         const settings = await MessChangeSettings.findOne();
         if (settings?.isEnabled && settings.currentWindowClosingTime) {
           if (new Date() > new Date(settings.currentWindowClosingTime)) {
-            console.log(`[MESS CHANGE] Closing time reached, disabling now.`);
+            logger.info(`[MESS CHANGE] Closing time reached, disabling now.`);
             await disableMessChangeAutomatic();
           }
         }
       } catch (e) {
-        console.error("[MESS CHANGE] Disable check job failed:", e);
+        logger.error("[MESS CHANGE] Disable check job failed:", { error: e });
         throw e;
       }
     },
@@ -175,19 +176,19 @@ export const scheduleMessChangeJobs = () => {
   agenda.every("0 9 * * *", JOB_ENABLE, {}, { timezone: "Asia/Kolkata" });
   agenda.every("1 0 * * *", JOB_DISABLE, {}, { timezone: "Asia/Kolkata" });
 
-  console.log("[MESS CHANGE] Scheduler initialized");
+  logger.info("[MESS CHANGE] Scheduler initialized");
 
   // Restore reminders on boot if the window was already open before restart
   MessChangeSettings.findOne()
     .then(async (settings) => {
       if (settings?.isEnabled) {
-        console.log(
+        logger.info(
           "[MESS CHANGE] Mess change window already open, restoring reminder jobs",
         );
         await scheduleMessChangeReminders();
       }
     })
     .catch((err) =>
-      console.error("[MESS CHANGE] Boot-time reminder restore failed:", err),
+      logger.error("[MESS CHANGE] Boot-time reminder restore failed:", { error: err }),
     );
 };

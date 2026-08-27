@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import qrcode from "qrcode";
 import mongoose from "mongoose";
 
@@ -82,7 +83,7 @@ export const createMess = async (req, res) => {
 
     return res.status(201).json(newMess);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -112,7 +113,7 @@ export const createMessWithoutHostel = async (req, res) => {
     await newMess.save();
     return res.status(201).json(newMess);
   } catch (error) {
-    console.log(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -159,7 +160,7 @@ export const createMenu = async (req, res) => {
     await newMenuD.save();
     return res.status(201).json(newMenuB);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -173,7 +174,7 @@ export const deleteMenu = async (req, res) => {
     }
     return res.status(200).json({ message: "Menu deleted successfully" });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -204,7 +205,7 @@ export const createMenuItem = async (req, res) => {
     await redisClient.del(`menu_${messId}_${day}`);
     return res.status(201).json(newItem);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -230,7 +231,7 @@ export const deleteMenuItem = async (req, res) => {
 
     return res.status(200).json({ message: "Menu item deleted successfully" });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -254,7 +255,7 @@ export const getUserMessInfo = async (req, res) => {
     }
     return res.status(200).json(data);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -267,7 +268,7 @@ export const getAllMessInfo = async (req, res) => {
     }
     return res.status(200).json(data);
   } catch (error) {
-    console.error("Error in getAllMessInfo:", error);
+    logger.error("Error in getAllMessInfo:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -290,7 +291,7 @@ export const getMessInfo = async (req, res) => {
     messObj.qr_img = qr_img ? qr_img.qr_base64 : null;
     return res.status(200).json(messObj);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -327,7 +328,7 @@ export const getMessMenuByDay = async (req, res) => {
     if (error?.statusCode) {
       return res.status(error.statusCode).json({ message: error.message });
     }
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -357,7 +358,7 @@ export const getMessMenuByDayForAdminHAB = async (req, res) => {
     if (error?.statusCode) {
       return res.status(error.statusCode).json({ message: error.message });
     }
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -379,7 +380,7 @@ export const getMessMenuItemById = async (req, res) => {
 
     return res.status(200).json(menuItem);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -420,7 +421,7 @@ export const toggleLikeMenuItem = async (req, res) => {
       return res.status(200).json({ message: "Menu item liked successfully" });
     }
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -494,7 +495,7 @@ export const toggleLikeMenuItem = async (req, res) => {
 //         .json({ message: "No meals available at this time" });
 //     }
 //   } catch (error) {
-//     console.error(error);
+//     logger.error("Operation failed", { error: error });
 //     return res.status(500).json({ message: "Internal server error" });
 //   }
 // };
@@ -631,12 +632,12 @@ export const ScanMess = async (req, res) => {
         );
       }
     }
-    console.log("Scan Log:", scanLog);
+    logger.info("Scan Log:", scanLog);
     if (alreadyScanned) {
       const logDate = formatDate(scanLog.date);
       const logTime = formatTime2(scanLog[`${mealType.toLowerCase()}Time`]);
-      console.log("Already scanned logTime:", logTime);
-      console.log("Already scanned logDate:", logDate);
+      logger.info("Already scanned logTime:", logTime);
+      logger.info("Already scanned logDate:", logDate);
       return res.status(200).json({
         message: `Already scanned for ${mealType.toLowerCase()}`,
         success: false,
@@ -676,7 +677,7 @@ export const ScanMess = async (req, res) => {
         time: kolkataTime,
       });
     } catch (e) {
-      console.error("Failed to broadcast mess scan to managers:", e);
+      logger.error("Failed to broadcast mess scan to managers:", { error: e });
     }
 
     return res.status(200).json({
@@ -696,7 +697,7 @@ export const ScanMess = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error in ScanMess:", error);
+    logger.error("Error in ScanMess:", { error: error });
     return res.status(500).json({
       message: "Internal server error",
       success: false,
@@ -731,7 +732,7 @@ export const getUnassignedMess = async (req, res) => {
     const unassignedMesses = await Mess.find({ hostelId: null });
     res.status(200).json(unassignedMesses);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -780,7 +781,7 @@ export const assignMessToHostel = async (req, res) => {
       hostel: hostelRes,
     });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -825,7 +826,7 @@ export const changeHostel = async (req, res) => {
       hostel: hostelRes,
     });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -833,7 +834,7 @@ export const changeHostel = async (req, res) => {
 export const unassignMess = async (req, res) => {
   try {
     const messId = req.params.messId;
-    console.log("Unassigning mess with ID:", messId);
+    logger.info("Unassigning mess with ID:", messId);
 
     // First, get the mess to find which hostel it was assigned to
     const mess = await Mess.findById(messId);
@@ -842,7 +843,7 @@ export const unassignMess = async (req, res) => {
     }
 
     const hostelId = mess.hostelId;
-    console.log("Mess was assigned to hostel:", hostelId);
+    logger.info("Mess was assigned to hostel:", hostelId);
 
     // Update mess to remove hostel assignment
     const updatedMess = await Mess.findByIdAndUpdate(
@@ -850,7 +851,7 @@ export const unassignMess = async (req, res) => {
       { hostelId: null },
       { new: true },
     );
-    console.log("Updated mess:", updatedMess);
+    logger.info("Updated mess:", updatedMess);
 
     // Update hostel to remove mess assignment
     if (hostelId) {
@@ -859,7 +860,7 @@ export const unassignMess = async (req, res) => {
         { messId: null },
         { new: true },
       );
-      console.log("Updated hostel:", updatedHostel);
+      logger.info("Updated hostel:", updatedHostel);
     }
 
     await redisClient.del("all_mess_info");
@@ -869,7 +870,7 @@ export const unassignMess = async (req, res) => {
       mess: updatedMess,
     });
   } catch (error) {
-    console.error("Error in unassignMess:", error);
+    logger.error("Error in unassignMess:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -901,7 +902,7 @@ export const getMessWorkers = async (req, res) => {
     const workers = await MessWorker.find(query);
     return res.status(200).json({ workers });
   } catch (error) {
-    console.error("Error fetching mess workers:", error);
+    logger.error("Error fetching mess workers:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -937,7 +938,7 @@ export const createMessWorker = async (req, res) => {
     await newWorker.save();
     return res.status(201).json(newWorker);
   } catch (error) {
-    console.error("Error creating mess worker:", error);
+    logger.error("Error creating mess worker:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -953,7 +954,7 @@ export const deleteMessWorker = async (req, res) => {
       .status(200)
       .json({ message: "Mess worker deleted successfully" });
   } catch (error) {
-    console.error("Error deleting mess worker:", error);
+    logger.error("Error deleting mess worker:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -983,7 +984,7 @@ export const updateMessWorker = async (req, res) => {
 
     return res.status(200).json({ message: "Mess worker updated successfully", worker: updated });
   } catch (error) {
-    console.error("Error updating mess worker:", error);
+    logger.error("Error updating mess worker:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1117,7 +1118,7 @@ export const generateMessBill = async (req, res) => {
       billId: newBill._id,
     });
   } catch (error) {
-    console.error("Error generating mess bill:", error);
+    logger.error("Error generating mess bill:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1142,7 +1143,7 @@ export const getMessBill = async (req, res) => {
     }
     return res.status(200).json(bill);
   } catch (error) {
-    console.error("Error fetching mess bill:", error);
+    logger.error("Error fetching mess bill:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1185,7 +1186,7 @@ export const downloadMessBillFile = async (req, res) => {
 
     return downloadFromOnedrive(url, res, { inline: false, filename });
   } catch (error) {
-    console.error("Error downloading mess bill file:", error);
+    logger.error("Error downloading mess bill file:", { error: error });
     if (!res.headersSent) {
       return res.status(500).json({ message: "Internal server error" });
     }
@@ -1219,7 +1220,7 @@ export const getAllMessBillsByMonth = async (req, res) => {
 
     return res.status(200).json(responseData);
   } catch (error) {
-    console.error("Error fetching all mess bills by month:", error);
+    logger.error("Error fetching all mess bills by month:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -1277,7 +1278,7 @@ export const getAvailableMessBillMonths = async (req, res) => {
 
     return res.status(200).json({ months });
   } catch (error) {
-    console.error("Error fetching available mess bill months:", error);
+    logger.error("Error fetching available mess bill months:", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };

@@ -1,3 +1,4 @@
+import { logger } from "../logging/logger.js";
 import fs_737 from "fs";
 const fsp = fs_737.promises;
 import path from "path";
@@ -64,7 +65,7 @@ async function loadFromDisk() {
 async function saveToDisk() {
   await ensureDir();
   await fsp.writeFile(tokenFilePath, JSON.stringify(inMemory, null, 2), "utf8");
-  console.log(
+  logger.info(
     `[Graph Delegated] Saved token to ${tokenFilePath}. Expires at: ${new Date(
       inMemory.expires_at,
     ).toISOString()}`,
@@ -91,7 +92,7 @@ async function saveToRedis() {
       ttl,
     );
   } catch (e) {
-    console.warn("[Graph Delegated] Redis write failed:", e?.message);
+    logger.warn("[Graph Delegated] Redis write failed:", { error: e });
   }
 }
 
@@ -149,7 +150,7 @@ async function doRefresh() {
       : "offline_access User.Read";
   params.append("scope", scopes);
 
-  console.log("[Graph Delegated] Refreshing access token...");
+  logger.info("[Graph Delegated] Refreshing access token...");
   const resp = await axios.post(tokenEndpoint(), params, {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     validateStatus: (s) => s < 500,
@@ -168,7 +169,7 @@ async function doRefresh() {
   inMemory.refresh_token = data.refresh_token || inMemory.refresh_token;
   inMemory.expires_at = Date.now() + expiresInSec * 1000;
 
-  console.log(
+  logger.info(
     `[Graph Delegated] New access token acquired. Expires at: ${new Date(
       inMemory.expires_at,
     ).toISOString()}`,

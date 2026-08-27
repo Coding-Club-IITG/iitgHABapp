@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import axios from "axios";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
@@ -311,18 +312,18 @@ export const getUserFromToken = async function (access_token) {
     const response = await axios.get(config.url, {
       headers: config.headers,
     });
-    //console.log(response);
+    //logger.info(response);
 
     return response;
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return false;
   }
 };
 
 export const findUserWithEmail = async function (email) {
   const user = await User.findOne({ email: email });
-  // console.log("found user with email", user);
+  // logger.info("found user with email", user);
   if (!user) return false;
   return user;
 };

@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import mongoose from "mongoose";
 
 import { withTransaction } from "../../utils/withTransaction.js";
@@ -233,7 +234,7 @@ export const getSummerMessStatus = async (req, res) => {
     const data = await buildSummerMessStatusForUser(getUserId(req));
     return res.status(200).json(data || {});
   } catch (error) {
-    console.error("getSummerMessStatus:", error);
+    logger.error("getSummerMessStatus:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -364,7 +365,7 @@ export const registerForSummerMess = async (req, res) => {
       application: populated,
     });
   } catch (error) {
-    console.error("registerForSummerMess:", error);
+    logger.error("registerForSummerMess:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -395,7 +396,7 @@ export const cancelSummerMessApplication = async (req, res) => {
       application: populated,
     });
   } catch (error) {
-    console.error("cancelSummerMessApplication:", error);
+    logger.error("cancelSummerMessApplication:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -485,7 +486,7 @@ export const getSummerMessAdminApplications = async (req, res) => {
       participatingHostels: selectedSettings?.participatingHostels || [],
     });
   } catch (error) {
-    console.error("getSummerMessAdminApplications:", error);
+    logger.error("getSummerMessAdminApplications:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -546,7 +547,7 @@ export const getManagerSummerMessApplications = async (req, res) => {
       applications,
     });
   } catch (error) {
-    console.error("getManagerSummerMessApplications:", error);
+    logger.error("getManagerSummerMessApplications:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -611,7 +612,7 @@ export const acknowledgeSummerMessApplication = async (req, res) => {
       updatedApplication: updated,
     });
   } catch (error) {
-    console.error("acknowledgeSummerMessApplication:", error);
+    logger.error("acknowledgeSummerMessApplication:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -640,7 +641,7 @@ export const streamManagerSummerMessProof = async (req, res) => {
         `summer-mess-proof-${req.params.id}`,
     });
   } catch (error) {
-    console.error("streamManagerSummerMessProof:", error);
+    logger.error("streamManagerSummerMessProof:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -666,7 +667,7 @@ export const streamStudentSummerMessProof = async (req, res) => {
         `summer-mess-proof-${req.params.id}`,
     });
   } catch (error) {
-    console.error("streamStudentSummerMessProof:", error);
+    logger.error("streamStudentSummerMessProof:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -682,7 +683,7 @@ export const getSummerMessAdminSettings = async (req, res) => {
 
     return res.status(200).json(payload);
   } catch (error) {
-    console.error("getSummerMessAdminSettings:", error);
+    logger.error("getSummerMessAdminSettings:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -832,7 +833,7 @@ export const upsertSummerMessAdminSettings = async (req, res) => {
       ...payload,
     });
   } catch (error) {
-    console.error("upsertSummerMessAdminSettings:", error);
+    logger.error("upsertSummerMessAdminSettings:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -868,7 +869,7 @@ export const openSummerMessRegistration = async (req, res) => {
         message: "Another summer mess transition is already in progress",
       });
     }
-    console.error("openSummerMessRegistration:", error);
+    logger.error("openSummerMessRegistration:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -904,7 +905,7 @@ export const closeSummerMessRegistration = async (req, res) => {
         message: "Another summer mess transition is already in progress",
       });
     }
-    console.error("closeSummerMessRegistration:", error);
+    logger.error("closeSummerMessRegistration:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -955,7 +956,7 @@ export const activateSummerMess = async (req, res) => {
         message: "Another summer mess transition is already in progress",
       });
     }
-    console.error("activateSummerMess:", error);
+    logger.error("activateSummerMess:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -994,7 +995,7 @@ export const restoreSummerMess = async (req, res) => {
         message: "Another summer mess transition is already in progress",
       });
     }
-    console.error("restoreSummerMess:", error);
+    logger.error("restoreSummerMess:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -1029,7 +1030,7 @@ export const deleteSummerMessSeason = async (req, res) => {
       .status(200)
       .json({ message: "Season and its applications deleted", ...payload });
   } catch (error) {
-    console.error("deleteSummerMessSeason:", error);
+    logger.error("deleteSummerMessSeason:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });

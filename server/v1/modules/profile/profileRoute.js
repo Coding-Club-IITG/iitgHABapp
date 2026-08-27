@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import express from "express";
 import multer from "multer";
 
@@ -62,7 +63,7 @@ router.post(
  */
 // Profile picture upload with error handling
 const uploadMiddleware = (req, res, next) => {
-  console.log("[Profile][v1] uploadMiddleware start", {
+  logger.info("Profile upload middleware started", {
     method: req.method,
     url: req.originalUrl,
   });
@@ -70,7 +71,7 @@ const uploadMiddleware = (req, res, next) => {
   upload.single("file")(req, res, (err) => {
     if (err) {
       if (err instanceof multer.MulterError) {
-        console.error("[Profile][v1] Multer error in uploadMiddleware", {
+        logger.error("Profile upload was rejected", {
           code: err.code,
           message: err.message,
         });
@@ -85,14 +86,14 @@ const uploadMiddleware = (req, res, next) => {
           .json({ message: `Multer error: ${err.message}` });
       }
 
-      console.error("[Profile][v1] Non-multer upload error", {
+      logger.error("Profile upload failed", {
         message: err.message,
         stack: err.stack,
       });
       return res.status(400).json({ message: `Upload error: ${err.message}` });
     }
 
-    console.log("[Profile][v1] uploadMiddleware success", {
+    logger.info("Profile upload middleware completed", {
       hasFile: !!req.file,
       mimetype: req.file?.mimetype,
       size: req.file?.size,

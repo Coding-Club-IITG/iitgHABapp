@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import crypto from "crypto";
 import { getHqAuth } from "./hqFirebaseAdmin.js";
 
@@ -46,7 +47,7 @@ export const catererGoogleLoginHandler = async (req, res, next) => {
     try {
       decoded = await getHqAuth().verifyIdToken(idToken);
     } catch (err) {
-      console.error("catererGoogleLogin verifyIdToken:", err?.message || err);
+      logger.error("catererGoogleLogin verifyIdToken:", { error: err });
       return res.status(401).json({
         success: false,
         message: "Invalid Firebase token",
@@ -101,7 +102,7 @@ export const catererGoogleLoginHandler = async (req, res, next) => {
       authType,
     });
   } catch (err) {
-    console.error("catererGoogleLoginHandler:", err);
+    logger.error("catererGoogleLoginHandler:", { error: err });
     next(err);
   }
 };
@@ -178,7 +179,7 @@ export const catererRefreshHandler = async (req, res, next) => {
       authType: "caterer_google",
     });
   } catch (err) {
-    console.error("catererRefreshHandler:", err);
+    logger.error("catererRefreshHandler:", { error: err });
     next(err);
   }
 };
@@ -205,7 +206,7 @@ export const catererLogoutHandler = async (req, res, next) => {
 
     return res.status(200).json({ success: true });
   } catch (err) {
-    console.error("catererLogoutHandler:", err);
+    logger.error("catererLogoutHandler:", { error: err });
     next(err);
   }
 };
@@ -219,7 +220,7 @@ export const catererGuestLoginHandler = async (req, res, next) => {
   try {
     return next(new AppError(403, "Manager guest login is currently disabled"));
   } catch (err) {
-    console.error("catererGuestLoginHandler:", err);
+    logger.error("catererGuestLoginHandler:", { error: err });
     next(err);
   }
 };

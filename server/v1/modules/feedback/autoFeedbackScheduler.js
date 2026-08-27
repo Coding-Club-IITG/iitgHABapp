@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { FeedbackSettings } from "./feedbackSettingsModel.js";
 import { User } from "../user/userModel.js";
 
@@ -27,7 +28,7 @@ const sendFeedbackReminder = async (hoursLeft) => {
     }).select("_id");
 
     if (slackers.length === 0) {
-      console.log(`[FEEDBACK] No reminders needed for ${hoursLeft}hr mark`);
+      logger.info("No feedback reminders needed");
       return;
     }
 
@@ -40,11 +41,11 @@ const sendFeedbackReminder = async (hoursLeft) => {
       "hab_feedback_reminders",
     );
 
-    console.log(
+    logger.info(
       `[FEEDBACK] Sent ${hoursLeft}hr reminder to ${response.successCount} users`,
     );
   } catch (error) {
-    console.error("[FEEDBACK] Error sending reminders:", error);
+    logger.error("[FEEDBACK] Error sending reminders:", { error: error });
   }
 };
 
@@ -67,7 +68,7 @@ const scheduleFeedbackReminders = async () => {
       job12.unique({ name: JOB_REMIND_12H });
       job12.schedule(reminder12h);
       await job12.save();
-      console.log(
+      logger.info(
         `[FEEDBACK] Scheduled 12h reminder for ${reminder12h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
     }
@@ -79,12 +80,12 @@ const scheduleFeedbackReminders = async () => {
       job2.unique({ name: JOB_REMIND_2H });
       job2.schedule(reminder2h);
       await job2.save();
-      console.log(
+      logger.info(
         `[FEEDBACK] Scheduled 2h reminder for ${reminder2h.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}`,
       );
     }
   } catch (error) {
-    console.error("[FEEDBACK] Error scheduling reminders:", error);
+    logger.error("[FEEDBACK] Error scheduling reminders:", { error: error });
   }
 };
 
@@ -102,14 +103,14 @@ export const defineFeedbackJobs = () => {
         const { startDate, endDate } = getFeedbackWindowDates(month, year);
 
         if (day === startDate.getDate()) {
-          console.log(
+          logger.info(
             `[FEEDBACK] Start date detected: ${day}/${month + 1}/${year}`,
           );
           await enableFeedbackAutomatic(endDate);
           await scheduleFeedbackReminders();
         }
       } catch (e) {
-        console.error("[FEEDBACK] Enable check job failed:", e);
+        logger.error("[FEEDBACK] Enable check job failed:", { error: e });
         throw e;
       }
     },
@@ -124,12 +125,12 @@ export const defineFeedbackJobs = () => {
         const settings = await FeedbackSettings.findOne();
         if (settings?.isEnabled && settings.currentWindowClosingTime) {
           if (new Date() > new Date(settings.currentWindowClosingTime)) {
-            console.log(`[FEEDBACK] Closing time reached, disabling now.`);
+            logger.info(`[FEEDBACK] Closing time reached, disabling now.`);
             await disableFeedbackAutomatic();
           }
         }
       } catch (e) {
-        console.error("[FEEDBACK] Disable check job failed:", e);
+        logger.error("[FEEDBACK] Disable check job failed:", { error: e });
         throw e;
       }
     },
@@ -159,19 +160,19 @@ export const scheduleFeedbackJobs = () => {
   agenda.every("0 9 * * *", JOB_ENABLE, {}, { timezone: "Asia/Kolkata" });
   agenda.every("1 0 * * *", JOB_DISABLE, {}, { timezone: "Asia/Kolkata" });
 
-  console.log("[FEEDBACK] Scheduler initialized");
+  logger.info("[FEEDBACK] Scheduler initialized");
 
   // Restore reminders on boot if the window was already open before restart
   FeedbackSettings.findOne()
     .then(async (settings) => {
       if (settings?.isEnabled) {
-        console.log(
+        logger.info(
           "[FEEDBACK] Feedback window already open, restoring reminder jobs",
         );
         await scheduleFeedbackReminders();
       }
     })
     .catch((err) =>
-      console.error("[FEEDBACK] Boot-time reminder restore failed:", err),
+      logger.error("[FEEDBACK] Boot-time reminder restore failed:", { error: err }),
     );
 };

@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import { adminJwtSecret } from "../../config/default.js";
@@ -109,7 +110,7 @@ hostelSchema.statics.findByAccessToken = async function (token) {
     if (!fetchedHostel) return false;
     return fetchedHostel;
   } catch (error) {
-    console.error("Error verifying token:", error);
+    logger.error("Error verifying token:", { error: error });
     throw error;
   }
 };

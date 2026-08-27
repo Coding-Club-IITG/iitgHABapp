@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import path from "path";
 import multer from "multer";
 
@@ -80,7 +81,7 @@ export async function uploadSummerMessProofToOnedrive(req, res, next) {
     req.uploadedDocuments.paymentProof = result;
     return next();
   } catch (error) {
-    console.error("[SummerMess][OneDrive] upload error:", error);
+    logger.error("[SummerMess][OneDrive] upload error:", { error: error });
     return res.status(500).json({
       message: "Failed to upload payment proof",
       error: error.message,
@@ -96,7 +97,7 @@ export async function sendSummerMessDocument(url, res, options = {}) {
   try {
     await downloadFromOnedrive(String(url).trim(), res, options);
   } catch (error) {
-    console.error("[SummerMess][OneDrive] send document error:", error);
+    logger.error("[SummerMess][OneDrive] send document error:", { error: error });
     return res.status(500).json({
       message: "Failed to fetch payment proof",
       error: error.message,

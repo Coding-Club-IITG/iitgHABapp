@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { getDelegatedAccessToken } from "../../utils/delegatedGraphAuth.js";
 import onedrive from "../../config/onedrive.js";
 import {
@@ -18,24 +19,24 @@ export async function uploadFestivalImageToOneDrive(
     throw new Error("ONEDRIVE_FESTIVAL_FOLDER_ID is not configured");
   }
 
-  console.log(`[OneDrive Festival] Getting delegated token for ${fileName}`);
+  logger.info("OneDrive delegated token requested");
   const token = await getDelegatedAccessToken().catch((err) => {
     const errorMsg = err.message || "";
-    console.error(`[OneDrive Festival] Token fetch error: ${errorMsg}`);
+    logger.error("OneDrive delegated token request failed", { error });
     if (errorMsg.includes("No refresh_token")) {
       throw new Error("OneDrive delegated token not configured");
     }
     throw err;
   });
 
-  console.log(
+  logger.info(
     `[OneDrive Festival] Token acquired, checking folder access for ${FESTIVAL_FOLDER_ID}`,
   );
   try {
     await getItemById(token, FESTIVAL_FOLDER_ID);
-    console.log(`[OneDrive Festival] Folder access verified`);
+    logger.info(`[OneDrive Festival] Folder access verified`);
   } catch (err) {
-    console.error(`[OneDrive Festival] Folder access error:`, {
+    logger.error(`[OneDrive Festival] Folder access error:`, {
       message: err.message,
       status: err.response?.status,
       code: err.response?.data?.error?.code,
@@ -47,7 +48,7 @@ export async function uploadFestivalImageToOneDrive(
     throw new Error(message);
   }
 
-  console.log(`[OneDrive Festival] Uploading file to OneDrive`);
+  logger.info(`[OneDrive Festival] Uploading file to OneDrive`);
   const uploaded = await uploadToParentByName(
     token,
     FESTIVAL_FOLDER_ID,
@@ -79,7 +80,7 @@ export async function deleteFestivalImageFromOneDrive(itemId) {
   } catch (err) {
     const errorMsg = err.message || "";
     if (errorMsg.includes("No refresh_token")) {
-      console.warn("OneDrive delegated token not configured for deletion");
+      logger.debug("OneDrive delegated deletion is disabled");
       return; // Gracefully skip deletion if token not available
     }
     throw err;

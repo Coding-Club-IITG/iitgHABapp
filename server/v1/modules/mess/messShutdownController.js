@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import mongoose from "mongoose";
 import { MessShutdown } from "./messShutdownModel.js";
 
@@ -87,7 +88,7 @@ export const createMessShutdown = async (req, res) => {
 
     return res.status(201).json(shutdown);
   } catch (error) {
-    console.error("Error creating mess shutdown:", error);
+    logger.error("Error creating mess shutdown:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -107,7 +108,7 @@ export const listMessShutdowns = async (req, res) => {
 
     return res.status(200).json({ shutdowns });
   } catch (error) {
-    console.error("Error listing mess shutdowns:", error);
+    logger.error("Error listing mess shutdowns:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -127,7 +128,7 @@ export const listMyMessShutdowns = async (req, res) => {
 
     return res.status(200).json({ shutdowns });
   } catch (error) {
-    console.error("Error listing hostel mess shutdowns:", error);
+    logger.error("Error listing hostel mess shutdowns:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });
@@ -148,7 +149,7 @@ export const deleteMessShutdown = async (req, res) => {
 
     return res.status(200).json({ message: "Mess shutdown deleted" });
   } catch (error) {
-    console.error("Error deleting mess shutdown:", error);
+    logger.error("Error deleting mess shutdown:", { error: error });
     return res
       .status(500)
       .json({ message: "Internal server error", error: error.message });

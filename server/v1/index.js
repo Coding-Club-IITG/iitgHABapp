@@ -1,9 +1,19 @@
 import path from "path";
 const __dirname = import.meta.dirname;
-import { port, publicBaseUrl, mongodbUri } from "./config/default.js";
+import {
+  API_VERSION,
+  port,
+  publicBaseUrl,
+  mongodbUri,
+} from "./config/default.js";
 
 import installProcessHandlers from "../processHandlers.js";
-installProcessHandlers();
+import {
+  configureLogging,
+  flushLogging,
+  logger,
+  opsHttpMiddleware,
+} from "./logging/logger.js";
 
 import express from "express";
 import bodyParser from "body-parser";
@@ -11,7 +21,6 @@ import mongoose from "mongoose";
 import cors from "cors";
 import cookieParser from "cookie-parser";
 import compression from "compression";
-import { randomUUID } from "crypto";
 import swaggerUi from "swagger-ui-express";
 import swaggerJsdoc from "swagger-jsdoc";
 
@@ -40,17 +49,10 @@ import { initGalaManagerWs } from "./modules/gala/galaManagerWs.js";
 import { initScanBroadcast } from "./utils/scanBroadcast.js";
 import { initDelegatedGraphRedis } from "./utils/delegatedGraphAuth.js";
 
-import { opsHttpTelemetry } from "./telemetry/http.js";
-
 const app = express();
-
-// Generate correlation locally; never persist incoming headers or identity data
-app.use((req, res, next) => {
-  req.opsCorrelationId = randomUUID();
-  req.headers["x-request-id"] = req.opsCorrelationId;
-  next();
-});
-app.use(opsHttpTelemetry);
+configureLogging(`hab-api-${API_VERSION}`);
+installProcessHandlers({ logger, flush: flushLogging });
+app.use(opsHttpMiddleware);
 
 app.use(bodyParser.json({ limit: "1mb" }));
 app.use(
@@ -204,7 +206,14 @@ app.use("/api/_debug", debugRoute);
 // Global error handler (must be after all routes)
 // Catches errors passed to next(err)
 app.use((err, req, res, next) => {
-  console.error("[Express error]", err);
+  logger.error("Express request failed", {
+    error: err,
+    attributes: {
+      component: "express",
+      operation: "request",
+      outcome: "failure",
+    },
+  });
 
   const statusCode = err.status || 500;
 
@@ -218,18 +227,28 @@ let server;
 
 async function bootstrap() {
   if (!mongodbUri) {
-    console.error("mongodbUri is not set, refusing to start.");
-    process.exit(1);
+    throw new Error("MongoDB configuration is missing");
   }
 
   await mongoose.connect(mongodbUri);
-  console.log("MongoDB connected");
+  logger.info("MongoDB connected", {
+    attributes: {
+      component: "database",
+      dependency: "mongodb",
+      outcome: "success",
+    },
+  });
 
   await initializeAnonymizedUser();
 
   server = app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
-    console.log(`Current Time: ${new Date().toLocaleString()}`);
+    logger.info("API ready", {
+      attributes: {
+        component: "express",
+        operation: "startup",
+        outcome: "success",
+      },
+    });
     if (process.send) process.send("ready");
   });
 
@@ -240,33 +259,69 @@ async function bootstrap() {
 }
 
 bootstrap().catch((err) => {
-  console.error("Server failed to start:", err);
-  process.exit(1);
+  logger.fatal("API startup failed", {
+    error: err,
+    attributes: {
+      component: "application",
+      operation: "startup",
+      outcome: "failure",
+    },
+  });
+  void flushLogging().finally(() => process.exit(1));
 });
 
 // SHUTDOWN
-async function gracefulShutdown(signal) {
-  console.log(`\n[${signal}] Shutdown initiated...`);
+let shuttingDown = false;
+async function gracefulShutdown() {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info("API shutdown started", {
+    attributes: {
+      component: "application",
+      operation: "shutdown",
+      outcome: "started",
+    },
+  });
 
   // Stop accepting new HTTP connections
   if (server) {
-    server.close(() => {
-      console.log("✅ HTTP server closed");
+    await new Promise((resolve) => server.close(resolve));
+    logger.info("HTTP server closed", {
+      attributes: {
+        component: "express",
+        operation: "shutdown",
+        outcome: "success",
+      },
     });
   }
 
   // Close Mongoose connection
   try {
     await mongoose.connection.close();
-    console.log("✅ Mongoose connection closed");
+    logger.info("MongoDB connection closed", {
+      attributes: {
+        component: "database",
+        dependency: "mongodb",
+        outcome: "success",
+      },
+    });
   } catch (err) {
-    console.error("❌ Mongoose close error:", err);
+    logger.error("MongoDB shutdown failed", {
+      error: err,
+      attributes: {
+        component: "database",
+        dependency: "mongodb",
+        operation: "shutdown",
+        outcome: "failure",
+      },
+    });
   }
 
+  await flushLogging();
   process.exit(0);
 }
 
-process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", gracefulShutdown);
+process.on("SIGINT", gracefulShutdown);
 
 export default app;

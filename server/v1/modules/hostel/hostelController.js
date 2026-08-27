@@ -1,3 +1,5 @@
+import { logger } from "../../logging/logger.js";
+import { API_VERSION } from "../../config/default.js";
 import bcrypt from "bcrypt";
 
 import { User } from "../user/userModel.js";
@@ -72,7 +74,7 @@ export const createHostel = async (req, res) => {
       .status(201)
       .json({ message: "Hostel created successfully", hostel });
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     if (err.code === 11000) {
       return res
         .status(400)
@@ -116,7 +118,7 @@ export const setHostelPassword = async (req, res) => {
       .status(200)
       .json({ message: "Hostel password set successfully" });
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error setting hostel password" });
   }
 };
@@ -136,7 +138,7 @@ export const getHostel = async (req, res) => {
     await redisClient.set(cacheKey, JSON.stringify(hostel), "EX", 3600);
     return res.json({ hostel });
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -153,7 +155,7 @@ export const getAllHostels = async (req, res) => {
           return res.status(200).json(JSON.parse(cachedHostels));
       }
     } catch (redisErr) {
-      console.error("Redis get error:", redisErr);
+      logger.error("Redis get error:", { error: redisErr });
     }
 
     // CRITICAL FIX: Exclude the password hash!
@@ -163,12 +165,12 @@ export const getAllHostels = async (req, res) => {
       if (redisClient)
         await redisClient.set(cacheKey, JSON.stringify(hostels), "EX", 3600);
     } catch (redisErr) {
-      console.error("Redis set error:", redisErr);
+      logger.error("Redis set error:", { error: redisErr });
     }
 
     return res.status(200).json(hostels);
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -184,7 +186,7 @@ export const getAllHostelsWithMess = async (req, res) => {
           return res.json({ hostels: JSON.parse(cachedHostels) });
       }
     } catch (redisErr) {
-      console.error("Redis get error:", redisErr);
+      logger.error("Redis get error:", { error: redisErr });
     }
 
     // CRITICAL FIX: Exclude the password hash!
@@ -197,12 +199,12 @@ export const getAllHostelsWithMess = async (req, res) => {
       if (redisClient)
         await redisClient.set(cacheKey, JSON.stringify(hostels), "EX", 3600);
     } catch (redisErr) {
-      console.error("Redis set error:", redisErr);
+      logger.error("Redis set error:", { error: redisErr });
     }
 
     return res.status(200).json(hostels);
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -220,7 +222,7 @@ export const getHostelbyId = async (req, res) => {
           .json({ message: "Hostel found", hostel: JSON.parse(cachedData) });
       }
     } catch (redisErr) {
-      console.error("Redis get error:", redisErr);
+      logger.error("Redis get error:", { error: redisErr });
     }
 
     const [hostel, users, totalUsersCount] = await Promise.all([
@@ -268,14 +270,14 @@ export const getHostelbyId = async (req, res) => {
         3600,
       );
     } catch (redisErr) {
-      console.error("Redis set error:", redisErr);
+      logger.error("Redis set error:", { error: redisErr });
     }
 
     return res
       .status(200)
       .json({ message: "Hostel found", hostel: hostelWithUsers });
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -361,7 +363,7 @@ export const getCatererInfo = async (req, res) => {
     );
     return res.status(200).json(responsePayload);
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -370,7 +372,7 @@ export const getCatererInfo = async (req, res) => {
 export const getBoarders = async (req, res) => {
   try {
     const hostelId = req.hostel._id;
-    const cacheKey = `hostel_${hostelId}_boarders_alloc_v1`;
+    const cacheKey = `hostel_${hostelId}_boarders_alloc_${API_VERSION}`;
     const cachedBoarders = await redisClient.get(cacheKey);
     if (cachedBoarders) {
       return res.status(200).json(JSON.parse(cachedBoarders));
@@ -411,7 +413,7 @@ export const getBoarders = async (req, res) => {
     );
     return res.status(200).json(responsePayload);
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -552,7 +554,7 @@ export const getMessSubscribersSnapshotMonths = async (req, res) => {
       snapshots,
     });
   } catch (err) {
-    console.error("Error listing mess subscriber snapshot months:", err);
+    logger.error("Error listing mess subscriber snapshot months:", { error: err });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -596,7 +598,7 @@ export const getMessSubscribers = async (req, res) => {
       });
     }
 
-    const cacheKey = `hostel_${hostelId}_mess_subscribers_alloc_v1`;
+    const cacheKey = `hostel_${hostelId}_mess_subscribers_alloc_${API_VERSION}`;
     const cachedSubscribers = await redisClient.get(cacheKey);
     if (cachedSubscribers) {
       const parsed = JSON.parse(cachedSubscribers);
@@ -656,7 +658,7 @@ export const getMessSubscribers = async (req, res) => {
     );
     return res.status(200).json(responsePayload);
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -699,7 +701,7 @@ export const getMessSubscribersCountByMonth = async (req, res) => {
       .status(200)
       .json({ count: snap?.totalCount || 0, source: "snapshot" });
   } catch (err) {
-    console.error("Error fetching mess subscriber count by month:", err);
+    logger.error("Error fetching mess subscriber count by month:", { error: err });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -717,7 +719,7 @@ export const getMessSubscribersByHostelId = async (req, res) => {
     const limit = parseInt(req.query.limit) || 50;
     const skip = (page - 1) * limit;
 
-    const cacheKey = `hostel_${hostelId}_mess_subscribers_public_alloc_v1_pg${page}_limit${limit}`;
+    const cacheKey = `hostel_${hostelId}_mess_subscribers_public_alloc_${API_VERSION}_pg${page}_limit${limit}`;
     const cachedSubscribers = await redisClient.get(cacheKey);
     if (cachedSubscribers) {
       return res.status(200).json(JSON.parse(cachedSubscribers));
@@ -767,7 +769,7 @@ export const getMessSubscribersByHostelId = async (req, res) => {
     );
     return res.status(200).json(responsePayload);
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -810,7 +812,7 @@ export const markAsSMC = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -853,7 +855,7 @@ export const unmarkAsSMC = async (req, res) => {
       },
     });
   } catch (err) {
-    console.log(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -870,7 +872,7 @@ export const getSMCMembers = async (req, res) => {
         if (cachedData) return res.status(200).json(JSON.parse(cachedData));
       }
     } catch (redisErr) {
-      console.error("Redis error:", redisErr);
+      logger.error("Redis error:", { error: redisErr });
     }
 
     const smcMembers = await User.find({
@@ -901,12 +903,12 @@ export const getSMCMembers = async (req, res) => {
           3600,
         );
     } catch (redisErr) {
-      console.error("Redis error:", redisErr);
+      logger.error("Redis error:", { error: redisErr });
     }
 
     return res.status(200).json(responsePayload);
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error occurred" });
   }
 };
@@ -930,7 +932,7 @@ export const getHMCMembers = async (req, res) => {
         if (cachedData) return res.status(200).json(JSON.parse(cachedData));
       }
     } catch (redisErr) {
-      console.error("Redis error:", redisErr);
+      logger.error("Redis error:", { error: redisErr });
     }
 
     const hostel = await Hostel.findById(hostelId)
@@ -958,12 +960,12 @@ export const getHMCMembers = async (req, res) => {
           3600,
         );
     } catch (redisErr) {
-      console.error("Redis error:", redisErr);
+      logger.error("Redis error:", { error: redisErr });
     }
 
     return res.status(200).json(responsePayload);
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error fetching HMC members" });
   }
 };
@@ -1013,7 +1015,7 @@ export const setHMCMembers = async (req, res) => {
       hmcMembers: hostel.hmcMembers || [],
     });
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     return res.status(500).json({ message: "Error updating HMC members" });
   }
 };

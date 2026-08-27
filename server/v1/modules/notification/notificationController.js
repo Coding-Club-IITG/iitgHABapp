@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { Hostel } from "../hostel/hostelModel.js";
 import Alert from "./notificationModel.js";
 import redisClient from "../../utils/redisClient.js";
@@ -47,7 +48,7 @@ export const registerToken = async (req, res) => {
             ? userHostel.hostel_name.replaceAll(" ", "_")
             : null;
 
-          console.log("Subscribing to topics:", {
+          logger.info("Subscribing to topics:", {
             curr_sub_mess_name,
             userHostelName,
           });
@@ -69,7 +70,7 @@ export const registerToken = async (req, res) => {
           admin.messaging().subscribeToTopic(fcmToken, curr_sub_mess_name);
         }
       } catch (err) {
-        console.error("Error subscribing to hostel/mess topics:", err);
+        logger.error("Error subscribing to hostel/mess topics:", { error: err });
         // Continue even if subscription fails
       }
     }
@@ -82,7 +83,7 @@ export const registerToken = async (req, res) => {
 
     res.json({ message: "FCM token registered" });
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     res.sendStatus(500);
   }
 };
@@ -116,7 +117,7 @@ export async function sendNotificationMessage(
     },
   };
 
-  console.log("Broadcasting message:", message);
+  logger.info("Broadcasting message:", message);
   await admin.messaging().send(message);
 }
 
@@ -144,7 +145,7 @@ export const sendNotificationToUser = async (
 
     await admin.messaging().send(message);
   } catch (e) {
-    console.error("Error sending user notification:", e);
+    logger.error("Error sending user notification:", { error: e });
   }
 };
 
@@ -173,12 +174,12 @@ export const sendNotificationToMultipleUsers = async (
       },
     });
 
-    console.log(
+    logger.info(
       `Sent multicast notification to ${response.successCount} users`,
     );
     return response;
   } catch (error) {
-    console.error("Error sending multicast notification:", error);
+    logger.error("Error sending multicast notification:", { error: error });
   }
 };
 
@@ -197,7 +198,7 @@ export const sendNotification = async (req, res) => {
     );
     res.status(200).json({ message: "Notification sent" });
   } catch (err) {
-    console.error(err);
+    logger.error("Operation failed", { error: err });
     res.sendStatus(500);
   }
 };
@@ -228,7 +229,7 @@ export const sendWelcomeNotification = async (req, res) => {
 
     res.status(200).json({ message: "Welcome notification sent" });
   } catch (err) {
-    console.error("Error sending welcome notification:", err);
+    logger.error("Error sending welcome notification:", { error: err });
     res.status(500).json({ error: "Failed to send welcome notification" });
   }
 };
@@ -281,7 +282,7 @@ export const createAlert = async (req, res) => {
       // Cleanup old expired alerts from this specific ZSET asynchronously
       redisClient
         .zremrangebyscore(redisKey, 0, Date.now())
-        .catch(console.error);
+        .catch(logger.error);
 
       // 3. Resolve FCM Topic mapping based on existing system standards
       let fcmTopic = "All_Hostels";
@@ -326,7 +327,7 @@ export const createAlert = async (req, res) => {
       .status(201)
       .json({ message: "Alert created successfully", alert: newAlert });
   } catch (err) {
-    console.error("Error creating alert:", err);
+    logger.error("Error creating alert:", { error: err });
     res.status(500).json({ error: "Internal Server Error" });
   }
 };
@@ -337,7 +338,7 @@ export const getAlerts = async (req, res) => {
     const alerts = await getActiveAlertsForUser(req.user);
     res.status(200).json({ alerts });
   } catch (err) {
-    console.error("Error fetching alerts:", err);
+    logger.error("Error fetching alerts:", { error: err });
     res.status(500).json({ error: "Internal Server Error" });
   }
 };

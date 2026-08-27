@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import mongoose from "mongoose";
 
 import { Menu } from "./menuModel.js";
@@ -60,7 +61,7 @@ export const getMessMenuByDayForAdmin = async (req, res) => {
 
     return res.status(200).json(specificMenus);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -89,7 +90,7 @@ export const modifyMenuItem = async (req, res) => {
       .status(200)
       .json({ message: "Menu item updated successfully", menuItem });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -141,7 +142,7 @@ export const updateTime = async (req, res) => {
       .status(200)
       .json({ message: "Menu timing updated successfully", menu });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -201,7 +202,7 @@ export const updateTimeSMC = async (req, res) => {
       .status(200)
       .json({ message: "Menu timing updated successfully (SMC)", menu });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -271,7 +272,7 @@ export const getMessMenuByDayForSMC = async (req, res) => {
 
     return res.status(200).json(specificMenus);
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -307,7 +308,7 @@ export const modifyMenuItemSMC = async (req, res) => {
       .status(200)
       .json({ message: "Menu item updated successfully", menuItem });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -386,7 +387,7 @@ export const reorderMenuItemsSMC = async (req, res) => {
 
     return res.status(200).json({ message: "Menu order updated", menu });
   } catch (error) {
-    console.error(error);
+    logger.error("Operation failed", { error: error });
     return res.status(500).json({ message: "Internal server error" });
   }
 };

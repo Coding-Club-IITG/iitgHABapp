@@ -1,5 +1,6 @@
 import fs from "fs";
 import path from "path";
+import { logger } from "../../logging/logger.js";
 const __dirname = import.meta.dirname;
 
 // Common config files - same directory
@@ -15,7 +16,7 @@ const getVersionConfig = () => {
     const data = fs.readFileSync(mainConfigPath, "utf8");
     return JSON.parse(data);
   } catch (error) {
-    console.error("Error reading version config:", error);
+    logger.error("Error reading version config:", error);
     return {
       android: {
         minVersionv1: "1.0.0",
@@ -42,7 +43,7 @@ const saveVersionConfig = (config) => {
     fs.writeFileSync(mainConfigPath, JSON.stringify(config, null, 2));
     return true;
   } catch (error) {
-    console.error("Error saving version config:", error);
+    logger.error("Error saving version config:", error);
     return false;
   }
 };
@@ -55,7 +56,7 @@ const getHqVersionConfig = () => {
     const data = fs.readFileSync(hqConfigPath, "utf8");
     return JSON.parse(data);
   } catch (error) {
-    console.error("Error reading HQ version config:", error);
+    logger.error("Error reading HQ version config:", error);
     // Default skeleton: v1 only, force update when below minVersionv1 (Android only for HQ)
     return {
       android: {
@@ -76,7 +77,7 @@ const saveHqVersionConfig = (config) => {
     fs.writeFileSync(hqConfigPath, JSON.stringify(config, null, 2));
     return true;
   } catch (error) {
-    console.error("Error saving HQ version config:", error);
+    logger.error("Error saving HQ version config:", error);
     return false;
   }
 };
@@ -89,7 +90,7 @@ const getRcVersionConfig = () => {
     const data = fs.readFileSync(rcConfigPath, "utf8");
     return JSON.parse(data);
   } catch (error) {
-    console.error("Error reading RC version config:", error);
+    logger.error("Error reading RC version config:", error);
     // Default skeleton: Android-only, v1 style, force update when below minVersionv1
     return {
       android: {
@@ -111,7 +112,7 @@ const saveRcVersionConfig = (config) => {
     fs.writeFileSync(rcConfigPath, JSON.stringify(config, null, 2));
     return true;
   } catch (error) {
-    console.error("Error saving RC version config:", error);
+    logger.error("Error saving RC version config:", error);
     return false;
   }
 };
@@ -151,7 +152,7 @@ export const getVersionInfo = (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching version info:", error);
+    logger.error("Error fetching version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch version info",
@@ -196,7 +197,7 @@ export const updateVersionInfo = (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Error updating version info:", error);
+    logger.error("Error updating version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to update version info",
@@ -216,7 +217,7 @@ export const getAllVersionInfo = (req, res) => {
       data: config,
     });
   } catch (error) {
-    console.error("Error fetching all version info:", error);
+    logger.error("Error fetching all version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch version info",
@@ -254,7 +255,7 @@ export const getHqVersionInfo = (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching HQ version info:", error);
+    logger.error("Error fetching HQ version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch HABit HQ version info",
@@ -300,7 +301,7 @@ export const updateHqVersionInfo = (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Error updating HQ version info:", error);
+    logger.error("Error updating HQ version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to update HABit HQ version info",
@@ -320,7 +321,7 @@ export const getAllHqVersionInfo = (req, res) => {
       data: config,
     });
   } catch (error) {
-    console.error("Error fetching all HQ version info:", error);
+    logger.error("Error fetching all HQ version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch HABit HQ version info",
@@ -358,7 +359,7 @@ export const getRcVersionInfo = (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error fetching RC version info:", error);
+    logger.error("Error fetching RC version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch HABit RC version info",
@@ -404,7 +405,7 @@ export const updateRcVersionInfo = (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Error updating RC version info:", error);
+    logger.error("Error updating RC version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to update HABit RC version info",
@@ -424,7 +425,7 @@ export const getAllRcVersionInfo = (req, res) => {
       data: config,
     });
   } catch (error) {
-    console.error("Error fetching all RC version info:", error);
+    logger.error("Error fetching all RC version info:", error);
     return res.status(500).json({
       success: false,
       message: "Failed to fetch HABit RC version info",

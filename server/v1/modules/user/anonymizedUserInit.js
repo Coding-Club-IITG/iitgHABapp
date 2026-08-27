@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import mongoose from "mongoose";
 import { User } from "./userModel.js";
 
@@ -25,12 +26,12 @@ export const initializeAnonymizedUser = async () => {
       });
 
       await user.save();
-      console.log("[ANONYMIZED USER] Created successfully");
+      logger.info("[ANONYMIZED USER] Created successfully");
     } else {
-      console.log("[ANONYMIZED USER] Already exists");
+      logger.info("[ANONYMIZED USER] Already exists");
     }
   } catch (error) {
-    console.error("[ANONYMIZED USER] Error initializing:", error);
+    logger.error("[ANONYMIZED USER] Error initializing:", { error: error });
     // Don't throw - allow server to continue even if this fails
   }
 };

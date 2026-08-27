@@ -1,3 +1,4 @@
+import { logger } from "../logging/logger.js";
 import axios from "axios";
 import { getDelegatedAccessToken } from "./delegatedGraphAuth.js";
 import onedrive from "../config/onedrive.js";
@@ -152,7 +153,7 @@ export async function uploadBufferToFolder(
   try {
     publicUrl = await createOrganizationViewLink(token, uploaded.id);
   } catch (e) {
-    console.error(
+    logger.error(
       `[OneDrive] Link creation failed for "${targetName}":`,
       e.message,
     );
@@ -173,7 +174,7 @@ export async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
   if (!LEAVE_FOLDER_ID)
     throw new Error("ONEDRIVE_LEAVE_FOLDER_ID is not configured");
 
-  console.log("[OneDrive][leave] upload start", {
+  logger.info("[OneDrive][leave] upload start", {
     targetName,
     mimetype: mimetype || "",
     bytes: buffer?.length ?? 0,
@@ -194,7 +195,7 @@ export async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
     try {
       graphDownloadUrl = await fetchDriveItemDownloadUrl(token, uploaded.id);
     } catch (e) {
-      console.error(
+      logger.error(
         "[OneDrive] Could not fetch @microsoft.graph.downloadUrl for leave PDF:",
         e.message,
       );
@@ -205,16 +206,16 @@ export async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
   try {
     orgViewUrl = await createOrganizationViewLink(token, uploaded.id);
   } catch (e) {
-    console.error("[OneDrive] Link creation failed for leave PDF:", e.message);
+    logger.error("[OneDrive] Link creation failed for leave PDF:", e.message);
   }
 
   if (!graphDownloadUrl && orgViewUrl) {
-    console.warn(
+    logger.warn(
       "[OneDrive] leave PDF: no @microsoft.graph.downloadUrl; returning org link (in-app download may 403).",
     );
   }
 
-  console.log("[OneDrive][leave] upload ok", {
+  logger.info("[OneDrive][leave] upload ok", {
     targetName,
     hasGraphDownloadUrl: Boolean(graphDownloadUrl),
     hasOrgViewUrl: Boolean(orgViewUrl),
@@ -233,13 +234,13 @@ export async function uploadBufferToLeaveFolder(buffer, mimetype, targetName) {
 export async function uploadReportToOnedrive(buffer, filename) {
   const REPORTS_FOLDER_ID = onedrive.reportsFolderId;
   if (!REPORTS_FOLDER_ID) {
-    console.error(
+    logger.error(
       "[OneDrive] ONEDRIVE_REPORTS_FOLDER_ID is not configured; skipping upload",
     );
     return null;
   }
   try {
-    console.log(`[OneDrive] Uploading report "${filename}"...`);
+    logger.info("OneDrive report upload started");
     const result = await uploadBufferToFolder(
       buffer,
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -248,7 +249,7 @@ export async function uploadReportToOnedrive(buffer, filename) {
     );
     return result.url;
   } catch (err) {
-    console.error("[OneDrive] Report upload failed:", err);
+    logger.error("[OneDrive] Report upload failed:", { error: err });
     return null;
   }
 }
@@ -282,7 +283,7 @@ export async function downloadFromOnedrive(url, res, options = {}) {
       base64Value.replace(/=/g, "").replace(/\//g, "_").replace(/\+/g, "-");
     const graphUrl = `https://graph.microsoft.com/v1.0/shares/${encodedUrl}/driveItem/content`;
 
-    console.log("[OneDrive] Fetching from Graph Shares API...");
+    logger.info("[OneDrive] Fetching from Graph Shares API...");
     const accessToken = await requireDelegatedToken();
 
     const response = await axios.get(graphUrl, {
@@ -308,7 +309,7 @@ export async function downloadFromOnedrive(url, res, options = {}) {
     );
     return res.send(Buffer.from(response.data));
   } catch (err) {
-    console.error("[OneDrive] Error fetching document:", err);
+    logger.error("[OneDrive] Error fetching document:", { error: err });
     return res.status(500).json({
       message: "Failed to fetch document",
       error: err.message,

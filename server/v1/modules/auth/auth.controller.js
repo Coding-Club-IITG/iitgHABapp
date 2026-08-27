@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import axios from "axios";
 import qs from "querystring";
 import jwt from "jsonwebtoken";
@@ -40,7 +41,7 @@ const getHostelAlloc = async (rollno) => {
     );
     return allocation?.hostel || null;
   } catch (err) {
-    console.error("Error fetching hostel allocation:", err);
+    logger.error("Error fetching hostel allocation:", { error: err });
     return null;
   }
 };
@@ -52,7 +53,7 @@ const getCurrentSubscribedMess = async (rollno) => {
     );
     return allocation?.current_subscribed_mess || null;
   } catch (err) {
-    console.error("Error fetching current subscribed mess:", err);
+    logger.error("Error fetching current subscribed mess:", { error: err });
     return null;
   }
 };
@@ -90,7 +91,7 @@ const resolveSubscribedMessForRoll = async ({ rollno, fallbackHostelId }) => {
 
     return acknowledgedApplication?.appliedHostel || null;
   } catch (err) {
-    console.error("Error resolving summer-aware subscribed mess:", err);
+    logger.error("Error resolving summer-aware subscribed mess:", { error: err });
     return null;
   }
 };
@@ -128,7 +129,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
     "no-rid";
   try {
     const { code, state } = req.query;
-    console.log("[Auth][MobileRedirect][start]", {
+    logger.info("[Auth][MobileRedirect][start]", {
       rid,
       hasCode: Boolean(code),
       state: state ? String(state) : undefined,
@@ -144,11 +145,11 @@ export const mobileRedirectHandler = async (req, res, next) => {
 
     // If state is "link", this is for account linking - just pass code through
     if (state === "link") {
-      console.log("[Auth][MobileRedirect][link-state]", { rid });
+      logger.info("[Auth][MobileRedirect][link-state]", { rid });
       return res.redirect(`iitghab://link?code=${code}`);
     }
 
-    console.log("[Auth][MobileRedirect][token-exchange][request]", { rid });
+    logger.info("[Auth][MobileRedirect][token-exchange][request]", { rid });
     const data = qs.stringify({
       client_secret: onedrive.clientSecret,
       client_id: onedrive.clientId,
@@ -163,17 +164,17 @@ export const mobileRedirectHandler = async (req, res, next) => {
       data,
       { headers: { "Content-Type": "application/x-www-form-urlencoded" } },
     );
-    console.log("[Auth][MobileRedirect][token-exchange][ok]", {
+    logger.info("[Auth][MobileRedirect][token-exchange][ok]", {
       rid,
       hasAccessToken: Boolean(tokenResp?.data?.access_token),
       expiresIn: tokenResp?.data?.expires_in,
     });
 
     const microsoftAccessToken = tokenResp.data.access_token;
-    console.log("[Auth][MobileRedirect][graph-me][request]", { rid });
+    logger.info("[Auth][MobileRedirect][graph-me][request]", { rid });
     const userFromToken = await getUserFromToken(microsoftAccessToken);
     if (!userFromToken?.data) throw new AppError(401, "Access denied");
-    console.log("[Auth][MobileRedirect][graph-me][ok]", {
+    logger.info("[Auth][MobileRedirect][graph-me][ok]", {
       rid,
       hasMail: Boolean(userFromToken?.data?.mail),
       hasSurname: Boolean(userFromToken?.data?.surname),
@@ -185,7 +186,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
     let currentSubscribedMess = null;
 
     if (roll) {
-      console.log("[Auth][MobileRedirect][hostel-alloc][request]", {
+      logger.info("[Auth][MobileRedirect][hostel-alloc][request]", {
         rid,
         roll,
       });
@@ -193,7 +194,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
       currentSubscribedMess = await getCurrentSubscribedMess(roll);
     } else {
       const email = userFromToken.data.mail;
-      console.log("[Auth][MobileRedirect][hostel-alloc][request-by-email]", {
+      logger.info("[Auth][MobileRedirect][hostel-alloc][request-by-email]", {
         rid,
         email,
       });
@@ -217,7 +218,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
         "Hostel allocation not found for this roll number or email",
       );
 
-    console.log("[Auth][MobileRedirect][hostel-alloc][ok]", {
+    logger.info("[Auth][MobileRedirect][hostel-alloc][ok]", {
       rid,
       roll,
       hostelId: String(allocatedHostel?._id),
@@ -231,7 +232,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
 
     let existingUser = await findUserWithEmail(userFromToken.data.mail);
     let isFirstLogin = false;
-    console.log("[Auth][MobileRedirect][user-lookup]", {
+    logger.info("[Auth][MobileRedirect][user-lookup]", {
       rid,
       roll,
       email: userFromToken?.data?.mail,
@@ -239,7 +240,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
     });
 
     if (!existingUser) {
-      console.log("[Auth][MobileRedirect][user-create][start]", {
+      logger.info("[Auth][MobileRedirect][user-create][start]", {
         rid,
         roll,
         email: userFromToken?.data?.mail,
@@ -265,13 +266,13 @@ export const mobileRedirectHandler = async (req, res, next) => {
         email: userFromToken.data.mail,
       });
       isFirstLogin = true;
-      console.log("[Auth][MobileRedirect][user-create][ok]", {
+      logger.info("[Auth][MobileRedirect][user-create][ok]", {
         rid,
         userId: String(existingUser?._id),
         isFirstLogin,
       });
     } else {
-      console.log("[Auth][MobileRedirect][user-update][start]", {
+      logger.info("[Auth][MobileRedirect][user-update][start]", {
         rid,
         userId: String(existingUser?._id),
         roll,
@@ -293,7 +294,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
         currentSubscribedMessId: currentSubscribedMess,
         email: userFromToken.data.mail,
       });
-      console.log("[Auth][MobileRedirect][user-update][ok]", {
+      logger.info("[Auth][MobileRedirect][user-update][ok]", {
         rid,
         userId: String(existingUser?._id),
       });
@@ -305,7 +306,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
 
     const accessToken = existingUser.generateAccessToken();
     const refreshToken = existingUser.generateRefreshToken();
-    console.log("[Auth][MobileRedirect][jwt][ok]", {
+    logger.info("[Auth][MobileRedirect][jwt][ok]", {
       rid,
       userId: String(existingUser?._id),
     });
@@ -317,7 +318,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
       ipAddress: req.ip,
       expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
     });
-    console.log("[Auth][MobileRedirect][session][created]", {
+    logger.info("[Auth][MobileRedirect][session][created]", {
       rid,
       userId: String(existingUser?._id),
     });
@@ -328,7 +329,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
     const redirectUrl = `iitghab://success?accessToken=${accessToken}&refreshToken=${refreshToken}&user=${encodeURIComponent(
       existingUser.email,
     )}`;
-    console.log("[Auth][MobileRedirect][redirect]", {
+    logger.info("[Auth][MobileRedirect][redirect]", {
       rid,
       userId: String(existingUser?._id),
       isFirstLogin,
@@ -337,7 +338,7 @@ export const mobileRedirectHandler = async (req, res, next) => {
   } catch (error) {
     const status = error?.response?.status;
     const data = error?.response?.data;
-    console.error("Error in mobileRedirectHandler:", {
+    logger.error("Error in mobileRedirectHandler:", {
       rid,
       message: error?.message,
       status,
@@ -363,7 +364,7 @@ export const refreshTokenHandler = async (req, res, next) => {
     const { refreshToken } = req.body;
 
     if (!refreshToken) {
-      console.log("Refresh token is missing");
+      logger.info("Refresh token is missing");
 
       return res.status(401).json({ message: "Refresh token is missing" });
     }
@@ -372,7 +373,7 @@ export const refreshTokenHandler = async (req, res, next) => {
     try {
       decoded = jwt.verify(refreshToken, refreshSecret);
     } catch (err) {
-      console.error("Error verifying refresh token:", err);
+      logger.error("Error verifying refresh token:", { error: err });
       return res.status(401).json({ message: "Invalid or expired token" });
     }
 
@@ -387,18 +388,18 @@ export const refreshTokenHandler = async (req, res, next) => {
     });
 
     if (!session) {
-      console.error("Session not found");
+      logger.error("Session not found");
       return res.status(401).json({ message: "Session not found" });
     }
 
     if (session.expiresAt < new Date()) {
-      console.error("Session expired");
+      logger.error("Session expired");
       return res.status(401).json({ message: "Session expired" });
     }
 
     const user = await User.findById(decoded.user);
     if (!user) {
-      console.error("User not found");
+      logger.error("User not found");
       return res.status(401).json({ message: "User not found" });
     }
 
@@ -409,7 +410,7 @@ export const refreshTokenHandler = async (req, res, next) => {
     }
 
     if (user.isBanned) {
-      console.error("User is banned");
+      logger.error("User is banned");
       return res.status(401).json({ message: "User has been banned" });
     }
 
@@ -433,7 +434,7 @@ export const refreshTokenHandler = async (req, res, next) => {
       refreshToken: newRefreshToken,
     });
   } catch (err) {
-    console.error("Error in refreshTokenHandler:", err);
+    logger.error("Error in refreshTokenHandler:", { error: err });
     next(new AppError(500, "Failed to refresh token"));
   }
 };
@@ -490,7 +491,7 @@ export const revokeUserSessionsHandler = async (req, res, next) => {
       { $set: { isRevoked: true } },
     );
 
-    console.log("[Auth][AdminRevoke]", {
+    logger.info("[Auth][AdminRevoke]", {
       actor: req.hab?.email,
       userId: String(user._id),
       rollNumber: user.rollNumber,
@@ -568,7 +569,7 @@ export const webLoginHandler = async (req, res, next) => {
     }
 
     if (loginType === "smc") {
-      console.log("SMC login attempt for email:", email);
+      logger.info("SMC login attempt received");
 
       const secretaryHostel = await Hostel.findOne({
         secretary_email: email.toLowerCase(),
@@ -588,7 +589,7 @@ export const webLoginHandler = async (req, res, next) => {
       `${baseUrl}${redirectPath}?token=${encodeURIComponent(token)}`,
     );
   } catch (err) {
-    console.error("Error in webLoginHandler:", err);
+    logger.error("Error in webLoginHandler:", { error: err });
     next(new AppError(500, "Login failed"));
   }
 };
@@ -632,7 +633,7 @@ export const meHandler = async (req, res, next) => {
 
     return res.status(401).json({ authenticated: false });
   } catch (err) {
-    console.error("Error in meHandler:", err);
+    logger.error("Error in meHandler:", { error: err });
     return next(new AppError(500, "Error validating token"));
   }
 };
@@ -695,7 +696,7 @@ export const appleLoginHandler = async (req, res, next) => {
       hasMicrosoftLinked: existingUser.hasMicrosoftLinked || false,
     });
   } catch (err) {
-    console.error("Error in appleLoginHandler:", err);
+    logger.error("Error in appleLoginHandler:", { error: err });
     next(new AppError(500, "Apple login failed"));
   }
 };
@@ -876,7 +877,7 @@ export const linkMicrosoftAccount = async (req, res, next) => {
       hasMicrosoftLinked: true,
     });
   } catch (err) {
-    console.error("Error in linkMicrosoftAccount:", err);
+    logger.error("Error in linkMicrosoftAccount:", { error: err });
     next(new AppError(500, "Failed to link Microsoft account"));
   }
 };
@@ -921,7 +922,7 @@ export const guestLoginHandler = async (req, res, next) => {
       hasMicrosoftLinked: false,
     });
   } catch (err) {
-    console.error("Error in guestLoginHandler:", err);
+    logger.error("Error in guestLoginHandler:", { error: err });
     next(new AppError(500, "Guest login failed"));
   }
 };
@@ -970,7 +971,7 @@ export const managerLoginHandler = async (req, res, next) => {
       token,
     });
   } catch (err) {
-    console.error("Error in managerLoginHandler:", err);
+    logger.error("Error in managerLoginHandler:", { error: err });
     next(new AppError(500, "Manager login failed"));
   }
 };

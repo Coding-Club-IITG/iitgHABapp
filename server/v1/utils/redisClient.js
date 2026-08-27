@@ -1,3 +1,4 @@
+import { logger } from "../logging/logger.js";
 import Redis from "ioredis";
 import { redisUrl, REDIS_KEY_PREFIX } from "../config/default.js";
 
@@ -13,12 +14,12 @@ if (redisUrl) {
   });
 
   client.on("error", (err) => {
-    console.warn("[Redis] Client error:", err.message);
+    logger.warn("[Redis] Client error:", err.message);
     isConnected = false;
   });
 
   client.on("ready", () => {
-    console.log("[Redis] Client connected and ready");
+    logger.info("[Redis] Client connected and ready");
     isConnected = true;
   });
 
@@ -26,7 +27,7 @@ if (redisUrl) {
     isConnected = false;
   });
 } else {
-  console.warn("[Redis] REDIS_URL not provided. Redis caching is disabled.");
+  logger.info("Redis caching is disabled");
 }
 
 const redisClient = {
@@ -35,7 +36,7 @@ const redisClient = {
       try {
         return await client.get(key);
       } catch (err) {
-        console.warn(`[Redis] GET error for ${key}:`, err.message);
+        logger.warn("Redis GET failed", { error: err });
         return null;
       }
     }
@@ -50,7 +51,7 @@ const redisClient = {
           await client.set(key, value);
         }
       } catch (err) {
-        console.warn(`[Redis] SET error for ${key}:`, err.message);
+        logger.warn("Redis SET failed", { error: err });
       }
     }
   },
@@ -59,7 +60,7 @@ const redisClient = {
       try {
         await client.del(key);
       } catch (err) {
-        console.warn(`[Redis] DEL error for ${key}:`, err.message);
+        logger.warn("Redis DELETE failed", { error: err });
       }
     }
   },
@@ -70,7 +71,7 @@ const redisClient = {
       try {
         return await client.zadd(key, score, member);
       } catch (err) {
-        console.warn(`[Redis] ZADD error for ${key}:`, err.message);
+        logger.warn("Redis sorted-set write failed", { error: err });
         return null;
       }
     }
@@ -81,7 +82,7 @@ const redisClient = {
       try {
         return await client.zrangebyscore(key, min, max);
       } catch (err) {
-        console.warn(`[Redis] ZRANGEBYSCORE error for ${key}:`, err.message);
+        logger.warn("Redis sorted-set read failed", { error: err });
         return [];
       }
     }
@@ -92,7 +93,7 @@ const redisClient = {
       try {
         return await client.zremrangebyscore(key, min, max);
       } catch (err) {
-        console.warn(`[Redis] ZREMRANGEBYSCORE error for ${key}:`, err.message);
+        logger.warn("Redis sorted-set cleanup failed", { error: err });
         return null;
       }
     }

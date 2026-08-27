@@ -1,3 +1,4 @@
+import { logger } from "../../../logging/logger.js";
 import { User } from "../../user/userModel.js";
 import { Hostel } from "../../hostel/hostelModel.js";
 import { MessChangeSettings } from "../messChangeSettingsModel.js";
@@ -84,7 +85,7 @@ export const messChangeRequest = async (req, res) => {
 
     return res.status(200).json({ message: "Request Sent" });
   } catch (e) {
-    console.log(`Error: ${e}`);
+    logger.error("Mess change request failed", { error: e });
     return res.status(500).json({ message: "Internal Server Error" });
   }
 };
@@ -133,7 +134,7 @@ export const messChangeStatus = async (req, res) => {
       ].filter(Boolean),
     });
   } catch (err) {
-    console.error("Error in messChangeStatus:", err);
+    logger.error("Error in messChangeStatus:", { error: err });
     return res.status(500).json({ message: "Internal server error" });
   }
 };

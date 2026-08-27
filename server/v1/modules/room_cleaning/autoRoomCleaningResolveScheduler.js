@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { RoomCleaningBooking } from "../room_cleaning/roomCleaningBookingModel.js";
 import agenda from "../../utils/agenda.js";
 
@@ -28,7 +29,7 @@ async function autoResolveUnresolvedBookings() {
     },
   );
 
-  console.log(
+  logger.info(
     `[ROOM CLEANING] Auto-resolved ${result.modifiedCount} bookings before ${yesterdayIST.toISOString().slice(0, 10)}`,
   );
 }
@@ -38,10 +39,10 @@ export function defineRoomCleaningJobs() {
     JOB_NAME,
     async (job) => {
       try {
-        console.log("[ROOM CLEANING] Auto-resolve job fired");
+        logger.info("[ROOM CLEANING] Auto-resolve job fired");
         await autoResolveUnresolvedBookings();
       } catch (err) {
-        console.error("[ROOM CLEANING] Auto-resolve job failed:", err);
+        logger.error("[ROOM CLEANING] Auto-resolve job failed:", { error: err });
         throw err;
       }
     },
@@ -52,5 +53,5 @@ export function defineRoomCleaningJobs() {
 // Every day at 00:30 AM IST
 export function scheduleRoomCleaningJobs() {
   agenda.every("30 0 * * *", JOB_NAME, {}, { timezone: "Asia/Kolkata" });
-  console.log("[ROOM CLEANING] Scheduled: every day at 00:30 AM IST");
+  logger.info("[ROOM CLEANING] Scheduled: every day at 00:30 AM IST");
 }

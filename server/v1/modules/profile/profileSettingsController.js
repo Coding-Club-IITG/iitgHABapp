@@ -1,3 +1,4 @@
+import { logger } from "../../logging/logger.js";
 import { ProfileSettings } from "./profileSettingsModel.js";
 import { sendNotificationMessage } from "../notification/notificationController.js";
 
@@ -34,7 +35,7 @@ export async function enablePhotoChange(req, res) {
       "Profile Pic change is available",
       "All_Hostels",
       { redirectType: "profile", isAlert: "true" },
-    ).catch((err) => console.error("Profile update notification failed:", err));
+    ).catch((err) => logger.error("Profile update notification failed:", { error: err }));
     return res.status(200).json({
       message: "Enabled",
       allowProfilePhotoChange: true,
@@ -66,7 +67,7 @@ export async function disablePhotoChange(req, res) {
       "Profile Pic change is no longer available",
       "All_Hostels",
       { redirectType: "profile" },
-    ).catch((err) => console.error("Profile update notification failed:", err));
+    ).catch((err) => logger.error("Profile update notification failed:", { error: err }));
     return res
       .status(200)
       .json({ message: "Disabled", allowProfilePhotoChange: false });
