@@ -15,7 +15,7 @@
     "@agendajs/mongo-backend": "^4.0.1",
     "@agendajs/redis-backend": "^3.0.5",
     "@azure/identity": "^4.13.1",
-    "@coding-club-iitg/ops-logger": "^0.1.0",
+    "@coding-club-iitg/ops-logger": "^0.2.0",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "agenda": "^6.2.4",
     "axios": "^1.15.0",

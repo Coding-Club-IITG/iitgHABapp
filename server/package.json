@@ -18,7 +18,7 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
-    "@coding-club-iitg/ops-logger": "^0.1.0",
+    "@coding-club-iitg/ops-logger": "^0.2.0",
     "axios": "^1.15.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
