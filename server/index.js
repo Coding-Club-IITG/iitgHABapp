@@ -7,6 +7,7 @@ installProcessHandlers({ logger, flush: flushLogging });
 import express from "express";
 import { createProxyMiddleware } from "http-proxy-middleware";
 import cors from "cors";
+import { corsOriginCheck } from "./cors.js";
 import {
   appVersionRouter,
   hqAppVersionRouter,
@@ -24,23 +25,7 @@ const targets = {
 // CORS middleware - must be before proxy
 app.use(
   cors({
-    origin: function (origin, callback) {
-      // Allow requests with no origin (like Postman)
-      if (!origin) return callback(null, true);
-
-      const allowedOrigins = [
-        "https://hab.codingclub.in",
-        "https://hostel.codingclub.in",
-        "https://smc.codingclub.in",
-        "http://localhost:5172",
-        "http://localhost:5173",
-        "http://localhost:5174",
-        "http://localhost:5175",
-      ];
-
-      // Allow all origins for development
-      callback(null, true);
-    },
+    origin: corsOriginCheck,
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: [

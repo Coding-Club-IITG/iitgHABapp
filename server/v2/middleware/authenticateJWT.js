@@ -27,8 +27,9 @@ const extractAndCheckToken = async (req) => {
 
 function auth(Schema, param) {
   return async function (req, res, next) {
+    let token;
     try {
-      const token = await extractAndCheckToken(req);
+      token = await extractAndCheckToken(req);
       const found = await Schema.findByAccessToken(token);
 
       if (!found) return next(new AppError(403, "Not Authenticated"));
