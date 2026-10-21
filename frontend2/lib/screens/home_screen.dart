@@ -12,6 +12,7 @@ import 'package:frontend2/models/mess_menu_model.dart';
 import 'package:frontend2/models/notification_model.dart';
 import 'package:frontend2/providers/hostels.dart';
 import 'package:frontend2/providers/room_cleaning_provider.dart';
+import 'package:frontend2/screens/events/events_screen.dart';
 import 'package:frontend2/screens/laundry/laundry_screen.dart';
 import 'package:frontend2/screens/notification.dart';
 import 'package:frontend2/screens/account_screen.dart';
@@ -683,6 +684,19 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       //   ),
       // ),
     ];
+
+    actions.add(
+      _QuickActionData(
+        label: 'Events',
+        status: 'Register & entry QR',
+        statusColor: primary,
+        icon: Icons.event_outlined,
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => const EventsScreen()),
+        ),
+      ),
+    );
 
     if (HostelsNotifier.isLaundryAvailableForHostel(userHostelId)) {
       actions.add(

@@ -10,6 +10,8 @@ import HostelPage from "./pages/HostelPage";
 import MessChangePage from "./pages/MessChangePage.jsx";
 import GalaDinnerPage from "./pages/GalaDinnerPage.jsx";
 import GalaDinnerDetailPage from "./pages/GalaDinnerDetailPage.jsx";
+import EventsPage from "./pages/EventsPage.jsx";
+import EventDetailPage from "./pages/EventDetailPage.jsx";
 import Notifications from "./pages/Notifications.jsx";
 import BillsPage from "./pages/BillsPage.jsx";
 import HostelAllocations from "./pages/HostelAllocations.jsx";
@@ -110,6 +112,11 @@ function App() {
                           {/** Allocate Hostel and Profile Settings moved into Students page; routes removed */}
                           {/* Feedback Control page removed from router (now embedded in Caterers when needed) */}
                           {/** Feedback Leaderboard merged into Caterers; route removed */}
+                          <Route path="/events" element={<EventsPage />} />
+                          <Route
+                            path="/events/:eventId"
+                            element={<EventDetailPage />}
+                          />
                           <Route
                             path="/notifications"
                             element={<Notifications />}

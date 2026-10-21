@@ -118,3 +118,15 @@ class SummerMessEndpoints {
   static String myApplicationProofDocument(String applicationId) =>
       '$baseUrl/summer-mess/my-applications/$applicationId/proof-document';
 }
+
+class EventEndpoints {
+  static const String list = '$baseUrl/events';
+
+  static String detail(String eventId) => '$baseUrl/events/$eventId';
+  static String register(String eventId) => '$baseUrl/events/$eventId/register';
+  static String joinAsVolunteer(String eventId) =>
+      '$baseUrl/events/$eventId/volunteer';
+  static String checkIn(String eventId) => '$baseUrl/events/$eventId/check-in';
+  static String checkInStats(String eventId) =>
+      '$baseUrl/events/$eventId/check-in/stats';
+}

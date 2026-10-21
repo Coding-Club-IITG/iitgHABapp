@@ -12,6 +12,7 @@ import {
   BookOutlined,
   NotificationOutlined,
   GiftOutlined,
+  CalendarOutlined,
 } from "@ant-design/icons";
 
 const Sidebar = ({ collapsed = false, onToggle }) => {
@@ -41,6 +42,12 @@ const Sidebar = ({ collapsed = false, onToggle }) => {
       name: "Gala Dinner",
       path: "/gala-dinner",
       icon: <GiftOutlined />,
+    },
+    {
+      key: "7b",
+      name: "Events",
+      path: "/events",
+      icon: <CalendarOutlined />,
     },
     {
       key: "8",

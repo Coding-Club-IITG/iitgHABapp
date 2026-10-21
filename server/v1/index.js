@@ -42,6 +42,7 @@ import festivalModeRoute from "./modules/festival_mode/festivalModeRoute.js";
 import appRoute from "./modules/app/appRoute.js";
 import debugRoute from "./modules/debug/debugRoute.js";
 import summerMessRoute from "./modules/summer_mess/summerMessRoute.js";
+import eventRoute from "./modules/event/eventRoute.js";
 
 import { initializeAnonymizedUser } from "./modules/user/anonymizedUserInit.js";
 import { initMessManagerWs } from "./modules/mess/messManagerWs.js";
@@ -196,6 +197,9 @@ app.use("/api/festival-mode", festivalModeRoute);
 
 // Summer mess route
 app.use("/api/summer-mess", summerMessRoute);
+
+// Events (registration + QR entry) route
+app.use("/api/events", eventRoute);
 
 // App bootstrap route
 app.use("/api/app", appRoute);
